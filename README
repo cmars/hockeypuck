@@ -1,0 +1,18 @@
+Hockeypuck: OpenPGP Key Server
+
+Hockeypuck is being developed with design goals of performance, flexibility,
+reliability and portability.
+
+Performance: We want Hockeypuck to be able to handle heavy concurrent loads of
+key submissions and search requests, with reasonable response times.
+
+Flexibility: Alternative storage backends should be easy to integrate into the
+server if necessary. The server should also support custom extensions to HKP,
+to support development of new web-of-trust OpenPGP applications.
+
+Reliability: The keyserver should be configurable to run in a resilient and
+highly-available manner.
+
+Portability: The keyserver should run on a reasonably wide variety of server
+operating systems and architectures with minimal hassle and minimal dependencies.
+
