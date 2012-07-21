@@ -1,70 +1,31 @@
+/*
+    Hockeypuck - OpenPGP key server
+    Copyright (C) 2012  Casey Marshall
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Affero General Public License as published by
+    the Free Software Foundation, version 3.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Affero General Public License for more details.
+
+    You should have received a copy of the GNU Affero General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 package hockeypuck
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
+	"strings"
 	"code.google.com/p/gorilla/mux"
 )
 
-const HKP_CHAN_SIZE = 20
-
-type Operation int
-
-const (
-	Get Operation = 1 << iota
-	Index Operation = 1 << iota
-	Vindex Operation = 1 << iota
-)
-
-type Option int
-
-const (
-	MachineReadable Option = 1 << iota
-	NotModifiable Option = 1 << iota
-)
-
-type Lookup struct {
-	Op Operation
-	Search string
-	Options int
-	Fingerprint bool
-	Exact bool
-	responseChan ResponseChan
-}
-
-func (l *Lookup) Response() ResponseChan {
-	return l.responseChan
-}
-
-type Add struct {
-	Keytext string
-	Options int
-	responseChan ResponseChan
-}
-
-func (a *Add) Response() ResponseChan {
-	return a.responseChan
-}
-
-type HasResponse interface {
-	Response() ResponseChan
-}
-
-type Response interface {
-	Error() error
-	WriteTo(http.ResponseWriter) error
-}
-
-type LookupChan chan *Lookup
-
-type AddChan chan *Add
-
-type ResponseChan chan Response
-
-type HkpServer struct {
-	LookupRequests LookupChan
-	AddRequests AddChan
-}
-
+// Create a new HKP server on the given Gorilla mux router.
 func NewHkpServer(r *mux.Router) *HkpServer {
 	hkp := &HkpServer{
 		LookupRequests: make(LookupChan, HKP_CHAN_SIZE),
@@ -78,38 +39,113 @@ func NewHkpServer(r *mux.Router) *HkpServer {
 	return hkp
 }
 
+// Handle lookup HTTP requests
 func (hkp *HkpServer) lookup(respWriter http.ResponseWriter, req *http.Request) error {
 	// build Lookup from query arguments
-	lookup, err := hkp.newLookup(req)
+	lookup, err := parseLookup(req)
 	if err != nil {
-		return nil
+		respError(respWriter, err)
+		return err
 	}
 	hkp.LookupRequests <- lookup
-	return hkp.respondWith(respWriter, lookup)
+	return respondWith(respWriter, lookup)
 }
 
-func (hkp *HkpServer) newLookup(req *http.Request) (*Lookup, error) {
-	panic("todo")
+func respError(respWriter http.ResponseWriter, err error) error {
+	respWriter.WriteHeader(500)
+	_, writeErr := respWriter.Write([]byte(err.Error()))
+	return writeErr
+}
+
+// Parse the lookup request
+func parseLookup(req *http.Request) (*Lookup, error) {
+	// Require HTTP GET
+	if req.Method != "GET" {
+		return nil, errors.New(fmt.Sprintf("Invalid method for lookup: %s", req.Method))
+	}
+	// Parse the URL query parameters
+	err := req.ParseForm()
+	if err != nil {
+		return nil, err
+	}
+	lookup := &Lookup{ responseChan: make(chan Response) }
+	// Parse the "search" variable (section 3.1.1)
+	if search := req.Form.Get("search"); search == "" {
+		return nil, errors.New("Missing required parameter: search")
+	}
+	// Parse the "op" variable (section 3.1.2)
+	switch op := req.Form.Get("op"); op {
+	case "get":
+		lookup.Op = Get
+	case "index":
+		lookup.Op = Index
+	case "vindex":
+		lookup.Op = Vindex
+	case "":
+		return nil, errors.New("Missing required parameter: op")
+	default:
+		return nil, errors.New(fmt.Sprintf("Unknown operation: %s", op))
+	}
+	// Parse the "options" variable (section 3.2.1)
+	lookup.Option = parseOptions(req.Form.Get("options"))
+	// Parse the "fingerprint" variable (section 3.2.2)
+	lookup.Fingerprint = req.Form.Get("fingerprint") == "on"
+	// Parse the "exact" variable (section 3.2.3)
+	lookup.Exact = req.Form.Get("exact") == "on"
+	return lookup, nil
+}
+
+func parseOptions(options string) Option {
+	var result Option
+	optionValues := strings.Split(options, ",")
+	for _, option := range optionValues {
+		switch option {
+		case "mr":
+			result |= MachineReadable
+		case "nm":
+			result |= NotModifiable
+		}
+	}
+	return result
 }
 
 func (hkp *HkpServer) add(respWriter http.ResponseWriter, req *http.Request) error {
 	// build Lookup from query arguments
-	add, err := hkp.newAdd(req)
+	add, err := parseAdd(req)
 	if err != nil {
-		return nil
+		respError(respWriter, err)
+		return err
 	}
 	hkp.AddRequests <- add
-	return hkp.respondWith(respWriter, add)
+	return respondWith(respWriter, add)
 }
 
-func (hkp *HkpServer) newAdd(req *http.Request) (*Add, error) {
-	panic("todo")
+func parseAdd(req *http.Request) (*Add, error) {
+	// Require HTTP GET
+	if req.Method != "GET" {
+		return nil, errors.New(fmt.Sprintf("Invalid method for lookup: %s", req.Method))
+	}
+	// Parse the URL query parameters
+	err := req.ParseForm()
+	if err != nil {
+		return nil, err
+	}
+	add := &Add{ responseChan: make(chan Response) }
+	if keytext := req.Form.Get("keytext"); keytext == "" {
+		return nil, errors.New("Missing required parameter: op")
+	} else {
+		add.Keytext = keytext
+	}
+	add.Option = parseOptions(req.Form.Get("options"))
+	return add, nil
 }
 
-func (hkp *HkpServer) respondWith(respWriter http.ResponseWriter, r HasResponse) error {
+func respondWith(respWriter http.ResponseWriter, r HasResponse) error {
 	response := <-r.Response()
 	if err := response.Error(); err != nil {
-		return err
+		respWriter.WriteHeader(500)
+		respWriter.Write([]byte(err.Error()))
+		return nil
 	}
 	return response.WriteTo(respWriter)
 }
