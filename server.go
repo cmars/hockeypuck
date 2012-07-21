@@ -1,7 +1,6 @@
 package hockeypuck
 
 import (
-	"errors"
 	"net/http"
 	"code.google.com/p/gorilla/mux"
 )
@@ -29,18 +28,37 @@ type Lookup struct {
 	Options int
 	Fingerprint bool
 	Exact bool
-	// chan to some kind of response object
+	responseChan ResponseChan
+}
+
+func (l *Lookup) Response() ResponseChan {
+	return l.responseChan
 }
 
 type Add struct {
 	Keytext string
 	Options int
-	// chan to some kind of response object
+	responseChan ResponseChan
+}
+
+func (a *Add) Response() ResponseChan {
+	return a.responseChan
+}
+
+type HasResponse interface {
+	Response() ResponseChan
+}
+
+type Response interface {
+	Error() error
+	WriteTo(http.ResponseWriter) error
 }
 
 type LookupChan chan *Lookup
 
 type AddChan chan *Add
+
+type ResponseChan chan Response
 
 type HkpServer struct {
 	LookupRequests LookupChan
@@ -60,26 +78,38 @@ func NewHkpServer(r *mux.Router) *HkpServer {
 	return hkp
 }
 
-func (hkp *HkpServer) lookup(resp http.ResponseWriter, req *http.Request) error {
+func (hkp *HkpServer) lookup(respWriter http.ResponseWriter, req *http.Request) error {
 	// build Lookup from query arguments
-	lookup := &Lookup{}
+	lookup, err := hkp.newLookup(req)
+	if err != nil {
+		return nil
+	}
 	hkp.LookupRequests <- lookup
-/*
-	result := <-lookup.Response
-	// write response
-	result.WriteTo(resp)
-*/
-	return errors.New("not impl")
+	return hkp.respondWith(respWriter, lookup)
 }
 
-func (hkp *HkpServer) add(resp http.ResponseWriter, req *http.Request) error {
-	// build Add from query arguments
-	add := &Add{}
+func (hkp *HkpServer) newLookup(req *http.Request) (*Lookup, error) {
+	panic("todo")
+}
+
+func (hkp *HkpServer) add(respWriter http.ResponseWriter, req *http.Request) error {
+	// build Lookup from query arguments
+	add, err := hkp.newAdd(req)
+	if err != nil {
+		return nil
+	}
 	hkp.AddRequests <- add
-/*
-	result := <-add.Response
-	// write response
-	result.WriteTo(resp)
-*/
-	return errors.New("not impl")
+	return hkp.respondWith(respWriter, add)
+}
+
+func (hkp *HkpServer) newAdd(req *http.Request) (*Add, error) {
+	panic("todo")
+}
+
+func (hkp *HkpServer) respondWith(respWriter http.ResponseWriter, r HasResponse) error {
+	response := <-r.Response()
+	if err := response.Error(); err != nil {
+		return err
+	}
+	return response.WriteTo(respWriter)
 }
