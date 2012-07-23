@@ -1,41 +1,43 @@
 /*
-    Hockeypuck - OpenPGP key server
-    Copyright (C) 2012  Casey Marshall
+   Hockeypuck - OpenPGP key server
+   Copyright (C) 2012  Casey Marshall
 
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Affero General Public License as published by
-    the Free Software Foundation, version 3.
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU Affero General Public License as published by
+   the Free Software Foundation, version 3.
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Affero General Public License for more details.
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU Affero General Public License for more details.
 
-    You should have received a copy of the GNU Affero General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   You should have received a copy of the GNU Affero General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 package hockeypuck
 
 import (
+	"code.google.com/p/gorilla/mux"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
-	"code.google.com/p/gorilla/mux"
 )
 
 // Create a new HKP server on the given Gorilla mux router.
 func NewHkpServer(r *mux.Router) *HkpServer {
 	hkp := &HkpServer{
 		LookupRequests: make(LookupChan, HKP_CHAN_SIZE),
-		AddRequests: make(AddChan, HKP_CHAN_SIZE) }
+		AddRequests:    make(AddChan, HKP_CHAN_SIZE)}
 	r.HandleFunc("/pks/lookup",
 		func(resp http.ResponseWriter, req *http.Request) {
-			hkp.lookup(resp, req) })
+			hkp.lookup(resp, req)
+		})
 	r.HandleFunc("/pks/add",
 		func(resp http.ResponseWriter, req *http.Request) {
-			hkp.add(resp, req) })
+			hkp.add(resp, req)
+		})
 	return hkp
 }
 
@@ -68,7 +70,7 @@ func parseLookup(req *http.Request) (*Lookup, error) {
 	if err != nil {
 		return nil, err
 	}
-	lookup := &Lookup{ responseChan: make(chan Response) }
+	lookup := &Lookup{responseChan: make(chan Response)}
 	// Parse the "search" variable (section 3.1.1)
 	if lookup.Search = req.Form.Get("search"); lookup.Search == "" {
 		return nil, errors.New("Missing required parameter: search")
@@ -130,7 +132,7 @@ func parseAdd(req *http.Request) (*Add, error) {
 	if err != nil {
 		return nil, err
 	}
-	add := &Add{ responseChan: make(chan Response) }
+	add := &Add{responseChan: make(chan Response)}
 	if keytext := req.Form.Get("keytext"); keytext == "" {
 		return nil, errors.New("Missing required parameter: op")
 	} else {

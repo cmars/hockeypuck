@@ -1,18 +1,18 @@
 /*
-    Hockeypuck - OpenPGP key server
-    Copyright (C) 2012  Casey Marshall
+   Hockeypuck - OpenPGP key server
+   Copyright (C) 2012  Casey Marshall
 
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Affero General Public License as published by
-    the Free Software Foundation, version 3.
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU Affero General Public License as published by
+   the Free Software Foundation, version 3.
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Affero General Public License for more details.
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU Affero General Public License for more details.
 
-    You should have received a copy of the GNU Affero General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   You should have received a copy of the GNU Affero General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 package hockeypuck
@@ -28,10 +28,10 @@ const HKP_CHAN_SIZE = 20
 type Operation int
 
 const (
-	Get Operation = 1
-	Index Operation = iota
-	Vindex Operation = iota
-	UnknownOperation = Operation(0)
+	Get              Operation = 1
+	Index            Operation = iota
+	Vindex           Operation = iota
+	UnknownOperation           = Operation(0)
 )
 
 // Supported HKP options
@@ -39,17 +39,17 @@ type Option int
 
 const (
 	MachineReadable Option = 1 << iota
-	NotModifiable Option = 1 << iota
-	NoOption = Option(0)
+	NotModifiable   Option = 1 << iota
+	NoOption               = Option(0)
 )
 
 // An HKP "lookup" request
 type Lookup struct {
-	Op Operation
-	Search string
-	Option Option
-	Fingerprint bool
-	Exact bool
+	Op           Operation
+	Search       string
+	Option       Option
+	Fingerprint  bool
+	Exact        bool
 	responseChan ResponseChan
 }
 
@@ -59,8 +59,8 @@ func (l *Lookup) Response() ResponseChan {
 
 // An HKP "add" posting.
 type Add struct {
-	Keytext string
-	Option Option
+	Keytext      string
+	Option       Option
 	responseChan ResponseChan
 }
 
@@ -91,5 +91,5 @@ type ResponseChan chan Response
 // The HKP server
 type HkpServer struct {
 	LookupRequests LookupChan
-	AddRequests AddChan
+	AddRequests    AddChan
 }
