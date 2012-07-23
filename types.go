@@ -31,7 +31,7 @@ const (
 	Get Operation = 1
 	Index Operation = iota
 	Vindex Operation = iota
-	UnknownOperation = 0
+	UnknownOperation = Operation(0)
 )
 
 // Supported HKP options
@@ -40,7 +40,7 @@ type Option int
 const (
 	MachineReadable Option = 1 << iota
 	NotModifiable Option = 1 << iota
-	UnknownOption = 0
+	NoOption = Option(0)
 )
 
 // An HKP "lookup" request

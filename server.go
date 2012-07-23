@@ -70,7 +70,7 @@ func parseLookup(req *http.Request) (*Lookup, error) {
 	}
 	lookup := &Lookup{ responseChan: make(chan Response) }
 	// Parse the "search" variable (section 3.1.1)
-	if search := req.Form.Get("search"); search == "" {
+	if lookup.Search = req.Form.Get("search"); lookup.Search == "" {
 		return nil, errors.New("Missing required parameter: search")
 	}
 	// Parse the "op" variable (section 3.1.2)
@@ -121,9 +121,9 @@ func (hkp *HkpServer) add(respWriter http.ResponseWriter, req *http.Request) err
 }
 
 func parseAdd(req *http.Request) (*Add, error) {
-	// Require HTTP GET
-	if req.Method != "GET" {
-		return nil, errors.New(fmt.Sprintf("Invalid method for lookup: %s", req.Method))
+	// Require HTTP POST
+	if req.Method != "POST" {
+		return nil, errors.New(fmt.Sprintf("Invalid method for add: %s", req.Method))
 	}
 	// Parse the URL query parameters
 	err := req.ParseForm()
