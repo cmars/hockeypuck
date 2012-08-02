@@ -8,5 +8,6 @@ hockeypuck (0.1~alpha) UNRELEASED; urgency=low
   * === added directory pq, pq/cr_database.sql, pq/dr_database.sql,
     pq/worker.go:
     - Add a first cut at a database schema, random uuid generation.
+    - Started pq-backed worker.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 01 Aug 2012 23:10:39 -0500
+ -- Casey Marshall <casey.marshall@gazzang.com>  Thu, 02 Aug 2012 00:32:33 -0500

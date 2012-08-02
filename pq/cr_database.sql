@@ -8,10 +8,14 @@ CREATE TABLE IF NOT EXISTS pub_key (
 	expiration TIMESTAMP,
 	state INT,
 	fingerprint TEXT,
+	long_id TEXT,
+	short_id TEXT,
 	algorithm INT,
 	key_len INT,
 	PRIMARY KEY (uuid),
-	UNIQUE (fingerprint, algorithm, key_len)
+	UNIQUE (fingerprint, algorithm, key_len),
+	INDEX (long_id),
+	INDEX (short_id)
 );
 
 --
