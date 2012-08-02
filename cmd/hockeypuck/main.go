@@ -25,9 +25,14 @@ import (
 )
 
 func main() {
+	// Create an HTTP request router
 	r := mux.NewRouter()
+	// Create a new Hockeypuck server, bound to this router
 	hkp := hockeypuck.NewHkpServer(r)
+	// Create a worker factory. "noimp" just responds "not implemented" for everything.
 	noimp.NewWorker(hkp)
+	// Bind the router to the built-in webserver root
 	http.Handle("/", r)
+	// Start the built-in webserver, run forever
 	http.ListenAndServe(":8080", nil)
 }

@@ -24,6 +24,11 @@ import (
 	"testing"
 )
 
+/*
+	These server tests primarily exercise the request parsing and routing
+	of requests and responses.
+*/
+
 func TestGetKeyword(t *testing.T) {
 	// basic search
 	testUrl, err := url.Parse("/pks/lookup?op=get&search=alice")
@@ -58,7 +63,7 @@ func TestGetFp(t *testing.T) {
 }
 
 func TestIndex(t *testing.T) {
-	// index
+	// op=index
 	testUrl, err := url.Parse("/pks/lookup?op=index&search=sharin") // as in, foo
 	assert.Equal(t, err, nil)
 	req := &http.Request{
@@ -70,7 +75,7 @@ func TestIndex(t *testing.T) {
 }
 
 func TestVindex(t *testing.T) {
-	// index
+	// op=vindex
 	testUrl, err := url.Parse("/pks/lookup?op=vindex&search=bob") // as in, foo
 	assert.Equal(t, err, nil)
 	req := &http.Request{
@@ -82,7 +87,7 @@ func TestVindex(t *testing.T) {
 }
 
 func TestMissingSearch(t *testing.T) {
-	// index
+	// create an op=get lookup without the required search term
 	testUrl, err := url.Parse("/pks/lookup?op=get")
 	assert.Equal(t, err, nil)
 	req := &http.Request{
@@ -94,7 +99,7 @@ func TestMissingSearch(t *testing.T) {
 }
 
 func TestNoSuchOp(t *testing.T) {
-	// index
+	// hockeypuck does not know how to do a barrel roll
 	testUrl, err := url.Parse("/pks/lookup?op=barrelroll")
 	assert.Equal(t, err, nil)
 	req := &http.Request{
@@ -106,6 +111,7 @@ func TestNoSuchOp(t *testing.T) {
 }
 
 func TestAdd(t *testing.T) {
+	// adding a key
 	testUrl, err := url.Parse("/pks/add")
 	assert.Equal(t, err, nil)
 	postData := make(map[string][]string)
@@ -121,6 +127,7 @@ func TestAdd(t *testing.T) {
 }
 
 func TestAddOptions(t *testing.T) {
+	// adding a key with options
 	testUrl, err := url.Parse("/pks/add?options=mr")
 	assert.Equal(t, err, nil)
 	postData := make(map[string][]string)
@@ -138,6 +145,7 @@ func TestAddOptions(t *testing.T) {
 }
 
 func TestAddMissingKey(t *testing.T) {
+	// here's my key. wait, i forgot it.
 	testUrl, err := url.Parse("/pks/add")
 	assert.Equal(t, err, nil)
 	postData := make(map[string][]string)

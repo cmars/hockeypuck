@@ -53,13 +53,14 @@ func (hkp *HkpServer) lookup(respWriter http.ResponseWriter, req *http.Request) 
 	return respondWith(respWriter, lookup)
 }
 
+// Write a server error response
 func respError(respWriter http.ResponseWriter, err error) error {
 	respWriter.WriteHeader(500)
 	_, writeErr := respWriter.Write([]byte(err.Error()))
 	return writeErr
 }
 
-// Parse the lookup request
+// Parse the lookup request into a model.
 func parseLookup(req *http.Request) (*Lookup, error) {
 	// Require HTTP GET
 	if req.Method != "GET" {
@@ -97,6 +98,8 @@ func parseLookup(req *http.Request) (*Lookup, error) {
 	return lookup, nil
 }
 
+// Parse the value of the "options" variable (section 3.2.1)
+// into a model.
 func parseOptions(options string) Option {
 	var result Option
 	optionValues := strings.Split(options, ",")
@@ -111,6 +114,7 @@ func parseOptions(options string) Option {
 	return result
 }
 
+// Handle add HTTP requests
 func (hkp *HkpServer) add(respWriter http.ResponseWriter, req *http.Request) error {
 	// build Lookup from query arguments
 	add, err := parseAdd(req)
@@ -122,6 +126,7 @@ func (hkp *HkpServer) add(respWriter http.ResponseWriter, req *http.Request) err
 	return respondWith(respWriter, add)
 }
 
+// Parse the add request into a model.
 func parseAdd(req *http.Request) (*Add, error) {
 	// Require HTTP POST
 	if req.Method != "POST" {
@@ -142,6 +147,7 @@ func parseAdd(req *http.Request) (*Add, error) {
 	return add, nil
 }
 
+// Receive a response and write it to the client
 func respondWith(respWriter http.ResponseWriter, r HasResponse) error {
 	response := <-r.Response()
 	if err := response.Error(); err != nil {

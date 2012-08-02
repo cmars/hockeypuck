@@ -1,0 +1,9 @@
+hockeypuck (0.1~alpha) UNRELEASED; urgency=low
+
+  [Casey Marshall]
+  * === added directory debian, cmd/hockeypuck/main.go,
+    server.go, server_test.go, types.go:
+    - Opening 0.1~alpha development, create debian/changelog.
+    - Added comments to server.
+
+ -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 01 Aug 2012 23:07:50 -0500
