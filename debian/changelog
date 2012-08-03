@@ -9,5 +9,7 @@ hockeypuck (0.1~alpha) UNRELEASED; urgency=low
     pq/worker.go:
     - Add a first cut at a database schema, random uuid generation.
     - Started pq-backed worker.
+  * pq/cr_database.sql, pq/worker.go:
+    - Commented the database schema & outlined plan for PqWorker.AddKey.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Thu, 02 Aug 2012 00:32:33 -0500
+ -- Casey Marshall <casey.marshall@gazzang.com>  Thu, 02 Aug 2012 21:57:07 -0500

@@ -74,3 +74,14 @@ LIMIT 10`, search)
 	}
 	return
 }
+
+func (pq *PqWorker) AddKey(armor string) (err error) {
+	// Read the keyring
+	// Fetch the latest key from the database
+	// Compare hashes, return if the same
+	// Load keyrings
+	// Merge keyrings to a new revision
+	// Render to ASCII-armor
+	// Insert a new key_log revision
+	panic("not implemented")
+}
