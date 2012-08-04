@@ -11,5 +11,9 @@ hockeypuck (0.1~alpha) UNRELEASED; urgency=low
     - Started pq-backed worker.
   * pq/cr_database.sql, pq/worker.go:
     - Commented the database schema & outlined plan for PqWorker.AddKey.
+  * cmd/lspgp/main.go, pq/cr_database.sql, pq/dr_database.sql,
+    pq/worker.go:
+    - Add AGPL license to these files.
+    - Removed redundant long_id and short_id from pub_key.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Thu, 02 Aug 2012 21:57:07 -0500
+ -- Casey Marshall <casey.marshall@gazzang.com>  Fri, 03 Aug 2012 22:05:32 -0500

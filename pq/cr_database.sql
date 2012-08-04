@@ -1,3 +1,19 @@
+--
+--   Hockeypuck - OpenPGP key server
+--   Copyright (C) 2012  Casey Marshall
+--
+--   This program is free software: you can redistribute it and/or modify
+--   it under the terms of the GNU Affero General Public License as published by
+--   the Free Software Foundation, version 3.
+--
+--   This program is distributed in the hope that it will be useful,
+--   but WITHOUT ANY WARRANTY; without even the implied warranty of
+--   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+--   GNU Affero General Public License for more details.
+--
+--   You should have received a copy of the GNU Affero General Public License
+--   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+--
 
 -- Primary key 'uuid' columns contain randomly generated, 256-bit values
 -- represented as a base-85 string
@@ -18,10 +34,6 @@ CREATE TABLE IF NOT EXISTS pub_key (
 	state INT,
 	-- 20-byte public key fingerprint, as a hexadecimal string
 	fingerprint TEXT,
-	-- 8-byte long key id, as a hexadecimal string
-	long_id TEXT,
-	-- 4-byte short key id, as a hexadecimal string
-	short_id TEXT,
 	-- Integer code representing the algorithm used for the public key
 	-- as specified in RFC 4880, Section 9.1
 	algorithm INT,
