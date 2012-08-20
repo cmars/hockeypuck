@@ -13,5 +13,7 @@ hockeypuck (0.1~alpha) UNRELEASED; urgency=low
     - Commented the database schema & outlined plan for PqWorker.AddKey.
   * pgp.go:
     - Added public key merge functions we'll need for keyserver updates.
+  * pq/cr_database.sql, pq/worker.go, pq/worker_test.go:
+    - Add simple db connection test, fixed a few sql and query errors.
 
- -- Casey Marshall <casey.marshall@gmail.com>  Mon, 20 Aug 2012 00:20:09 -0500
+ -- Casey Marshall <casey.marshall@gmail.com>  Mon, 20 Aug 2012 01:07:03 -0500

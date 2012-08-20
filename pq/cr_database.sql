@@ -18,19 +18,13 @@ CREATE TABLE IF NOT EXISTS pub_key (
 	state INT,
 	-- 20-byte public key fingerprint, as a hexadecimal string
 	fingerprint TEXT,
-	-- 8-byte long key id, as a hexadecimal string
-	long_id TEXT,
-	-- 4-byte short key id, as a hexadecimal string
-	short_id TEXT,
 	-- Integer code representing the algorithm used for the public key
 	-- as specified in RFC 4880, Section 9.1
 	algorithm INT,
 	-- Public key length
 	key_len INT,
 	PRIMARY KEY (uuid),
-	UNIQUE (fingerprint, algorithm, key_len),
-	INDEX (long_id),
-	INDEX (short_id)
+	UNIQUE (fingerprint, algorithm, key_len)
 );
 
 --
@@ -55,7 +49,7 @@ CREATE TABLE IF NOT EXISTS key_log (
 	sha512 TEXT,
 	PRIMARY KEY (uuid),
 	UNIQUE (pub_key_uuid, revision),
-	UNIQUE (armor_sha512),
+	UNIQUE (sha512),
 	FOREIGN KEY (pub_key_uuid) REFERENCES pub_key (uuid)
 );
 

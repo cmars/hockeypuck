@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"encoding/ascii85"
 	"errors"
+	"fmt"
 	"io"
 )
 
@@ -38,13 +39,15 @@ func NewWorker(connect string) (*PqWorker, error) {
 }
 
 func (pq *PqWorker) GetKey(keyid string) (armor string, err error) {
-	row := pq.db.QueryRow(`SELECT kl.armor
+	row := pq.db.QueryRow(fmt.Sprintf(`SELECT kl.armor
 FROM pub_key pk JOIN key_log kl ON (pk.uuid = kl.pub_key_uuid)
-WHERE creation < NOW() AND expiration > NOW()
-AND state = 0
-AND (pk.fingerprint = ? OR pk.long_id = ? OR pk.short_id = ?)
+WHERE pk.creation < NOW() AND pk.expiration > NOW()
+AND kl.creation < NOW()
+AND pk.state = 0
+AND kl.state = 0
+AND pk.fingerprint = '%s'
 ORDER BY revision DESC
-LIMIT 1`, keyid, keyid, keyid)
+LIMIT 1`, keyid))
 	if err != nil {
 		return "", err
 	}
