@@ -1,6 +1,6 @@
 hockeypuck (0.1~alpha) UNRELEASED; urgency=low
 
-  [Casey Marshall]
+  [ Casey Marshall ]
   * === added directory debian, cmd/hockeypuck/main.go,
     server.go, server_test.go, types.go:
     - Opening 0.1~alpha development, create debian/changelog.
@@ -15,5 +15,9 @@ hockeypuck (0.1~alpha) UNRELEASED; urgency=low
     pq/worker.go:
     - Add AGPL license to these files.
     - Removed redundant long_id and short_id from pub_key.
+  * pgp.go:
+    - Added public key merge functions we'll need for keyserver updates.
+  * pq/cr_database.sql, pq/worker.go, pq/worker_test.go:
+    - Add simple db connection test, fixed a few sql and query errors.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Fri, 03 Aug 2012 22:05:32 -0500
+ -- Casey Marshall <casey.marshall@gazzang.com>  Mon, 20 Aug 2012 09:38:21 -0500
