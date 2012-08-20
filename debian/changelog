@@ -1,6 +1,6 @@
 hockeypuck (0.1~alpha) UNRELEASED; urgency=low
 
-  [Casey Marshall]
+  [ Casey Marshall ]
   * === added directory debian, cmd/hockeypuck/main.go,
     server.go, server_test.go, types.go:
     - Opening 0.1~alpha development, create debian/changelog.
@@ -11,5 +11,7 @@ hockeypuck (0.1~alpha) UNRELEASED; urgency=low
     - Started pq-backed worker.
   * pq/cr_database.sql, pq/worker.go:
     - Commented the database schema & outlined plan for PqWorker.AddKey.
+  * pgp.go:
+    - Added public key merge functions we'll need for keyserver updates.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Thu, 02 Aug 2012 21:57:07 -0500
+ -- Casey Marshall <casey.marshall@gmail.com>  Mon, 20 Aug 2012 00:20:09 -0500
