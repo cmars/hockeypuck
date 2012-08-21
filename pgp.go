@@ -19,6 +19,7 @@ package hockeypuck
 
 import (
 	"bytes"
+	"encoding/hex"
 	"errors"
 	"bitbucket.org/cmars/go.crypto/openpgp"
 	"bitbucket.org/cmars/go.crypto/openpgp/packet"
@@ -74,4 +75,8 @@ func mapSubkeys(e *openpgp.Entity) map[[20]byte]*openpgp.Subkey {
 		result[subkey.PublicKey.Fingerprint] = &subkey
 	}
 	return result
+}
+
+func Fingerprint(pubkey *packet.PublicKey) string {
+	return hex.EncodeToString(pubkey.Fingerprint[:])
 }

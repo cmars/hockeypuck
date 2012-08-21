@@ -19,5 +19,8 @@ hockeypuck (0.1~alpha) UNRELEASED; urgency=low
     - Added public key merge functions we'll need for keyserver updates.
   * pq/cr_database.sql, pq/worker.go, pq/worker_test.go:
     - Add simple db connection test, fixed a few sql and query errors.
+  * errors.go, pgp.go, pq/worker.go, pq/worker_test.go:
+    - Several postgres database errors fixed.
+    - Using flags to configure postgres test database connection.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Mon, 20 Aug 2012 09:38:21 -0500
+ -- Casey Marshall <casey.marshall@gazzang.com>  Mon, 20 Aug 2012 23:22:54 -0500
