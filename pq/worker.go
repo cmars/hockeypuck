@@ -100,7 +100,7 @@ LIMIT 1`, keyid)
 func (pq *PqWorker) FindKeys(search string) (uuids []string, err error) {
 	rows, err := pq.db.Query(`SELECT pub_key_uuid
 FROM user_id
-WHERE ts @@ to_tsquery(?)
+WHERE ts @@ to_tsquery($1)
 AND creation < NOW() AND expiration > NOW()
 AND state = 0
 ORDER BY creation DESC
