@@ -22,21 +22,22 @@ import (
 	"database/sql"
 	"bytes"
 	"crypto/rand"
-	"crypto/sha512"
-	"encoding/ascii85"
+	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"io"
+	"strings"
 	"time"
 	"launchpad.net/hockeypuck"
 	"bitbucket.org/cmars/go.crypto/openpgp"
 	"bitbucket.org/cmars/go.crypto/openpgp/armor"
 )
 
-const UUID_LEN = 20
+const UUID_LEN = 43  // log(2**256, 64) = 42.666...
 
 func NewUuid() (string, error) {
 	buf := bytes.NewBuffer([]byte{})
-	enc := ascii85.NewEncoder(buf)
+	enc := base64.NewEncoder(base64.StdEncoding, buf)
 	n, err := io.CopyN(enc, rand.Reader, UUID_LEN)
 	if err != nil {
 		return "", err
@@ -59,40 +60,136 @@ func NewWorker(connect string) (*PqWorker, error) {
 	return &PqWorker{ db: db }, nil
 }
 
-type keyRevision struct {
-	pubKeyUuid string
-	keyLogUuid string
-	revision int
-	armor string
+func (pq *PqWorker) DropTables() (err error) {
+	_, err = pq.db.Exec("DROP TABLE IF EXISTS pub_key CASCADE")
+	if err != nil {
+		return
+	}
+	_, err = pq.db.Exec("DROP TABLE IF EXISTS key_log CASCADE")
+	if err != nil {
+		return
+	}
+	_, err = pq.db.Exec("DROP TABLE IF EXISTS user_id CASCADE")
+	return
+}
+
+func (pq *PqWorker) CreateTables() (err error) {
+	// pub_key identifies a primary public key fingerprint.
+	_, err = pq.db.Exec(`CREATE TABLE IF NOT EXISTS pub_key (
+	-- Primary key identifier for a public key
+	uuid TEXT NOT NULL,
+	-- Time when the public key was first added to this key server
+	addition TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+	-- Time when the public key was created
+	creation TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+	-- Time when the public key expires. May be NULL if no expiration
+	expiration TIMESTAMP WITH TIME ZONE,
+	-- Time when the public key was last modified
+	modified TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+	-- State of the public key. 0 is always an valid, active state
+	state INT,
+	-- 20-byte public key fingerprint, as a hexadecimal string
+	fingerprint TEXT,
+	-- Integer code representing the algorithm used for the public key
+	-- as specified in RFC 4880, Section 9.1
+	algorithm INT,
+	-- Public key length
+	key_len INT,
+	-- The current public key ring, stored in binary RFC 4880 format
+	key_ring BYTEA,
+	-- SHA-512 message digest of the public key ring
+	sha512 TEXT,
+	PRIMARY KEY (uuid),
+	UNIQUE (fingerprint, algorithm, key_len))
+`)
+	if err != nil {
+		return
+	}
+	// user_id stores all the User ID packets associated with
+	// a public key for easy searching.
+	_, err = pq.db.Exec(`CREATE TABLE IF NOT EXISTS user_id (
+	-- Primary key identifier for a user id
+	uuid TEXT,
+	-- Time when the user ID was first added to the public key on this server
+	addition TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+	-- Time when the user ID was created
+	creation TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+	-- Time when the user ID expires. May be NULL if no expiration
+	expiration TIMESTAMP,
+	-- State of the public key. 0 is always an valid, active revision
+	state INT DEFAULT 0 NOT NULL,
+	-- Foreign-key reference to the public key of this revision
+	pub_key_uuid TEXT,
+	-- Text contents of the user ID. Usually 'Somebody (comment) <somebody@example.com>'
+	text TEXT NOT NULL,
+	-- Text-searchable content used for a full text search
+	ts TSVECTOR NOT NULL,
+	PRIMARY KEY (uuid),
+	FOREIGN KEY (pub_key_uuid) REFERENCES pub_key (uuid))
+`)
+	if err != nil {
+		return
+	}
+	// Full-text index on User ID text
+	_, err = pq.db.Exec(`CREATE INDEX user_id_tsindex_idx ON user_id USING gin(ts)`)
+	return
+}
+
+type keyRingResult struct {
+	uuid string
+	keyRing []byte
+	sha512 string
 }
 
 func (pq *PqWorker) GetKey(keyid string) (string, error) {
-	keyRev, err := pq.getKey(keyid)
+	keyid = strings.ToLower(keyid)
+	raw, err := hex.DecodeString(keyid)
+	if err != nil {
+		return "", hockeypuck.InvalidKeyId
+	}
+	switch len(raw) {
+	case 4:
+	case 8:
+	case 20:
+		;
+	default:
+		return "", hockeypuck.InvalidKeyId
+	}
+	result, err := pq.getKey(keyid)
 	if err != nil {
 		return "", err
 	}
-	return keyRev.armor, err
+	armorBuf := bytes.NewBuffer([]byte{})
+	armorWriter, err := armor.Encode(armorBuf, openpgp.PublicKeyType, nil)
+	if err != nil {
+		return "", err
+	}
+	_, err = armorWriter.Write(result.keyRing)
+	if err != nil {
+		return "", err
+	}
+	err = armorWriter.Close()
+	return string(armorBuf.Bytes()), err
 }
 
-func (pq *PqWorker) getKey(keyid string) (keyRev *keyRevision, err error) {
-	keyRev = &keyRevision{}
-	rows, err := pq.db.Query(`SELECT pk.uuid, kl.pub_key_uuid, kl.revision, kl.armor
-FROM pub_key pk JOIN key_log kl ON (pk.uuid = kl.pub_key_uuid)
-WHERE pk.creation < NOW() AND (pk.expiration IS NULL OR pk.expiration > NOW())
-AND kl.creation < NOW()
-AND pk.state = 0
-AND kl.state = 0
-AND pk.fingerprint = $1
-ORDER BY revision DESC
-LIMIT 1`, keyid)
+func (pq *PqWorker) getKey(keyid string) (keyRing *keyRingResult, err error) {
+	keyRing = &keyRingResult{}
+	rows, err := pq.db.Query(`SELECT uuid, key_ring, sha512
+FROM pub_key
+WHERE creation < NOW() AND (expiration IS NULL OR expiration > NOW())
+AND state = 0
+AND fingerprint LIKE '%' || $1`, keyid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	if rows.Next() {
-		err = rows.Scan(&keyRev.pubKeyUuid, &keyRev.keyLogUuid, &keyRev.revision, &keyRev.armor)
+		err = rows.Scan(&keyRing.uuid, &keyRing.keyRing, &keyRing.sha512)
 	} else {
 		err = hockeypuck.KeyNotFound
+	}
+	if rows.Next() {
+		err = hockeypuck.KeyIdCollision
 	}
 	return
 }
@@ -101,7 +198,7 @@ func (pq *PqWorker) FindKeys(search string) (uuids []string, err error) {
 	rows, err := pq.db.Query(`SELECT pub_key_uuid
 FROM user_id
 WHERE ts @@ to_tsquery($1)
-AND creation < NOW() AND expiration > NOW()
+AND creation < NOW() AND (expiration IS NULL OR expiration > NOW())
 AND state = 0
 ORDER BY creation DESC
 LIMIT 10`, search)
@@ -132,12 +229,11 @@ func (pq *PqWorker) AddKey(armoredKey string) (err error) {
 		last, err := pq.getKey(fp)
 		if err == hockeypuck.KeyNotFound {
 			// Insert new key
-			return pq.insertNewKey(fp, entity, armoredKey)
+			return pq.insertNewKey(fp, entity)
 		} else if err != nil {
 			return err
 		} else {
-			// Load most recent key from armor
-			lastEntityList, err := openpgp.ReadArmoredKeyRing(bytes.NewBufferString(last.armor))
+			lastEntityList, err := openpgp.ReadKeyRing(bytes.NewBuffer(last.keyRing))
 			if err != nil {
 				return err
 			}
@@ -146,21 +242,23 @@ func (pq *PqWorker) AddKey(armoredKey string) (err error) {
 			}
 			lastEntity := lastEntityList[0]
 			// Merge the keyring in-place
-			err = hockeypuck.MergeEntity(lastEntity, entity)
+			changed, err := hockeypuck.MergeEntity(lastEntity, entity)
 			if err != nil {
 				return err
 			}
-			// Append new revision
-			err = pq.appendKey(last, lastEntity)
-			if err != nil {
-				return err
+			if changed {
+				// Append new revision
+				err = pq.updateKey(last, lastEntity)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
 	return err
 }
 
-func (pq *PqWorker) insertNewKey(fp string, entity *openpgp.Entity, armoredKey string) (err error) {
+func (pq *PqWorker) insertNewKey(fp string, entity *openpgp.Entity) (err error) {
 	// Perform insertions within a transaction
 	tx, err := pq.db.Begin()
 	if err != nil {
@@ -173,25 +271,18 @@ func (pq *PqWorker) insertNewKey(fp string, entity *openpgp.Entity, armoredKey s
 	if err != nil {
 		return err
 	}
-	now := time.Now()
+	keyLen, err := entity.PrimaryKey.BitLength()
+	if err != nil {
+		return err
+	}
+	keyRing := bytes.NewBuffer([]byte{})
+	entity.Serialize(keyRing)
+	sha512 := hockeypuck.Sha512(keyRing.Bytes())
 	_, err = tx.Exec(`INSERT INTO pub_key (
-uuid, addition, creation, expiration, state, fingerprint, algorithm, key_len) VALUES (
-$1, $2, $3, $4, $5, $6, $7, $8)`,
-		// TODO: openpgp needs to expose key length
-		pub_key_uuid, now, entity.PrimaryKey.CreationTime, nil, 0, fp, int(entity.PrimaryKey.PubKeyAlgo), 0)
-	if err != nil {
-		return err
-	}
-	// Insert key_log row
-	key_log_uuid, err := NewUuid()
-	if err != nil {
-		return err
-	}
-	armorHash := sha512.New()
-	armorHash.Write([]byte(armoredKey))
-	_, err = tx.Exec(`INSERT INTO key_log (
-uuid, creation, state, pub_key_uuid, armor, sha512) VALUES ($1, $2, $3, $4, $5, $6)`,
-		key_log_uuid, now, 0, pub_key_uuid, armoredKey, armorHash.Sum(nil))
+uuid, creation, expiration, state, fingerprint, algorithm, key_len, key_ring, sha512) VALUES (
+$1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		pub_key_uuid, entity.PrimaryKey.CreationTime, nil, 0, fp,
+		int(entity.PrimaryKey.PubKeyAlgo), keyLen, keyRing.Bytes(), sha512)
 	if err != nil {
 		return err
 	}
@@ -202,9 +293,9 @@ uuid, creation, state, pub_key_uuid, armor, sha512) VALUES ($1, $2, $3, $4, $5, 
 			return err
 		}
 		_, err = tx.Exec(`INSERT INTO user_id (
-uuid, addition, creation, expiration, state, pub_key_uuid, text, ts) VALUES (
-$1, $2, $3, $4, $5, $6, $7, to_tsvector('english', $7))`,
-			user_id_uuid, now, uid.SelfSignature.CreationTime, nil, 0, pub_key_uuid, uid.Name)
+uuid, creation, expiration, state, pub_key_uuid, text, ts) VALUES (
+$1, $2, $3, $4, $5, $6, to_tsvector('english', $6))`,
+			user_id_uuid, uid.SelfSignature.CreationTime, nil, 0, pub_key_uuid, uid.Name)
 		if err != nil {
 			return err
 		}
@@ -213,28 +304,24 @@ $1, $2, $3, $4, $5, $6, $7, to_tsvector('english', $7))`,
 	return
 }
 
-func (pq *PqWorker) appendKey(last *keyRevision, nextEntity *openpgp.Entity) (err error) {
+func (pq *PqWorker) updateKey(last *keyRingResult, nextEntity *openpgp.Entity) (err error) {
 	tx, err := pq.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
-	now := time.Now()
-	key_log_uuid, err := NewUuid()
-	if err != nil {
-		return err
+	nextKeyRing := bytes.NewBuffer([]byte{})
+	nextEntity.Serialize(nextKeyRing)
+	nextSha512 := hockeypuck.Sha512(nextKeyRing.Bytes())
+	if nextSha512 == last.sha512 {
+		// Keys match, no change
+		return nil
 	}
-	armorBuf := bytes.NewBuffer([]byte{})
-	armoredWriter, err := armor.Encode(armorBuf, openpgp.PublicKeyType, nil)
+	_, err = tx.Exec(`UPDATE pub_key SET modified = $1, key_ring = $2, sha512 = $3`,
+		time.Now(), nextKeyRing.Bytes(), nextSha512)
 	if err != nil {
-		return err
+		return
 	}
-	nextEntity.Serialize(armoredWriter)
-	armorHash := sha512.New()
-	armorHash.Write(armorBuf.Bytes())
-	_, err = tx.Exec(`INSERT INTO key_log (
-uuid, creation, state, pub_key_uuid, armor, sha512) VALUES ($1, $2, $3, $4, $5, $6)`,
-		key_log_uuid, now, 0, last.pubKeyUuid, string(armorBuf.Bytes()), armorHash)
 	err = tx.Commit()
 	return
 }

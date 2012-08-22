@@ -22,5 +22,11 @@ hockeypuck (0.1~alpha) UNRELEASED; urgency=low
   * errors.go, pgp.go, pq/worker.go, pq/worker_test.go:
     - Several postgres database errors fixed.
     - Using flags to configure postgres test database connection.
+  * errors.go, pgp.go, pq/cr_database.sql, pq/dr_database.sql,
+    pq/worker.go, pq/worker_test.go:
+    - Removed key_log table, storing keyrings in binary form in pub_key.
+    - Updated unit test to normalize armored keyrings to eliminate
+      variations in armor from test conditions.
+    - Check for short key ID collisions.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Mon, 20 Aug 2012 23:22:54 -0500
+ -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 22 Aug 2012 11:43:50 -0500

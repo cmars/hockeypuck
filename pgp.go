@@ -19,6 +19,7 @@ package hockeypuck
 
 import (
 	"bytes"
+	"crypto/sha512"
 	"encoding/hex"
 	"errors"
 	"bitbucket.org/cmars/go.crypto/openpgp"
@@ -28,7 +29,8 @@ import (
 // Merge entity from src into dst, adding additional identities,
 // signatures, and subkeys in src not already in dst.
 // The keyring dst is modified in-place.
-func MergeEntity(dst *openpgp.Entity, src *openpgp.Entity) (err error) {
+func MergeEntity(dst *openpgp.Entity, src *openpgp.Entity) (changed bool, err error) {
+	changed = false
 	if dst.PrimaryKey.Fingerprint != src.PrimaryKey.Fingerprint {
 		err = errors.New("Merge failed, primary key fingerprints do not match.")
 		return
@@ -37,6 +39,7 @@ func MergeEntity(dst *openpgp.Entity, src *openpgp.Entity) (err error) {
 		dstIdent, has := dst.Identities[srcIdent.Name]
 		if !has {
 			dst.Identities[srcIdent.Name] = dstIdent
+			changed = true
 		} else {
 			srcSigs := mapSigs(srcIdent.Signatures)
 			dstSigs := mapSigs(dstIdent.Signatures)
@@ -44,6 +47,7 @@ func MergeEntity(dst *openpgp.Entity, src *openpgp.Entity) (err error) {
 				_, has := dstSigs[srcRaw]
 				if !has {
 					dstIdent.Signatures = append(dstIdent.Signatures, srcSig)
+					changed = true
 				}
 			}
 		}
@@ -54,6 +58,7 @@ func MergeEntity(dst *openpgp.Entity, src *openpgp.Entity) (err error) {
 		_, has := dstSubkeys[srcSkFp]
 		if !has {
 			dst.Subkeys = append(dst.Subkeys, *srcSubkey)
+			changed = true
 		}
 	}
 	return
@@ -79,4 +84,10 @@ func mapSubkeys(e *openpgp.Entity) map[[20]byte]*openpgp.Subkey {
 
 func Fingerprint(pubkey *packet.PublicKey) string {
 	return hex.EncodeToString(pubkey.Fingerprint[:])
+}
+
+func Sha512(data []byte) string {
+	h := sha512.New()
+	h.Write(data)
+	return hex.EncodeToString(h.Sum(nil))
 }

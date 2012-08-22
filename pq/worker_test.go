@@ -18,10 +18,15 @@
 package pq
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
+	"strings"
 	"testing"
+	"launchpad.net/hockeypuck"
 	"github.com/bmizerany/assert"
+	"bitbucket.org/cmars/go.crypto/openpgp"
+	"bitbucket.org/cmars/go.crypto/openpgp/armor"
 )
 
 var pgUser *string = flag.String("user", "", "postgres username")
@@ -34,114 +39,155 @@ func createWorker(t *testing.T) *PqWorker {
 	worker, err := NewWorker(fmt.Sprintf("user=%s dbname=%s password=%s hostname=%s port=%d",
 		*pgUser, *pgDb, *pgPass, *pgHost, *pgPort))
 	assert.Equal(t, err, nil)
+	tx, err := worker.db.Begin()
+	assert.Equal(t, err, nil)
+	defer tx.Rollback()
+	// Drop existing database tables
+	err = worker.DropTables()
+	assert.Equal(t, err, nil)
+	// Create database tables
+	err = worker.CreateTables()
+	assert.Equal(t, err, nil)
 	return worker
 }
 
-func TestPutGet(t *testing.T) {
-	worker := createWorker(t)
-	err := worker.AddKey(torkey)
+// Read armored keyring, write back to armor.
+// Remove variation from the armor contents across different PGP
+// implementations, since my test data is coming from GnuPG.
+func normalizeArmoredKey(t *testing.T, armoredKey string) string {
+	entityList, err := openpgp.ReadArmoredKeyRing(bytes.NewBufferString(armoredKey))
 	assert.Equal(t, err, nil)
+	outputBuf := bytes.NewBuffer([]byte{})
+	armorOut, err := armor.Encode(outputBuf, openpgp.PublicKeyType, nil)
+	assert.Equal(t, err, nil)
+	for _, entity := range entityList {
+		err = entity.Serialize(armorOut)
+		assert.Equal(t, err, nil)
+	}
+	err = armorOut.Close()
+	assert.Equal(t, err, nil)
+	return string(outputBuf.Bytes())
 }
 
-const torkey = `-----BEGIN PGP PUBLIC KEY BLOCK-----
+// Add a key.
+// Get that key by short, long id and full fingerprint.
+// Find key by fulltext search.
+func TestAddGetFind(t *testing.T) {
+	worker := createWorker(t)
+	expectKey := normalizeArmoredKey(t, aliceUnsigned)
+	err := worker.AddKey(expectKey)
+	assert.Equal(t, err, nil)
+	// Lookups with full fingerprint, 8-byte long and 4-byte short key ID
+	for _, keyid := range []string{
+			"10fe8cf1b483f7525039aa2a361bc1f023e0dcca",
+			"361bc1f023e0DCCA",
+			"23e0DCCA"} {
+		armor, err := worker.GetKey(keyid)
+		assert.Equalf(t, err, nil, "Lookup with keyid=%v", keyid)
+		assert.Equalf(t, armor, expectKey, "Lookup with keyid=%v", keyid)
+		keyid = strings.ToUpper(keyid)
+		armor, err = worker.GetKey(keyid)
+		assert.Equalf(t, err, nil, "Lookup with keyid=%v", keyid)
+		assert.Equalf(t, armor, expectKey, "Lookup with keyid=%v", keyid)
+	}
+	// Invalid key IDs
+	for _, keyid := range []string{"asdf", "a5", ""} {
+		_, err = worker.GetKey("a5")
+		assert.Tf(t, err == hockeypuck.InvalidKeyId, "Lookup with keyid=%v", keyid)
+	}
+	// Full-text lookups
+	kr, err := worker.getKey("10fe8cf1b483f7525039aa2a361bc1f023e0dcca")
+	assert.Equal(t, err, nil)
+	for _, search := range []string{"alice", "alice@example.com"} {
+		uuids, err := worker.FindKeys(search)
+		assert.Equal(t, err, nil)
+		assert.Equalf(t, 1, len(uuids), "Full-text search on: %v", search)
+		assert.Equal(t, kr.uuid, uuids[0])
+	}
+}
+
+// Add a key.
+// Then add a new revision of it with a signature added.
+func TestUpdateKey(t *testing.T) {
+	worker := createWorker(t)
+	unsignedKey := normalizeArmoredKey(t, aliceUnsigned)
+	err := worker.AddKey(unsignedKey)
+	assert.Equal(t, err, nil)
+	var n int
+	// Verify one pub_key row
+	rows, err := worker.db.Query("SELECT COUNT(*) FROM pub_key")
+	assert.Equal(t, err, nil)
+	defer rows.Close()
+	if rows.Next() {
+		rows.Scan(&n)
+	}
+	assert.Equal(t, 1, n)
+}
+
+const aliceUnsigned = `-----BEGIN PGP PUBLIC KEY BLOCK-----
 Version: GnuPG v1.4.11 (GNU/Linux)
 
-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
-yIJpnL6TsA5uFqUosz2rOPKeeDOtruSo490PTA==
-=EXPQ
+mQENBFA0ErkBCAC2i7SefWM5DcffFH2LJ5aqt2zJfcwqd5a1S9RzAkb4THRNXhnc
+BkiK1LawKhYUZVOVXMRcPCHsjXdBRGoyqK3kgFQh9Li7D03pRnNhedKMK/pnHeXX
+kiofA4O7HI3EbQFz5DyCy//wjtfK20vxq43H9uulDSrNoAN67l2ivPFdKlv+r/yv
+j4QOu/Z2zkJtOOpGWauBHaqq/RaMLv78O3WTXTH7NTlNfTqZ/XKdK6JdBMAtg5Ab
+0Gd7LT3NxnUZ8UtGXQQvnSVzZBzJTxaOCLEKl/ES1jiBZhty6PpPrCKf6r/YL5g3
+uIQ50zWtRrDzgPLiJGJnL25KHRS1GI4fl7gzABEBAAG0GWFsaWNlIDxhbGljZUBl
+eGFtcGxlLmNvbT6JATgEEwECACIFAlA0ErkCGwMGCwkIBwMCBhUIAgkKCwQWAgMB
+Ah4BAheAAAoJEDYbwfAj4NzKTw4H/A7l6lctrcoo4iTGwZlYzq5a2bXSJEYZ7/KK
+n9mCb3aiWoM5KuHAe1oxmmDSVGPDn8BKPsI8MX4HMgFgUhxZchlJWL6cAtAbl6FW
+9TigtpImt+F0MI3cGVuo3pXplpPg8DduJYixUbpPTmizY1l1nwGXBjPxldf1HbM8
+IKNg4gBB5AhP7miZaW2xv+mF5+x/1K5+oIryFg0EOfLI+S2L4sTmKWnihEeOUnt4
+WR6OoSpCCqYXKDNJGXJfFvJ7WqMA3A710E+fwnPXhEdWgNwVQThcJGCjQG6O1hGh
+BU7YsLiXyStTAP7gke8UzCHWwGD7KSYtlhveWbvWgMlrhQtFCaC5AQ0EUDQSuQEI
+AOT1AhLb3k6FEp7Yyjk7FcLlKOxIccDF8IUQ//j15vvli5OGq/jC/Y3qT5pwrUMm
+1PYNeuSYj7OyDLNI+rvFFbTiiG8XFv1bjlTeg+XOoCto7CymcYl7JVpxN6SRpxhp
+eKzGCzQAnAsQaSb6GwmCvvIsVR6bO/tZLG6Db6NZkgHbgrDhgE61kLsjk4lOxIFy
+bxySa9TDSnEVdueXk/nj98SxMKWxoy26AYgFkgeH7Vd8zT6dydBsxZM8OB+azk30
+nncw4isOAPnBDxho96ZenM6V6BBB2IuXflSsU+pFQO8EC8oUA7RBvVDUtqVc+zWm
+xk27VuWOWiofvjLYNDd89D8AEQEAAYkBHwQYAQIACQUCUDQSuQIbDAAKCRA2G8Hw
+I+Dcys3QCACdzDc/myqXvVfCDrF1MUq/TPLdR8PRuYgSBeECJ0P1CYqWsdIL6B/3
+xgRVJhnkE+WLGgLP0igwsjOB+LaP0U5HQiR6YoQuI+zQB7CT9phSCyGByAiZanLV
+HPMGNbTfIrkTdqbmCY4zPHUeAtOjNvO2NNEJPaJ6QV2SR9NQb42yDEVLusg9OYhQ
+oPiJ5/rqHzL0Lkarc1EFl5Q2r1HNVIDRzGqh6YaXYzpBBdENRwlgBmZfrpzuehYE
+7RCS1NvFBVYOVH27ZWSp9eBWrEIKxW87Tu1abSyHW0sL/EI4fxXUNonwteXlIZC2
+JYq1f3tcdPHdcDHDIjlL+Av5mwQ/YOTx
+=2nAi
+-----END PGP PUBLIC KEY BLOCK-----`
+
+const aliceSigned = `-----BEGIN PGP PUBLIC KEY BLOCK-----
+Version: GnuPG v1.4.11 (GNU/Linux)
+
+mQENBFA0ErkBCAC2i7SefWM5DcffFH2LJ5aqt2zJfcwqd5a1S9RzAkb4THRNXhnc
+BkiK1LawKhYUZVOVXMRcPCHsjXdBRGoyqK3kgFQh9Li7D03pRnNhedKMK/pnHeXX
+kiofA4O7HI3EbQFz5DyCy//wjtfK20vxq43H9uulDSrNoAN67l2ivPFdKlv+r/yv
+j4QOu/Z2zkJtOOpGWauBHaqq/RaMLv78O3WTXTH7NTlNfTqZ/XKdK6JdBMAtg5Ab
+0Gd7LT3NxnUZ8UtGXQQvnSVzZBzJTxaOCLEKl/ES1jiBZhty6PpPrCKf6r/YL5g3
+uIQ50zWtRrDzgPLiJGJnL25KHRS1GI4fl7gzABEBAAG0GWFsaWNlIDxhbGljZUBl
+eGFtcGxlLmNvbT6JATgEEwECACIFAlA0ErkCGwMGCwkIBwMCBhUIAgkKCwQWAgMB
+Ah4BAheAAAoJEDYbwfAj4NzKTw4H/A7l6lctrcoo4iTGwZlYzq5a2bXSJEYZ7/KK
+n9mCb3aiWoM5KuHAe1oxmmDSVGPDn8BKPsI8MX4HMgFgUhxZchlJWL6cAtAbl6FW
+9TigtpImt+F0MI3cGVuo3pXplpPg8DduJYixUbpPTmizY1l1nwGXBjPxldf1HbM8
+IKNg4gBB5AhP7miZaW2xv+mF5+x/1K5+oIryFg0EOfLI+S2L4sTmKWnihEeOUnt4
+WR6OoSpCCqYXKDNJGXJfFvJ7WqMA3A710E+fwnPXhEdWgNwVQThcJGCjQG6O1hGh
+BU7YsLiXyStTAP7gke8UzCHWwGD7KSYtlhveWbvWgMlrhQtFCaCJARwEEAECAAYF
+AlA0MXMACgkQYq6gHWdkD7XCdwf+NoVDf4bi3GrTw9Eb/M7PMsUpohrTKqETUltn
+A/UPxH6P4+CPiAfDmdQs8xb4tLtbJs0X3cxQ+EM8iklxvqDEuSFk8tlLgSd//xUM
+Pcdji4q2vyAQU9nj9iLYP5IMeNqz9jruIi61LuI0YudvbhIeWCXN1UEUYQr2OWrr
+pEviFDnc1410Wq6hvV4B4NCvbjeD2L0w0MDUjqN8PkuuHkfMkWvn5liRsdSDGN8F
+wEPc7c+iwTXJWBb182UVqP0uUlLsroAxPKrtfs960QRlEoDTJ3I4K/0Vco7XTu0K
+peJdfAN7zifSelexhMbKsyWErpkDUwsAFa934w3nfoRQuOkvW7kBDQRQNBK5AQgA
+5PUCEtveToUSntjKOTsVwuUo7EhxwMXwhRD/+PXm++WLk4ar+ML9jepPmnCtQybU
+9g165JiPs7IMs0j6u8UVtOKIbxcW/VuOVN6D5c6gK2jsLKZxiXslWnE3pJGnGGl4
+rMYLNACcCxBpJvobCYK+8ixVHps7+1ksboNvo1mSAduCsOGATrWQuyOTiU7EgXJv
+HJJr1MNKcRV255eT+eP3xLEwpbGjLboBiAWSB4ftV3zNPp3J0GzFkzw4H5rOTfSe
+dzDiKw4A+cEPGGj3pl6czpXoEEHYi5d+VKxT6kVA7wQLyhQDtEG9UNS2pVz7NabG
+TbtW5Y5aKh++Mtg0N3z0PwARAQABiQEfBBgBAgAJBQJQNBK5AhsMAAoJEDYbwfAj
+4NzKzdAIAJ3MNz+bKpe9V8IOsXUxSr9M8t1Hw9G5iBIF4QInQ/UJipax0gvoH/fG
+BFUmGeQT5YsaAs/SKDCyM4H4to/RTkdCJHpihC4j7NAHsJP2mFILIYHICJlqctUc
+8wY1tN8iuRN2puYJjjM8dR4C06M287Y00Qk9onpBXZJH01BvjbIMRUu6yD05iFCg
++Inn+uofMvQuRqtzUQWXlDavUc1UgNHMaqHphpdjOkEF0Q1HCWAGZl+unO56FgTt
+EJLU28UFVg5UfbtlZKn14FasQgrFbztO7VptLIdbSwv8Qjh/FdQ2ifC15eUhkLYl
+irV/e1x08d1wMcMiOUv4C/mbBD9g5PE=
+=ljD+
 -----END PGP PUBLIC KEY BLOCK-----`
