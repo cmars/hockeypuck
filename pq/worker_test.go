@@ -110,18 +110,32 @@ func TestAddGetFind(t *testing.T) {
 // Then add a new revision of it with a signature added.
 func TestUpdateKey(t *testing.T) {
 	worker := createWorker(t)
+	// Put an unsigned key
 	unsignedKey := normalizeArmoredKey(t, aliceUnsigned)
 	err := worker.AddKey(unsignedKey)
 	assert.Equal(t, err, nil)
-	var n int
-	// Verify one pub_key row
-	rows, err := worker.db.Query("SELECT COUNT(*) FROM pub_key")
+	last, err := worker.getKey("10fe8cf1b483f7525039aa2a361bc1f023e0dcca")
+	entityList, err := openpgp.ReadKeyRing(bytes.NewBuffer(last.keyRing))
 	assert.Equal(t, err, nil)
-	defer rows.Close()
-	if rows.Next() {
-		rows.Scan(&n)
-	}
-	assert.Equal(t, 1, n)
+	assert.Equal(t, 1, len(entityList))
+	assert.Equal(t, 0, len(entityList[0].Identities["alice <alice@example.com>"].Signatures))
+	// Put the key with signature added
+	signedKey := normalizeArmoredKey(t, aliceSigned)
+	err = worker.AddKey(signedKey)
+	assert.Equal(t, err, nil)
+	// Get the now-updated key
+	last, err = worker.getKey("10fe8cf1b483f7525039aa2a361bc1f023e0dcca")
+	entityList, err = openpgp.ReadKeyRing(bytes.NewBuffer(last.keyRing))
+	assert.Equal(t, err, nil)
+	assert.Equal(t, 1, len(entityList))
+	assert.Equal(t, 1, len(entityList[0].Identities["alice <alice@example.com>"].Signatures))
+	// Put a now out-of-date version of the key (without the added signature)
+	// It should update with a merged keyring, but not overwrite the key
+	err = worker.AddKey(unsignedKey)
+	last, err = worker.getKey("10fe8cf1b483f7525039aa2a361bc1f023e0dcca")
+	entityList, err = openpgp.ReadKeyRing(bytes.NewBuffer(last.keyRing))
+	assert.Equal(t, err, nil)
+	assert.Equal(t, 1, len(entityList[0].Identities["alice <alice@example.com>"].Signatures))
 }
 
 const aliceUnsigned = `-----BEGIN PGP PUBLIC KEY BLOCK-----
