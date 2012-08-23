@@ -28,5 +28,9 @@ hockeypuck (0.1~alpha) UNRELEASED; urgency=low
     - Updated unit test to normalize armored keyrings to eliminate
       variations in armor from test conditions.
     - Check for short key ID collisions.
+  * cmd/hockeypuck/main.go, pq/worker.go:
+    - Main hockeypuck executable now starts a postgres-backed server.
+    - Added flag parsing.
+    - Hey, it kind of works now.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 22 Aug 2012 11:43:50 -0500
+ -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 22 Aug 2012 20:37:48 -0500

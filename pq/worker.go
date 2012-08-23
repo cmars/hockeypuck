@@ -26,6 +26,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"net/http"
 	"strings"
 	"time"
 	"launchpad.net/hockeypuck"
@@ -50,14 +51,22 @@ func NewUuid() (string, error) {
 
 type PqWorker struct {
 	db *sql.DB
+	hkp        *hockeypuck.HkpServer
+	exitLookup chan bool
+	exitAdd    chan bool
 }
 
-func NewWorker(connect string) (*PqWorker, error) {
+func NewWorker(hkp *hockeypuck.HkpServer, connect string) (*PqWorker, error) {
 	db, err := sql.Open("postgres", connect)
 	if err != nil {
 		return nil, err
 	}
-	return &PqWorker{ db: db }, nil
+	pq := &PqWorker{
+		db: db,
+		hkp:        hkp,
+		exitLookup: make(chan bool),
+		exitAdd:    make(chan bool)}
+	return pq, nil
 }
 
 func (pq *PqWorker) DropTables() (err error) {
@@ -324,4 +333,68 @@ func (pq *PqWorker) updateKey(last *keyRingResult, nextEntity *openpgp.Entity) (
 	}
 	err = tx.Commit()
 	return
+}
+
+func (pq *PqWorker) Start() {
+	go func() {
+		for shouldRun := true; shouldRun; {
+			select {
+			case lookup := <-pq.hkp.LookupRequests:
+				switch lookup.Op {
+				case hockeypuck.Get:
+					if lookup.Exact || strings.HasPrefix(lookup.Search, "0x") {
+						armor, err := pq.GetKey(lookup.Search[2:])
+						lookup.Response() <- &response{ content: armor, err: err }
+					} else {
+						lookup.Response() <- &notImplementedError{}
+					}
+				default:
+					lookup.Response() <- &notImplementedError{}
+				}
+			case _ = <-pq.exitLookup:
+				shouldRun = false
+			}
+		}
+	}()
+	go func() {
+		for shouldRun := true; shouldRun; {
+			select {
+			case add := <-pq.hkp.AddRequests:
+				err := pq.AddKey(add.Keytext)
+				add.Response() <- &response{ err: err }
+			case _ = <-pq.exitAdd:
+				shouldRun = false
+			}
+		}
+	}()
+}
+
+func (pq *PqWorker) Stop() {
+	pq.exitLookup <- true
+	pq.exitAdd <- true
+}
+
+type response struct {
+	content string
+	err error
+}
+
+func (r *response) Error() error {
+	return r.err
+}
+
+func (r *response) WriteTo(w http.ResponseWriter) error {
+	w.Write([]byte(r.content))
+	return r.err
+}
+
+type notImplementedError struct {
+}
+
+func (e *notImplementedError) Error() error {
+	return errors.New("Not implemented")
+}
+
+func (e *notImplementedError) WriteTo(_ http.ResponseWriter) error {
+	return e.Error()
 }
