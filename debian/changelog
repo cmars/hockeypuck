@@ -1,4 +1,4 @@
-hockeypuck (0.1~alpha) UNRELEASED; urgency=low
+hockeypuck (0.1~alpha) precise; urgency=low
 
   [ Casey Marshall ]
   * === added directory debian, cmd/hockeypuck/main.go,
@@ -35,5 +35,7 @@ hockeypuck (0.1~alpha) UNRELEASED; urgency=low
   * === added directory debian/source, debian/compat, debian/control,
     debian/copyright, debian/rules, debian/source/format, Makefile:
     - Add debian packaging. LP: #1040379
+  * debian/rules, Makefile:
+    - Place binary dependencies in debian source tarball for lp builders.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 22 Aug 2012 23:51:10 -0500
+ -- Casey Marshall <casey.marshall@gazzang.com>  Thu, 23 Aug 2012 17:42:26 -0500

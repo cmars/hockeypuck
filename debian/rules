@@ -10,11 +10,7 @@
 #export DH_VERBOSE=1
 
 override_dh_install:
-	dh_install debian/_gopath/src/launchpad.net/hockeypuck/cmd/hockeypuck/hockeypuck /usr/bin/
-
-override_dh_clean:
-	$(RM) -r debian/_gopath
-	dh_clean
+	dh_install gopath/src/launchpad.net/hockeypuck/cmd/hockeypuck/hockeypuck /usr/bin/
 
 %:
 	dh $@ 
