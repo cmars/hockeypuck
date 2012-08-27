@@ -1,4 +1,4 @@
-hockeypuck (0.1~alpha) precise; urgency=low
+hockeypuck (0.1~alpha1) precise; urgency=low
 
   [ Casey Marshall ]
   * === added directory debian, cmd/hockeypuck/main.go,
@@ -37,5 +37,10 @@ hockeypuck (0.1~alpha) precise; urgency=low
     - Add debian packaging. LP: #1040379
   * debian/rules, Makefile:
     - Place binary dependencies in debian source tarball for lp builders.
+  * === added directory cmd/pktdump, cmd/pktdump/main.go,
+    debian/control:
+    - Add packet dump utility to help with diagnostics and research
+      LP: #1040378
+    - Eliminate scm tools from debian build deps.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Thu, 23 Aug 2012 17:42:26 -0500
+ -- Casey Marshall <casey.marshall@gazzang.com>  Sun, 26 Aug 2012 23:54:10 -0500
