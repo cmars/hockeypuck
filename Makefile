@@ -17,5 +17,11 @@ $(HOCKEYPATH)/pq:
 $(HOCKEYPATH)/cmd/hockeypuck/hockeypuck:
 	cd $(HOCKEYPATH)/cmd/hockeypuck; GOPATH="${GOPATH}" $(GO) build .
 
+debsrc: debbin
+	debuild -S
+
+debbin:
+	debuild -us -uc -i -b
+
 clean:
 	$(RM) $(HOCKEYPATH)/cmd/hockeypuck/hockeypuck

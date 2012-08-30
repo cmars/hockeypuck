@@ -42,5 +42,8 @@ hockeypuck (0.1~alpha1) precise; urgency=low
     - Add packet dump utility to help with diagnostics and research
       LP: #1040378
     - Eliminate scm tools from debian build deps.
+  * === added directory mgo, Makefile, mgo/worker.go,
+    mgo/worker_test.go:
+    - Add mongodb worker backend.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Sun, 26 Aug 2012 23:54:10 -0500
+ -- Casey Marshall <casey.marshall@gmail.com>  Thu, 30 Aug 2012 00:04:38 -0500
