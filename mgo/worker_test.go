@@ -20,9 +20,10 @@ package mgo
 import (
 	"bytes"
 	"flag"
+	"strings"
 	"testing"
 	"github.com/bmizerany/assert"
-	"bitbucket.org/cmars/go.crypto/openpgp"
+	"launchpad.net/hockeypuck"
 	"bitbucket.org/cmars/go.crypto/openpgp/armor"
 )
 
@@ -31,25 +32,36 @@ var mgoServer *string = flag.String("server", "localhost", "mongo server")
 func createWorker(t *testing.T) *MgoWorker {
 	worker, err := NewWorker(nil, *mgoServer)
 	assert.Equal(t, err, nil)
+	worker.c.DropCollection()
+	assert.Equal(t, err, nil)
+	worker.session.Close()
+	worker, err = NewWorker(nil, *mgoServer)
+	assert.Equal(t, err, nil)
 	return worker
 }
 
-// Read armored keyring, write back to armor.
-// Remove variation from the armor contents across different PGP
-// implementations, since my test data is coming from GnuPG.
 func normalizeArmoredKey(t *testing.T, armoredKey string) string {
-	entityList, err := openpgp.ReadArmoredKeyRing(bytes.NewBufferString(armoredKey))
+	armorBlock, err := armor.Decode(bytes.NewBufferString(armoredKey))
 	assert.Equal(t, err, nil)
-	outputBuf := bytes.NewBuffer([]byte{})
-	armorOut, err := armor.Encode(outputBuf, openpgp.PublicKeyType, nil)
-	assert.Equal(t, err, nil)
-	for _, entity := range entityList {
-		err = entity.Serialize(armorOut)
-		assert.Equal(t, err, nil)
+	keyChan, errorChan := readKeys(armorBlock.Body)
+	out := bytes.NewBuffer([]byte{})
+	for {
+		select {
+		case key, moreKeys :=<-keyChan:
+			if key != nil {
+				err = writeKey(out, key)
+				assert.Equal(t, err, nil)
+			}
+			if !moreKeys {
+				return string(out.Bytes())
+			}
+		case err, has :=<-errorChan:
+			if has {
+				assert.Equal(t, err, nil)  // not likely...
+			}
+		}
 	}
-	err = armorOut.Close()
-	assert.Equal(t, err, nil)
-	return string(outputBuf.Bytes())
+	panic("should not get here")
 }
 
 // Add a key.
@@ -57,10 +69,15 @@ func normalizeArmoredKey(t *testing.T, armoredKey string) string {
 // Find key by fulltext search.
 func TestAddGetFind(t *testing.T) {
 	worker := createWorker(t)
-	expectKey := normalizeArmoredKey(t, aliceUnsigned)
-	err := worker.AddKey(expectKey)
+	// Lookup key by fingerprint. Hasn't been added yet, shouldn't be found
+	key, err := worker.lookupKey("10fe8cf1b483f7525039aa2a361bc1f023e0dcca")
+	assert.Equalf(t, hockeypuck.KeyNotFound, err, "lookup should have failed, haven't added yet")
+	err = worker.AddKey(aliceUnsigned)
 	assert.Equal(t, err, nil)
-/*
+	key, err = worker.lookupKey("10fe8cf1b483f7525039aa2a361bc1f023e0dcca")
+	assert.Equal(t, err, nil)
+	assert.Equal(t, key.Fingerprint, "10fe8cf1b483f7525039aa2a361bc1f023e0dcca")
+	expectKey := normalizeArmoredKey(t, aliceUnsigned)
 	// Lookups with full fingerprint, 8-byte long and 4-byte short key ID
 	for _, keyid := range []string{
 			"10fe8cf1b483f7525039aa2a361bc1f023e0dcca",
@@ -79,6 +96,7 @@ func TestAddGetFind(t *testing.T) {
 		_, err = worker.GetKey("a5")
 		assert.Tf(t, err == hockeypuck.InvalidKeyId, "Lookup with keyid=%v", keyid)
 	}
+/*
 	// Full-text lookups
 	pubKey, err := worker.lookupKey("10fe8cf1b483f7525039aa2a361bc1f023e0dcca")
 	assert.Equal(t, err, nil)
@@ -91,7 +109,6 @@ func TestAddGetFind(t *testing.T) {
 */
 }
 
-/*
 // Add a key.
 // Then add a new revision of it with a signature added.
 func TestUpdateKey(t *testing.T) {
@@ -100,30 +117,30 @@ func TestUpdateKey(t *testing.T) {
 	unsignedKey := normalizeArmoredKey(t, aliceUnsigned)
 	err := worker.AddKey(unsignedKey)
 	assert.Equal(t, err, nil)
-	last, err := worker.getKey("10fe8cf1b483f7525039aa2a361bc1f023e0dcca")
-	entityList, err := openpgp.ReadKeyRing(bytes.NewBuffer(last.keyRing))
+	last, err := worker.lookupKey("10fe8cf1b483f7525039aa2a361bc1f023e0dcca")
 	assert.Equal(t, err, nil)
-	assert.Equal(t, 1, len(entityList))
-	assert.Equal(t, 0, len(entityList[0].Identities["alice <alice@example.com>"].Signatures))
+	assert.T(t, last != nil)
+	assert.Equal(t, "alice <alice@example.com>", last.Identities[0].Id)
+	assert.Equal(t, 1, len(last.Identities[0].Signatures))
 	// Put the key with signature added
 	signedKey := normalizeArmoredKey(t, aliceSigned)
 	err = worker.AddKey(signedKey)
 	assert.Equal(t, err, nil)
 	// Get the now-updated key
-	last, err = worker.getKey("10fe8cf1b483f7525039aa2a361bc1f023e0dcca")
-	entityList, err = openpgp.ReadKeyRing(bytes.NewBuffer(last.keyRing))
+	last, err = worker.lookupKey("10fe8cf1b483f7525039aa2a361bc1f023e0dcca")
 	assert.Equal(t, err, nil)
-	assert.Equal(t, 1, len(entityList))
-	assert.Equal(t, 1, len(entityList[0].Identities["alice <alice@example.com>"].Signatures))
+	assert.T(t, last != nil)
+	assert.Equal(t, "alice <alice@example.com>", last.Identities[0].Id)
+	assert.Equal(t, 2, len(last.Identities[0].Signatures))
 	// Put a now out-of-date version of the key (without the added signature)
 	// It should update with a merged keyring, but not overwrite the key
 	err = worker.AddKey(unsignedKey)
-	last, err = worker.getKey("10fe8cf1b483f7525039aa2a361bc1f023e0dcca")
-	entityList, err = openpgp.ReadKeyRing(bytes.NewBuffer(last.keyRing))
+	last, err = worker.lookupKey("10fe8cf1b483f7525039aa2a361bc1f023e0dcca")
 	assert.Equal(t, err, nil)
-	assert.Equal(t, 1, len(entityList[0].Identities["alice <alice@example.com>"].Signatures))
+	assert.T(t, last != nil)
+	assert.Equal(t, "alice <alice@example.com>", last.Identities[0].Id)
+	assert.Equal(t, 2, len(last.Identities[0].Signatures))
 }
-*/
 
 const aliceUnsigned = `-----BEGIN PGP PUBLIC KEY BLOCK-----
 Version: GnuPG v1.4.11 (GNU/Linux)

@@ -45,5 +45,9 @@ hockeypuck (0.1~alpha1) precise; urgency=low
   * === added directory mgo, Makefile, mgo/worker.go,
     mgo/worker_test.go:
     - Add mongodb worker backend.
+  * mgo/worker.go, mgo/worker_test.go, pgp.go:
+    - Implement lookup, key merge.
+    - Improved mongo document model.
+    - Add fingerprint unique index.
 
- -- Casey Marshall <casey.marshall@gmail.com>  Thu, 30 Aug 2012 00:04:38 -0500
+ -- Casey Marshall <casey.marshall@gazzang.com>  Thu, 30 Aug 2012 23:04:38 -0500
