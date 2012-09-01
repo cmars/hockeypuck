@@ -24,24 +24,13 @@ import (
 	"os"
 	"code.google.com/p/gorilla/mux"
 	"launchpad.net/hockeypuck"
-	"launchpad.net/hockeypuck/pq"
+	"launchpad.net/hockeypuck/mgo"
 )
 
-var pgUser *string = flag.String("user", "", "postgres username")
-var pgPass *string = flag.String("pass", "", "postgres password")
-var pgHost *string = flag.String("host", "localhost", "postgres hostname")
-var pgPort *int = flag.Int("port", 5432, "postgres port")
-var pgDb *string = flag.String("db", "", "postgres database name")
-var pgCreateTables *bool = flag.Bool("create-tables", false, "create postgres database tables")
+var mgoServer *string = flag.String("server", "localhost", "mongo server")
 var httpBind *string = flag.String("http", ":11371", "http bind port")
 
 func usage() {
-	if *pgUser == "" {
-		fmt.Fprintf(os.Stderr, "Missing required flag: -user\n")
-	}
-	if *pgDb == "" {
-		fmt.Fprintf(os.Stderr, "Missing required flag: -db\n")
-	}
 	flag.PrintDefaults()
 	os.Exit(1)
 }
@@ -52,14 +41,7 @@ func die(err error) {
 }
 
 func ConnectString() string {
-	switch {
-	case *pgUser == "":
-		usage()
-	case *pgDb == "":
-		usage()
-	}
-	return fmt.Sprintf("user=%s dbname=%s password=%s hostname=%s port=%d",
-		*pgUser, *pgDb, *pgPass, *pgHost, *pgPort)
+	return *mgoServer
 }
 
 func main() {
@@ -71,17 +53,9 @@ func main() {
 	// Resolve flags, get the database connection string
 	connect := ConnectString()
 	// Create the worker
-	worker, err := pq.NewWorker(hkp, connect)
+	worker, err := mgo.NewWorker(hkp, connect)
 	if err != nil {
 		die(err)
-	}
-	// Create tables if specified
-	if *pgCreateTables {
-		err := worker.CreateTables()
-		if err != nil {
-			die(err)
-		}
-		os.Exit(0)
 	}
 	// Start the worker
 	worker.Start()

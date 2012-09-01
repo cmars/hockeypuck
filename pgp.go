@@ -86,7 +86,7 @@ func Fingerprint(pubkey *packet.PublicKey) string {
 	return hex.EncodeToString(pubkey.Fingerprint[:])
 }
 
-func Sha512(data []byte) string {
+func Digest(data []byte) string {
 	h := sha512.New()
 	h.Write(data)
 	return hex.EncodeToString(h.Sum(nil))

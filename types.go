@@ -29,10 +29,10 @@ type Operation int
 
 // Hockeypuck supported Operations.
 const (
-	Get              Operation = 1
+	UnknownOperation           = iota
+	Get              Operation = iota
 	Index            Operation = iota
 	Vindex           Operation = iota
-	UnknownOperation           = Operation(0)
 )
 
 // Option bit mask in request.
