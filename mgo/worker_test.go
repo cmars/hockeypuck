@@ -96,17 +96,15 @@ func TestAddGetFind(t *testing.T) {
 		_, err = worker.GetKey("a5")
 		assert.Tf(t, err == hockeypuck.InvalidKeyId, "Lookup with keyid=%v", keyid)
 	}
-/*
 	// Full-text lookups
 	pubKey, err := worker.lookupKey("10fe8cf1b483f7525039aa2a361bc1f023e0dcca")
 	assert.Equal(t, err, nil)
 	for _, search := range []string{"alice", "alice@example.com"} {
-		uuids, err := worker.FindKeys(search)
+		fps, err := worker.lookupKeys(search, 10)
 		assert.Equal(t, err, nil)
-		assert.Equalf(t, 1, len(uuids), "Full-text search on: %v", search)
-		assert.Equal(t, kr.uuid, uuids[0])
+		assert.Equalf(t, 1, len(fps), "Full-text search on: %v", search)
+		assert.Equal(t, pubKey.Fingerprint, fps[0].Fingerprint)
 	}
-*/
 }
 
 // Add a key.

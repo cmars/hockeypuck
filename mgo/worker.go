@@ -21,15 +21,15 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/binary"
 	"encoding/hex"
 	"errors"
+	"fmt"
+	"html"
 	"io"
 	"net/http"
-	"regexp"
+	"os"
 	"strings"
 	"launchpad.net/hockeypuck"
-	"bitbucket.org/cmars/go.crypto/openpgp"
 	"bitbucket.org/cmars/go.crypto/openpgp/armor"
 	"bitbucket.org/cmars/go.crypto/openpgp/packet"
 	"labix.org/v2/mgo"
@@ -37,6 +37,9 @@ import (
 )
 
 const UUID_LEN = 43  // log(2**256, 64) = 42.666...
+
+const FIND_KEYS_LIMIT = 10
+const INDEX_LIMIT = 50
 
 func NewUuid() (string, error) {
 	buf := bytes.NewBuffer([]byte{})
@@ -66,13 +69,20 @@ func NewWorker(hkp *hockeypuck.HkpServer, connect string) (*MgoWorker, error) {
 	}
 	session.SetMode(mgo.Strong, true)
 	c := session.DB("hockeypuck").C("keys")
-	index := mgo.Index{
+	fpIndex := mgo.Index{
 		Key: []string{ "fingerprint" },
 		Unique: true,
 		DropDups: false,
 		Background: false,
 		Sparse: false }
-	err = c.EnsureIndex(index)
+	err = c.EnsureIndex(fpIndex)
+	kwIndex := mgo.Index{
+		Key: []string{ "identities.keywords" },
+		Unique: false,
+		DropDups: false,
+		Background: true,
+		Sparse: false }
+	err = c.EnsureIndex(kwIndex)
 	if err != nil {
 		return nil, err
 	}
@@ -85,263 +95,74 @@ func NewWorker(hkp *hockeypuck.HkpServer, connect string) (*MgoWorker, error) {
 	return mw, nil
 }
 
-type PacketObject interface {
-	GetPacket() []byte
-	SetPacket(op *packet.OpaquePacket)
-	GetDigest() string
-	Traverse(pktObjChan chan PacketObject)
-}
-
-type Signable interface {
-	AppendSig(sig* Signature)
-}
-
-type PubKey struct {
-	Fingerprint string
-	KeyId uint64
-	ShortId uint32
-	Algorithm int
-	KeyLength uint16
-	Signatures []*Signature
-	Identities []*UserId
-	SubKeys []*SubKey
-	Packet []byte
-	Digest string
-}
-
-func (pubKey *PubKey) AppendSig(sig *Signature) {
-	pubKey.Signatures = append(pubKey.Signatures, sig)
-}
-
-func (o *PubKey) GetPacket() []byte {
-	return o.Packet
-}
-
-func (o *PubKey) SetPacket(op *packet.OpaquePacket) {
-	buf := bytes.NewBuffer([]byte{})
-	op.Serialize(buf)
-	o.Packet = buf.Bytes()
-	o.Digest = hockeypuck.Digest(o.Packet)
-}
-
-func (o *PubKey) GetDigest() string {
-	return o.Digest
-}
-
-func (o *PubKey) Traverse(c chan PacketObject) {
-	c <- o
-	for _, s := range o.Signatures {
-		s.Traverse(c)
-	}
-	for _, u := range o.Identities {
-		u.Traverse(c)
-	}
-	for _, s := range o.SubKeys {
-		s.Traverse(c)
-	}
-}
-
-type Signature struct {
-	SigType int
-	IssuerKeyId uint64
-	Packet []byte
-	Digest string
-}
-
-func (o *Signature) GetPacket() []byte {
-	return o.Packet
-}
-
-func (o *Signature) SetPacket(op *packet.OpaquePacket) {
-	buf := bytes.NewBuffer([]byte{})
-	op.Serialize(buf)
-	o.Packet = buf.Bytes()
-	o.Digest = hockeypuck.Digest(o.Packet)
-}
-
-func (o *Signature) GetDigest() string {
-	return o.Digest
-}
-
-func (o *Signature) Traverse(c chan PacketObject) {
-	c <- o
-}
-
-type UserId struct {
-	Id string
-	Keywords []string
-	Signatures []*Signature
-	Attributes []*UserAttribute
-	Packet []byte
-	Digest string
-}
-
-func (userId *UserId) AppendSig(sig *Signature) {
-	userId.Signatures = append(userId.Signatures, sig)
-}
-
-func (o *UserId) GetPacket() []byte {
-	return o.Packet
-}
-
-func (o *UserId) SetPacket(op *packet.OpaquePacket) {
-	buf := bytes.NewBuffer([]byte{})
-	op.Serialize(buf)
-	o.Packet = buf.Bytes()
-	o.Digest = hockeypuck.Digest(o.Packet)
-}
-
-func (o *UserId) Traverse(c chan PacketObject) {
-	c <- o
-	for _, s := range o.Signatures {
-		s.Traverse(c)
-	}
-	for _, a := range o.Attributes {
-		a.Traverse(c)
-	}
-}
-
-func (o *UserId) GetDigest() string {
-	return o.Digest
-}
-
-type UserAttribute struct {
-	Signatures []*Signature
-	Packet []byte
-	Digest string
-}
-
-func (o *UserAttribute) GetPacket() []byte {
-	return o.Packet
-}
-
-func (o *UserAttribute) SetPacket(op *packet.OpaquePacket) {
-	buf := bytes.NewBuffer([]byte{})
-	op.Serialize(buf)
-	o.Packet = buf.Bytes()
-	o.Digest = hockeypuck.Digest(o.Packet)
-}
-
-func (userAttr *UserAttribute) AppendSig(sig *Signature) {
-	userAttr.Signatures = append(userAttr.Signatures, sig)
-}
-
-func (o *UserAttribute) GetDigest() string {
-	return o.Digest
-}
-
-func (o *UserAttribute) Traverse(c chan PacketObject) {
-	c <- o
-	for _, s := range o.Signatures {
-		s.Traverse(c)
-	}
-}
-
-type SubKey struct {
-	Fingerprint string
-	Algorithm int
-	KeyLength uint16
-	Signatures []*Signature
-	Packet []byte
-	Digest string
-}
-
-func (subKey *SubKey) AppendSig(sig *Signature) {
-	subKey.Signatures = append(subKey.Signatures, sig)
-}
-
-func (o *SubKey) GetPacket() []byte {
-	return o.Packet
-}
-
-func (o *SubKey) SetPacket(op *packet.OpaquePacket) {
-	buf := bytes.NewBuffer([]byte{})
-	op.Serialize(buf)
-	o.Packet = buf.Bytes()
-	o.Digest = hockeypuck.Digest(o.Packet)
-}
-
-func (o *SubKey) GetDigest() string {
-	return o.Digest
-}
-
-func (o *SubKey) Traverse(c chan PacketObject) {
-	c <- o
-	for _, s := range o.Signatures {
-		s.Traverse(c)
-	}
-}
-
-type keyRingResult struct {
-	uuid string
-	keyRing []byte
-	sha512 string
-}
-
 func (mw *MgoWorker) GetKey(keyid string) (string, error) {
-	keyid = strings.ToLower(keyid)
-	raw, err := hex.DecodeString(keyid)
+	key, err := mw.lookupKey(keyid)
 	if err != nil {
 		return "", hockeypuck.InvalidKeyId
-	}
-	var q *mgo.Query
-	switch len(raw) {
-	case 4:
-		q = mw.c.Find(bson.M{ "shortid": binary.BigEndian.Uint32(raw) })
-	case 8:
-		q = mw.c.Find(bson.M{ "keyid": binary.BigEndian.Uint64(raw) })
-	case 20:
-		q = mw.c.Find(bson.M{ "fingerprint": keyid })
-	default:
-		return "", hockeypuck.InvalidKeyId
-	}
-	key := new(PubKey)
-	err = q.One(key)
-	if err == mgo.ErrNotFound {
-		return "", hockeypuck.KeyNotFound
-	} else if err != nil {
-		return "", err
 	}
 	out := bytes.NewBuffer([]byte{})
 	err = writeKey(out, key)
 	return string(out.Bytes()), err
 }
 
-func writeKey(out io.Writer, key *PubKey) error {
-	w, err := armor.Encode(out, openpgp.PublicKeyType, nil)
+func (mw *MgoWorker) FindKeys(search string) (string, error) {
+	keys, err := mw.lookupKeys(search, FIND_KEYS_LIMIT)
 	if err != nil {
-		return err
+		return "", err
 	}
-	defer w.Close()
-	pktObjChan := make(chan PacketObject)
-	go func(){
-		key.Traverse(pktObjChan)
-		close(pktObjChan)
-	}()
-	for pktObj := range pktObjChan {
-		_, err = w.Write(pktObj.GetPacket())
+	if len(keys) == 0 {
+		return "", hockeypuck.KeyNotFound
+	}
+	buf := bytes.NewBuffer([]byte{})
+	for _, key := range keys {
+		err = writeKey(buf, key)
 		if err != nil {
-			close(pktObjChan)
-			return err
+			return "", err
 		}
 	}
-	return nil
+	return string(buf.Bytes()), err
 }
 
-func (mw *MgoWorker) FindKeys(search string) (uuids []string, err error) {
-	return []string{""}, errors.New("Not Implemented")
-}
-
-func (mw *MgoWorker) lookupKey(fp string) (*PubKey, error) {
+func (mw *MgoWorker) lookupKeys(search string, limit int) (keys []*PubKey, err error) {
+	q := mw.c.Find(bson.M{ "identities.keywords": search })
+	n, err := q.Count()
+	if n > limit {
+		return keys, hockeypuck.TooManyResponses
+	}
 	pubKey := new(PubKey)
-	q := mw.c.Find(bson.M{ "fingerprint": fp })
-	err := q.One(pubKey)
+	iter := q.Iter()
+	for iter.Next(pubKey) {
+		keys = append(keys, pubKey)
+	}
+	err = iter.Err()
+	return
+}
+
+func (mw *MgoWorker) lookupKey(keyid string) (*PubKey, error) {
+	keyid = strings.ToLower(keyid)
+	raw, err := hex.DecodeString(keyid)
+	if err != nil {
+		return nil, hockeypuck.InvalidKeyId
+	}
+	var q *mgo.Query
+	switch len(raw) {
+	case 4:
+		q = mw.c.Find(bson.M{ "shortid": raw })
+	case 8:
+		q = mw.c.Find(bson.M{ "keyid": raw })
+	case 20:
+		q = mw.c.Find(bson.M{ "fingerprint": keyid })
+	default:
+		return nil, hockeypuck.InvalidKeyId
+	}
+	key := new(PubKey)
+	err = q.One(key)
 	if err == mgo.ErrNotFound {
 		return nil, hockeypuck.KeyNotFound
 	} else if err != nil {
 		return nil, err
 	}
-	return pubKey, nil
+	return key, nil
 }
 
 func (mw *MgoWorker) AddKey(armoredKey string) error {
@@ -359,8 +180,11 @@ func (mw *MgoWorker) AddKey(armoredKey string) error {
 				if err == nil && lastKey != nil {
 					mergeKey(lastKey, key)
 					err = mw.c.Update(bson.M{ "fingerprint": key.Fingerprint }, lastKey)
-				} else {
+				} else if err == hockeypuck.KeyNotFound {
 					err = mw.c.Insert(key)
+				}
+				if err != nil {
+					return err
 				}
 			}
 			if !moreKeys {
@@ -371,197 +195,6 @@ func (mw *MgoWorker) AddKey(armoredKey string) error {
 		}
 	}
 	panic("unreachable")
-}
-
-func readKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
-	keyChan = make(chan *PubKey)
-	errorChan = make(chan error)
-	go func(){
-		defer close(keyChan)
-		defer close(errorChan)
-		var err error
-		var currentSignable Signable
-		var currentUserId *UserId
-		or := packet.NewOpaqueReader(r)
-		var p packet.Packet
-		var op *packet.OpaquePacket
-		var pubKey *PubKey
-		var fp string
-		for op, err = or.Next(); err != io.EOF; op, err = or.Next() {
-			if err != nil {
-				errorChan <- err
-				return
-			}
-			p, err = op.Parse()
-			if err != nil {
-				errorChan <- err
-				return
-			}
-			switch p.(type) {
-			case *packet.PublicKey:
-				pk := p.(*packet.PublicKey)
-				fp = hockeypuck.Fingerprint(pk)
-				keyLength, err := pk.BitLength()
-				if err != nil {
-					errorChan <- err
-					return
-				}
-				if !pk.IsSubkey {
-					if pubKey != nil {
-						keyChan <- pubKey
-					}
-					// This is the primary public key
-					pubKey = &PubKey{
-						Fingerprint: fp,
-						KeyId: binary.BigEndian.Uint64(pk.Fingerprint[12:20]),
-						ShortId: binary.BigEndian.Uint32(pk.Fingerprint[16:20]),
-						Algorithm: int(pk.PubKeyAlgo),
-						KeyLength: keyLength }
-					pubKey.SetPacket(op)
-					currentSignable = pubKey
-				} else {
-					// This is a sub key
-					subKey := &SubKey{
-						Fingerprint: fp,
-						Algorithm: int(pk.PubKeyAlgo),
-						KeyLength: keyLength }
-					subKey.SetPacket(op)
-					pubKey.SubKeys = append(pubKey.SubKeys, subKey)
-					currentSignable = subKey
-					currentUserId = nil
-				}
-			case *packet.Signature:
-				s := p.(*packet.Signature)
-				sig := &Signature{
-					SigType: int(s.SigType),
-					IssuerKeyId: *s.IssuerKeyId }
-				sig.SetPacket(op)
-				currentSignable.AppendSig(sig)
-			case *packet.UserId:
-				uid := p.(*packet.UserId)
-				userId := &UserId{
-					Id: uid.Id,
-					Keywords: splitUserId(uid.Id) }
-				userId.SetPacket(op)
-				currentSignable = userId
-				currentUserId = userId
-				pubKey.Identities = append(pubKey.Identities, userId)
-			case *packet.OpaquePacket:
-				// Packets not yet supported by go.crypto/openpgp
-				switch op.Tag {
-				case 17:
-					userAttr := &UserAttribute{}
-					userAttr.SetPacket(op)
-					if currentUserId != nil {
-						currentUserId.Attributes = append(currentUserId.Attributes, userAttr)
-					}
-					currentSignable = userAttr
-				case 2:
-					// TODO: Check for signature version 3
-					;
-				}
-			//case *packet.UserAttribute:
-			}
-		}
-		if pubKey != nil {
-			keyChan <- pubKey
-		}
-	}()
-	return keyChan, errorChan
-}
-
-
-func splitUserId(id string) []string {
-	splitUidRegex, _ := regexp.Compile("\\S+")
-	result := splitUidRegex.FindAllString(id, -1)
-	for i, s := range result {
-		result[i] = strings.Trim(s, "<>")
-	}
-	return result
-}
-
-func mergeKey(dstKey *PubKey, srcKey *PubKey) {
-	dstObjects := mapKey(dstKey)
-	pktObjChan := make(chan PacketObject)
-	go func(){
-		srcKey.Traverse(pktObjChan)
-		close(pktObjChan)
-	}()
-	// Track src parent object in src traverse
-	var srcPubKey *PubKey
-	var srcUserId *UserId
-	var srcSignable PacketObject
-	var srcParent PacketObject
-	var hasParent bool
-	for srcObj := range pktObjChan {
-		switch srcObj.(type) {
-		case *PubKey:
-			srcPubKey = srcObj.(*PubKey)
-			srcSignable = srcObj
-			srcParent = nil
-			hasParent = false
-		case *UserId:
-			srcUserId = srcObj.(*UserId)
-			srcSignable = srcObj
-			srcParent = srcPubKey
-			hasParent = true
-		case *UserAttribute:
-			srcSignable = srcObj
-			srcParent = srcUserId
-			hasParent = true
-		case *SubKey:
-			srcSignable = srcObj
-			srcParent = srcPubKey
-			hasParent = true
-		case *Signature:
-			srcParent = srcSignable
-			hasParent = true
-		}
-		// match in dst tree
-		_, dstHas := dstObjects[srcObj.GetDigest()]
-		if dstHas {
-			continue  // We already have it
-		}
-		if hasParent {
-			dstParentObj, dstHasParent := dstObjects[srcParent.GetDigest()]
-			if dstHasParent {
-				appendPacketObject(dstParentObj, srcObj)
-			}
-		}
-	}
-}
-
-func mapKey(root PacketObject) (objects map[string]PacketObject) {
-	objects = make(map[string]PacketObject)
-	pktObjChan := make(chan PacketObject)
-	go func() {
-		root.Traverse(pktObjChan)
-		close(pktObjChan)
-	}()
-	for pktObj := range pktObjChan {
-		objects[pktObj.GetDigest()] = pktObj
-	}
-	return
-}
-
-func appendPacketObject(dstParent PacketObject, srcObj PacketObject) {
-	if sig, isa := srcObj.(*Signature); isa {
-		if dst, isa := dstParent.(Signable); isa {
-			dst.AppendSig(sig)
-		}
-	} else if uattr, isa := srcObj.(*UserAttribute); isa {
-		if uid, isa := dstParent.(*UserId); isa {
-			uid.Attributes = append(uid.Attributes, uattr)
-		}
-	} else if uid, isa := srcObj.(*UserId); isa {
-		if pubKey, isa := dstParent.(*PubKey); isa {
-			pubKey.Identities = append(pubKey.Identities, uid)
-		}
-	} else if subKey, isa := srcObj.(*SubKey); isa {
-		if pubKey, isa := dstParent.(*PubKey); isa {
-			pubKey.SubKeys = append(pubKey.SubKeys, subKey)
-		}
-	}
 }
 
 func (mw *MgoWorker) Start() {
@@ -575,8 +208,20 @@ func (mw *MgoWorker) Start() {
 						armor, err := mw.GetKey(lookup.Search[2:])
 						lookup.Response() <- &response{ content: armor, err: err }
 					} else {
-						lookup.Response() <- &notImplementedError{}
+						armor, err := mw.FindKeys(lookup.Search)
+						lookup.Response() <- &response{ content: armor, err: err }
 					}
+				case hockeypuck.Index, hockeypuck.Vindex:
+					var key *PubKey
+					var err error
+					keys := []*PubKey{}
+					if lookup.Exact || strings.HasPrefix(lookup.Search, "0x") {
+						key, err = mw.lookupKey(lookup.Search[2:])
+						keys = append(keys, key)
+					} else {
+						keys, err = mw.lookupKeys(lookup.Search, INDEX_LIMIT)
+					}
+					lookup.Response() <- &indexResponse{ keys: keys, err: err, lookup: lookup }
 				default:
 					lookup.Response() <- &notImplementedError{}
 				}
@@ -590,6 +235,7 @@ func (mw *MgoWorker) Start() {
 			select {
 			case add := <-mw.hkp.AddRequests:
 				err := mw.AddKey(add.Keytext)
+				fmt.Fprintf(os.Stderr, "Added key, %v\n", err)
 				add.Response() <- &response{ err: err }
 			case _ = <-mw.exitAdd:
 				shouldRun = false
@@ -616,6 +262,168 @@ func (r *response) Error() error {
 func (r *response) WriteTo(w http.ResponseWriter) error {
 	w.Write([]byte(r.content))
 	return r.err
+}
+
+type indexResponse struct {
+	lookup *hockeypuck.Lookup
+	keys []*PubKey
+	err error
+}
+
+func (r *indexResponse) Error() error {
+	return r.err
+}
+
+func (r *indexResponse) WriteTo(w http.ResponseWriter) error {
+	err := r.err
+	var writeFn func(io.Writer, *PubKey) error = nil
+	switch {
+	case r.lookup.Option & hockeypuck.MachineReadable != 0:
+		writeFn = writeMachineReadable
+	case r.lookup.Op == hockeypuck.Vindex:
+		writeFn = writeVindex
+	case r.lookup.Op == hockeypuck.Index:
+		writeFn = writeIndex
+	}
+	if r.lookup.Option & hockeypuck.MachineReadable != 0 {
+		writeFn = writeMachineReadable
+		w.Header().Add("Content-Type", "text/plain")
+	} else {
+		w.Header().Add("Content-Type", "text/html")
+		w.Write([]byte(`<html><body><pre>`))
+		w.Write([]byte(`<table>
+<tr><th>Type</th><th>bits/keyID</th><th>Created</th><th></th></tr>`))
+	}
+	if writeFn == nil {
+		err = hockeypuck.UnsupportedOperation
+	}
+	if len(r.keys) == 0 {
+		err = hockeypuck.KeyNotFound
+	}
+	if err == nil {
+		for _, key := range r.keys {
+			err = writeFn(w, key)
+		}
+	} else {
+		w.Write([]byte(err.Error()))
+	}
+	if r.lookup.Option & hockeypuck.MachineReadable == 0 {
+		if r.lookup.Op == hockeypuck.Index {
+			w.Write([]byte(`</table>`))
+		}
+		w.Write([]byte(`</pre></body></html>`))
+	}
+	return err
+}
+
+func AlgorithmCode(algorithm int) string {
+	switch packet.PublicKeyAlgorithm(algorithm) {
+	case packet.PubKeyAlgoRSA, packet.PubKeyAlgoRSAEncryptOnly, packet.PubKeyAlgoRSASignOnly:
+		return "R"
+	case packet.PubKeyAlgoElGamal:
+		return "g"
+	case packet.PubKeyAlgoDSA:
+		return "D"
+	}
+	return fmt.Sprintf("[%d]", algorithm)
+}
+
+func writeIndex(w io.Writer, key *PubKey) error {
+	pktObjChan := make(chan PacketObject)
+	go func() {
+		key.Traverse(pktObjChan)
+		close(pktObjChan)
+	}()
+	for pktObj := range pktObjChan {
+		switch pktObj.(type) {
+		case *PubKey:
+			pubKey := pktObj.(*PubKey)
+			pkt, err := pubKey.Parse()
+			if err != nil {
+				return err
+			}
+			pk := pkt.(*packet.PublicKey)
+			fmt.Fprintf(w, `<tr>
+<td>pub</td>
+<td>%d%s/<a href="/pks/lookup?op=get&search=0x%s">%s</a></td>
+<td>%v</td>
+<td></td></tr>`,
+				key.KeyLength, AlgorithmCode(key.Algorithm), key.Fingerprint,
+				strings.ToUpper(key.Fingerprint[32:40]),
+				pk.CreationTime.Format("2006-01-02"))
+		case *UserId:
+			uid := pktObj.(*UserId)
+			fmt.Fprintf(w, `<tr><td>uid</td><td colspan='2'></td>
+<td><a href="/pks/lookup?op=vindex&search=0x%s">%s</a></td></tr>`,
+				key.Fingerprint, html.EscapeString(uid.Id))
+		}
+	}
+	return nil
+}
+
+func writeVindex(w io.Writer, key *PubKey) error {
+	pktObjChan := make(chan PacketObject)
+	go func() {
+		key.Traverse(pktObjChan)
+		close(pktObjChan)
+	}()
+	for pktObj := range pktObjChan {
+		switch pktObj.(type) {
+		case *PubKey:
+			pubKey := pktObj.(*PubKey)
+			pkt, err := pubKey.Parse()
+			if err != nil {
+				return err
+			}
+			pk := pkt.(*packet.PublicKey)
+			fmt.Fprintf(w, `<tr>
+<td>pub</td>
+<td>%d%s/<a href="/pks/lookup?op=get&search=0x%s">%s</a></td>
+<td>%v</td>
+<td></td></tr>`,
+				key.KeyLength, AlgorithmCode(key.Algorithm), key.Fingerprint,
+				strings.ToUpper(key.Fingerprint[32:40]),
+				pk.CreationTime.Format("2006-01-02"))
+		case *UserId:
+			uid := pktObj.(*UserId)
+			fmt.Fprintf(w, `<tr><td>uid</td><td colspan='2'></td>
+<td><a href="/pks/lookup?op=vindex&search=0x%s">%s</a></td></tr>`,
+				key.Fingerprint, html.EscapeString(uid.Id))
+		case *Signature:
+			sig := pktObj.(*Signature)
+			longId := strings.ToUpper(hex.EncodeToString(sig.IssuerKeyId))
+			pkt, err := sig.Parse()
+			if err != nil {
+				return err
+			}
+			sigv4, isa := pkt.(*packet.Signature)
+			var sigTime string
+			if isa {
+				sigTime = sigv4.CreationTime.Format("2006-01-02")
+			}
+			fmt.Fprintf(w, `<tr><td>sig</td><td>%s</td><td>%s</td>
+<td><a href="/pks/lookup?op=vindex&search=0x%s">%s</a></td></tr>`,
+				longId[8:16], sigTime, longId, longId)
+/*
+		case *UserAttribute:
+			uattr := pktObj.(*UserAttribute)
+			pkt, err := uattr.Parse()
+			if err != nil {
+				continue
+			}
+			if opkt, isa := pkt.(*packet.OpaquePacket); isa {
+				fmt.Fprintf(w, `<tr><td>uattr</td><td colspan=2></td>
+<td><img src="data:image/jpeg;base64,%s"></img></td></tr>`,
+					base64.URLEncoding.EncodeToString(opkt.Contents[22:]))
+			}
+*/
+		}
+	}
+	return nil
+}
+
+func writeMachineReadable(w io.Writer, key *PubKey) error {
+	return hockeypuck.UnsupportedOperation
 }
 
 type notImplementedError struct {

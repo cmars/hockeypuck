@@ -1,3 +1,15 @@
+hockeypuck (0.5~alpha1) precise; urgency=low
+
+  [ Casey Marshall ]
+  * cmd/hockeypuck/main.go, debian/control, errors.go, mgo/worker.go,
+    mgo/worker_test.go, pq/worker.go, pq/worker_test.go, === removed
+    directory pq, types.go:
+    - Significant progress on mongo worker.
+    - Removed postgres worker.
+    - op=index, op=vindex support.
+
+ -- Casey Marshall <casey.marshall@gazzang.com>  Fri, 31 Aug 2012 23:26:46 -0500
+
 hockeypuck (0.1~alpha1) precise; urgency=low
 
   [ Casey Marshall ]
