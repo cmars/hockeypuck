@@ -7,12 +7,12 @@ HOCKEYPATH=$(GOPATH)/src/launchpad.net/hockeypuck
 
 all: get $(HOCKEYPATH)/cmd/hockeypuck/hockeypuck
 
-get: $(HOCKEYPATH)/pq
+get: $(HOCKEYPATH)/mgo
 
-$(HOCKEYPATH)/pq:
+$(HOCKEYPATH)/mgo:
 	@echo GOPATH is $(GOPATH)
 	mkdir -p $(GOPATH)
-	GOPATH="${GOPATH}" $(GO) get launchpad.net/hockeypuck/pq
+	GOPATH="${GOPATH}" $(GO) get launchpad.net/hockeypuck/mgo
 
 $(HOCKEYPATH)/cmd/hockeypuck/hockeypuck:
 	cd $(HOCKEYPATH)/cmd/hockeypuck; GOPATH="${GOPATH}" $(GO) build .
