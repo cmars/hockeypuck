@@ -29,6 +29,7 @@ import (
 
 var mgoServer *string = flag.String("server", "localhost", "mongo server")
 var httpBind *string = flag.String("http", ":11371", "http bind port")
+var load *string = flag.String("load", "", "load PGP keyring file")
 
 func usage() {
 	flag.PrintDefaults()
@@ -36,12 +37,23 @@ func usage() {
 }
 
 func die(err error) {
-	fmt.Fprintf(os.Stderr, "%s\n", err.Error())
-	os.Exit(1)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s\n", err.Error())
+		os.Exit(1)
+	}
+	os.Exit(0)
 }
 
 func ConnectString() string {
 	return *mgoServer
+}
+
+func doLoad(worker *mgo.MgoWorker, keyfile string) error {
+	f, err := os.Open(keyfile)
+	if err != nil {
+		return err
+	}
+	return worker.LoadKeys(f)
 }
 
 func main() {
@@ -57,13 +69,15 @@ func main() {
 	if err != nil {
 		die(err)
 	}
+	if *load != "" {
+		err = doLoad(worker, *load)
+		die(err)
+	}
 	// Start the worker
 	worker.Start()
 	// Bind the router to the built-in webserver root
 	http.Handle("/", r)
 	// Start the built-in webserver, run forever
 	err = http.ListenAndServe(*httpBind, nil)
-	if err != nil {
-		die(err)
-	}
+	die(err)
 }

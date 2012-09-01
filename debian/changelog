@@ -9,8 +9,10 @@ hockeypuck (0.5~alpha1) precise; urgency=low
     - Removed postgres worker.
     - op=index, op=vindex support.
     - Split packages into smaller source files.
+  * cmd/hockeypuck/main.go, mgo/worker.go:
+    - Add -load option to hockeypuck main.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Fri, 31 Aug 2012 23:36:28 -0500
+ -- Casey Marshall <casey.marshall@gazzang.com>  Sat, 01 Sep 2012 00:11:14 -0500
 
 hockeypuck (0.1~alpha1) precise; urgency=low
 

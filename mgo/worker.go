@@ -171,7 +171,11 @@ func (mw *MgoWorker) AddKey(armoredKey string) error {
 	if err != nil {
 		return err
 	}
-	keyChan, errChan := readKeys(armorBlock.Body)
+	return mw.LoadKeys(armorBlock.Body)
+}
+
+func (mw *MgoWorker) LoadKeys(r io.Reader) (err error) {
+	keyChan, errChan := readKeys(r)
 	for {
 		select {
 		case key, moreKeys :=<-keyChan:
