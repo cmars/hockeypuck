@@ -11,8 +11,13 @@ hockeypuck (0.5~alpha1) precise; urgency=low
     - Split packages into smaller source files.
   * cmd/hockeypuck/main.go, mgo/worker.go:
     - Add -load option to hockeypuck main.
+  * cmd/hockeypuck/main.go, mgo/rw.go, mgo/worker.go:
+    - Add some simple logging. LP: #1040376
+    - Skip unsupported public key and signature packets. This allows loading
+      subsequent supported keys from the packet stream.
+    - Skip signatures with nil IssuerKeyId (wat). LP: #1044772
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Sat, 01 Sep 2012 00:11:14 -0500
+ -- Casey Marshall <casey.marshall@gazzang.com>  Thu, 06 Sep 2012 17:59:53 -0500
 
 hockeypuck (0.1~alpha1) precise; urgency=low
 

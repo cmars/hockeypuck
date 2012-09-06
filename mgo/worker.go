@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -57,14 +58,20 @@ func NewUuid() (string, error) {
 type MgoWorker struct {
 	session *mgo.Session
 	c *mgo.Collection
+	l *log.Logger
 	hkp        *hockeypuck.HkpServer
 	exitLookup chan bool
 	exitAdd    chan bool
 }
 
-func NewWorker(hkp *hockeypuck.HkpServer, connect string) (*MgoWorker, error) {
+func NewWorker(hkp *hockeypuck.HkpServer, connect string, l *log.Logger) (*MgoWorker, error) {
+	if l == nil {
+		l = log.New(os.Stderr, "[hockeypuck]", log.LstdFlags | log.Lshortfile)
+	}
+	l.Println("Connecting to mongodb:", connect)
 	session, err := mgo.Dial(connect)
 	if err != nil {
+		l.Println("Connection failed:", err)
 		return nil, err
 	}
 	session.SetMode(mgo.Strong, true)
@@ -76,6 +83,10 @@ func NewWorker(hkp *hockeypuck.HkpServer, connect string) (*MgoWorker, error) {
 		Background: false,
 		Sparse: false }
 	err = c.EnsureIndex(fpIndex)
+	if err != nil {
+		l.Println("Ensure index failed:", err)
+		return nil, err
+	}
 	kwIndex := mgo.Index{
 		Key: []string{ "identities.keywords" },
 		Unique: false,
@@ -84,28 +95,33 @@ func NewWorker(hkp *hockeypuck.HkpServer, connect string) (*MgoWorker, error) {
 		Sparse: false }
 	err = c.EnsureIndex(kwIndex)
 	if err != nil {
+		l.Println("Ensure index failed:", err)
 		return nil, err
 	}
 	mw := &MgoWorker{
 		session: session,
 		c: c,
 		hkp:        hkp,
+		l: l,
 		exitLookup: make(chan bool),
 		exitAdd:    make(chan bool)}
 	return mw, nil
 }
 
 func (mw *MgoWorker) GetKey(keyid string) (string, error) {
+	mw.l.Print("GetKey(", keyid, ")")
 	key, err := mw.lookupKey(keyid)
 	if err != nil {
 		return "", hockeypuck.InvalidKeyId
 	}
 	out := bytes.NewBuffer([]byte{})
 	err = writeKey(out, key)
+	mw.l.Println(err)
 	return string(out.Bytes()), err
 }
 
 func (mw *MgoWorker) FindKeys(search string) (string, error) {
+	mw.l.Print("FindKeys(", search, ")")
 	keys, err := mw.lookupKeys(search, FIND_KEYS_LIMIT)
 	if err != nil {
 		return "", err
@@ -113,6 +129,7 @@ func (mw *MgoWorker) FindKeys(search string) (string, error) {
 	if len(keys) == 0 {
 		return "", hockeypuck.KeyNotFound
 	}
+	mw.l.Print(len(keys), "matches")
 	buf := bytes.NewBuffer([]byte{})
 	for _, key := range keys {
 		err = writeKey(buf, key)
@@ -166,6 +183,7 @@ func (mw *MgoWorker) lookupKey(keyid string) (*PubKey, error) {
 }
 
 func (mw *MgoWorker) AddKey(armoredKey string) error {
+	mw.l.Print("AddKey(...)")
 	// Check and decode the armor
 	armorBlock, err := armor.Decode(bytes.NewBufferString(armoredKey))
 	if err != nil {
@@ -182,9 +200,11 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (err error) {
 			if key != nil {
 				lastKey, err := mw.lookupKey(key.Fingerprint)
 				if err == nil && lastKey != nil {
+					mw.l.Print("Merge/Update:", key.Fingerprint)
 					mergeKey(lastKey, key)
 					err = mw.c.Update(bson.M{ "fingerprint": key.Fingerprint }, lastKey)
 				} else if err == hockeypuck.KeyNotFound {
+					mw.l.Print("Insert:", key.Fingerprint)
 					err = mw.c.Insert(key)
 				}
 				if err != nil {
@@ -210,9 +230,11 @@ func (mw *MgoWorker) Start() {
 				case hockeypuck.Get:
 					if lookup.Exact || strings.HasPrefix(lookup.Search, "0x") {
 						armor, err := mw.GetKey(lookup.Search[2:])
+						mw.l.Println("errors:", err)
 						lookup.Response() <- &response{ content: armor, err: err }
 					} else {
 						armor, err := mw.FindKeys(lookup.Search)
+						mw.l.Println("errors:", err)
 						lookup.Response() <- &response{ content: armor, err: err }
 					}
 				case hockeypuck.Index, hockeypuck.Vindex:
@@ -239,7 +261,7 @@ func (mw *MgoWorker) Start() {
 			select {
 			case add := <-mw.hkp.AddRequests:
 				err := mw.AddKey(add.Keytext)
-				fmt.Fprintf(os.Stderr, "Added key, %v\n", err)
+				mw.l.Println("errors:", err)
 				add.Response() <- &response{ err: err }
 			case _ = <-mw.exitAdd:
 				shouldRun = false

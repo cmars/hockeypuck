@@ -20,6 +20,7 @@ package mgo
 import (
 	"encoding/binary"
 	"io"
+	"log"
 	"regexp"
 	"strings"
 	"launchpad.net/hockeypuck"
@@ -96,6 +97,9 @@ func readKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 					pubKey.SetPacket(op)
 					currentSignable = pubKey
 				} else {
+					if pubKey == nil {
+						continue
+					}
 					// This is a sub key
 					subKey := &SubKey{
 						Fingerprint: fp,
@@ -107,7 +111,15 @@ func readKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 					currentUserId = nil
 				}
 			case *packet.Signature:
+				if currentSignable == nil {
+					continue
+				}
 				s := p.(*packet.Signature)
+				if s.IssuerKeyId == nil {
+					log.Println("Signature missing IssuerKeyId!", "Public key fingerprint:",
+							pubKey.Fingerprint)
+					continue
+				}
 				var issuerKeyId [8]byte
 				binary.BigEndian.PutUint64(issuerKeyId[:], *s.IssuerKeyId)
 				sig := &Signature{
@@ -116,6 +128,9 @@ func readKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 				sig.SetPacket(op)
 				currentSignable.AppendSig(sig)
 			case *packet.UserId:
+				if pubKey == nil {
+					continue
+				}
 				uid := p.(*packet.UserId)
 				userId := &UserId{
 					Id: uid.Id,
@@ -127,16 +142,24 @@ func readKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 			case *packet.OpaquePacket:
 				// Packets not yet supported by go.crypto/openpgp
 				switch op.Tag {
-				case 17:
+				case 17:  // Process user attribute packet
 					userAttr := &UserAttribute{}
 					userAttr.SetPacket(op)
 					if currentUserId != nil {
 						currentUserId.Attributes = append(currentUserId.Attributes, userAttr)
 					}
 					currentSignable = userAttr
-				case 2:
+				case 2:  // Bad signature packet
 					// TODO: Check for signature version 3
+					log.Println("Unsupported signature packet, skipping...")
 					;
+				case 6:  // Bad public key packet
+					// TODO: Check for unsupported PGP public key packet version
+					// For now, clear state, ignore to next key
+					log.Println("Unsupported public key packet, skipping...")
+					pubKey = nil
+					currentSignable = nil
+					currentUserId = nil
 				}
 			//case *packet.UserAttribute:
 			}
@@ -147,7 +170,6 @@ func readKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 	}()
 	return keyChan, errorChan
 }
-
 
 func splitUserId(id string) []string {
 	splitUidRegex, _ := regexp.Compile("\\S+")

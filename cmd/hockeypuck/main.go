@@ -20,8 +20,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"code.google.com/p/gorilla/mux"
 	"launchpad.net/hockeypuck"
 	"launchpad.net/hockeypuck/mgo"
@@ -48,12 +50,27 @@ func ConnectString() string {
 	return *mgoServer
 }
 
-func doLoad(worker *mgo.MgoWorker, keyfile string) error {
-	f, err := os.Open(keyfile)
+func doLoad(worker *mgo.MgoWorker, arg string) (err error) {
+	keyfiles, err := filepath.Glob(arg)
 	if err != nil {
 		return err
 	}
-	return worker.LoadKeys(f)
+	var f *os.File
+	for i := 0; i < len(keyfiles); i++ {
+		keyfile := keyfiles[i]
+		f, err = os.Open(keyfile)
+		if err != nil {
+			log.Println("Failed to open", keyfile, ":", err)
+			continue
+		} else {
+			log.Println("Loading keys from", keyfile)
+		}
+		err = worker.LoadKeys(f)
+		if err != nil {
+			log.Println("Error loading", keyfile, ":", err)
+		}
+	}
+	return
 }
 
 func main() {
@@ -65,7 +82,7 @@ func main() {
 	// Resolve flags, get the database connection string
 	connect := ConnectString()
 	// Create the worker
-	worker, err := mgo.NewWorker(hkp, connect)
+	worker, err := mgo.NewWorker(hkp, connect, nil)
 	if err != nil {
 		die(err)
 	}
