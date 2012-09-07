@@ -1,4 +1,4 @@
-hockeypuck (0.5~alpha2) precise; urgency=low
+hockeypuck (0.5~alpha3) precise; urgency=low
 
   [ Casey Marshall ]
   * cmd/hockeypuck/main.go, debian/control, errors.go, mgo/worker.go,
@@ -16,8 +16,15 @@ hockeypuck (0.5~alpha2) precise; urgency=low
     - Skip unsupported public key and signature packets. This allows loading
       subsequent supported keys from the packet stream.
     - Skip signatures with nil IssuerKeyId (wat). LP: #1044772
+  * debian/control, debian/rules, Makefile:
+  * === added directory man, === added directory man/man1,
+    debian/control, debian/rules, Makefile, man/man1/hockeypuck.1:
+    - Add manpage. Trying to fix recommends in control file.
+    - Makefile now cleans the binary before making source package, to
+      make sure the PPA builder recompiles it.
+    - Add Makefile srcclean target.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Thu, 06 Sep 2012 18:08:36 -0500
+ -- Casey Marshall <casey.marshall@gazzang.com>  Fri, 07 Sep 2012 12:53:56 -0500
 
 hockeypuck (0.1~alpha1) precise; urgency=low
 

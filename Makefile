@@ -17,7 +17,7 @@ $(HOCKEYPATH)/mgo:
 $(HOCKEYPATH)/cmd/hockeypuck/hockeypuck:
 	cd $(HOCKEYPATH)/cmd/hockeypuck; GOPATH="${GOPATH}" $(GO) build .
 
-debsrc: debbin
+debsrc: debbin clean
 	debuild -S
 
 debbin:
@@ -25,3 +25,6 @@ debbin:
 
 clean:
 	$(RM) $(HOCKEYPATH)/cmd/hockeypuck/hockeypuck
+
+srcclean:
+	$(RM) -r $(GOPATH)
