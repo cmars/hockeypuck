@@ -30,12 +30,12 @@ import (
 var mgoServer *string = flag.String("server", "localhost", "mongo server")
 
 func createWorker(t *testing.T) *MgoWorker {
-	worker, err := NewWorker(nil, *mgoServer)
+	worker, err := NewWorker(nil, *mgoServer, nil)
 	assert.Equal(t, err, nil)
 	worker.c.DropCollection()
 	assert.Equal(t, err, nil)
 	worker.session.Close()
-	worker, err = NewWorker(nil, *mgoServer)
+	worker, err = NewWorker(nil, *mgoServer, nil)
 	assert.Equal(t, err, nil)
 	return worker
 }
