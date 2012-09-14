@@ -23,8 +23,12 @@ hockeypuck (0.5~alpha3) precise; urgency=low
     - Makefile now cleans the binary before making source package, to
       make sure the PPA builder recompiles it.
     - Add Makefile srcclean target.
+  * hkp_types.go, merge.go, mgo/merge.go, mgo/rw.go, mgo/types.go,
+    mgo/worker.go, mgo/worker_test.go, pgp.go, pgp_types.go, types.go:
+    - Refactoring: pull non-Mongo-specific code up to top-level hockeypuck
+      package.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Fri, 07 Sep 2012 12:53:56 -0500
+ -- Casey Marshall <casey.marshall@gazzang.com>  Fri, 14 Sep 2012 14:49:57 -0500
 
 hockeypuck (0.1~alpha1) precise; urgency=low
 

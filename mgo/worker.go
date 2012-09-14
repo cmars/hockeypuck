@@ -30,7 +30,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"launchpad.net/hockeypuck"
+	. "launchpad.net/hockeypuck"
 	"bitbucket.org/cmars/go.crypto/openpgp/armor"
 	"bitbucket.org/cmars/go.crypto/openpgp/packet"
 	"labix.org/v2/mgo"
@@ -59,12 +59,12 @@ type MgoWorker struct {
 	session *mgo.Session
 	c *mgo.Collection
 	l *log.Logger
-	hkp        *hockeypuck.HkpServer
+	hkp        *HkpServer
 	exitLookup chan bool
 	exitAdd    chan bool
 }
 
-func NewWorker(hkp *hockeypuck.HkpServer, connect string, l *log.Logger) (*MgoWorker, error) {
+func NewWorker(hkp *HkpServer, connect string, l *log.Logger) (*MgoWorker, error) {
 	if l == nil {
 		l = log.New(os.Stderr, "[hockeypuck]", log.LstdFlags | log.Lshortfile)
 	}
@@ -112,10 +112,10 @@ func (mw *MgoWorker) GetKey(keyid string) (string, error) {
 	mw.l.Print("GetKey(", keyid, ")")
 	key, err := mw.lookupKey(keyid)
 	if err != nil {
-		return "", hockeypuck.InvalidKeyId
+		return "", InvalidKeyId
 	}
 	out := bytes.NewBuffer([]byte{})
-	err = writeKey(out, key)
+	err = WriteKey(out, key)
 	mw.l.Println(err)
 	return string(out.Bytes()), err
 }
@@ -127,12 +127,12 @@ func (mw *MgoWorker) FindKeys(search string) (string, error) {
 		return "", err
 	}
 	if len(keys) == 0 {
-		return "", hockeypuck.KeyNotFound
+		return "", KeyNotFound
 	}
 	mw.l.Print(len(keys), "matches")
 	buf := bytes.NewBuffer([]byte{})
 	for _, key := range keys {
-		err = writeKey(buf, key)
+		err = WriteKey(buf, key)
 		if err != nil {
 			return "", err
 		}
@@ -144,7 +144,7 @@ func (mw *MgoWorker) lookupKeys(search string, limit int) (keys []*PubKey, err e
 	q := mw.c.Find(bson.M{ "identities.keywords": search })
 	n, err := q.Count()
 	if n > limit {
-		return keys, hockeypuck.TooManyResponses
+		return keys, TooManyResponses
 	}
 	pubKey := new(PubKey)
 	iter := q.Iter()
@@ -159,7 +159,7 @@ func (mw *MgoWorker) lookupKey(keyid string) (*PubKey, error) {
 	keyid = strings.ToLower(keyid)
 	raw, err := hex.DecodeString(keyid)
 	if err != nil {
-		return nil, hockeypuck.InvalidKeyId
+		return nil, InvalidKeyId
 	}
 	var q *mgo.Query
 	switch len(raw) {
@@ -170,12 +170,12 @@ func (mw *MgoWorker) lookupKey(keyid string) (*PubKey, error) {
 	case 20:
 		q = mw.c.Find(bson.M{ "fingerprint": keyid })
 	default:
-		return nil, hockeypuck.InvalidKeyId
+		return nil, InvalidKeyId
 	}
 	key := new(PubKey)
 	err = q.One(key)
 	if err == mgo.ErrNotFound {
-		return nil, hockeypuck.KeyNotFound
+		return nil, KeyNotFound
 	} else if err != nil {
 		return nil, err
 	}
@@ -193,7 +193,7 @@ func (mw *MgoWorker) AddKey(armoredKey string) error {
 }
 
 func (mw *MgoWorker) LoadKeys(r io.Reader) (err error) {
-	keyChan, errChan := readKeys(r)
+	keyChan, errChan := ReadKeys(r)
 	for {
 		select {
 		case key, moreKeys :=<-keyChan:
@@ -201,9 +201,9 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (err error) {
 				lastKey, err := mw.lookupKey(key.Fingerprint)
 				if err == nil && lastKey != nil {
 					mw.l.Print("Merge/Update:", key.Fingerprint)
-					mergeKey(lastKey, key)
+					MergeKey(lastKey, key)
 					err = mw.c.Update(bson.M{ "fingerprint": key.Fingerprint }, lastKey)
-				} else if err == hockeypuck.KeyNotFound {
+				} else if err == KeyNotFound {
 					mw.l.Print("Insert:", key.Fingerprint)
 					err = mw.c.Insert(key)
 				}
@@ -227,7 +227,7 @@ func (mw *MgoWorker) Start() {
 			select {
 			case lookup := <-mw.hkp.LookupRequests:
 				switch lookup.Op {
-				case hockeypuck.Get:
+				case Get:
 					if lookup.Exact || strings.HasPrefix(lookup.Search, "0x") {
 						armor, err := mw.GetKey(lookup.Search[2:])
 						mw.l.Println("errors:", err)
@@ -237,7 +237,7 @@ func (mw *MgoWorker) Start() {
 						mw.l.Println("errors:", err)
 						lookup.Response() <- &response{ content: armor, err: err }
 					}
-				case hockeypuck.Index, hockeypuck.Vindex:
+				case Index, Vindex:
 					var key *PubKey
 					var err error
 					keys := []*PubKey{}
@@ -291,7 +291,7 @@ func (r *response) WriteTo(w http.ResponseWriter) error {
 }
 
 type indexResponse struct {
-	lookup *hockeypuck.Lookup
+	lookup *Lookup
 	keys []*PubKey
 	err error
 }
@@ -304,14 +304,14 @@ func (r *indexResponse) WriteTo(w http.ResponseWriter) error {
 	err := r.err
 	var writeFn func(io.Writer, *PubKey) error = nil
 	switch {
-	case r.lookup.Option & hockeypuck.MachineReadable != 0:
+	case r.lookup.Option & MachineReadable != 0:
 		writeFn = writeMachineReadable
-	case r.lookup.Op == hockeypuck.Vindex:
+	case r.lookup.Op == Vindex:
 		writeFn = writeVindex
-	case r.lookup.Op == hockeypuck.Index:
+	case r.lookup.Op == Index:
 		writeFn = writeIndex
 	}
-	if r.lookup.Option & hockeypuck.MachineReadable != 0 {
+	if r.lookup.Option & MachineReadable != 0 {
 		writeFn = writeMachineReadable
 		w.Header().Add("Content-Type", "text/plain")
 	} else {
@@ -321,10 +321,10 @@ func (r *indexResponse) WriteTo(w http.ResponseWriter) error {
 <tr><th>Type</th><th>bits/keyID</th><th>Created</th><th></th></tr>`))
 	}
 	if writeFn == nil {
-		err = hockeypuck.UnsupportedOperation
+		err = UnsupportedOperation
 	}
 	if len(r.keys) == 0 {
-		err = hockeypuck.KeyNotFound
+		err = KeyNotFound
 	}
 	if err == nil {
 		for _, key := range r.keys {
@@ -333,8 +333,8 @@ func (r *indexResponse) WriteTo(w http.ResponseWriter) error {
 	} else {
 		w.Write([]byte(err.Error()))
 	}
-	if r.lookup.Option & hockeypuck.MachineReadable == 0 {
-		if r.lookup.Op == hockeypuck.Index {
+	if r.lookup.Option & MachineReadable == 0 {
+		if r.lookup.Op == Index {
 			w.Write([]byte(`</table>`))
 		}
 		w.Write([]byte(`</pre></body></html>`))
@@ -449,7 +449,7 @@ func writeVindex(w io.Writer, key *PubKey) error {
 }
 
 func writeMachineReadable(w io.Writer, key *PubKey) error {
-	return hockeypuck.UnsupportedOperation
+	return UnsupportedOperation
 }
 
 type notImplementedError struct {

@@ -43,13 +43,13 @@ func createWorker(t *testing.T) *MgoWorker {
 func normalizeArmoredKey(t *testing.T, armoredKey string) string {
 	armorBlock, err := armor.Decode(bytes.NewBufferString(armoredKey))
 	assert.Equal(t, err, nil)
-	keyChan, errorChan := readKeys(armorBlock.Body)
+	keyChan, errorChan := hockeypuck.ReadKeys(armorBlock.Body)
 	out := bytes.NewBuffer([]byte{})
 	for {
 		select {
 		case key, moreKeys :=<-keyChan:
 			if key != nil {
-				err = writeKey(out, key)
+				err = hockeypuck.WriteKey(out, key)
 				assert.Equal(t, err, nil)
 			}
 			if !moreKeys {

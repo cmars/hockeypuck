@@ -15,12 +15,12 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package mgo
+package hockeypuck
 
 // Merge the contents of srcKey into dstKey, modifying in-place.
 // Packets in src not found in dst are appended to the matching parent.
 // Conflicting packets and unmatched parents are ignored.
-func mergeKey(dstKey *PubKey, srcKey *PubKey) {
+func MergeKey(dstKey *PubKey, srcKey *PubKey) {
 	dstObjects := mapKey(dstKey)
 	pktObjChan := make(chan PacketObject)
 	go func(){

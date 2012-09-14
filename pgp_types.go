@@ -15,11 +15,10 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package mgo
+package hockeypuck
 
 import (
 	"bytes"
-	"launchpad.net/hockeypuck"
 	"bitbucket.org/cmars/go.crypto/openpgp/packet"
 )
 
@@ -60,7 +59,7 @@ func (o *PubKey) SetPacket(op *packet.OpaquePacket) {
 	buf := bytes.NewBuffer([]byte{})
 	op.Serialize(buf)
 	o.Packet = buf.Bytes()
-	o.Digest = hockeypuck.Digest(o.Packet)
+	o.Digest = Digest(o.Packet)
 }
 
 func (o *PubKey) GetDigest() string {
@@ -105,7 +104,7 @@ func (o *Signature) SetPacket(op *packet.OpaquePacket) {
 	buf := bytes.NewBuffer([]byte{})
 	op.Serialize(buf)
 	o.Packet = buf.Bytes()
-	o.Digest = hockeypuck.Digest(o.Packet)
+	o.Digest = Digest(o.Packet)
 }
 
 func (o *Signature) GetDigest() string {
@@ -147,7 +146,7 @@ func (o *UserId) SetPacket(op *packet.OpaquePacket) {
 	buf := bytes.NewBuffer([]byte{})
 	op.Serialize(buf)
 	o.Packet = buf.Bytes()
-	o.Digest = hockeypuck.Digest(o.Packet)
+	o.Digest = Digest(o.Packet)
 }
 
 func (o *UserId) Traverse(c chan PacketObject) {
@@ -188,7 +187,7 @@ func (o *UserAttribute) SetPacket(op *packet.OpaquePacket) {
 	buf := bytes.NewBuffer([]byte{})
 	op.Serialize(buf)
 	o.Packet = buf.Bytes()
-	o.Digest = hockeypuck.Digest(o.Packet)
+	o.Digest = Digest(o.Packet)
 }
 
 func (userAttr *UserAttribute) AppendSig(sig *Signature) {
@@ -237,7 +236,7 @@ func (o *SubKey) SetPacket(op *packet.OpaquePacket) {
 	buf := bytes.NewBuffer([]byte{})
 	op.Serialize(buf)
 	o.Packet = buf.Bytes()
-	o.Digest = hockeypuck.Digest(o.Packet)
+	o.Digest = Digest(o.Packet)
 }
 
 func (o *SubKey) GetDigest() string {
