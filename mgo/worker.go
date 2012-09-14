@@ -314,6 +314,7 @@ func (r *indexResponse) WriteTo(w http.ResponseWriter) error {
 	if r.lookup.Option & MachineReadable != 0 {
 		writeFn = writeMachineReadable
 		w.Header().Add("Content-Type", "text/plain")
+		fmt.Fprintf(w, "info:1:%d\n", len(r.keys))
 	} else {
 		w.Header().Add("Content-Type", "text/html")
 		w.Write([]byte(`<html><body><pre>`))
@@ -449,7 +450,24 @@ func writeVindex(w io.Writer, key *PubKey) error {
 }
 
 func writeMachineReadable(w io.Writer, key *PubKey) error {
-	return UnsupportedOperation
+	pkt, err := key.Parse()
+	if err != nil {
+		return err
+	}
+	pk := pkt.(*packet.PublicKey)
+	fmt.Fprintf(w, "pub:%s:%d:%d:%d::\n",
+		key.Fingerprint,
+		key.Algorithm, key.KeyLength,
+		pk.CreationTime.Unix())
+	for _, uid := range key.Identities {
+		pkt, err = uid.Parse()
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(w, "uid:%s:::\n",
+			html.EscapeString(uid.Id))
+	}
+	return nil
 }
 
 type notImplementedError struct {
