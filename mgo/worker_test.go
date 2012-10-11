@@ -23,19 +23,21 @@ import (
 	"strings"
 	"testing"
 	"github.com/bmizerany/assert"
-	"launchpad.net/hockeypuck"
+	. "launchpad.net/hockeypuck"
 	"bitbucket.org/cmars/go.crypto/openpgp/armor"
 )
 
 var mgoServer *string = flag.String("server", "localhost", "mongo server")
 
 func createWorker(t *testing.T) *MgoWorker {
-	worker, err := NewWorker(nil, *mgoServer, nil)
+	worker := &MgoWorker{}
+	err := worker.Init(*mgoServer)
 	assert.Equal(t, err, nil)
 	worker.c.DropCollection()
 	assert.Equal(t, err, nil)
 	worker.session.Close()
-	worker, err = NewWorker(nil, *mgoServer, nil)
+	worker = &MgoWorker{}
+	err = worker.Init(*mgoServer)
 	assert.Equal(t, err, nil)
 	return worker
 }
@@ -43,13 +45,13 @@ func createWorker(t *testing.T) *MgoWorker {
 func normalizeArmoredKey(t *testing.T, armoredKey string) string {
 	armorBlock, err := armor.Decode(bytes.NewBufferString(armoredKey))
 	assert.Equal(t, err, nil)
-	keyChan, errorChan := hockeypuck.ReadKeys(armorBlock.Body)
+	keyChan, errorChan := ReadKeys(armorBlock.Body)
 	out := bytes.NewBuffer([]byte{})
 	for {
 		select {
 		case key, moreKeys :=<-keyChan:
 			if key != nil {
-				err = hockeypuck.WriteKey(out, key)
+				err = WriteKey(out, key)
 				assert.Equal(t, err, nil)
 			}
 			if !moreKeys {
@@ -70,11 +72,11 @@ func normalizeArmoredKey(t *testing.T, armoredKey string) string {
 func TestAddGetFind(t *testing.T) {
 	worker := createWorker(t)
 	// Lookup key by fingerprint. Hasn't been added yet, shouldn't be found
-	key, err := worker.lookupKey("10fe8cf1b483f7525039aa2a361bc1f023e0dcca")
-	assert.Equalf(t, hockeypuck.KeyNotFound, err, "lookup should have failed, haven't added yet")
+	key, err := worker.LookupKey("10fe8cf1b483f7525039aa2a361bc1f023e0dcca")
+	assert.Equalf(t, KeyNotFound, err, "lookup should have failed, haven't added yet")
 	err = worker.AddKey(aliceUnsigned)
 	assert.Equal(t, err, nil)
-	key, err = worker.lookupKey("10fe8cf1b483f7525039aa2a361bc1f023e0dcca")
+	key, err = worker.LookupKey("10fe8cf1b483f7525039aa2a361bc1f023e0dcca")
 	assert.Equal(t, err, nil)
 	assert.Equal(t, key.Fingerprint, "10fe8cf1b483f7525039aa2a361bc1f023e0dcca")
 	expectKey := normalizeArmoredKey(t, aliceUnsigned)
@@ -83,24 +85,24 @@ func TestAddGetFind(t *testing.T) {
 			"10fe8cf1b483f7525039aa2a361bc1f023e0dcca",
 			"361bc1f023e0DCCA",
 			"23e0DCCA"} {
-		armor, err := worker.GetKey(keyid)
+		armor, err := GetKey(worker, keyid)
 		assert.Equalf(t, err, nil, "Lookup with keyid=%v", keyid)
 		assert.Equalf(t, armor, expectKey, "Lookup with keyid=%v", keyid)
 		keyid = strings.ToUpper(keyid)
-		armor, err = worker.GetKey(keyid)
+		armor, err = GetKey(worker, keyid)
 		assert.Equalf(t, err, nil, "Lookup with keyid=%v", keyid)
 		assert.Equalf(t, armor, expectKey, "Lookup with keyid=%v", keyid)
 	}
 	// Invalid key IDs
 	for _, keyid := range []string{"asdf", "a5", ""} {
-		_, err = worker.GetKey("a5")
-		assert.Tf(t, err == hockeypuck.InvalidKeyId, "Lookup with keyid=%v", keyid)
+		_, err = GetKey(worker, "a5")
+		assert.Tf(t, err == InvalidKeyId, "Lookup with keyid=%v", keyid)
 	}
 	// Full-text lookups
-	pubKey, err := worker.lookupKey("10fe8cf1b483f7525039aa2a361bc1f023e0dcca")
+	pubKey, err := worker.LookupKey("10fe8cf1b483f7525039aa2a361bc1f023e0dcca")
 	assert.Equal(t, err, nil)
 	for _, search := range []string{"alice", "alice@example.com"} {
-		fps, err := worker.lookupKeys(search, 10)
+		fps, err := worker.LookupKeys(search, 10)
 		assert.Equal(t, err, nil)
 		assert.Equalf(t, 1, len(fps), "Full-text search on: %v", search)
 		assert.Equal(t, pubKey.Fingerprint, fps[0].Fingerprint)
@@ -115,7 +117,7 @@ func TestUpdateKey(t *testing.T) {
 	unsignedKey := normalizeArmoredKey(t, aliceUnsigned)
 	err := worker.AddKey(unsignedKey)
 	assert.Equal(t, err, nil)
-	last, err := worker.lookupKey("10fe8cf1b483f7525039aa2a361bc1f023e0dcca")
+	last, err := worker.LookupKey("10fe8cf1b483f7525039aa2a361bc1f023e0dcca")
 	assert.Equal(t, err, nil)
 	assert.T(t, last != nil)
 	assert.Equal(t, "alice <alice@example.com>", last.Identities[0].Id)
@@ -125,7 +127,7 @@ func TestUpdateKey(t *testing.T) {
 	err = worker.AddKey(signedKey)
 	assert.Equal(t, err, nil)
 	// Get the now-updated key
-	last, err = worker.lookupKey("10fe8cf1b483f7525039aa2a361bc1f023e0dcca")
+	last, err = worker.LookupKey("10fe8cf1b483f7525039aa2a361bc1f023e0dcca")
 	assert.Equal(t, err, nil)
 	assert.T(t, last != nil)
 	assert.Equal(t, "alice <alice@example.com>", last.Identities[0].Id)
@@ -133,7 +135,7 @@ func TestUpdateKey(t *testing.T) {
 	// Put a now out-of-date version of the key (without the added signature)
 	// It should update with a merged keyring, but not overwrite the key
 	err = worker.AddKey(unsignedKey)
-	last, err = worker.lookupKey("10fe8cf1b483f7525039aa2a361bc1f023e0dcca")
+	last, err = worker.LookupKey("10fe8cf1b483f7525039aa2a361bc1f023e0dcca")
 	assert.Equal(t, err, nil)
 	assert.T(t, last != nil)
 	assert.Equal(t, "alice <alice@example.com>", last.Identities[0].Id)

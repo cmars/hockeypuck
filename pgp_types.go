@@ -19,6 +19,8 @@ package hockeypuck
 
 import (
 	"bytes"
+	"fmt"
+	"os"
 	"bitbucket.org/cmars/go.crypto/openpgp/packet"
 )
 
@@ -92,6 +94,9 @@ func (o *PubKey) Parse() (packet.Packet, error) {
 type Signature struct {
 	SigType int
 	IssuerKeyId []byte
+	CreationTime int64
+	SigExpirationTime int64
+	KeyExpirationTime int64
 	Packet []byte
 	Digest string
 }
@@ -258,4 +263,26 @@ func (o *SubKey) Parse() (packet.Packet, error) {
 		return opkt.Parse()
 	}
 	return nil, err
+}
+
+func (uid *UserId) SelfSignature() *Signature {
+	for _, userSig := range uid.Signatures {
+		fmt.Fprintf(os.Stderr, "uid sig: %v\n", userSig)
+		if packet.SignatureType(userSig.SigType) == packet.SigTypePositiveCert {
+			return userSig
+		}
+	}
+	return nil
+}
+
+func (pk *PubKey) SelfSignature() *Signature {
+	for _, pkSig := range pk.Signatures {
+		switch packet.SignatureType(pkSig.SigType) {
+		case packet.SigTypePositiveCert:
+			return pkSig
+		case packet.SignatureType(0x19):
+			return pkSig
+		}
+	}
+	return nil
 }

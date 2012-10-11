@@ -82,7 +82,8 @@ func main() {
 	// Resolve flags, get the database connection string
 	connect := ConnectString()
 	// Create the worker
-	worker, err := mgo.NewWorker(hkp, connect, nil)
+	worker := &mgo.MgoWorker{}
+	err := worker.Init(connect)
 	if err != nil {
 		die(err)
 	}
@@ -91,7 +92,7 @@ func main() {
 		die(err)
 	}
 	// Start the worker
-	worker.Start()
+	hockeypuck.Start(hkp, worker, make(chan bool))
 	// Bind the router to the built-in webserver root
 	http.Handle("/", r)
 	// Start the built-in webserver, run forever

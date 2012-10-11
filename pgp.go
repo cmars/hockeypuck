@@ -25,10 +25,13 @@ import (
 	"log"
 	"regexp"
 	"strings"
+	"time"
 	"bitbucket.org/cmars/go.crypto/openpgp"
 	"bitbucket.org/cmars/go.crypto/openpgp/armor"
 	"bitbucket.org/cmars/go.crypto/openpgp/packet"
 )
+
+const NeverExpires = int64((1<<63)-1)
 
 func Fingerprint(pubkey *packet.PublicKey) string {
 	return hex.EncodeToString(pubkey.Fingerprint[:])
@@ -126,16 +129,31 @@ func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 					continue
 				}
 				s := p.(*packet.Signature)
+				// Read issuer key id.
 				if s.IssuerKeyId == nil {
+					// Without an issuer, a signature doesn't mean much
 					log.Println("Signature missing IssuerKeyId!", "Public key fingerprint:",
 							pubKey.Fingerprint)
 					continue
 				}
 				var issuerKeyId [8]byte
 				binary.BigEndian.PutUint64(issuerKeyId[:], *s.IssuerKeyId)
+				sigExpirationTime := NeverExpires
+				keyExpirationTime := NeverExpires
+				// Expiration time
+				if s.SigLifetimeSecs != nil {
+					sigExpirationTime = s.CreationTime.Add(
+							time.Duration(*s.SigLifetimeSecs) * time.Second).Unix()
+				} else if s.KeyLifetimeSecs != nil {
+					keyExpirationTime = s.CreationTime.Add(
+							time.Duration(*s.KeyLifetimeSecs) * time.Second).Unix()
+				}
 				sig := &Signature{
 					SigType: int(s.SigType),
-					IssuerKeyId: issuerKeyId[:] }
+					IssuerKeyId: issuerKeyId[:],
+					CreationTime: s.CreationTime.Unix(),
+					SigExpirationTime: sigExpirationTime,
+					KeyExpirationTime: keyExpirationTime }
 				sig.SetPacket(op)
 				currentSignable.AppendSig(sig)
 			case *packet.UserId:

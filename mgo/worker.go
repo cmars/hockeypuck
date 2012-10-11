@@ -23,24 +23,15 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
-	"fmt"
-	"html"
 	"io"
-	"log"
-	"net/http"
-	"os"
 	"strings"
 	. "launchpad.net/hockeypuck"
 	"bitbucket.org/cmars/go.crypto/openpgp/armor"
-	"bitbucket.org/cmars/go.crypto/openpgp/packet"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
 )
 
 const UUID_LEN = 43  // log(2**256, 64) = 42.666...
-
-const FIND_KEYS_LIMIT = 10
-const INDEX_LIMIT = 50
 
 func NewUuid() (string, error) {
 	buf := bytes.NewBuffer([]byte{})
@@ -56,36 +47,35 @@ func NewUuid() (string, error) {
 }
 
 type MgoWorker struct {
+	WorkerBase
 	session *mgo.Session
 	c *mgo.Collection
-	l *log.Logger
-	hkp        *HkpServer
-	exitLookup chan bool
-	exitAdd    chan bool
 }
 
-func NewWorker(hkp *HkpServer, connect string, l *log.Logger) (*MgoWorker, error) {
-	if l == nil {
-		l = log.New(os.Stderr, "[hockeypuck]", log.LstdFlags | log.Lshortfile)
-	}
-	l.Println("Connecting to mongodb:", connect)
-	session, err := mgo.Dial(connect)
+func (mw *MgoWorker) Init(connect string) (err error) {
+	mw.WorkerBase.Init()
+	mw.L.Println("Connecting to mongodb:", connect)
+	mw.session, err = mgo.Dial(connect)
 	if err != nil {
-		l.Println("Connection failed:", err)
-		return nil, err
+		mw.L.Println("Connection failed:", err)
+		return
 	}
-	session.SetMode(mgo.Strong, true)
-	c := session.DB("hockeypuck").C("keys")
+	mw.session.SetMode(mgo.Strong, true)
+	// Conservative on writes
+	mw.session.EnsureSafe(&mgo.Safe{
+		W: 1,
+		FSync: true })
+	mw.c = mw.session.DB("hockeypuck").C("keys")
 	fpIndex := mgo.Index{
 		Key: []string{ "fingerprint" },
 		Unique: true,
 		DropDups: false,
 		Background: false,
 		Sparse: false }
-	err = c.EnsureIndex(fpIndex)
+	err = mw.c.EnsureIndex(fpIndex)
 	if err != nil {
-		l.Println("Ensure index failed:", err)
-		return nil, err
+		mw.L.Println("Ensure index failed:", err)
+		return
 	}
 	kwIndex := mgo.Index{
 		Key: []string{ "identities.keywords" },
@@ -93,54 +83,15 @@ func NewWorker(hkp *HkpServer, connect string, l *log.Logger) (*MgoWorker, error
 		DropDups: false,
 		Background: true,
 		Sparse: false }
-	err = c.EnsureIndex(kwIndex)
+	err = mw.c.EnsureIndex(kwIndex)
 	if err != nil {
-		l.Println("Ensure index failed:", err)
-		return nil, err
+		mw.L.Println("Ensure index failed:", err)
+		return
 	}
-	mw := &MgoWorker{
-		session: session,
-		c: c,
-		hkp:        hkp,
-		l: l,
-		exitLookup: make(chan bool),
-		exitAdd:    make(chan bool)}
-	return mw, nil
+	return
 }
 
-func (mw *MgoWorker) GetKey(keyid string) (string, error) {
-	mw.l.Print("GetKey(", keyid, ")")
-	key, err := mw.lookupKey(keyid)
-	if err != nil {
-		return "", InvalidKeyId
-	}
-	out := bytes.NewBuffer([]byte{})
-	err = WriteKey(out, key)
-	mw.l.Println(err)
-	return string(out.Bytes()), err
-}
-
-func (mw *MgoWorker) FindKeys(search string) (string, error) {
-	mw.l.Print("FindKeys(", search, ")")
-	keys, err := mw.lookupKeys(search, FIND_KEYS_LIMIT)
-	if err != nil {
-		return "", err
-	}
-	if len(keys) == 0 {
-		return "", KeyNotFound
-	}
-	mw.l.Print(len(keys), "matches")
-	buf := bytes.NewBuffer([]byte{})
-	for _, key := range keys {
-		err = WriteKey(buf, key)
-		if err != nil {
-			return "", err
-		}
-	}
-	return string(buf.Bytes()), err
-}
-
-func (mw *MgoWorker) lookupKeys(search string, limit int) (keys []*PubKey, err error) {
+func (mw *MgoWorker) LookupKeys(search string, limit int) (keys []*PubKey, err error) {
 	q := mw.c.Find(bson.M{ "identities.keywords": search })
 	n, err := q.Count()
 	if n > limit {
@@ -155,7 +106,7 @@ func (mw *MgoWorker) lookupKeys(search string, limit int) (keys []*PubKey, err e
 	return
 }
 
-func (mw *MgoWorker) lookupKey(keyid string) (*PubKey, error) {
+func (mw *MgoWorker) LookupKey(keyid string) (*PubKey, error) {
 	keyid = strings.ToLower(keyid)
 	raw, err := hex.DecodeString(keyid)
 	if err != nil {
@@ -183,7 +134,7 @@ func (mw *MgoWorker) lookupKey(keyid string) (*PubKey, error) {
 }
 
 func (mw *MgoWorker) AddKey(armoredKey string) error {
-	mw.l.Print("AddKey(...)")
+	mw.L.Print("AddKey(...)")
 	// Check and decode the armor
 	armorBlock, err := armor.Decode(bytes.NewBufferString(armoredKey))
 	if err != nil {
@@ -198,13 +149,13 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (err error) {
 		select {
 		case key, moreKeys :=<-keyChan:
 			if key != nil {
-				lastKey, err := mw.lookupKey(key.Fingerprint)
+				lastKey, err := mw.LookupKey(key.Fingerprint)
 				if err == nil && lastKey != nil {
-					mw.l.Print("Merge/Update:", key.Fingerprint)
+					mw.L.Print("Merge/Update:", key.Fingerprint)
 					MergeKey(lastKey, key)
 					err = mw.c.Update(bson.M{ "fingerprint": key.Fingerprint }, lastKey)
 				} else if err == KeyNotFound {
-					mw.l.Print("Insert:", key.Fingerprint)
+					mw.L.Print("Insert:", key.Fingerprint)
 					err = mw.c.Insert(key)
 				}
 				if err != nil {
@@ -219,264 +170,4 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (err error) {
 		}
 	}
 	panic("unreachable")
-}
-
-func (mw *MgoWorker) Start() {
-	go func() {
-		for shouldRun := true; shouldRun; {
-			select {
-			case lookup := <-mw.hkp.LookupRequests:
-				switch lookup.Op {
-				case Get:
-					if lookup.Exact || strings.HasPrefix(lookup.Search, "0x") {
-						armor, err := mw.GetKey(lookup.Search[2:])
-						mw.l.Println("errors:", err)
-						lookup.Response() <- &response{ content: armor, err: err }
-					} else {
-						armor, err := mw.FindKeys(lookup.Search)
-						mw.l.Println("errors:", err)
-						lookup.Response() <- &response{ content: armor, err: err }
-					}
-				case Index, Vindex:
-					var key *PubKey
-					var err error
-					keys := []*PubKey{}
-					if lookup.Exact || strings.HasPrefix(lookup.Search, "0x") {
-						key, err = mw.lookupKey(lookup.Search[2:])
-						keys = append(keys, key)
-					} else {
-						keys, err = mw.lookupKeys(lookup.Search, INDEX_LIMIT)
-					}
-					lookup.Response() <- &indexResponse{ keys: keys, err: err, lookup: lookup }
-				default:
-					lookup.Response() <- &notImplementedError{}
-				}
-			case _ = <-mw.exitLookup:
-				shouldRun = false
-			}
-		}
-	}()
-	go func() {
-		for shouldRun := true; shouldRun; {
-			select {
-			case add := <-mw.hkp.AddRequests:
-				err := mw.AddKey(add.Keytext)
-				mw.l.Println("errors:", err)
-				add.Response() <- &response{ err: err }
-			case _ = <-mw.exitAdd:
-				shouldRun = false
-			}
-		}
-	}()
-}
-
-func (mw *MgoWorker) Stop() {
-	mw.exitLookup <- true
-	mw.exitAdd <- true
-	// TODO: close session after both exit
-}
-
-type response struct {
-	content string
-	err error
-}
-
-func (r *response) Error() error {
-	return r.err
-}
-
-func (r *response) WriteTo(w http.ResponseWriter) error {
-	w.Write([]byte(r.content))
-	return r.err
-}
-
-type indexResponse struct {
-	lookup *Lookup
-	keys []*PubKey
-	err error
-}
-
-func (r *indexResponse) Error() error {
-	return r.err
-}
-
-func (r *indexResponse) WriteTo(w http.ResponseWriter) error {
-	err := r.err
-	var writeFn func(io.Writer, *PubKey) error = nil
-	switch {
-	case r.lookup.Option & MachineReadable != 0:
-		writeFn = writeMachineReadable
-	case r.lookup.Op == Vindex:
-		writeFn = writeVindex
-	case r.lookup.Op == Index:
-		writeFn = writeIndex
-	}
-	if r.lookup.Option & MachineReadable != 0 {
-		writeFn = writeMachineReadable
-		w.Header().Add("Content-Type", "text/plain")
-		fmt.Fprintf(w, "info:1:%d\n", len(r.keys))
-	} else {
-		w.Header().Add("Content-Type", "text/html")
-		w.Write([]byte(`<html><body><pre>`))
-		w.Write([]byte(`<table>
-<tr><th>Type</th><th>bits/keyID</th><th>Created</th><th></th></tr>`))
-	}
-	if writeFn == nil {
-		err = UnsupportedOperation
-	}
-	if len(r.keys) == 0 {
-		err = KeyNotFound
-	}
-	if err == nil {
-		for _, key := range r.keys {
-			err = writeFn(w, key)
-		}
-	} else {
-		w.Write([]byte(err.Error()))
-	}
-	if r.lookup.Option & MachineReadable == 0 {
-		if r.lookup.Op == Index {
-			w.Write([]byte(`</table>`))
-		}
-		w.Write([]byte(`</pre></body></html>`))
-	}
-	return err
-}
-
-func AlgorithmCode(algorithm int) string {
-	switch packet.PublicKeyAlgorithm(algorithm) {
-	case packet.PubKeyAlgoRSA, packet.PubKeyAlgoRSAEncryptOnly, packet.PubKeyAlgoRSASignOnly:
-		return "R"
-	case packet.PubKeyAlgoElGamal:
-		return "g"
-	case packet.PubKeyAlgoDSA:
-		return "D"
-	}
-	return fmt.Sprintf("[%d]", algorithm)
-}
-
-func writeIndex(w io.Writer, key *PubKey) error {
-	pktObjChan := make(chan PacketObject)
-	go func() {
-		key.Traverse(pktObjChan)
-		close(pktObjChan)
-	}()
-	for pktObj := range pktObjChan {
-		switch pktObj.(type) {
-		case *PubKey:
-			pubKey := pktObj.(*PubKey)
-			pkt, err := pubKey.Parse()
-			if err != nil {
-				return err
-			}
-			pk := pkt.(*packet.PublicKey)
-			fmt.Fprintf(w, `<tr>
-<td>pub</td>
-<td>%d%s/<a href="/pks/lookup?op=get&search=0x%s">%s</a></td>
-<td>%v</td>
-<td></td></tr>`,
-				key.KeyLength, AlgorithmCode(key.Algorithm), key.Fingerprint,
-				strings.ToUpper(key.Fingerprint[32:40]),
-				pk.CreationTime.Format("2006-01-02"))
-		case *UserId:
-			uid := pktObj.(*UserId)
-			fmt.Fprintf(w, `<tr><td>uid</td><td colspan='2'></td>
-<td><a href="/pks/lookup?op=vindex&search=0x%s">%s</a></td></tr>`,
-				key.Fingerprint, html.EscapeString(uid.Id))
-		}
-	}
-	return nil
-}
-
-func writeVindex(w io.Writer, key *PubKey) error {
-	pktObjChan := make(chan PacketObject)
-	go func() {
-		key.Traverse(pktObjChan)
-		close(pktObjChan)
-	}()
-	for pktObj := range pktObjChan {
-		switch pktObj.(type) {
-		case *PubKey:
-			pubKey := pktObj.(*PubKey)
-			pkt, err := pubKey.Parse()
-			if err != nil {
-				return err
-			}
-			pk := pkt.(*packet.PublicKey)
-			fmt.Fprintf(w, `<tr>
-<td>pub</td>
-<td>%d%s/<a href="/pks/lookup?op=get&search=0x%s">%s</a></td>
-<td>%v</td>
-<td></td></tr>`,
-				key.KeyLength, AlgorithmCode(key.Algorithm), key.Fingerprint,
-				strings.ToUpper(key.Fingerprint[32:40]),
-				pk.CreationTime.Format("2006-01-02"))
-		case *UserId:
-			uid := pktObj.(*UserId)
-			fmt.Fprintf(w, `<tr><td>uid</td><td colspan='2'></td>
-<td><a href="/pks/lookup?op=vindex&search=0x%s">%s</a></td></tr>`,
-				key.Fingerprint, html.EscapeString(uid.Id))
-		case *Signature:
-			sig := pktObj.(*Signature)
-			longId := strings.ToUpper(hex.EncodeToString(sig.IssuerKeyId))
-			pkt, err := sig.Parse()
-			if err != nil {
-				return err
-			}
-			sigv4, isa := pkt.(*packet.Signature)
-			var sigTime string
-			if isa {
-				sigTime = sigv4.CreationTime.Format("2006-01-02")
-			}
-			fmt.Fprintf(w, `<tr><td>sig</td><td>%s</td><td>%s</td>
-<td><a href="/pks/lookup?op=vindex&search=0x%s">%s</a></td></tr>`,
-				longId[8:16], sigTime, longId, longId)
-/*
-		case *UserAttribute:
-			uattr := pktObj.(*UserAttribute)
-			pkt, err := uattr.Parse()
-			if err != nil {
-				continue
-			}
-			if opkt, isa := pkt.(*packet.OpaquePacket); isa {
-				fmt.Fprintf(w, `<tr><td>uattr</td><td colspan=2></td>
-<td><img src="data:image/jpeg;base64,%s"></img></td></tr>`,
-					base64.URLEncoding.EncodeToString(opkt.Contents[22:]))
-			}
-*/
-		}
-	}
-	return nil
-}
-
-func writeMachineReadable(w io.Writer, key *PubKey) error {
-	pkt, err := key.Parse()
-	if err != nil {
-		return err
-	}
-	pk := pkt.(*packet.PublicKey)
-	fmt.Fprintf(w, "pub:%s:%d:%d:%d::\n",
-		key.Fingerprint,
-		key.Algorithm, key.KeyLength,
-		pk.CreationTime.Unix())
-	for _, uid := range key.Identities {
-		pkt, err = uid.Parse()
-		if err != nil {
-			return err
-		}
-		fmt.Fprintf(w, "uid:%s:::\n",
-			html.EscapeString(uid.Id))
-	}
-	return nil
-}
-
-type notImplementedError struct {
-}
-
-func (e *notImplementedError) Error() error {
-	return errors.New("Not implemented")
-}
-
-func (e *notImplementedError) WriteTo(_ http.ResponseWriter) error {
-	return e.Error()
 }

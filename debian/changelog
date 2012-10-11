@@ -29,8 +29,11 @@ hockeypuck (0.5~alpha3) precise; urgency=low
       package.
   * mgo/worker.go:
     - Minimum viable machine readable search output.
+  * cmd/hockeypuck/main.go, mgo/worker.go, mgo/worker_test.go, pgp.go,
+    pgp_types.go, responses.go, worker.go:
+    - Refactor common worker logic and responses out of mongo worker.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Fri, 14 Sep 2012 15:35:44 -0500
+ -- Casey Marshall <casey.marshall@gazzang.com>  Thu, 11 Oct 2012 13:31:29 -0500
 
 hockeypuck (0.1~alpha1) precise; urgency=low
 
