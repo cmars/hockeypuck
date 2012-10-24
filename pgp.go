@@ -31,18 +31,23 @@ import (
 	"bitbucket.org/cmars/go.crypto/openpgp/packet"
 )
 
+// Comparable time flag for "never expires"
 const NeverExpires = int64((1<<63)-1)
 
+// Get the public key fingerprint as a hex string.
 func Fingerprint(pubkey *packet.PublicKey) string {
 	return hex.EncodeToString(pubkey.Fingerprint[:])
 }
 
+// Calculate a strong cryptographic digest used for
+// fingerprinting key material and other user data.
 func Digest(data []byte) string {
 	h := sha512.New()
 	h.Write(data)
 	return hex.EncodeToString(h.Sum(nil))
 }
 
+// Write a public key as ASCII armored text.
 func WriteKey(out io.Writer, key *PubKey) error {
 	w, err := armor.Encode(out, openpgp.PublicKeyType, nil)
 	if err != nil {
@@ -64,6 +69,7 @@ func WriteKey(out io.Writer, key *PubKey) error {
 	return nil
 }
 
+// Read one or more public keys from input.
 func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 	keyChan = make(chan *PubKey)
 	errorChan = make(chan error)
@@ -200,6 +206,7 @@ func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 	return keyChan, errorChan
 }
 
+// Split a user ID string into fulltext searchable keywords.
 func splitUserId(id string) []string {
 	splitUidRegex, _ := regexp.Compile("\\S+")
 	result := splitUidRegex.FindAllString(id, -1)

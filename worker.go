@@ -62,9 +62,10 @@ func FindKeys(w Worker, search string) (string, error) {
 	return string(buf.Bytes()), err
 }
 
-func Start(hkp *HkpServer, w Worker, stop chan bool) {
+func Start(hkp *HkpServer, w Worker) (chan interface{}) {
+	stop := make(chan interface{})
 	go func() {
-		for shouldRun := true; shouldRun; {
+		for {
 			select {
 			case lookup := <-hkp.LookupRequests:
 				switch lookup.Op {
@@ -95,8 +96,11 @@ func Start(hkp *HkpServer, w Worker, stop chan bool) {
 				err := w.AddKey(add.Keytext)
 				add.Response() <- &MessageResponse{ Err: err }
 			case _, isOpen := <-stop:
-				shouldRun = isOpen
+				if !isOpen {
+					return
+				}
 			}
 		}
 	}()
+	return stop
 }

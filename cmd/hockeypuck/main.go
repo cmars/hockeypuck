@@ -20,10 +20,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
-	"path/filepath"
+	"runtime"
 	"code.google.com/p/gorilla/mux"
 	"launchpad.net/hockeypuck"
 	"launchpad.net/hockeypuck/mgo"
@@ -31,7 +30,7 @@ import (
 
 var mgoServer *string = flag.String("server", "localhost", "mongo server")
 var httpBind *string = flag.String("http", ":11371", "http bind port")
-var load *string = flag.String("load", "", "load PGP keyring file")
+var numWorkers *int = flag.Int("workers", runtime.NumCPU(), "number of workers")
 
 func usage() {
 	flag.PrintDefaults()
@@ -50,29 +49,6 @@ func ConnectString() string {
 	return *mgoServer
 }
 
-func doLoad(worker *mgo.MgoWorker, arg string) (err error) {
-	keyfiles, err := filepath.Glob(arg)
-	if err != nil {
-		return err
-	}
-	var f *os.File
-	for i := 0; i < len(keyfiles); i++ {
-		keyfile := keyfiles[i]
-		f, err = os.Open(keyfile)
-		if err != nil {
-			log.Println("Failed to open", keyfile, ":", err)
-			continue
-		} else {
-			log.Println("Loading keys from", keyfile)
-		}
-		err = worker.LoadKeys(f)
-		if err != nil {
-			log.Println("Error loading", keyfile, ":", err)
-		}
-	}
-	return
-}
-
 func main() {
 	// Create an HTTP request router
 	r := mux.NewRouter()
@@ -81,21 +57,18 @@ func main() {
 	flag.Parse()
 	// Resolve flags, get the database connection string
 	connect := ConnectString()
-	// Create the worker
-	worker := &mgo.MgoWorker{}
-	err := worker.Init(connect)
-	if err != nil {
-		die(err)
+	for i := 0; i < *numWorkers; i++ {
+		worker := &mgo.MgoWorker{}
+		err := worker.Init(connect)
+		if err != nil {
+			die(err)
+		}
+		// Start the worker
+		hockeypuck.Start(hkp, worker)
 	}
-	if *load != "" {
-		err = doLoad(worker, *load)
-		die(err)
-	}
-	// Start the worker
-	hockeypuck.Start(hkp, worker, make(chan bool))
 	// Bind the router to the built-in webserver root
 	http.Handle("/", r)
 	// Start the built-in webserver, run forever
-	err = http.ListenAndServe(*httpBind, nil)
+	err := http.ListenAndServe(*httpBind, nil)
 	die(err)
 }

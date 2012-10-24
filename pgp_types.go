@@ -24,18 +24,29 @@ import (
 	"bitbucket.org/cmars/go.crypto/openpgp/packet"
 )
 
+// Common operations for all OpenPGP packets.
 type PacketObject interface {
+	// Get the raw OpenPGP packet contents.
 	GetPacket() []byte
+	// Set the raw OpenPGP packet contents.
 	SetPacket(op *packet.OpaquePacket)
+	// Get a strong cryptographic digest of the packet.
 	GetDigest() string
+	// Visit all child packet objects contained by this one.
 	Traverse(pktObjChan chan PacketObject)
+	// Parse the raw packet data using the go.crypto library.
 	Parse() (packet.Packet, error)
 }
 
+// OpenPGP packets that can be signed.
 type Signable interface {
+	// Append a signature to a signable packet.
 	AppendSig(sig* Signature)
 }
 
+// Model representing an OpenPGP public key packets.
+// Searchable fields are extracted from the packet key material
+// stored in Packet, for database indexing.
 type PubKey struct {
 	Fingerprint string
 	KeyId []byte
