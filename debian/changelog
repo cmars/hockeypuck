@@ -46,8 +46,11 @@ hockeypuck (0.5~alpha5) precise; urgency=low
     removed directory cmd/hockeypuck:
     - Rename hockeypuck to hockeypuck-mgo.
     - Add mongo indexes on short and key IDs.
+  * === added directory cmd/hockeypuck-pq, === added directory pq,
+    cmd/hockeypuck-pq/main.go, pq/worker.go:
+    - Add postgres worker, hockeypuck command variant.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 24 Oct 2012 23:39:00 -0500
+ -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 24 Oct 2012 23:42:43 -0500
 
 hockeypuck (0.1~alpha1) precise; urgency=low
 
