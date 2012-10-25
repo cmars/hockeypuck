@@ -10,9 +10,9 @@
 #export DH_VERBOSE=1
 
 override_dh_install:
-	dh_install gopath/src/launchpad.net/hockeypuck/cmd/hockeypuck/hockeypuck /usr/bin/
+	dh_install gopath/src/launchpad.net/hockeypuck/cmd/hockeypuck-mgo/hockeypuck-mgo /usr/bin/
 	dh_install gopath/src/launchpad.net/hockeypuck/cmd/hockeypuck-load/hockeypuck-load /usr/bin/
-	dh_install man/man1/hockeypuck.1 /usr/share/man/man1
+	dh_install man/man1/hockeypuck-mgo.1 /usr/share/man/man1
 
 %:
 	dh $@ 

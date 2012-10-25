@@ -40,8 +40,14 @@ hockeypuck (0.5~alpha5) precise; urgency=low
     - Worker.Start use generic chan interface{} for the stop channel,
       now creates and returns it.
     - Add some doc comments.
+  * === added directory cmd/hockeypuck-mgo, cmd/hockeypuck/main.go,
+    cmd/hockeypuck-mgo/main.go, debian/rules, Makefile,
+    man/man1/hockeypuck.1, man/man1/hockeypuck-mgo.1, mgo/worker.go, ===
+    removed directory cmd/hockeypuck:
+    - Rename hockeypuck to hockeypuck-mgo.
+    - Add mongo indexes on short and key IDs.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Tue, 23 Oct 2012 23:24:06 -0500
+ -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 24 Oct 2012 23:39:00 -0500
 
 hockeypuck (0.1~alpha1) precise; urgency=low
 

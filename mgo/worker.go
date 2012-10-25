@@ -66,6 +66,7 @@ func (mw *MgoWorker) Init(connect string) (err error) {
 		W: 1,
 		FSync: true })
 	mw.c = mw.session.DB("hockeypuck").C("keys")
+	// fingerprint index
 	fpIndex := mgo.Index{
 		Key: []string{ "fingerprint" },
 		Unique: true,
@@ -77,6 +78,31 @@ func (mw *MgoWorker) Init(connect string) (err error) {
 		mw.L.Println("Ensure index failed:", err)
 		return
 	}
+	// keyid index
+	keyidIndex := mgo.Index{
+		Key: []string{ "keyid" },
+		Unique: false,
+		DropDups: false,
+		Background: false,
+		Sparse: false }
+	err = mw.c.EnsureIndex(keyidIndex)
+	if err != nil {
+		mw.L.Println("Ensure index failed:", err)
+		return
+	}
+	// shortid index
+	shortidIndex := mgo.Index{
+		Key: []string{ "shortid" },
+		Unique: false,
+		DropDups: false,
+		Background: false,
+		Sparse: false }
+	err = mw.c.EnsureIndex(shortidIndex)
+	if err != nil {
+		mw.L.Println("Ensure index failed:", err)
+		return
+	}
+	// uid keyword index
 	kwIndex := mgo.Index{
 		Key: []string{ "identities.keywords" },
 		Unique: false,

@@ -5,7 +5,7 @@ GOPATH := $(CURDIR)/$(_GOPATH)
 GO=go
 HOCKEYPATH=$(GOPATH)/src/launchpad.net/hockeypuck
 
-all: get $(HOCKEYPATH)/cmd/hockeypuck/hockeypuck $(HOCKEYPATH)/cmd/hockeypuck-load/hockeypuck-load
+all: get $(HOCKEYPATH)/cmd/hockeypuck-mgo/hockeypuck-mgo $(HOCKEYPATH)/cmd/hockeypuck-load/hockeypuck-load
 
 get: $(HOCKEYPATH)/mgo
 
@@ -14,8 +14,8 @@ $(HOCKEYPATH)/mgo:
 	mkdir -p $(GOPATH)
 	GOPATH="${GOPATH}" $(GO) get launchpad.net/hockeypuck/mgo
 
-$(HOCKEYPATH)/cmd/hockeypuck/hockeypuck:
-	cd $(HOCKEYPATH)/cmd/hockeypuck; GOPATH="${GOPATH}" $(GO) build .
+$(HOCKEYPATH)/cmd/hockeypuck-mgo/hockeypuck-mgo:
+	cd $(HOCKEYPATH)/cmd/hockeypuck-mgo; GOPATH="${GOPATH}" $(GO) build .
 
 $(HOCKEYPATH)/cmd/hockeypuck-load/hockeypuck-load:
 	cd $(HOCKEYPATH)/cmd/hockeypuck-load; GOPATH="${GOPATH}" $(GO) build .
@@ -27,7 +27,7 @@ debbin:
 	debuild -us -uc -i -b
 
 clean:
-	$(RM) $(HOCKEYPATH)/cmd/hockeypuck/hockeypuck
+	$(RM) $(HOCKEYPATH)/cmd/hockeypuck-mgo/hockeypuck-mgo
 	$(RM) $(HOCKEYPATH)/cmd/hockeypuck-load/hockeypuck-load
 
 srcclean:
