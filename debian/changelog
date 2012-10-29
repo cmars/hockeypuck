@@ -49,8 +49,18 @@ hockeypuck (0.5~alpha5) precise; urgency=low
   * === added directory cmd/hockeypuck-pq, === added directory pq,
     cmd/hockeypuck-pq/main.go, pq/worker.go:
     - Add postgres worker, hockeypuck command variant.
+  * === added directory www, === added directory www/css, === added
+    directory www/templates, === added directory www/templates/index,
+    === added directory www/templates/pks, cmd/hockeypuck-mgo/main.go,
+    debian/rules, errors.go, responses.go, server.go, templates.go,
+    www/css/reset.css, www/templates/footer.tmpl,
+    www/templates/header.tmpl, www/templates/head.tmpl,
+    www/templates/index/search_form.tmpl, www/templates/layout.tmpl,
+    www/templates/pks/index.tmpl:
+    - Add HTML UI, landing page, search form. Using go's html/template
+      package. Add toucan css reset.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 24 Oct 2012 23:42:43 -0500
+ -- Casey Marshall <casey.marshall@gazzang.com>  Mon, 29 Oct 2012 00:16:48 -0500
 
 hockeypuck (0.1~alpha1) precise; urgency=low
 

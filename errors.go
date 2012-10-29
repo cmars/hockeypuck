@@ -22,3 +22,6 @@ var TooManyResponses = errors.New("Too many responses.")
 
 // Something was attempted that isn't fully baked yet.
 var UnsupportedOperation = errors.New("Unsupported operation.")
+
+// Template path was not found. Installation or configuration problem.
+var TemplatePathNotFound = errors.New("Could not find Hockeypuck templates. Check your installation and configuration.")

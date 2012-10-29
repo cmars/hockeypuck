@@ -1,0 +1,45 @@
+{{define "title"}}Hockeypuck | Key Search Results{{end}}
+
+{{define "index-top"}}
+{{template "top"}}
+<h2>Search Results: '{{.}}'</h2>
+<table>
+<tr>
+	<th>Type</th>
+	<th>Key Length/ID</th>
+	<th>Created</th>
+	<th></th>
+</tr>
+{{end}}
+
+{{define "index-bottom"}}
+</table>
+{{template "bottom"}}
+{{end}}
+
+{{define "pub-index-row"}}
+<tr>
+<td>pub</td>
+<td>{{.KeyLength}}{{.AlgoCode}}/<a href="/pks/lookup?op=get&search=0x{{.Fingerprint}}">{{.Fingerprint}}</a></td>
+<td>{{.CreationTime}}</td>
+<td></td>
+</tr>
+{{end}}
+
+{{define "uid-index-row"}}
+<tr>
+<td>uid</td>
+<td colspan='2'></td>
+<td><a href="/pks/lookup?op=vindex&search=0x{{.Fingerprint}}">{{.Id}}</a></td>
+</tr>
+{{end}}
+
+{{define "sig-vindex-row"}}
+<tr>
+<td>sig</td>
+<td>{{.ShortId}}</td>
+<td>{{.SigTime}}</td>
+<td>{{.ShortId}}</td>
+<td><a href="/pks/lookup?op=vindex&search=0x{{.LongId}}">{{.LongId}}</a></td>
+</tr>
+{{end}}

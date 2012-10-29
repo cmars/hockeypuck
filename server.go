@@ -18,11 +18,13 @@
 package hockeypuck
 
 import (
-	"code.google.com/p/gorilla/mux"
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
+	"code.google.com/p/gorilla/mux"
 )
 
 // Create a new HKP server on the given Gorilla mux router.
@@ -30,6 +32,20 @@ func NewHkpServer(r *mux.Router) *HkpServer {
 	hkp := &HkpServer{
 		LookupRequests: make(LookupChan, HKP_CHAN_SIZE),
 		AddRequests:    make(AddChan, HKP_CHAN_SIZE)}
+	r.HandleFunc("/",
+		func(resp http.ResponseWriter, req *http.Request) {
+			hkp.index(resp, req)
+		})
+	r.HandleFunc(`/css/{filename:.*\.css}`,
+		func(resp http.ResponseWriter, req *http.Request) {
+			filename := mux.Vars(req)["filename"]
+	        path := filepath.Join(WwwRoot, "css", filename)
+        	if stat, err := os.Stat(path); err != nil || stat.IsDir() {
+                http.NotFound(resp, req)
+                return
+	        }
+	        http.ServeFile(resp, req, path)
+		})
 	r.HandleFunc("/pks/lookup",
 		func(resp http.ResponseWriter, req *http.Request) {
 			hkp.lookup(resp, req)
@@ -62,10 +78,6 @@ func respError(respWriter http.ResponseWriter, err error) error {
 
 // Parse the lookup request into a model.
 func parseLookup(req *http.Request) (*Lookup, error) {
-	// Require HTTP GET
-	if req.Method != "GET" {
-		return nil, errors.New(fmt.Sprintf("Invalid method for lookup: %s", req.Method))
-	}
 	// Parse the URL query parameters
 	err := req.ParseForm()
 	if err != nil {
@@ -157,3 +169,9 @@ func respondWith(respWriter http.ResponseWriter, r HasResponse) error {
 	}
 	return response.WriteTo(respWriter)
 }
+
+func (hkp *HkpServer) index(respWriter http.ResponseWriter, req *http.Request) error {
+	return SearchFormTemplate.ExecuteTemplate(respWriter, "layout", nil)
+}
+
+//

@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"html"
 	"io"
 	"net/http"
 	"strings"
@@ -52,9 +51,7 @@ func (r *IndexResponse) WriteTo(w http.ResponseWriter) error {
 		fmt.Fprintf(w, "info:1:%d\n", len(r.Keys))
 	} else {
 		w.Header().Add("Content-Type", "text/html")
-		w.Write([]byte(`<html><body><pre>`))
-		w.Write([]byte(`<table>
-<tr><th>Type</th><th>bits/keyID</th><th>Created</th><th></th></tr>`))
+		err = PksIndexTemplate.ExecuteTemplate(w, "index-top", r.Lookup.Search)
 	}
 	if writeFn == nil {
 		err = UnsupportedOperation
@@ -70,10 +67,7 @@ func (r *IndexResponse) WriteTo(w http.ResponseWriter) error {
 		w.Write([]byte(err.Error()))
 	}
 	if r.Lookup.Option & MachineReadable == 0 {
-		if r.Lookup.Op == Index {
-			w.Write([]byte(`</table>`))
-		}
-		w.Write([]byte(`</pre></body></html>`))
+		PksIndexTemplate.ExecuteTemplate(w, "index-bottom", nil)
 	}
 	return err
 }
@@ -105,19 +99,26 @@ func WriteIndex(w io.Writer, key *PubKey) error {
 				return err
 			}
 			pk := pkt.(*packet.PublicKey)
-			fmt.Fprintf(w, `<tr>
-<td>pub</td>
-<td>%d%s/<a href="/pks/lookup?op=get&search=0x%s">%s</a></td>
-<td>%v</td>
-<td></td></tr>`,
-				key.KeyLength, AlgorithmCode(key.Algorithm), key.Fingerprint,
+			PksIndexTemplate.ExecuteTemplate(w, "pub-index-row", struct {
+				KeyLength uint16
+				AlgoCode string
+				Fingerprint string
+				ShortId string
+				CreationTime string
+			}{
+				key.KeyLength,
+				AlgorithmCode(key.Algorithm),
+				key.Fingerprint,
 				strings.ToUpper(key.Fingerprint[32:40]),
-				pk.CreationTime.Format("2006-01-02"))
+				pk.CreationTime.Format("2006-01-02")})
 		case *UserId:
 			uid := pktObj.(*UserId)
-			fmt.Fprintf(w, `<tr><td>uid</td><td colspan='2'></td>
-<td><a href="/pks/lookup?op=vindex&search=0x%s">%s</a></td></tr>`,
-				key.Fingerprint, html.EscapeString(uid.Id))
+			PksIndexTemplate.ExecuteTemplate(w, "uid-index-row", struct {
+				Fingerprint string
+				Id string
+			}{
+				key.Fingerprint,
+				uid.Id})
 		}
 	}
 	return nil
@@ -138,19 +139,26 @@ func WriteVindex(w io.Writer, key *PubKey) error {
 				return err
 			}
 			pk := pkt.(*packet.PublicKey)
-			fmt.Fprintf(w, `<tr>
-<td>pub</td>
-<td>%d%s/<a href="/pks/lookup?op=get&search=0x%s">%s</a></td>
-<td>%v</td>
-<td></td></tr>`,
-				key.KeyLength, AlgorithmCode(key.Algorithm), key.Fingerprint,
+			PksIndexTemplate.ExecuteTemplate(w, "pub-index-row", struct {
+				KeyLength uint16
+				AlgoCode string
+				Fingerprint string
+				ShortId string
+				CreationTime string
+			}{
+				key.KeyLength,
+				AlgorithmCode(key.Algorithm),
+				key.Fingerprint,
 				strings.ToUpper(key.Fingerprint[32:40]),
-				pk.CreationTime.Format("2006-01-02"))
+				pk.CreationTime.Format("2006-01-02")})
 		case *UserId:
 			uid := pktObj.(*UserId)
-			fmt.Fprintf(w, `<tr><td>uid</td><td colspan='2'></td>
-<td><a href="/pks/lookup?op=vindex&search=0x%s">%s</a></td></tr>`,
-				key.Fingerprint, html.EscapeString(uid.Id))
+			PksIndexTemplate.ExecuteTemplate(w, "uid-index-row", struct {
+				Fingerprint string
+				Id string
+			}{
+				key.Fingerprint,
+				uid.Id})
 		case *Signature:
 			sig := pktObj.(*Signature)
 			longId := strings.ToUpper(hex.EncodeToString(sig.IssuerKeyId))
@@ -163,9 +171,14 @@ func WriteVindex(w io.Writer, key *PubKey) error {
 			if isa {
 				sigTime = sigv4.CreationTime.Format("2006-01-02")
 			}
-			fmt.Fprintf(w, `<tr><td>sig</td><td>%s</td><td>%s</td>
-<td><a href="/pks/lookup?op=vindex&search=0x%s">%s</a></td></tr>`,
-				longId[8:16], sigTime, longId, longId)
+			PksIndexTemplate.ExecuteTemplate(w, "sig-vindex-row", struct {
+				LongId string
+				ShortId string
+				SigTime string
+			}{
+				longId,
+				longId[8:16],
+				sigTime})
 /*
 		case *UserAttribute:
 			uattr := pktObj.(*UserAttribute)
