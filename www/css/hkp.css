@@ -1,0 +1,61 @@
+@font-face {
+  font-family: 'Arvo';
+  font-style: normal;
+  font-weight: 400;
+  src: local('Arvo'), url(/fonts/Arvo/Arvo-Regular.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Droid Sans';
+  font-style: normal;
+  font-weight: 400;
+  src: local('Droid Sans'), local('DroidSans'), url(/fonts/Droid_Sans/DroidSans.ttf) format('truetype');
+}
+/* Purty letters */
+body {
+	font-family: 'Droid Sans', sans-serif;
+}
+h1, h2 {
+	font-family: 'Arvo', serif;
+	font-weight: normal;
+}
+/* Header & footer, general */
+#header {
+	border-bottom: solid 1px black;
+}
+#footer {
+	font-size: x-small;
+	text-align: center;
+}
+/* Search page */
+.pks-search {
+	text-align: center;
+}
+h2.pks-search {
+	padding-top: 10%;
+}
+.pks-search input[name=search] {
+	width: 60%;
+}
+/* Top menu, ripped from Sliding Doors */
+#topmenu {
+	float:left;
+	width:100%;
+	line-height:normal;
+	border-bottom: solid 1px black;
+}
+#header ul {
+	margin:0;
+	padding:0;
+	list-style:none;
+}
+#header li {
+	float:left;
+	margin:0;
+	padding:0;
+}
+#header a {
+	display:block;
+	padding: 3px 3px 3px 3px;
+	margin: 0;
+	border-left: solid 1px black;
+}

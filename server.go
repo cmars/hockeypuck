@@ -40,7 +40,17 @@ func NewHkpServer(r *mux.Router) *HkpServer {
 		func(resp http.ResponseWriter, req *http.Request) {
 			filename := mux.Vars(req)["filename"]
 	        path := filepath.Join(WwwRoot, "css", filename)
-        	if stat, err := os.Stat(path); err != nil || stat.IsDir() {
+			if stat, err := os.Stat(path); err != nil || stat.IsDir() {
+                http.NotFound(resp, req)
+                return
+	        }
+	        http.ServeFile(resp, req, path)
+		})
+	r.HandleFunc(`/fonts/{filename:.*\.ttf}`,
+		func(resp http.ResponseWriter, req *http.Request) {
+			filename := mux.Vars(req)["filename"]
+	        path := filepath.Join(WwwRoot, "fonts", filename)
+			if stat, err := os.Stat(path); err != nil || stat.IsDir() {
                 http.NotFound(resp, req)
                 return
 	        }
