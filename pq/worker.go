@@ -57,6 +57,7 @@ func (pw *PqWorker) Init(connect string) (err error) {
 	pw.DB, err = sql.Open("postgres", connect)
 	var count int
 	if err != nil {
+		pw.L.Println("connect", connect, "failed:", err)
 		return
 	}
 	// pubkey table
@@ -69,21 +70,23 @@ CREATE TABLE IF NOT EXISTS pubkey (
 	algorithm INTEGER,
 	key_len INTEGER,
 	digest TEXT,
-	content bytea,
+	content TEXT,
 	PRIMARY KEY(uuid),
 	UNIQUE(fingerprint),
 	UNIQUE(digest))`)
 	if err != nil {
+		pw.L.Println("create pubkey", connect, "failed:", err)
 		return
 	}
 	// Index on key_id
 	row := pw.DB.QueryRow(`
 SELECT COUNT (relname) as a FROM pg_class WHERE relname = 'pubkey_key_id_idx'`)
 	err = row.Scan(&count)
-	if err != nil && count == 0 {
+	if err == nil && count == 0 {
 		_, err = pw.DB.Exec(`
-CREATE INDEX pubkey_key_id_idx ON pubkey USING key_id`)
+CREATE INDEX pubkey_key_id_idx ON pubkey(key_id)`)
 		if err != nil {
+			pw.L.Println("create pubkey_key_id_idx index failed:", err)
 			return
 		}
 	}
@@ -91,10 +94,11 @@ CREATE INDEX pubkey_key_id_idx ON pubkey USING key_id`)
 	row = pw.DB.QueryRow(`
 SELECT COUNT (relname) as a FROM pg_class WHERE relname = 'pubkey_short_id_idx'`)
 	err = row.Scan(&count)
-	if err != nil && count == 0 {
+	if err == nil && count == 0 {
 		_, err = pw.DB.Exec(`
-CREATE INDEX pubkey_short_id_idx ON pubkey USING short_id`)
+CREATE INDEX pubkey_short_id_idx ON pubkey(short_id)`)
 		if err != nil {
+			pw.L.Println("create pubkey_short_id_idx index failed:", err)
 			return
 		}
 	}
@@ -108,15 +112,19 @@ CREATE TABLE IF NOT EXISTS uid (
 	PRIMARY KEY(uuid),
 	FOREIGN KEY (key_uuid) REFERENCES pubkey(uuid))`)
 	if err != nil {
+		pw.L.Println("create uid failed:", err)
 		return
 	}
 	// Create the fulltext keywords index if it doesn't exist
 	row = pw.DB.QueryRow(`
 SELECT COUNT (relname) as a FROM pg_class WHERE relname = 'uid_keywords_idx'`)
 	err = row.Scan(&count)
-	if err != nil && count == 0 {
+	if err == nil && count == 0 {
 		_, err = pw.DB.Exec(`
 CREATE INDEX uid_keywords_idx ON uid USING gin(keywords_index)`)
+		if err != nil {
+			pw.L.Println("create uid_keywords_idx failed:", err)
+		}
 	}
 	return
 }
@@ -126,24 +134,34 @@ func (pw *PqWorker) LookupKeys(search string, limit int) (keys []*PubKey, err er
 SELECT k.content FROM pubkey k JOIN uid u ON (k.uuid = u.key_uuid)
 WHERE u.keywords_index @@ to_tsquery($1) LIMIT $2`, search, limit)
 	if err != nil {
+		pw.L.Println("LookupKeys: select failed:", err)
 		return
 	}
-	var content []byte
+	var content string
+	var armorBlock *armor.Block
 ROWS:
 	for rows.Next() {
 		if err = rows.Scan(&content); err != nil {
 			return
 		}
-		keyChan, errChan := ReadKeys(bytes.NewBuffer(content))
+		if content == "" {
+			continue
+		}
+		armorBlock, err = armor.Decode(bytes.NewBufferString(content))
+		if err != nil {
+			pw.L.Println("LookupKeys: armor decode failed:", err)
+			return
+		}
+		keyChan, errChan := ReadKeys(armorBlock.Body)
 		for {
 			select {
-			case key, hasKey :=<- keyChan:
+			case key, hasKey :=<-keyChan:
 				if hasKey {
 					keys = append(keys, key)
 				} else {
 					break ROWS
 				}
-			case _, hasErr :=<- errChan:
+			case _, hasErr :=<-errChan:
 				if !hasErr {
 					break ROWS
 				}
@@ -158,6 +176,7 @@ func (pw *PqWorker) LookupKey(keyid string) (pubkey *PubKey, err error) {
 	var raw []byte
 	raw, err = hex.DecodeString(keyid)
 	if err != nil {
+		pw.L.Println("LookupKey", keyid, ": decode failed:", err)
 		return
 	}
 	// Choose column to query based on key id length
@@ -172,12 +191,12 @@ func (pw *PqWorker) LookupKey(keyid string) (pubkey *PubKey, err error) {
 	default:
 		return nil, InvalidKeyId
 	}
-	var content []byte
+	var content string
 	var rows *sql.Rows
 	rows, err = pw.DB.Query(fmt.Sprintf(
 		`SELECT content FROM pubkey WHERE %s = $1`, column), keyid)
 	if err != nil {
-		pw.L.Println("Lookup Error", keyid, ":", err)
+		pw.L.Println("LookupKey", keyid, ": select failed:", err)
 		return
 	}
 	for rows.Next() {
@@ -185,21 +204,35 @@ func (pw *PqWorker) LookupKey(keyid string) (pubkey *PubKey, err error) {
 		rows.Close()
 	}
 	if err != nil {
-		pw.L.Println("Lookup Error", keyid, ":", err)
+		pw.L.Println("LookupKey", keyid, ": scan failed:", err)
 		return
 	}
-	keyChan, errChan := ReadKeys(bytes.NewBuffer(content))
+	if content == "" {
+		return nil, KeyNotFound
+	}
+	pw.L.Println("LookupKey: matched content", len(content), "bytes")
+	armorBlock, err := armor.Decode(bytes.NewBufferString(content))
+	if err != nil {
+		pw.L.Println("LookupKey: armor decode failed:", err)
+		return
+	}
+	keyChan, errChan := ReadKeys(armorBlock.Body)
 KEYS:
 	for {
 		select {
-		case key, hasKey :=<- keyChan:
-			if hasKey {
+		case key, hasKey :=<-keyChan:
+			if key != nil {
 				pubkey = key
+				pw.L.Println("LookupKey: matched", key.Fingerprint)
 				return
-			} else {
+			}
+			if !hasKey {
 				break KEYS
 			}
-		case _, hasErr :=<- errChan:
+		case readErr, hasErr :=<-errChan:
+			if readErr != nil {
+				pw.L.Println("LookupKey: Warning, ReadKeys error:", readErr)
+			}
 			if !hasErr {
 				break KEYS
 			}
@@ -213,6 +246,7 @@ func (pw *PqWorker) AddKey(armoredKey string) error {
 	// Check and decode the armor
 	armorBlock, err := armor.Decode(bytes.NewBufferString(armoredKey))
 	if err != nil {
+		pw.L.Println("AddKey: armor decode failed:", err)
 		return err
 	}
 	return pw.LoadKeys(armorBlock.Body)
@@ -232,9 +266,9 @@ func (pw *PqWorker) LoadKeys(r io.Reader) (err error) {
 					content := bytes.NewBuffer([]byte{})
 					WriteKey(content, lastKey)
 					_, err = pw.DB.Exec(`UPDATE pubkey SET content = $1
-WHERE fingerprint = $2`, content.Bytes(), key.Fingerprint)
+WHERE fingerprint = $2`, content.String(), key.Fingerprint)
 					if err != nil {
-						pw.L.Println("Update pubkey Error:", err)
+						pw.L.Println("LoadKeys: update error:", err)
 					}
 				} else if err == KeyNotFound {
 					pw.L.Print("Insert:", key.Fingerprint)
@@ -243,34 +277,37 @@ WHERE fingerprint = $2`, content.Bytes(), key.Fingerprint)
 					var key_uuid, uid_uuid string
 					key_uuid, err = NewUuid()
 					if err != nil {
+						pw.L.Println("LoadKeys: new pubkey.uuid error:", err)
 						return
 					}
 					_, err = pw.DB.Exec(`INSERT INTO pubkey
 (uuid, fingerprint, key_id, short_id, algorithm, key_len, content) VALUES
-($1, $2, $3, $4, $5, $6, $7)`, key_uuid, key.Fingerprint, 
+($1, $2, $3, $4, $5, $6, $7)`, key_uuid, key.Fingerprint,
 						hex.EncodeToString(key.KeyId),
 						hex.EncodeToString(key.ShortId),
-						key.Algorithm, key.KeyLength, content.Bytes())
+						key.Algorithm, key.KeyLength, content.String())
 					if err != nil {
-						pw.L.Println("Insert pubkey Error:", err)
+						pw.L.Println("LoadKeys: insert pubkey error:", err)
 						return
 					}
 					for _, uid := range key.Identities {
 						uid_uuid, err = NewUuid()
 						if err != nil {
-							pw.L.Println("Insert uid Error:", err)
+							pw.L.Println("LoadKeys: new uid.uuid error:", err)
 							return
 						}
 						keywords := strings.Join(uid.Keywords, " ")
 						_, err = pw.DB.Exec(`INSERT INTO uid
 (uuid, key_uuid, keywords, keywords_index) VALUES
-($1, $2, $3, to_tsvector($3)`, uid_uuid, key_uuid, keywords)
+($1, $2, $3, to_tsvector($3))`, uid_uuid, key_uuid, keywords)
 						if err != nil {
+							pw.L.Println("LoadKeys: insert uid error:", err)
 							return
 						}
 					}
 				}
 				if err != nil {
+					pw.L.Println("LoadKeys error:", err)
 					return
 				}
 			}

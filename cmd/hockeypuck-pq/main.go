@@ -22,9 +22,9 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"runtime"
 	"code.google.com/p/gorilla/mux"
 	"launchpad.net/hockeypuck"
+	. "launchpad.net/hockeypuck/cli"
 	"launchpad.net/hockeypuck/pq"
 )
 
@@ -33,9 +33,6 @@ var pqPassword *string = flag.String("password", "", "postgres password")
 var pqHost *string = flag.String("host", "localhost", "postgres host")
 var pqPort *int = flag.Int("port", 5432, "postgres port")
 var pqDbName *string = flag.String("dbname", "hkp", "postgres database")
-
-var httpBind *string = flag.String("http", ":11371", "http bind port")
-var numWorkers *int = flag.Int("workers", runtime.NumCPU(), "number of workers")
 
 func usage() {
 	flag.PrintDefaults()
@@ -56,13 +53,15 @@ func main() {
 	// Create a new Hockeypuck server, bound to this router
 	hkp := hockeypuck.NewHkpServer(r)
 	flag.Parse()
+	// Initialize web templates
+	hockeypuck.InitTemplates(*WwwRoot)
 	// Resolve flags, get the database connection string
 	if *pqUser == "" {
 		usage()
 	}
 	connect := fmt.Sprintf("user=%s password=%s host=%s port=%d dbname=%s",
 		*pqUser, *pqPassword, *pqHost, *pqPort, *pqDbName)
-	for i := 0; i < *numWorkers; i++ {
+	for i := 0; i < *NumWorkers; i++ {
 		worker := &pq.PqWorker{}
 		err := worker.Init(connect)
 		if err != nil {
@@ -74,6 +73,6 @@ func main() {
 	// Bind the router to the built-in webserver root
 	http.Handle("/", r)
 	// Start the built-in webserver, run forever
-	err := http.ListenAndServe(*httpBind, nil)
+	err := http.ListenAndServe(*HttpBind, nil)
 	die(err)
 }

@@ -59,8 +59,13 @@ hockeypuck (0.5~alpha5) precise; urgency=low
     www/templates/pks/index.tmpl:
     - Add HTML UI, landing page, search form. Using go's html/template
       package. Add toucan css reset.
+  * === added directory cli, cli/cli.go, cmd/hockeypuck-mgo/main.go,
+    cmd/hockeypuck-pq/main.go, Makefile, pq/worker.go:
+    - Fixed several bugs in pq worker sql, logic in creating indexes.
+    - Updated Makefile to use static pattern rule, slurp in pq deps.
+    - Refactor common command-line flags to cli/cli.go.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Mon, 29 Oct 2012 00:16:48 -0500
+ -- Casey Marshall <casey.marshall@gazzang.com>  Mon, 29 Oct 2012 21:36:57 -0500
 
 hockeypuck (0.1~alpha1) precise; urgency=low
 

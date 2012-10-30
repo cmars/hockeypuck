@@ -22,18 +22,13 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"runtime"
 	"code.google.com/p/gorilla/mux"
 	"launchpad.net/hockeypuck"
+	. "launchpad.net/hockeypuck/cli"
 	"launchpad.net/hockeypuck/mgo"
 )
 
 var mgoServer *string = flag.String("server", "localhost", "mongo server")
-var httpBind *string = flag.String("http", ":11371", "http bind port")
-var numWorkers *int = flag.Int("workers", runtime.NumCPU(), "number of workers")
-var wwwRoot *string = flag.String("www-root",
-		"/var/lib/hockeypuck/www",
-		"Location of static web server files and templates")
 
 func usage() {
 	flag.PrintDefaults()
@@ -60,10 +55,10 @@ func main() {
 	hkp := hockeypuck.NewHkpServer(r)
 	flag.Parse()
 	// Initialize web templates
-	hockeypuck.InitTemplates(*wwwRoot)
+	hockeypuck.InitTemplates(*WwwRoot)
 	// Resolve flags, get the database connection string
 	connect := ConnectString()
-	for i := 0; i < *numWorkers; i++ {
+	for i := 0; i < *NumWorkers; i++ {
 		worker := &mgo.MgoWorker{}
 		err = worker.Init(connect)
 		if err != nil {
@@ -75,6 +70,6 @@ func main() {
 	// Bind the router to the built-in webserver root
 	http.Handle("/", r)
 	// Start the built-in webserver, run forever
-	err = http.ListenAndServe(*httpBind, nil)
+	err = http.ListenAndServe(*HttpBind, nil)
 	die(err)
 }
