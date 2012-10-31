@@ -54,12 +54,14 @@ func main() {
 	// Create a new Hockeypuck server, bound to this router
 	hkp := hockeypuck.NewHkpServer(r)
 	flag.Parse()
+	// Open the log
+	log := OpenLog()
 	// Initialize web templates
 	hockeypuck.InitTemplates(*WwwRoot)
 	// Resolve flags, get the database connection string
 	connect := ConnectString()
 	for i := 0; i < *NumWorkers; i++ {
-		worker := &mgo.MgoWorker{}
+		worker := &mgo.MgoWorker{ WorkerBase: hockeypuck.WorkerBase{ L: log } }
 		err = worker.Init(connect)
 		if err != nil {
 			die(err)

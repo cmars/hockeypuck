@@ -53,6 +53,8 @@ func main() {
 	// Create a new Hockeypuck server, bound to this router
 	hkp := hockeypuck.NewHkpServer(r)
 	flag.Parse()
+	// Open the log
+	log := OpenLog()
 	// Initialize web templates
 	hockeypuck.InitTemplates(*WwwRoot)
 	// Resolve flags, get the database connection string
@@ -62,7 +64,7 @@ func main() {
 	connect := fmt.Sprintf("user=%s password=%s host=%s port=%d dbname=%s",
 		*pqUser, *pqPassword, *pqHost, *pqPort, *pqDbName)
 	for i := 0; i < *NumWorkers; i++ {
-		worker := &pq.PqWorker{}
+		worker := &pq.PqWorker{ WorkerBase: hockeypuck.WorkerBase{ L: log } }
 		err := worker.Init(connect)
 		if err != nil {
 			die(err)
