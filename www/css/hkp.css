@@ -19,7 +19,8 @@ h1, h2 {
 	font-weight: normal;
 }
 /* General */
-#header {
+#header h1 {
+	margin-bottom: 0.1em;
 }
 #footer {
 	font-size: x-small;
@@ -64,12 +65,18 @@ h2.pks-search {
 	margin:0;
 	padding:0;
 }
-#header a {
+#header a, #header span {
 	display:block;
 	padding: 3px 3px 3px 3px;
 	margin: 0;
 	border-right: dotted 1px #ccc;
 }
+#header span.menu-label {
+	padding-left: 13px;
+}
 #header li.about {
 	float: right
+}
+span.todo-link {
+	color: #999
 }
