@@ -1,0 +1,10 @@
+#!/bin/sh -e
+
+if [ "$1" = "purge" ]; then
+    # logs has to be removed according to policy.
+    rm -rf /var/log/hockeypuck/hockeypuck.log
+fi
+
+#DEBHELPER#
+
+exit 0

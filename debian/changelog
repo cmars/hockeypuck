@@ -64,8 +64,11 @@ hockeypuck (0.5~alpha5) precise; urgency=low
     - Fixed several bugs in pq worker sql, logic in creating indexes.
     - Updated Makefile to use static pattern rule, slurp in pq deps.
     - Refactor common command-line flags to cli/cli.go.
+  * debian/control, debian/postinst, debian/postrm, etc/init/hockeypuck-
+    mgo.conf:
+    - Add upstart config, postinst to set up hockeypuck user, log dirs.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Mon, 29 Oct 2012 21:36:57 -0500
+ -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 31 Oct 2012 00:10:27 -0500
 
 hockeypuck (0.1~alpha1) precise; urgency=low
 
