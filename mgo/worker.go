@@ -127,6 +127,7 @@ func (mw *MgoWorker) LookupKeys(search string, limit int) (keys []*PubKey, err e
 	iter := q.Iter()
 	for iter.Next(pubKey) {
 		keys = append(keys, pubKey)
+		pubKey = new(PubKey)
 	}
 	err = iter.Err()
 	return
