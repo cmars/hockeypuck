@@ -1,4 +1,5 @@
 Hockeypuck: OpenPGP Key Server
+==============================
 
 Hockeypuck is being developed with design goals of performance, flexibility,
 reliability and portability.
@@ -15,4 +16,65 @@ highly-available manner.
 
 Portability: The keyserver should run on a reasonably wide variety of server
 operating systems and architectures with minimal hassle and minimal dependencies.
+
+Installation
+============
+
+Ubuntu Package
+--------------
+
+$ apt-add-repository ppa:hockeypuck/ppa
+$ apt-get update
+$ apt-get install hockeypuck-mgo
+
+The Ubuntu package features nice perks like an Upstart job,
+static media file installation and man pages.
+
+Developers
+==========
+Install Go.
+
+$ apt-get install golang
+
+or follow instructions at http://golang.org to set up a development environment.
+
+Libraries
+---------
+
+$ go get launchpad.net/hockeypuck
+$ go get launchpad.net/hockeypuck/mgo  # For the MongoDB worker
+$ go get launchpad.net/hockeypuck/pq   # For the Postgres worker
+
+Programs
+--------
+
+# Install the MongoDB Hockeypuck server binary to $GOPATH/bin
+$ go install launchpad.net/hockeypuck/cmd/hockeypuck-mgo
+
+# Install the loader
+$ go install launchpad.net/hockeypuck/cmd/hockeypuck-load
+
+Building Debian Packages
+========================
+
+The Debian build creates a $GOPATH in this top-level directory, gopath/,
+which will freeze all the third-party sources used by Hockeypuck.
+
+This enables the creation of a standalone source package.
+
+Perhaps someday if Go libraries are Debian-packaged, we can migrate this
+to depend on system-installed libraries?
+
+Binary Build
+------------
+
+1. make clean && make srcclean
+2. make debbin
+
+Source Build
+------------
+
+1. make clean && make srcclean
+2. make debsrc
+3. dput <wherever>/ppa ../hockeypuck_x.y.z_source.changes
 

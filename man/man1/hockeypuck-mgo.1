@@ -1,13 +1,15 @@
-.TH hockeypuck 1 "07 Sep 2012" hockeypuck "hockeypuck"
+.TH hockeypuck-mgo 1 "07 Sep 2012" hockeypuck "hockeypuck"
 .SH NAME
-\fBhockeypuck\fP \- OpenPGP Key Server
+\fBhockeypuck-mgo\fP \- OpenPGP Key Server with MongoDB storage
 
 .SH SYNOPSIS
-\fBhockeypuck\fP [-http=<IP>:PORT] [-server=MONGODB_SERVER] [-load=<FILE|PATTERN>]
+\fBhockeypuck-mgo\fP [-http=<IP>:PORT] [-workers=NUM_WORKERS]
+               [-www-root=WWW_PATH] [-logfile=LOG_PATH]
+               [-server=MONGODB_IP:PORT]
 
 .SH DESCRIPTION
 
-\fBhockeypuck\fP is a standalone OpenPGP keyserver. Hockeypuck functions as an HTTP server, implementing the HTTP Keyserver Protocol (HKP).
+\fBhockeypuck-mgo\fP is an OpenPGP keyserver that stores its public key information in MongoDB.
 
 Options and modes for running hockeypuck are described below:
 
@@ -22,20 +24,29 @@ If not specified, hockeypuck will listen on the HKP standard port for all interf
 -http=":11371".
 
 .TP
-\fB-load=FILE, -load=PATTERN\fP
-Load a binary OpenPGP keyring FILE, or a group of files matching glob PATTERN, into the database offline. When loading, hockeypuck will read
-OpenPGP public keys and insert or merge them into its database.
-Loading is useful for populating hockeypuck with PGP keyring files from GnuPG, or keyring dumps from other keyservers.
+\fB-workers=NUM_WORKERS\fP
+Number of worker goroutines to run. The workers fulfill client requests from Go's built in HTTP request handling by connecting to the database and performing OpenPGP keyring operations. If not specified, the default is GOMAXPROCS.
+
+.TP
+\fB-www-path=WWW_PATH\fP
+Path to the static files served by Hockeypuck's web interface. This is a small collection of HTML templates and static assets that serve a simple web interface to Hockeypuck. The default is the Debian package installation location, /var/lib/hockeypuck/www. If you're running Hockeypuck from source, use the path to hockeypuck/www.
+
+.TP
+\fB-logfile=LOG_PATH\fP
+Path hockeypuck should write its log to. If not specified, hockeypuck logs to os.Stderr.
 
 .TP
 \fB-server=MONGODB_SERVER\fP
 Connect to MONGODB_SERVER, creating databases and indexes as needed. Hockeypuck depends on a MongoDB server for data storage and retrieval.
 
-.SH KNOWN ISSUES
-Hockeypuck does not support older OpenPGP packets, such as version 3 signatures or public keys. Such packets are ignored.
+.SH BUGS
+Bugs, known issues and features in development are tracked at \fBhttps://bugs.launchpad.net/hockeypuck\fP.
 
 .SH SEE ALSO
 .PD 0
+.TP
+The OpenPGP HTTP Keyserver Protocol (HKP)
+http://ietfreport.isoc.org/all-ids/draft-shaw-openpgp-hkp-00.txt
 .TP
 \fBgpg\fP(1), \fBmongo\fP(1), \fIhttps://launchpad.net/hockeypuck\fP
 .PD
