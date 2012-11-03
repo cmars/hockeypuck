@@ -20,7 +20,7 @@
 {{define "pub-index-row"}}
 <tr>
 <td>pub</td>
-<td>{{.KeyLength}}{{.AlgoCode}}/<a href="/pks/lookup?op=get&search=0x{{.Fingerprint}}">{{.Fingerprint}}</a></td>
+<td><img src="data:image/jpeg;base64,{{.FpQrCode}}"/>{{.KeyLength}}{{.AlgoCode}}/<a href="/pks/lookup?op=get&search=0x{{.Fingerprint}}">{{.Fingerprint}}</a></td>
 <td>{{.CreationTime}}</td>
 <td></td>
 </tr>

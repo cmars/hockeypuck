@@ -1,15 +1,18 @@
 package hockeypuck
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"image/png"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"bitbucket.org/cmars/go.crypto/openpgp/packet"
+	"github.com/qpliu/qrencode-go/qrencode"
 )
 
 type MessageResponse struct {
@@ -86,6 +89,25 @@ func AlgorithmCode(algorithm int) string {
 	return fmt.Sprintf("[%d]", algorithm)
 }
 
+func qrEncodeToDataUri(s string) string {
+	var err error
+	grid, err := qrencode.Encode(s, qrencode.ECLevelQ)
+	if err != nil {
+		return ""
+	}
+	img := grid.Image(3)
+	pngbuf := bytes.NewBuffer([]byte{})
+	err = png.Encode(pngbuf, img)
+	if err != nil {
+		return ""
+	}
+	return encodeToDataUri(pngbuf.Bytes())
+}
+
+func encodeToDataUri(data []byte) string {
+	return url.QueryEscape(base64.StdEncoding.EncodeToString(data))
+}
+
 func WriteIndex(w io.Writer, key *PubKey) error {
 	pktObjChan := make(chan PacketObject)
 	go func() {
@@ -105,12 +127,14 @@ func WriteIndex(w io.Writer, key *PubKey) error {
 				KeyLength uint16
 				AlgoCode string
 				Fingerprint string
+				FpQrCode string
 				ShortId string
 				CreationTime string
 			}{
 				key.KeyLength,
 				AlgorithmCode(key.Algorithm),
 				key.Fingerprint,
+				qrEncodeToDataUri(key.Fingerprint),
 				strings.ToUpper(key.Fingerprint[32:40]),
 				pk.CreationTime.Format("2006-01-02")})
 		case *UserId:
@@ -127,7 +151,7 @@ func WriteIndex(w io.Writer, key *PubKey) error {
 				PksIndexTemplate.ExecuteTemplate(w, "uattr-image-row", struct {
 					ImageData string
 				}{
-					url.QueryEscape(base64.StdEncoding.EncodeToString(imageData.Bytes()))})
+					encodeToDataUri(imageData.Bytes())})
 			}
 		}
 	}
@@ -153,12 +177,14 @@ func WriteVindex(w io.Writer, key *PubKey) error {
 				KeyLength uint16
 				AlgoCode string
 				Fingerprint string
+				FpQrCode string
 				ShortId string
 				CreationTime string
 			}{
 				key.KeyLength,
 				AlgorithmCode(key.Algorithm),
 				key.Fingerprint,
+				qrEncodeToDataUri(key.Fingerprint),
 				strings.ToUpper(key.Fingerprint[32:40]),
 				pk.CreationTime.Format("2006-01-02")})
 		case *UserId:
@@ -195,7 +221,7 @@ func WriteVindex(w io.Writer, key *PubKey) error {
 				PksIndexTemplate.ExecuteTemplate(w, "uattr-image-row", struct {
 					ImageData string
 				}{
-					url.QueryEscape(base64.StdEncoding.EncodeToString(imageData.Bytes()))})
+					encodeToDataUri(imageData.Bytes())})
 			}
 		}
 	}
