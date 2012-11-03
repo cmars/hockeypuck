@@ -6,8 +6,11 @@ hockeypuck (0.6~a1) precise; urgency=low
     - Fix keyword query iteration. Need to keep allocating new PubKeys,
       was overwriting the same one in the iter loop.
       LP: #1073786
+  * cmd/hockeypuck-load/main.go, pgp_types.go, responses.go,
+    www/templates/pks/index.tmpl:
+    - Display user attribute image subpacket in index templates. LP: #1044773
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 31 Oct 2012 22:37:02 -0500
+ -- Casey Marshall <casey.marshall@gazzang.com>  Sat, 03 Nov 2012 02:11:21 -0500
 
 hockeypuck (0.5) precise; urgency=low
 

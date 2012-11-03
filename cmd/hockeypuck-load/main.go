@@ -94,8 +94,13 @@ func parse(f io.Reader) (armorChan chan []byte) {
 				} else {
 					log.Println("Error writing key:", err)
 				}
-			case err :=<-errChan:
-				log.Println("Error loading key:", err)
+			case err, hasErr :=<-errChan:
+				if err != nil {
+					log.Println("Error loading key:", err)
+				}
+				if !hasErr {
+					return
+				}
 			}
 		}
 	}()

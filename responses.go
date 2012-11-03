@@ -1,11 +1,13 @@
 package hockeypuck
 
 import (
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"bitbucket.org/cmars/go.crypto/openpgp/packet"
 )
@@ -119,6 +121,14 @@ func WriteIndex(w io.Writer, key *PubKey) error {
 			}{
 				key.Fingerprint,
 				uid.Id})
+		case *UserAttribute:
+			uattr := pktObj.(*UserAttribute)
+			for _, imageData := range uattr.GetJpegData() {
+				PksIndexTemplate.ExecuteTemplate(w, "uattr-image-row", struct {
+					ImageData string
+				}{
+					url.QueryEscape(base64.StdEncoding.EncodeToString(imageData.Bytes()))})
+			}
 		}
 	}
 	return nil
@@ -179,19 +189,14 @@ func WriteVindex(w io.Writer, key *PubKey) error {
 				longId,
 				longId[8:16],
 				sigTime})
-/*
 		case *UserAttribute:
 			uattr := pktObj.(*UserAttribute)
-			pkt, err := uattr.Parse()
-			if err != nil {
-				continue
+			for _, imageData := range uattr.GetJpegData() {
+				PksIndexTemplate.ExecuteTemplate(w, "uattr-image-row", struct {
+					ImageData string
+				}{
+					url.QueryEscape(base64.StdEncoding.EncodeToString(imageData.Bytes()))})
 			}
-			if opkt, isa := pkt.(*packet.OpaquePacket); isa {
-				fmt.Fprintf(w, `<tr><td>uattr</td><td colspan=2></td>
-<td><img src="data:image/jpeg;base64,%s"></img></td></tr>`,
-					base64.URLEncoding.EncodeToString(opkt.Contents[22:]))
-			}
-*/
 		}
 	}
 	return nil

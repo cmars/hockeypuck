@@ -43,3 +43,11 @@
 <td><a href="/pks/lookup?op=vindex&search=0x{{.LongId}}">{{.LongId}}</a></td>
 </tr>
 {{end}}
+
+{{define "uattr-image-row"}}
+<tr>
+<td>uattr</td>
+<td colspan='4'><img src="data:image/jpeg;base64,{{.ImageData}}"></img></td>
+</tr>
+{{end}}
+

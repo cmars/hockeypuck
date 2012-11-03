@@ -231,6 +231,32 @@ func (o *UserAttribute) Parse() (packet.Packet, error) {
 	return nil, err
 }
 
+// Image subpacket type
+const ImageSubType = 1
+
+// Byte offset of image data in image subpacket
+const ImageSubOffset = 16
+
+// Get all images contained in UserAttribute packet
+func (userAttr *UserAttribute) GetJpegData() (result []*bytes.Buffer) {
+	p, err := userAttr.Parse()
+	op := p.(*packet.OpaquePacket)
+	if err != nil {
+		return
+	}
+	subpackets, err := packet.OpaqueSubpackets(op.Contents)
+	if err != nil {
+		return
+	}
+	for _, subpacket := range subpackets {
+		if subpacket.SubType == ImageSubType && len(subpacket.Contents) > ImageSubOffset {
+			result = append(result, 
+					bytes.NewBuffer(subpacket.Contents[ImageSubOffset:]))
+		}
+	}
+	return result
+}
+
 type SubKey struct {
 	Fingerprint string
 	Algorithm int
