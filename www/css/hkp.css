@@ -26,6 +26,10 @@ h1, h2 {
 	font-size: x-small;
 	text-align: center;
 }
+a#logo:link, a#logo:visited, a#logo:hover, a#logo:active {
+	text-decoration: none;
+	color: #000;
+} 
 /* Sticky footer */
 html, body, #container { height: 100%; }
 body > #container { height: auto; min-height: 100%; }

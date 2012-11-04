@@ -11,8 +11,10 @@ hockeypuck (0.6~a1) precise; urgency=low
     - Display user attribute image subpacket in index templates. LP: #1044773
   * responses.go, www/templates/pks/index.tmpl:
     - Display QR code of public key fingerprint. LP: #1074552
+  * www/css/hkp.css, www/templates/header.tmpl:
+    - Make logo heading a link.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Sat, 03 Nov 2012 18:56:13 -0500
+ -- Casey Marshall <casey.marshall@gazzang.com>  Sat, 03 Nov 2012 21:18:10 -0500
 
 hockeypuck (0.5) precise; urgency=low
 
