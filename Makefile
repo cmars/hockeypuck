@@ -7,7 +7,6 @@ HOCKEYPATH=$(GOPATH)/src/launchpad.net/hockeypuck
 
 all: get \
 	$(HOCKEYPATH)/cmd/hockeypuck-mgo/hockeypuck-mgo \
-	$(HOCKEYPATH)/cmd/hockeypuck-pq/hockeypuck-pq \
 	$(HOCKEYPATH)/cmd/hockeypuck-load/hockeypuck-load
 
 # 'get' resolves & fetches dependencies into our build $GOPATH

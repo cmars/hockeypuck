@@ -13,8 +13,11 @@ hockeypuck (0.6~a1) precise; urgency=low
     - Display QR code of public key fingerprint. LP: #1074552
   * www/css/hkp.css, www/templates/header.tmpl:
     - Make logo heading a link.
+  * debian/mkdists, debian/rules, Makefile:
+    - Remove hockeypuck-pq from binary packages, its not ready for that.
+    - Add helper script for slinging multi-distro source packages.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Sat, 03 Nov 2012 21:18:10 -0500
+ -- Casey Marshall <casey.marshall@gazzang.com>  Sun, 04 Nov 2012 17:44:31 -0600
 
 hockeypuck (0.5) precise; urgency=low
 

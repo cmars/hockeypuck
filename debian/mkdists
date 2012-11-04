@@ -1,0 +1,23 @@
+#!/bin/sh -x
+
+# Get our current and last built revision
+REVNO=$(bzr log | grep -m1 "^revno: " | awk '{print $2}')
+
+if [ -z "$1" ]; then
+	DISTS=$(distro-info --supported | grep -v hardy)
+else
+	DISTS=$1
+fi
+
+# Build for each supported Ubuntu version
+for d in $DISTS; do
+	# Append bzr revision and release distro info
+	sed -i -e "s/) [a-zA-Z0-9].*;/~bzr$REVNO~$d) $d;/i" debian/changelog
+	# Build source package
+	make debsrc
+	# Update changelog timestamp and committer
+	dch -r ""
+	# Revert any changes (ie, debian/changelog)
+	bzr revert debian/changelog
+done
+
