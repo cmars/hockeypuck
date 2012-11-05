@@ -10,7 +10,7 @@ all: get \
 	$(HOCKEYPATH)/cmd/hockeypuck-load/hockeypuck-load
 
 # 'get' resolves & fetches dependencies into our build $GOPATH
-get: $(HOCKEYPATH)/mgo $(HOCKEYPATH)/pq
+get: $(HOCKEYPATH)/mgo
 
 $(HOCKEYPATH)/pq: $(GOPATH)/src/github.com/bmizerany/pq
 	@echo GOPATH is $(GOPATH)
