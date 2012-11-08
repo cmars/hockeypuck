@@ -19,19 +19,26 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"net/mail"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"launchpad.net/hockeypuck"
 )
 
+const ADD_CMD = "add"
+const INCREMENTAL_CMD = "incremental"
+
 var hkpServer *string = flag.String("hkp", "localhost:11371", "HKP server hostname:port")
 var path *string = flag.String("path", "", "PGP keyrings to be loaded")
+var mailAdd *bool = flag.Bool("mail-add", false, "Load key(s) from mailsync message on stdin")
 
 func usage() {
 	flag.PrintDefaults()
@@ -40,7 +47,41 @@ func usage() {
 
 func main() {
 	flag.Parse()
-	loadAll(*path, *hkpServer)
+	var err error
+	if *mailAdd {
+		err = loadMail(*hkpServer)
+	} else if *path != "" {
+		err = loadAll(*path, *hkpServer)
+	} else {
+		usage()
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+	os.Exit(0)
+}
+
+func loadMail(hkpserver string) (err error) {
+	var msg *mail.Message
+	msg, err = mail.ReadMessage(os.Stdin)
+	if err != nil {
+		return
+	}
+	subjectValue, has := msg.Header["Subject"]
+	if !has || len(subjectValue) == 0 {
+		return errors.New("Missing 'Subject:' header")
+	}
+	subject := strings.ToLower(subjectValue[0])
+	bodyBuf := bytes.NewBuffer([]byte{})
+	_, err = io.Copy(bodyBuf, msg.Body)
+	if err != nil {
+		return
+	}
+	if subject == INCREMENTAL_CMD || subject == ADD_CMD {
+		err = loadArmor(hkpserver, string(bodyBuf.Bytes()))
+	}
+	return
 }
 
 func loadAll(path string, hkpserver string) (err error) {
@@ -61,17 +102,23 @@ func loadAll(path string, hkpserver string) (err error) {
 		armorChan := parse(f)
 		for armor := range armorChan {
 			log.Println("got key")
-			resp, err := http.PostForm(
-				fmt.Sprintf("http://%s/pks/add", hkpserver),
-						url.Values{"keytext": {string(armor)}})
-			if err != nil {
-				log.Println("Error posting key:", err)
-			}
-			if resp != nil {
-				resp.Body.Close()
-			}
+			loadArmor(hkpserver, string(armor))
 		}
 		f.Close()
+	}
+	return
+}
+
+func loadArmor(hkpserver string, armor string) (err error) {
+	var resp *http.Response
+	resp, err = http.PostForm(
+		fmt.Sprintf("http://%s/pks/add", hkpserver),
+				url.Values{"keytext": {string(armor)}})
+	if err != nil {
+		log.Println("Error posting key:", err)
+	}
+	if resp != nil {
+		resp.Body.Close()
 	}
 	return
 }
