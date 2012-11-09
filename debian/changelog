@@ -19,8 +19,11 @@ hockeypuck (0.6~a1) precise; urgency=low
   * cmd/hockeypuck-load/main.go:
     - Add hockeypuck -mail-add option for receiving PKS inbound keys.
       LP: #1075379
+  * debian/rules, Makefile:
+    - Use the binary targets to get dependencies, use go install
+      to build them into local gopath/bin. Simplifies Makefile.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 07 Nov 2012 23:41:03 -0600
+ -- Casey Marshall <casey.marshall@gazzang.com>  Thu, 08 Nov 2012 23:59:34 -0600
 
 hockeypuck (0.5) precise; urgency=low
 
