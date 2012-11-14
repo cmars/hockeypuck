@@ -1,0 +1,14 @@
+{{define "title"}}Hockeypuck | Add Public Key{{end}}
+
+{{define "page_content"}}
+<h2 class="pks-add">Add Public Key</h2>
+<p>Paste the ASCII-armored public key block into the form below.</p>
+<form class="pks-add" action="/pks/add" method="post">
+	<div>
+		<textarea name="keytext" cols="66" rows="20"></textarea>
+	</div>
+	<div>
+		<input id="add_submit" type="submit" value="Add Public Key"></input>
+	</div>
+</form>
+{{end}}
