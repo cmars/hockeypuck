@@ -241,7 +241,7 @@ KEYS:
 	return nil, KeyNotFound
 }
 
-func (pw *PqWorker) AddKey(armoredKey string) error {
+func (pw *PqWorker) AddKey(armoredKey string) ([]string, error) {
 	pw.L.Print("AddKey(...)")
 	// Check and decode the armor
 	armorBlock, err := armor.Decode(bytes.NewBufferString(armoredKey))
@@ -252,7 +252,7 @@ func (pw *PqWorker) AddKey(armoredKey string) error {
 	return pw.LoadKeys(armorBlock.Body)
 }
 
-func (pw *PqWorker) LoadKeys(r io.Reader) (err error) {
+func (pw *PqWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 	keyChan, errChan := ReadKeys(r)
 	for {
 		select {
@@ -309,6 +309,8 @@ WHERE fingerprint = $2`, content.String(), key.Fingerprint)
 				if err != nil {
 					pw.L.Println("LoadKeys error:", err)
 					return
+				} else {
+					fps = append(fps, key.Fingerprint)
 				}
 			}
 			if !moreKeys {

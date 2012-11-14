@@ -22,8 +22,13 @@ hockeypuck (0.6~a1) precise; urgency=low
   * debian/rules, Makefile:
     - Use the binary targets to get dependencies, use go install
       to build them into local gopath/bin. Simplifies Makefile.
+  * mgo/worker.go, pq/worker.go, responses.go, server.go, templates.go,
+    worker.go, www/templates/header.tmpl:
+    - Create form to add pasted key armor. LP: #1076841
+    - /pks/add produces an HTML page confirming added key fingerprints.
+    - Clean up ws, cruft.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Thu, 08 Nov 2012 23:59:34 -0600
+ -- Casey Marshall <casey.marshall@gazzang.com>  Tue, 13 Nov 2012 20:57:18 -0600
 
 hockeypuck (0.5) precise; urgency=low
 

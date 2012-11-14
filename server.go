@@ -36,6 +36,10 @@ func NewHkpServer(r *mux.Router) *HkpServer {
 		func(resp http.ResponseWriter, req *http.Request) {
 			hkp.index(resp, req)
 		})
+	r.HandleFunc("/add",
+		func(resp http.ResponseWriter, req *http.Request) {
+			hkp.addForm(resp, req)
+		})
 	r.HandleFunc(`/css/{filename:.*\.css}`,
 		func(resp http.ResponseWriter, req *http.Request) {
 			filename := mux.Vars(req)["filename"]
@@ -138,7 +142,6 @@ func parseOptions(options string) Option {
 
 // Handle add HTTP requests
 func (hkp *HkpServer) add(respWriter http.ResponseWriter, req *http.Request) error {
-	// build Lookup from query arguments
 	add, err := parseAdd(req)
 	if err != nil {
 		respError(respWriter, err)
@@ -184,4 +187,6 @@ func (hkp *HkpServer) index(respWriter http.ResponseWriter, req *http.Request) e
 	return SearchFormTemplate.ExecuteTemplate(respWriter, "layout", nil)
 }
 
-//
+func (hkp *HkpServer) addForm(respWriter http.ResponseWriter, req *http.Request) error {
+	return AddFormTemplate.ExecuteTemplate(respWriter, "layout", nil)
+}

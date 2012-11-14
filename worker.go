@@ -17,7 +17,7 @@ type Worker interface {
 	// Look up a key by ID.
 	LookupKey(keyid string) (*PubKey, error)
 	// Add ASCII-armored public key
-	AddKey(armoredKey string) error
+	AddKey(armoredKey string) ([]string, error)
 }
 
 type WorkerBase struct {
@@ -93,8 +93,8 @@ func Start(hkp *HkpServer, w Worker) (chan interface{}) {
 					lookup.Response() <- &NotImplementedResponse{}
 				}
 			case add := <-hkp.AddRequests:
-				err := w.AddKey(add.Keytext)
-				add.Response() <- &MessageResponse{ Err: err }
+				fps, err := w.AddKey(add.Keytext)
+				add.Response() <- &AddResponse{ Fingerprints: fps, Err: err }
 			case _, isOpen := <-stop:
 				if !isOpen {
 					return

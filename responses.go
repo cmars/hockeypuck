@@ -29,6 +29,24 @@ func (r *MessageResponse) WriteTo(w http.ResponseWriter) error {
 	return r.Err
 }
 
+type AddResponse struct {
+	Fingerprints []string
+	Err error
+}
+
+func (r *AddResponse) Error() error {
+	return r.Err
+}
+
+func (r *AddResponse) WriteTo(w http.ResponseWriter) (err error) {
+	err = AddResultTemplate.ExecuteTemplate(w, "top", r)
+	if err != nil { return }
+	err = AddResultTemplate.ExecuteTemplate(w, "page_content", r)
+	if err != nil { return }
+	err = AddResultTemplate.ExecuteTemplate(w, "bottom", r)
+	return
+}
+
 type IndexResponse struct {
 	Lookup *Lookup
 	Keys []*PubKey

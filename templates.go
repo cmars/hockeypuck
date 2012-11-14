@@ -18,9 +18,7 @@
 package hockeypuck
 
 import (
-//	"fmt"
 	"html/template"
-//	"os"
 	"path/filepath"
 )
 
@@ -29,6 +27,12 @@ var WwwRoot string
 // SearchFormTemplate is used to render the default search form at '/'
 var SearchFormTemplate *template.Template
 
+// AddFormTemplate is used to render the form to add a key.
+var AddFormTemplate *template.Template
+
+// AddResultTemplate displays the fingerprints of updated keys.
+var AddResultTemplate *template.Template
+
 // PksIndexTemplate is used to render the op=index and op=vindex
 // responses when not in machine readable mode.
 var PksIndexTemplate *template.Template
@@ -36,20 +40,36 @@ var PksIndexTemplate *template.Template
 func InitTemplates(path string) {
 	WwwRoot, _ = filepath.Abs(path)
 	SearchFormTemplate = newSearchFormTemplate(path)
+	AddFormTemplate = newAddFormTemplate(path)
+	AddResultTemplate = newAddResultTemplate(path)
 	PksIndexTemplate = newPksIndexTemplate(path)
 	return
 }
 
 func newSearchFormTemplate(path string) *template.Template {
 	files, _ := filepath.Glob(filepath.Join(path, "templates", "*.tmpl"))
-	files = append(files, 
+	files = append(files,
 			filepath.Join(path, "templates", "index", "search_form.tmpl"))
+	return template.Must(template.ParseFiles(files...))
+}
+
+func newAddFormTemplate(path string) *template.Template {
+	files, _ := filepath.Glob(filepath.Join(path, "templates", "*.tmpl"))
+	files = append(files,
+			filepath.Join(path, "templates", "add", "add_form.tmpl"))
+	return template.Must(template.ParseFiles(files...))
+}
+
+func newAddResultTemplate(path string) *template.Template {
+	files, _ := filepath.Glob(filepath.Join(path, "templates", "*.tmpl"))
+	files = append(files,
+			filepath.Join(path, "templates", "add", "add_result.tmpl"))
 	return template.Must(template.ParseFiles(files...))
 }
 
 func newPksIndexTemplate(path string) *template.Template {
 	files, _ := filepath.Glob(filepath.Join(path, "templates", "*.tmpl"))
-	files = append(files, 
+	files = append(files,
 			filepath.Join(path, "templates", "pks", "index.tmpl"))
 	return template.Must(template.ParseFiles(files...))
 }

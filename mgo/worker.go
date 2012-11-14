@@ -160,23 +160,24 @@ func (mw *MgoWorker) LookupKey(keyid string) (*PubKey, error) {
 	return key, nil
 }
 
-func (mw *MgoWorker) AddKey(armoredKey string) error {
+func (mw *MgoWorker) AddKey(armoredKey string) ([]string, error) {
 	mw.L.Print("AddKey(...)")
 	// Check and decode the armor
 	armorBlock, err := armor.Decode(bytes.NewBufferString(armoredKey))
 	if err != nil {
-		return err
+		return []string{}, err
 	}
 	return mw.LoadKeys(armorBlock.Body)
 }
 
-func (mw *MgoWorker) LoadKeys(r io.Reader) (err error) {
+func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 	keyChan, errChan := ReadKeys(r)
 	for {
 		select {
 		case key, moreKeys :=<-keyChan:
 			if key != nil {
-				lastKey, err := mw.LookupKey(key.Fingerprint)
+				var lastKey *PubKey
+				lastKey, err = mw.LookupKey(key.Fingerprint)
 				if err == nil && lastKey != nil {
 					mw.L.Print("Merge/Update:", key.Fingerprint)
 					MergeKey(lastKey, key)
@@ -186,14 +187,16 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (err error) {
 					err = mw.c.Insert(key)
 				}
 				if err != nil {
-					return err
+					return
+				} else {
+					fps = append(fps, key.Fingerprint)
 				}
 			}
 			if !moreKeys {
-				return err
+				return
 			}
-		case err :=<-errChan:
-			return err
+		case err =<-errChan:
+			return
 		}
 	}
 	panic("unreachable")
