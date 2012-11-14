@@ -25,6 +25,7 @@ import (
 	"errors"
 	"io"
 	"strings"
+	"time"
 	. "launchpad.net/hockeypuck"
 	"bitbucket.org/cmars/go.crypto/openpgp/armor"
 	"labix.org/v2/mgo"
@@ -181,9 +182,11 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 				if err == nil && lastKey != nil {
 					mw.L.Print("Merge/Update:", key.Fingerprint)
 					MergeKey(lastKey, key)
+					lastKey.Mtime = time.Now().Unix()
 					err = mw.c.Update(bson.M{ "fingerprint": key.Fingerprint }, lastKey)
 				} else if err == KeyNotFound {
 					mw.L.Print("Insert:", key.Fingerprint)
+					key.Ctime = time.Now().Unix()
 					err = mw.c.Insert(key)
 				}
 				if err != nil {

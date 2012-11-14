@@ -27,8 +27,10 @@ hockeypuck (0.6~a1) precise; urgency=low
     - Create form to add pasted key armor. LP: #1076841
     - /pks/add produces an HTML page confirming added key fingerprints.
     - Clean up ws, cruft.
+  * mgo/worker.go, pgp_types.go:
+    - Add Ctime & Mtime for status page. LP: #1075391
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Tue, 13 Nov 2012 20:57:18 -0600
+ -- Casey Marshall <casey.marshall@gazzang.com>  Tue, 13 Nov 2012 21:59:54 -0600
 
 hockeypuck (0.5) precise; urgency=low
 

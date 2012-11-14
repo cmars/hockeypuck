@@ -58,6 +58,8 @@ type PubKey struct {
 	SubKeys []*SubKey
 	Packet []byte
 	Digest string
+	Ctime int64
+	Mtime int64
 }
 
 func (pubKey *PubKey) AppendSig(sig *Signature) {
