@@ -4,7 +4,7 @@
 REVNO=$(bzr log | grep -m1 "^revno: " | awk '{print $2}')
 
 if [ -z "$1" ]; then
-	DISTS=$(distro-info --supported | grep -v hardy)
+	DISTS=$(distro-info --supported | egrep -v 'hardy|lucid|oneiric')
 else
 	DISTS=$1
 fi
