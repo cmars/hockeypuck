@@ -12,6 +12,7 @@
 override_dh_install:
 	dh_install gopath/bin/hockeypuck-mgo /usr/bin/
 	dh_install gopath/bin/hockeypuck-load /usr/bin/
+	dh_install etc/hockeypuck/hockeypuck.conf /etc/hockeypuck
 	dh_install etc/init/hockeypuck-mgo.conf /etc/init
 	dh_install www /var/lib/hockeypuck
 	dh_install man/man1/hockeypuck-mgo.1 /usr/share/man/man1

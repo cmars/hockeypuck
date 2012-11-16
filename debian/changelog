@@ -1,4 +1,4 @@
-hockeypuck (0.6~a1) precise; urgency=low
+hockeypuck (0.6~rc1) precise; urgency=low
 
   [ Casey Marshall ]
   * Opening 0.6 milestone.
@@ -29,8 +29,13 @@ hockeypuck (0.6~a1) precise; urgency=low
     - Clean up ws, cruft.
   * mgo/worker.go, pgp_types.go:
     - Add Ctime & Mtime for status page. LP: #1075391
+  * === added directory etc/hockeypuck, cli/cli.go, cmd/hockeypuck-
+    mgo/main.go, debian/rules, etc/hockeypuck/hockeypuck.conf,
+    etc/init/hockeypuck-mgo.conf:
+    - Parse configuration file on startup, sets default values for
+      flags. Added to package install. LP: #1040384
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Tue, 13 Nov 2012 21:59:54 -0600
+ -- Casey Marshall <casey.marshall@gazzang.com>  Thu, 15 Nov 2012 22:56:28 -0600
 
 hockeypuck (0.5) precise; urgency=low
 

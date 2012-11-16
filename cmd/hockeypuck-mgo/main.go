@@ -53,9 +53,12 @@ func main() {
 	r := mux.NewRouter()
 	// Create a new Hockeypuck server, bound to this router
 	hkp := hockeypuck.NewHkpServer(r)
+	ParseCfg()
 	flag.Parse()
 	// Open the log
 	log := OpenLog()
+	// Log the effective configuration (cfg file + cmdline flags)
+	LogCfg(log)
 	// Initialize web templates
 	hockeypuck.InitTemplates(*WwwRoot)
 	// Resolve flags, get the database connection string
