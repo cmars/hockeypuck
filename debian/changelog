@@ -1,3 +1,10 @@
+hockeypuck (0.7~a1) precise; urgency=low
+
+  [ Casey Marshall ]
+  * Opening 0.7 milestone.
+
+ -- Casey Marshall <casey.marshall@gazzang.com>  Fri, 16 Nov 2012 00:22:23 -0600
+
 hockeypuck (0.6) precise; urgency=low
 
   [ Casey Marshall ]
