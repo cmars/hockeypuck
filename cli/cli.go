@@ -47,9 +47,6 @@ var WwwRoot *string = flag.String("www-root",
 // Logfile option
 var LogFile *string = flag.String("logfile", "", "Logfile (default stderr)")
 
-// Downstream PKS servers
-var PksSync *string = flag.String("pks-sync", "", "PKS servers to forward keys")
-
 func OpenLog() *log.Logger {
 	var LogOut io.Writer = os.Stderr
 	var logFerr error

@@ -58,6 +58,7 @@ type MgoWorker struct {
 
 func (mw *MgoWorker) Init() (err error) {
 	mw.WorkerBase.Init()
+	mw.PksSender.Init()
 	mw.L.Println("Connecting to mongodb:", mw.Connect)
 	mw.session, err = mgo.Dial(mw.Connect)
 	if err != nil {

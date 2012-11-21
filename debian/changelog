@@ -5,8 +5,12 @@ hockeypuck (0.7~a1) precise; urgency=low
   * cli/cli.go, cmd/hockeypuck-mgo/main.go, mgo/pks.go, mgo/worker.go,
     pks.go, worker.go:
     - Add support for PKS forwarding. LP: #1075379
+  * cli/cli.go, cmd/hockeypuck-mgo/main.go, mgo/worker.go, pks.go,
+    worker.go:
+    - Consolidate PKS configuration from switches.
+    - Consolidate worker process (goroutine) management.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 21 Nov 2012 13:05:01 -0600
+ -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 21 Nov 2012 15:43:42 -0600
 
 hockeypuck (0.6) precise; urgency=low
 

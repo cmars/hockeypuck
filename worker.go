@@ -42,6 +42,16 @@ type Worker interface {
 	SendKeys(stat *PksStat) error
 }
 
+type WorkerHandle struct {
+	w Worker
+	hkp *HkpServer
+	stop chan interface{}
+}
+
+func (wh *WorkerHandle) Stop() {
+	close(wh.stop)
+}
+
 type WorkerBase struct {
 	L *log.Logger
 }
@@ -84,18 +94,19 @@ func FindKeys(w Worker, search string) (string, error) {
 	return string(buf.Bytes()), err
 }
 
-func pollPks(w Worker, stop chan interface{}) {
+// Poll PKS downstream servers
+func pollPks(wh *WorkerHandle) {
 	for {
 		time.Sleep(15 * time.Minute)
-		stats, err := w.SyncStats()
+		stats, err := wh.w.SyncStats()
 		if err != nil {
 			continue
 		}
 		for _, stat := range stats {
-			err = w.SendKeys(&stat)
+			err = wh.w.SendKeys(&stat)
 		}
 		select {
-		case _, isOpen := <-stop:
+		case _, isOpen := <-wh.stop:
 			if !isOpen {
 				return
 			}
@@ -103,21 +114,20 @@ func pollPks(w Worker, stop chan interface{}) {
 	}
 }
 
-func Start(hkp *HkpServer, w Worker) chan interface{} {
-	stop := make(chan interface{})
-	// Serve HKP requests
+// Serve HKP requests
+func serveHkp(wh *WorkerHandle) {
 	go func() {
 		for {
 			select {
-			case lookup := <-hkp.LookupRequests:
+			case lookup := <-wh.hkp.LookupRequests:
 				switch lookup.Op {
 				case Get:
 					var armor string
 					var err error
 					if lookup.Exact || strings.HasPrefix(lookup.Search, "0x") {
-						armor, err = GetKey(w, lookup.Search[2:])
+						armor, err = GetKey(wh.w, lookup.Search[2:])
 					} else {
-						armor, err = FindKeys(w, lookup.Search)
+						armor, err = FindKeys(wh.w, lookup.Search)
 					}
 					lookup.Response() <- &MessageResponse{Content: armor, Err: err}
 				case Index, Vindex:
@@ -125,28 +135,30 @@ func Start(hkp *HkpServer, w Worker) chan interface{} {
 					var err error
 					keys := []*PubKey{}
 					if lookup.Exact || strings.HasPrefix(lookup.Search, "0x") {
-						key, err = w.LookupKey(lookup.Search[2:])
+						key, err = wh.w.LookupKey(lookup.Search[2:])
 						keys = append(keys, key)
 					} else {
-						keys, err = w.LookupKeys(lookup.Search, INDEX_LIMIT)
+						keys, err = wh.w.LookupKeys(lookup.Search, INDEX_LIMIT)
 					}
 					lookup.Response() <- &IndexResponse{Keys: keys, Err: err, Lookup: lookup}
 				default:
 					lookup.Response() <- &NotImplementedResponse{}
 				}
-			case add := <-hkp.AddRequests:
-				fps, err := w.AddKey(add.Keytext)
+			case add := <-wh.hkp.AddRequests:
+				fps, err := wh.w.AddKey(add.Keytext)
 				add.Response() <- &AddResponse{Fingerprints: fps, Err: err}
-			case _, isOpen := <-stop:
+			case _, isOpen := <-wh.stop:
 				if !isOpen {
 					return
 				}
 			}
 		}
 	}()
-	// Poll PKS downstream servers
-	go func() {
-		pollPks(w, stop)
-	}()
-	return stop
+}
+
+func Start(hkp *HkpServer, w Worker) *WorkerHandle {
+	wh := &WorkerHandle{ w: w, hkp: hkp, stop: make(chan interface{}) }
+	serveHkp(wh)
+	pollPks(wh)
+	return wh
 }
