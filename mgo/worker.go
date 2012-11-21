@@ -49,14 +49,17 @@ func NewUuid() (string, error) {
 
 type MgoWorker struct {
 	WorkerBase
+	PksSender
+	Connect string
 	session *mgo.Session
-	c       *mgo.Collection
+	keys    *mgo.Collection
+	pksStat *mgo.Collection
 }
 
-func (mw *MgoWorker) Init(connect string) (err error) {
+func (mw *MgoWorker) Init() (err error) {
 	mw.WorkerBase.Init()
-	mw.L.Println("Connecting to mongodb:", connect)
-	mw.session, err = mgo.Dial(connect)
+	mw.L.Println("Connecting to mongodb:", mw.Connect)
+	mw.session, err = mgo.Dial(mw.Connect)
 	if err != nil {
 		mw.L.Println("Connection failed:", err)
 		return
@@ -66,7 +69,8 @@ func (mw *MgoWorker) Init(connect string) (err error) {
 	mw.session.EnsureSafe(&mgo.Safe{
 		W:     1,
 		FSync: true})
-	mw.c = mw.session.DB("hockeypuck").C("keys")
+	// keys collection stores all the key material
+	mw.keys = mw.session.DB("hockeypuck").C("keys")
 	// fingerprint index
 	fpIndex := mgo.Index{
 		Key:        []string{"fingerprint"},
@@ -74,7 +78,7 @@ func (mw *MgoWorker) Init(connect string) (err error) {
 		DropDups:   false,
 		Background: false,
 		Sparse:     false}
-	err = mw.c.EnsureIndex(fpIndex)
+	err = mw.keys.EnsureIndex(fpIndex)
 	if err != nil {
 		mw.L.Println("Ensure index failed:", err)
 		return
@@ -86,7 +90,7 @@ func (mw *MgoWorker) Init(connect string) (err error) {
 		DropDups:   false,
 		Background: false,
 		Sparse:     false}
-	err = mw.c.EnsureIndex(keyidIndex)
+	err = mw.keys.EnsureIndex(keyidIndex)
 	if err != nil {
 		mw.L.Println("Ensure index failed:", err)
 		return
@@ -98,7 +102,7 @@ func (mw *MgoWorker) Init(connect string) (err error) {
 		DropDups:   false,
 		Background: false,
 		Sparse:     false}
-	err = mw.c.EnsureIndex(shortidIndex)
+	err = mw.keys.EnsureIndex(shortidIndex)
 	if err != nil {
 		mw.L.Println("Ensure index failed:", err)
 		return
@@ -110,16 +114,31 @@ func (mw *MgoWorker) Init(connect string) (err error) {
 		DropDups:   false,
 		Background: true,
 		Sparse:     false}
-	err = mw.c.EnsureIndex(kwIndex)
+	err = mw.keys.EnsureIndex(kwIndex)
 	if err != nil {
 		mw.L.Println("Ensure index failed:", err)
 		return
 	}
+	// pks collection stores sync status with downstream servers
+	mw.pksStat = mw.session.DB("hockeypuck").C("pksStat")
+	// pks addr index
+	addrIndex := mgo.Index{
+		Key:        []string{"addr"},
+		Unique:     true,
+		DropDups:   false,
+		Background: true,
+		Sparse:     false}
+	err = mw.pksStat.EnsureIndex(addrIndex)
+	if err != nil {
+		mw.L.Println("Ensure index failed:", err)
+		return
+	}
+	err = mw.initPksAddrs()
 	return
 }
 
 func (mw *MgoWorker) LookupKeys(search string, limit int) (keys []*PubKey, err error) {
-	q := mw.c.Find(bson.M{"identities.keywords": search})
+	q := mw.keys.Find(bson.M{"identities.keywords": search})
 	n, err := q.Count()
 	if n > limit {
 		return keys, TooManyResponses
@@ -143,11 +162,11 @@ func (mw *MgoWorker) LookupKey(keyid string) (*PubKey, error) {
 	var q *mgo.Query
 	switch len(raw) {
 	case 4:
-		q = mw.c.Find(bson.M{"shortid": raw})
+		q = mw.keys.Find(bson.M{"shortid": raw})
 	case 8:
-		q = mw.c.Find(bson.M{"keyid": raw})
+		q = mw.keys.Find(bson.M{"keyid": raw})
 	case 20:
-		q = mw.c.Find(bson.M{"fingerprint": keyid})
+		q = mw.keys.Find(bson.M{"fingerprint": keyid})
 	default:
 		return nil, InvalidKeyId
 	}
@@ -183,11 +202,11 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 					mw.L.Print("Merge/Update:", key.Fingerprint)
 					MergeKey(lastKey, key)
 					lastKey.Mtime = time.Now().Unix()
-					err = mw.c.Update(bson.M{"fingerprint": key.Fingerprint}, lastKey)
+					err = mw.keys.Update(bson.M{"fingerprint": key.Fingerprint}, lastKey)
 				} else if err == KeyNotFound {
 					mw.L.Print("Insert:", key.Fingerprint)
 					key.Ctime = time.Now().Unix()
-					err = mw.c.Insert(key)
+					err = mw.keys.Insert(key)
 				}
 				if err != nil {
 					return

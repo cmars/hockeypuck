@@ -26,6 +26,7 @@ import (
 	"launchpad.net/hockeypuck/mgo"
 	"net/http"
 	"os"
+	"strings"
 )
 
 var mgoServer *string = flag.String("server", "localhost", "mongo server")
@@ -64,8 +65,11 @@ func main() {
 	// Resolve flags, get the database connection string
 	connect := ConnectString()
 	for i := 0; i < *NumWorkers; i++ {
-		worker := &mgo.MgoWorker{WorkerBase: hockeypuck.WorkerBase{L: log}}
-		err = worker.Init(connect)
+		worker := &mgo.MgoWorker{Connect: connect,
+			PksSender: hockeypuck.PksSender{
+				PksAddrs: strings.Split(*PksSync, ",")},
+			WorkerBase: hockeypuck.WorkerBase{L: log}}
+		err = worker.Init()
 		if err != nil {
 			die(err)
 		}

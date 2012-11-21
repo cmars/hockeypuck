@@ -22,6 +22,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 )
 
 const FIND_KEYS_LIMIT = 10
@@ -35,6 +36,10 @@ type Worker interface {
 	LookupKey(keyid string) (*PubKey, error)
 	// Add ASCII-armored public key
 	AddKey(armoredKey string) ([]string, error)
+	// Get PKS sync status
+	SyncStats() ([]PksStat, error)
+	// Send updated keys to PKS server
+	SendKeys(stat *PksStat) error
 }
 
 type WorkerBase struct {
@@ -79,8 +84,28 @@ func FindKeys(w Worker, search string) (string, error) {
 	return string(buf.Bytes()), err
 }
 
+func pollPks(w Worker, stop chan interface{}) {
+	for {
+		time.Sleep(15 * time.Minute)
+		stats, err := w.SyncStats()
+		if err != nil {
+			continue
+		}
+		for _, stat := range stats {
+			err = w.SendKeys(&stat)
+		}
+		select {
+		case _, isOpen := <-stop:
+			if !isOpen {
+				return
+			}
+		}
+	}
+}
+
 func Start(hkp *HkpServer, w Worker) chan interface{} {
 	stop := make(chan interface{})
+	// Serve HKP requests
 	go func() {
 		for {
 			select {
@@ -118,6 +143,10 @@ func Start(hkp *HkpServer, w Worker) chan interface{} {
 				}
 			}
 		}
+	}()
+	// Poll PKS downstream servers
+	go func() {
+		pollPks(w, stop)
 	}()
 	return stop
 }
