@@ -18,14 +18,14 @@
 package main
 
 import (
+	"code.google.com/p/gorilla/mux"
 	"flag"
 	"fmt"
-	"net/http"
-	"os"
-	"code.google.com/p/gorilla/mux"
 	"launchpad.net/hockeypuck"
 	. "launchpad.net/hockeypuck/cli"
 	"launchpad.net/hockeypuck/mgo"
+	"net/http"
+	"os"
 )
 
 var mgoServer *string = flag.String("server", "localhost", "mongo server")
@@ -64,7 +64,7 @@ func main() {
 	// Resolve flags, get the database connection string
 	connect := ConnectString()
 	for i := 0; i < *NumWorkers; i++ {
-		worker := &mgo.MgoWorker{ WorkerBase: hockeypuck.WorkerBase{ L: log } }
+		worker := &mgo.MgoWorker{WorkerBase: hockeypuck.WorkerBase{L: log}}
 		err = worker.Init(connect)
 		if err != nil {
 			die(err)

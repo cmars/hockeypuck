@@ -18,21 +18,21 @@
 package mgo
 
 import (
+	"bitbucket.org/cmars/go.crypto/openpgp/armor"
 	"bytes"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"io"
-	"strings"
-	"time"
-	. "launchpad.net/hockeypuck"
-	"bitbucket.org/cmars/go.crypto/openpgp/armor"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
+	. "launchpad.net/hockeypuck"
+	"strings"
+	"time"
 )
 
-const UUID_LEN = 43  // log(2**256, 64) = 42.666...
+const UUID_LEN = 43 // log(2**256, 64) = 42.666...
 
 func NewUuid() (string, error) {
 	buf := bytes.NewBuffer([]byte{})
@@ -50,7 +50,7 @@ func NewUuid() (string, error) {
 type MgoWorker struct {
 	WorkerBase
 	session *mgo.Session
-	c *mgo.Collection
+	c       *mgo.Collection
 }
 
 func (mw *MgoWorker) Init(connect string) (err error) {
@@ -64,16 +64,16 @@ func (mw *MgoWorker) Init(connect string) (err error) {
 	mw.session.SetMode(mgo.Strong, true)
 	// Conservative on writes
 	mw.session.EnsureSafe(&mgo.Safe{
-		W: 1,
-		FSync: true })
+		W:     1,
+		FSync: true})
 	mw.c = mw.session.DB("hockeypuck").C("keys")
 	// fingerprint index
 	fpIndex := mgo.Index{
-		Key: []string{ "fingerprint" },
-		Unique: true,
-		DropDups: false,
+		Key:        []string{"fingerprint"},
+		Unique:     true,
+		DropDups:   false,
 		Background: false,
-		Sparse: false }
+		Sparse:     false}
 	err = mw.c.EnsureIndex(fpIndex)
 	if err != nil {
 		mw.L.Println("Ensure index failed:", err)
@@ -81,11 +81,11 @@ func (mw *MgoWorker) Init(connect string) (err error) {
 	}
 	// keyid index
 	keyidIndex := mgo.Index{
-		Key: []string{ "keyid" },
-		Unique: false,
-		DropDups: false,
+		Key:        []string{"keyid"},
+		Unique:     false,
+		DropDups:   false,
 		Background: false,
-		Sparse: false }
+		Sparse:     false}
 	err = mw.c.EnsureIndex(keyidIndex)
 	if err != nil {
 		mw.L.Println("Ensure index failed:", err)
@@ -93,11 +93,11 @@ func (mw *MgoWorker) Init(connect string) (err error) {
 	}
 	// shortid index
 	shortidIndex := mgo.Index{
-		Key: []string{ "shortid" },
-		Unique: false,
-		DropDups: false,
+		Key:        []string{"shortid"},
+		Unique:     false,
+		DropDups:   false,
 		Background: false,
-		Sparse: false }
+		Sparse:     false}
 	err = mw.c.EnsureIndex(shortidIndex)
 	if err != nil {
 		mw.L.Println("Ensure index failed:", err)
@@ -105,11 +105,11 @@ func (mw *MgoWorker) Init(connect string) (err error) {
 	}
 	// uid keyword index
 	kwIndex := mgo.Index{
-		Key: []string{ "identities.keywords" },
-		Unique: false,
-		DropDups: false,
+		Key:        []string{"identities.keywords"},
+		Unique:     false,
+		DropDups:   false,
 		Background: true,
-		Sparse: false }
+		Sparse:     false}
 	err = mw.c.EnsureIndex(kwIndex)
 	if err != nil {
 		mw.L.Println("Ensure index failed:", err)
@@ -119,7 +119,7 @@ func (mw *MgoWorker) Init(connect string) (err error) {
 }
 
 func (mw *MgoWorker) LookupKeys(search string, limit int) (keys []*PubKey, err error) {
-	q := mw.c.Find(bson.M{ "identities.keywords": search })
+	q := mw.c.Find(bson.M{"identities.keywords": search})
 	n, err := q.Count()
 	if n > limit {
 		return keys, TooManyResponses
@@ -143,11 +143,11 @@ func (mw *MgoWorker) LookupKey(keyid string) (*PubKey, error) {
 	var q *mgo.Query
 	switch len(raw) {
 	case 4:
-		q = mw.c.Find(bson.M{ "shortid": raw })
+		q = mw.c.Find(bson.M{"shortid": raw})
 	case 8:
-		q = mw.c.Find(bson.M{ "keyid": raw })
+		q = mw.c.Find(bson.M{"keyid": raw})
 	case 20:
-		q = mw.c.Find(bson.M{ "fingerprint": keyid })
+		q = mw.c.Find(bson.M{"fingerprint": keyid})
 	default:
 		return nil, InvalidKeyId
 	}
@@ -175,7 +175,7 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 	keyChan, errChan := ReadKeys(r)
 	for {
 		select {
-		case key, moreKeys :=<-keyChan:
+		case key, moreKeys := <-keyChan:
 			if key != nil {
 				var lastKey *PubKey
 				lastKey, err = mw.LookupKey(key.Fingerprint)
@@ -183,7 +183,7 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 					mw.L.Print("Merge/Update:", key.Fingerprint)
 					MergeKey(lastKey, key)
 					lastKey.Mtime = time.Now().Unix()
-					err = mw.c.Update(bson.M{ "fingerprint": key.Fingerprint }, lastKey)
+					err = mw.c.Update(bson.M{"fingerprint": key.Fingerprint}, lastKey)
 				} else if err == KeyNotFound {
 					mw.L.Print("Insert:", key.Fingerprint)
 					key.Ctime = time.Now().Unix()
@@ -198,7 +198,7 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 			if !moreKeys {
 				return
 			}
-		case err =<-errChan:
+		case err = <-errChan:
 			return
 		}
 	}

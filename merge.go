@@ -23,7 +23,7 @@ package hockeypuck
 func MergeKey(dstKey *PubKey, srcKey *PubKey) {
 	dstObjects := mapKey(dstKey)
 	pktObjChan := make(chan PacketObject)
-	go func(){
+	go func() {
 		srcKey.Traverse(pktObjChan)
 		close(pktObjChan)
 	}()
@@ -60,7 +60,7 @@ func MergeKey(dstKey *PubKey, srcKey *PubKey) {
 		// match in dst tree
 		_, dstHas := dstObjects[srcObj.GetDigest()]
 		if dstHas {
-			continue  // We already have it
+			continue // We already have it
 		}
 		if hasParent {
 			dstParentObj, dstHasParent := dstObjects[srcParent.GetDigest()]

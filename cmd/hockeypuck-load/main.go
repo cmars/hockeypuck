@@ -23,6 +23,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"launchpad.net/hockeypuck"
 	"log"
 	"net/http"
 	"net/mail"
@@ -30,7 +31,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"launchpad.net/hockeypuck"
 )
 
 const ADD_CMD = "add"
@@ -113,7 +113,7 @@ func loadArmor(hkpserver string, armor string) (err error) {
 	var resp *http.Response
 	resp, err = http.PostForm(
 		fmt.Sprintf("http://%s/pks/add", hkpserver),
-				url.Values{"keytext": {string(armor)}})
+		url.Values{"keytext": {string(armor)}})
 	if err != nil {
 		log.Println("Error posting key:", err)
 	}
@@ -126,11 +126,11 @@ func loadArmor(hkpserver string, armor string) (err error) {
 func parse(f io.Reader) (armorChan chan []byte) {
 	armorChan = make(chan []byte)
 	keyChan, errChan := hockeypuck.ReadKeys(f)
-	go func(){
+	go func() {
 		defer close(armorChan)
 		for {
 			select {
-			case key, moreKeys :=<-keyChan:
+			case key, moreKeys := <-keyChan:
 				if !moreKeys {
 					return
 				}
@@ -141,7 +141,7 @@ func parse(f io.Reader) (armorChan chan []byte) {
 				} else {
 					log.Println("Error writing key:", err)
 				}
-			case err, hasErr :=<-errChan:
+			case err, hasErr := <-errChan:
 				if err != nil {
 					log.Println("Error loading key:", err)
 				}

@@ -18,23 +18,23 @@
 package hockeypuck
 
 import (
+	"bitbucket.org/cmars/go.crypto/openpgp/packet"
 	"bytes"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/qpliu/qrencode-go/qrencode"
 	"image/png"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
-	"bitbucket.org/cmars/go.crypto/openpgp/packet"
-	"github.com/qpliu/qrencode-go/qrencode"
 )
 
 type MessageResponse struct {
 	Content string
-	Err error
+	Err     error
 }
 
 func (r *MessageResponse) Error() error {
@@ -48,7 +48,7 @@ func (r *MessageResponse) WriteTo(w http.ResponseWriter) error {
 
 type AddResponse struct {
 	Fingerprints []string
-	Err error
+	Err          error
 }
 
 func (r *AddResponse) Error() error {
@@ -57,17 +57,21 @@ func (r *AddResponse) Error() error {
 
 func (r *AddResponse) WriteTo(w http.ResponseWriter) (err error) {
 	err = AddResultTemplate.ExecuteTemplate(w, "top", r)
-	if err != nil { return }
+	if err != nil {
+		return
+	}
 	err = AddResultTemplate.ExecuteTemplate(w, "page_content", r)
-	if err != nil { return }
+	if err != nil {
+		return
+	}
 	err = AddResultTemplate.ExecuteTemplate(w, "bottom", r)
 	return
 }
 
 type IndexResponse struct {
 	Lookup *Lookup
-	Keys []*PubKey
-	Err error
+	Keys   []*PubKey
+	Err    error
 }
 
 func (r *IndexResponse) Error() error {
@@ -78,14 +82,14 @@ func (r *IndexResponse) WriteTo(w http.ResponseWriter) error {
 	err := r.Err
 	var writeFn func(io.Writer, *PubKey) error = nil
 	switch {
-	case r.Lookup.Option & MachineReadable != 0:
+	case r.Lookup.Option&MachineReadable != 0:
 		writeFn = WriteMachineReadable
 	case r.Lookup.Op == Vindex:
 		writeFn = WriteVindex
 	case r.Lookup.Op == Index:
 		writeFn = WriteIndex
 	}
-	if r.Lookup.Option & MachineReadable != 0 {
+	if r.Lookup.Option&MachineReadable != 0 {
 		writeFn = WriteMachineReadable
 		w.Header().Add("Content-Type", "text/plain")
 		fmt.Fprintf(w, "info:1:%d\n", len(r.Keys))
@@ -106,7 +110,7 @@ func (r *IndexResponse) WriteTo(w http.ResponseWriter) error {
 	} else {
 		w.Write([]byte(err.Error()))
 	}
-	if r.Lookup.Option & MachineReadable == 0 {
+	if r.Lookup.Option&MachineReadable == 0 {
 		PksIndexTemplate.ExecuteTemplate(w, "index-bottom", nil)
 	}
 	return err
@@ -159,11 +163,11 @@ func WriteIndex(w io.Writer, key *PubKey) error {
 			}
 			pk := pkt.(*packet.PublicKey)
 			PksIndexTemplate.ExecuteTemplate(w, "pub-index-row", struct {
-				KeyLength uint16
-				AlgoCode string
-				Fingerprint string
-				FpQrCode string
-				ShortId string
+				KeyLength    uint16
+				AlgoCode     string
+				Fingerprint  string
+				FpQrCode     string
+				ShortId      string
 				CreationTime string
 			}{
 				key.KeyLength,
@@ -176,7 +180,7 @@ func WriteIndex(w io.Writer, key *PubKey) error {
 			uid := pktObj.(*UserId)
 			PksIndexTemplate.ExecuteTemplate(w, "uid-index-row", struct {
 				Fingerprint string
-				Id string
+				Id          string
 			}{
 				key.Fingerprint,
 				uid.Id})
@@ -209,11 +213,11 @@ func WriteVindex(w io.Writer, key *PubKey) error {
 			}
 			pk := pkt.(*packet.PublicKey)
 			PksIndexTemplate.ExecuteTemplate(w, "pub-index-row", struct {
-				KeyLength uint16
-				AlgoCode string
-				Fingerprint string
-				FpQrCode string
-				ShortId string
+				KeyLength    uint16
+				AlgoCode     string
+				Fingerprint  string
+				FpQrCode     string
+				ShortId      string
 				CreationTime string
 			}{
 				key.KeyLength,
@@ -226,7 +230,7 @@ func WriteVindex(w io.Writer, key *PubKey) error {
 			uid := pktObj.(*UserId)
 			PksIndexTemplate.ExecuteTemplate(w, "uid-index-row", struct {
 				Fingerprint string
-				Id string
+				Id          string
 			}{
 				key.Fingerprint,
 				uid.Id})
@@ -243,7 +247,7 @@ func WriteVindex(w io.Writer, key *PubKey) error {
 				sigTime = sigv4.CreationTime.Format("2006-01-02")
 			}
 			PksIndexTemplate.ExecuteTemplate(w, "sig-vindex-row", struct {
-				LongId string
+				LongId  string
 				ShortId string
 				SigTime string
 			}{
@@ -270,8 +274,7 @@ func WriteMachineReadable(w io.Writer, key *PubKey) error {
 	}
 	pk := pkt.(*packet.PublicKey)
 	var keyExpiration string
-	if keySelfSig := key.SelfSignature();
-			keySelfSig != nil && keySelfSig.KeyExpirationTime < NeverExpires {
+	if keySelfSig := key.SelfSignature(); keySelfSig != nil && keySelfSig.KeyExpirationTime < NeverExpires {
 		keyExpiration = fmt.Sprintf("%d", keySelfSig.KeyExpirationTime)
 	}
 	fmt.Fprintf(w, "pub:%s:%d:%d:%d:%s:\n",

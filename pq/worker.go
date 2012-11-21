@@ -18,6 +18,7 @@
 package pq
 
 import (
+	"bitbucket.org/cmars/go.crypto/openpgp/armor"
 	"bytes"
 	"crypto/rand"
 	"database/sql"
@@ -25,14 +26,13 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
-	"strings"
-	. "launchpad.net/hockeypuck"
-	"bitbucket.org/cmars/go.crypto/openpgp/armor"
 	_ "github.com/bmizerany/pq"
+	"io"
+	. "launchpad.net/hockeypuck"
+	"strings"
 )
 
-const UUID_LEN = 43  // log(2**256, 64) = 42.666...
+const UUID_LEN = 43 // log(2**256, 64) = 42.666...
 
 func NewUuid() (string, error) {
 	buf := bytes.NewBuffer([]byte{})
@@ -155,13 +155,13 @@ ROWS:
 		keyChan, errChan := ReadKeys(armorBlock.Body)
 		for {
 			select {
-			case key, hasKey :=<-keyChan:
+			case key, hasKey := <-keyChan:
 				if hasKey {
 					keys = append(keys, key)
 				} else {
 					break ROWS
 				}
-			case _, hasErr :=<-errChan:
+			case _, hasErr := <-errChan:
 				if !hasErr {
 					break ROWS
 				}
@@ -220,7 +220,7 @@ func (pw *PqWorker) LookupKey(keyid string) (pubkey *PubKey, err error) {
 KEYS:
 	for {
 		select {
-		case key, hasKey :=<-keyChan:
+		case key, hasKey := <-keyChan:
 			if key != nil {
 				pubkey = key
 				pw.L.Println("LookupKey: matched", key.Fingerprint)
@@ -229,7 +229,7 @@ KEYS:
 			if !hasKey {
 				break KEYS
 			}
-		case readErr, hasErr :=<-errChan:
+		case readErr, hasErr := <-errChan:
 			if readErr != nil {
 				pw.L.Println("LookupKey: Warning, ReadKeys error:", readErr)
 			}
@@ -256,7 +256,7 @@ func (pw *PqWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 	keyChan, errChan := ReadKeys(r)
 	for {
 		select {
-		case key, moreKeys :=<-keyChan:
+		case key, moreKeys := <-keyChan:
 			if key != nil {
 				var lastKey *PubKey
 				lastKey, err = pw.LookupKey(key.Fingerprint)
@@ -316,7 +316,7 @@ WHERE fingerprint = $2`, content.String(), key.Fingerprint)
 			if !moreKeys {
 				return
 			}
-		case err =<-errChan:
+		case err = <-errChan:
 			return
 		}
 	}

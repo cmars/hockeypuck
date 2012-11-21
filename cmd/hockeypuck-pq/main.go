@@ -18,14 +18,14 @@
 package main
 
 import (
+	"code.google.com/p/gorilla/mux"
 	"flag"
 	"fmt"
-	"net/http"
-	"os"
-	"code.google.com/p/gorilla/mux"
 	"launchpad.net/hockeypuck"
 	. "launchpad.net/hockeypuck/cli"
 	"launchpad.net/hockeypuck/pq"
+	"net/http"
+	"os"
 )
 
 var pqUser *string = flag.String("user", "", "postgres user")
@@ -64,7 +64,7 @@ func main() {
 	connect := fmt.Sprintf("user=%s password=%s host=%s port=%d dbname=%s",
 		*pqUser, *pqPassword, *pqHost, *pqPort, *pqDbName)
 	for i := 0; i < *NumWorkers; i++ {
-		worker := &pq.PqWorker{ WorkerBase: hockeypuck.WorkerBase{ L: log } }
+		worker := &pq.PqWorker{WorkerBase: hockeypuck.WorkerBase{L: log}}
 		err := worker.Init(connect)
 		if err != nil {
 			die(err)

@@ -49,27 +49,27 @@ func InitTemplates(path string) {
 func newSearchFormTemplate(path string) *template.Template {
 	files, _ := filepath.Glob(filepath.Join(path, "templates", "*.tmpl"))
 	files = append(files,
-			filepath.Join(path, "templates", "index", "search_form.tmpl"))
+		filepath.Join(path, "templates", "index", "search_form.tmpl"))
 	return template.Must(template.ParseFiles(files...))
 }
 
 func newAddFormTemplate(path string) *template.Template {
 	files, _ := filepath.Glob(filepath.Join(path, "templates", "*.tmpl"))
 	files = append(files,
-			filepath.Join(path, "templates", "add", "add_form.tmpl"))
+		filepath.Join(path, "templates", "add", "add_form.tmpl"))
 	return template.Must(template.ParseFiles(files...))
 }
 
 func newAddResultTemplate(path string) *template.Template {
 	files, _ := filepath.Glob(filepath.Join(path, "templates", "*.tmpl"))
 	files = append(files,
-			filepath.Join(path, "templates", "add", "add_result.tmpl"))
+		filepath.Join(path, "templates", "add", "add_result.tmpl"))
 	return template.Must(template.ParseFiles(files...))
 }
 
 func newPksIndexTemplate(path string) *template.Template {
 	files, _ := filepath.Glob(filepath.Join(path, "templates", "*.tmpl"))
 	files = append(files,
-			filepath.Join(path, "templates", "pks", "index.tmpl"))
+		filepath.Join(path, "templates", "pks", "index.tmpl"))
 	return template.Must(template.ParseFiles(files...))
 }

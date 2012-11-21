@@ -43,7 +43,7 @@ type WorkerBase struct {
 
 func (w *WorkerBase) Init() {
 	if w.L == nil {
-		w.L = log.New(os.Stderr, "[hockeypuck]", log.LstdFlags | log.Lshortfile)
+		w.L = log.New(os.Stderr, "[hockeypuck]", log.LstdFlags|log.Lshortfile)
 	}
 }
 
@@ -79,7 +79,7 @@ func FindKeys(w Worker, search string) (string, error) {
 	return string(buf.Bytes()), err
 }
 
-func Start(hkp *HkpServer, w Worker) (chan interface{}) {
+func Start(hkp *HkpServer, w Worker) chan interface{} {
 	stop := make(chan interface{})
 	go func() {
 		for {
@@ -94,7 +94,7 @@ func Start(hkp *HkpServer, w Worker) (chan interface{}) {
 					} else {
 						armor, err = FindKeys(w, lookup.Search)
 					}
-					lookup.Response() <- &MessageResponse{ Content: armor, Err: err }
+					lookup.Response() <- &MessageResponse{Content: armor, Err: err}
 				case Index, Vindex:
 					var key *PubKey
 					var err error
@@ -105,13 +105,13 @@ func Start(hkp *HkpServer, w Worker) (chan interface{}) {
 					} else {
 						keys, err = w.LookupKeys(lookup.Search, INDEX_LIMIT)
 					}
-					lookup.Response() <- &IndexResponse{ Keys: keys, Err: err, Lookup: lookup }
+					lookup.Response() <- &IndexResponse{Keys: keys, Err: err, Lookup: lookup}
 				default:
 					lookup.Response() <- &NotImplementedResponse{}
 				}
 			case add := <-hkp.AddRequests:
 				fps, err := w.AddKey(add.Keytext)
-				add.Response() <- &AddResponse{ Fingerprints: fps, Err: err }
+				add.Response() <- &AddResponse{Fingerprints: fps, Err: err}
 			case _, isOpen := <-stop:
 				if !isOpen {
 					return

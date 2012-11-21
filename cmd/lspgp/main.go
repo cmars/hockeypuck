@@ -18,16 +18,16 @@
 package main
 
 import (
+	"bitbucket.org/cmars/go.crypto/openpgp"
 	"fmt"
 	"os"
-	"bitbucket.org/cmars/go.crypto/openpgp"
 	// importing these hash algorithms ensures they are registered at runtime
 	_ "bitbucket.org/cmars/go.crypto/md4"
+	_ "bitbucket.org/cmars/go.crypto/ripemd160"
 	_ "crypto/md5"
 	_ "crypto/sha1"
 	_ "crypto/sha256"
 	_ "crypto/sha512"
-	_ "bitbucket.org/cmars/go.crypto/ripemd160"
 )
 
 func die(err error, format string, a ...interface{}) {
@@ -41,7 +41,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Usage: %s <pubring file>\n", os.Args[0])
 		os.Exit(1)
 	}
-	keyringFile:= os.Args[1]
+	keyringFile := os.Args[1]
 	keyringReader, err := os.Open(keyringFile)
 	if err != nil {
 		die(err, "Error opening %s", keyringFile)

@@ -18,6 +18,9 @@
 package hockeypuck
 
 import (
+	"bitbucket.org/cmars/go.crypto/openpgp"
+	"bitbucket.org/cmars/go.crypto/openpgp/armor"
+	"bitbucket.org/cmars/go.crypto/openpgp/packet"
 	"crypto/sha512"
 	"encoding/binary"
 	"encoding/hex"
@@ -26,13 +29,10 @@ import (
 	"regexp"
 	"strings"
 	"time"
-	"bitbucket.org/cmars/go.crypto/openpgp"
-	"bitbucket.org/cmars/go.crypto/openpgp/armor"
-	"bitbucket.org/cmars/go.crypto/openpgp/packet"
 )
 
 // Comparable time flag for "never expires"
-const NeverExpires = int64((1<<63)-1)
+const NeverExpires = int64((1 << 63) - 1)
 
 // Get the public key fingerprint as a hex string.
 func Fingerprint(pubkey *packet.PublicKey) string {
@@ -55,7 +55,7 @@ func WriteKey(out io.Writer, key *PubKey) error {
 	}
 	defer w.Close()
 	pktObjChan := make(chan PacketObject)
-	go func(){
+	go func() {
 		key.Traverse(pktObjChan)
 		close(pktObjChan)
 	}()
@@ -73,7 +73,7 @@ func WriteKey(out io.Writer, key *PubKey) error {
 func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 	keyChan = make(chan *PubKey)
 	errorChan = make(chan error)
-	go func(){
+	go func() {
 		defer close(keyChan)
 		defer close(errorChan)
 		var err error
@@ -110,10 +110,10 @@ func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 					// This is the primary public key
 					pubKey = &PubKey{
 						Fingerprint: fp,
-						KeyId: pk.Fingerprint[12:20],
-						ShortId: pk.Fingerprint[16:20],
-						Algorithm: int(pk.PubKeyAlgo),
-						KeyLength: keyLength }
+						KeyId:       pk.Fingerprint[12:20],
+						ShortId:     pk.Fingerprint[16:20],
+						Algorithm:   int(pk.PubKeyAlgo),
+						KeyLength:   keyLength}
 					pubKey.SetPacket(op)
 					currentSignable = pubKey
 				} else {
@@ -123,8 +123,8 @@ func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 					// This is a sub key
 					subKey := &SubKey{
 						Fingerprint: fp,
-						Algorithm: int(pk.PubKeyAlgo),
-						KeyLength: keyLength }
+						Algorithm:   int(pk.PubKeyAlgo),
+						KeyLength:   keyLength}
 					subKey.SetPacket(op)
 					pubKey.SubKeys = append(pubKey.SubKeys, subKey)
 					currentSignable = subKey
@@ -139,7 +139,7 @@ func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 				if s.IssuerKeyId == nil {
 					// Without an issuer, a signature doesn't mean much
 					log.Println("Signature missing IssuerKeyId!", "Public key fingerprint:",
-							pubKey.Fingerprint)
+						pubKey.Fingerprint)
 					continue
 				}
 				var issuerKeyId [8]byte
@@ -149,17 +149,17 @@ func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 				// Expiration time
 				if s.SigLifetimeSecs != nil {
 					sigExpirationTime = s.CreationTime.Add(
-							time.Duration(*s.SigLifetimeSecs) * time.Second).Unix()
+						time.Duration(*s.SigLifetimeSecs) * time.Second).Unix()
 				} else if s.KeyLifetimeSecs != nil {
 					keyExpirationTime = s.CreationTime.Add(
-							time.Duration(*s.KeyLifetimeSecs) * time.Second).Unix()
+						time.Duration(*s.KeyLifetimeSecs) * time.Second).Unix()
 				}
 				sig := &Signature{
-					SigType: int(s.SigType),
-					IssuerKeyId: issuerKeyId[:],
-					CreationTime: s.CreationTime.Unix(),
+					SigType:           int(s.SigType),
+					IssuerKeyId:       issuerKeyId[:],
+					CreationTime:      s.CreationTime.Unix(),
 					SigExpirationTime: sigExpirationTime,
-					KeyExpirationTime: keyExpirationTime }
+					KeyExpirationTime: keyExpirationTime}
 				sig.SetPacket(op)
 				currentSignable.AppendSig(sig)
 			case *packet.UserId:
@@ -168,8 +168,8 @@ func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 				}
 				uid := p.(*packet.UserId)
 				userId := &UserId{
-					Id: uid.Id,
-					Keywords: splitUserId(uid.Id) }
+					Id:       uid.Id,
+					Keywords: splitUserId(uid.Id)}
 				userId.SetPacket(op)
 				currentSignable = userId
 				currentUserId = userId
@@ -177,18 +177,18 @@ func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 			case *packet.OpaquePacket:
 				// Packets not yet supported by go.crypto/openpgp
 				switch op.Tag {
-				case 17:  // Process user attribute packet
+				case 17: // Process user attribute packet
 					userAttr := &UserAttribute{}
 					userAttr.SetPacket(op)
 					if currentUserId != nil {
 						currentUserId.Attributes = append(currentUserId.Attributes, userAttr)
 					}
 					currentSignable = userAttr
-				case 2:  // Bad signature packet
+				case 2: // Bad signature packet
 					// TODO: Check for signature version 3
 					log.Println("Unsupported signature packet, skipping...")
-					;
-				case 6:  // Bad public key packet
+
+				case 6: // Bad public key packet
 					// TODO: Check for unsupported PGP public key packet version
 					// For now, clear state, ignore to next key
 					log.Println("Unsupported public key packet, skipping...")
@@ -196,7 +196,7 @@ func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 					currentSignable = nil
 					currentUserId = nil
 				}
-			//case *packet.UserAttribute:
+				//case *packet.UserAttribute:
 			}
 		}
 		if pubKey != nil {

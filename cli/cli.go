@@ -41,8 +41,8 @@ var NumWorkers *int = flag.Int("workers", runtime.NumCPU(), "Number of workers")
 
 // Path to Hockeypuck's installed www directory
 var WwwRoot *string = flag.String("www-root",
-		"/var/lib/hockeypuck/www",
-		"Location of static web server files and templates")
+	"/var/lib/hockeypuck/www",
+	"Location of static web server files and templates")
 
 var LogFile *string = flag.String("logfile", "", "Logfile (default stderr)")
 
@@ -50,13 +50,13 @@ func OpenLog() *log.Logger {
 	var LogOut io.Writer = os.Stderr
 	var logFerr error
 	if *LogFile != "" {
-		LogOut, logFerr = os.OpenFile(*LogFile, os.O_WRONLY | os.O_APPEND | os.O_CREATE, 0644)
+		LogOut, logFerr = os.OpenFile(*LogFile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 		if logFerr != nil {
 			LogOut = os.Stderr
 		}
 	}
 	newLog := log.New(LogOut, fmt.Sprintf("[%s]", filepath.Base(os.Args[0])),
-			log.LstdFlags | log.Lshortfile)
+		log.LstdFlags|log.Lshortfile)
 	if logFerr != nil {
 		newLog.Println("Warning: could not open logfile", LogFile, ":", logFerr)
 		newLog.Println("Logging will be sent to stderr")
@@ -65,7 +65,7 @@ func OpenLog() *log.Logger {
 }
 
 func LogCfg(l *log.Logger) {
-	flag.VisitAll(func(f *flag.Flag){
+	flag.VisitAll(func(f *flag.Flag) {
 		l.Println(f.Name, "=", f.Value)
 	})
 }
@@ -76,8 +76,7 @@ func ParseCfg() {
 	var bf *bufio.Reader
 	var mkline *bytes.Buffer
 	var fi os.FileInfo
-	if fi, err = os.Stat(CONFIG_PATH);
-			err != nil || fi.IsDir() {
+	if fi, err = os.Stat(CONFIG_PATH); err != nil || fi.IsDir() {
 		// no config file or not found
 		goto CFGERR
 		return
@@ -100,8 +99,8 @@ func ParseCfg() {
 			err = ParseCfgLine(string(mkline.Bytes()))
 			if err != nil {
 				panic(fmt.Sprintf(
-						"Error in configuration file %v: %v\n",
-						CONFIG_PATH, err))
+					"Error in configuration file %v: %v\n",
+					CONFIG_PATH, err))
 			}
 			mkline.Reset()
 		}
@@ -120,7 +119,7 @@ func ParseCfgLine(line string) (err error) {
 	parts := strings.Split(line, "=")
 	if len(parts) != 2 {
 		return errors.New(fmt.Sprintf(
-				"Expected line of form 'key = value', got: %v", line))
+			"Expected line of form 'key = value', got: %v", line))
 	}
 	key, value := strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
 	flag.Set(key, value)

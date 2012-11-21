@@ -18,10 +18,10 @@
 package hockeypuck
 
 import (
+	"bitbucket.org/cmars/go.crypto/openpgp/packet"
 	"bytes"
 	"fmt"
 	"os"
-	"bitbucket.org/cmars/go.crypto/openpgp/packet"
 )
 
 // Common operations for all OpenPGP packets.
@@ -41,7 +41,7 @@ type PacketObject interface {
 // OpenPGP packets that can be signed.
 type Signable interface {
 	// Append a signature to a signable packet.
-	AppendSig(sig* Signature)
+	AppendSig(sig *Signature)
 }
 
 // Model representing an OpenPGP public key packets.
@@ -49,17 +49,17 @@ type Signable interface {
 // stored in Packet, for database indexing.
 type PubKey struct {
 	Fingerprint string
-	KeyId []byte
-	ShortId []byte
-	Algorithm int
-	KeyLength uint16
-	Signatures []*Signature
-	Identities []*UserId
-	SubKeys []*SubKey
-	Packet []byte
-	Digest string
-	Ctime int64
-	Mtime int64
+	KeyId       []byte
+	ShortId     []byte
+	Algorithm   int
+	KeyLength   uint16
+	Signatures  []*Signature
+	Identities  []*UserId
+	SubKeys     []*SubKey
+	Packet      []byte
+	Digest      string
+	Ctime       int64
+	Mtime       int64
 }
 
 func (pubKey *PubKey) AppendSig(sig *Signature) {
@@ -105,13 +105,13 @@ func (o *PubKey) Parse() (packet.Packet, error) {
 }
 
 type Signature struct {
-	SigType int
-	IssuerKeyId []byte
-	CreationTime int64
+	SigType           int
+	IssuerKeyId       []byte
+	CreationTime      int64
 	SigExpirationTime int64
 	KeyExpirationTime int64
-	Packet []byte
-	Digest string
+	Packet            []byte
+	Digest            string
 }
 
 func (o *Signature) GetPacket() []byte {
@@ -144,12 +144,12 @@ func (o *Signature) Parse() (packet.Packet, error) {
 }
 
 type UserId struct {
-	Id string
-	Keywords []string
+	Id         string
+	Keywords   []string
 	Signatures []*Signature
 	Attributes []*UserAttribute
-	Packet []byte
-	Digest string
+	Packet     []byte
+	Digest     string
 }
 
 func (userId *UserId) AppendSig(sig *Signature) {
@@ -193,8 +193,8 @@ func (o *UserId) GetDigest() string {
 
 type UserAttribute struct {
 	Signatures []*Signature
-	Packet []byte
-	Digest string
+	Packet     []byte
+	Digest     string
 }
 
 func (o *UserAttribute) GetPacket() []byte {
@@ -252,8 +252,8 @@ func (userAttr *UserAttribute) GetJpegData() (result []*bytes.Buffer) {
 	}
 	for _, subpacket := range subpackets {
 		if subpacket.SubType == ImageSubType && len(subpacket.Contents) > ImageSubOffset {
-			result = append(result, 
-					bytes.NewBuffer(subpacket.Contents[ImageSubOffset:]))
+			result = append(result,
+				bytes.NewBuffer(subpacket.Contents[ImageSubOffset:]))
 		}
 	}
 	return result
@@ -261,11 +261,11 @@ func (userAttr *UserAttribute) GetJpegData() (result []*bytes.Buffer) {
 
 type SubKey struct {
 	Fingerprint string
-	Algorithm int
-	KeyLength uint16
-	Signatures []*Signature
-	Packet []byte
-	Digest string
+	Algorithm   int
+	KeyLength   uint16
+	Signatures  []*Signature
+	Packet      []byte
+	Digest      string
 }
 
 func (subKey *SubKey) AppendSig(sig *Signature) {

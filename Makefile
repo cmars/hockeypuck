@@ -11,6 +11,9 @@ all:
 	GOPATH="${GOPATH}" $(GO) get launchpad.net/hockeypuck/cmd/hockeypuck-load
 	GOPATH="${GOPATH}" $(GO) install launchpad.net/hockeypuck/cmd/hockeypuck-load
 
+fmt:
+	gofmt -w=true .
+
 debsrc: debbin clean
 	debuild -S
 
