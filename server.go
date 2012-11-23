@@ -20,12 +20,16 @@ package hockeypuck
 import (
 	"code.google.com/p/gorilla/mux"
 	"errors"
+	"flag"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 )
+
+// HTTP bind address option
+var HttpBind *string = flag.String("http", ":11371", "http bind address")
 
 // Create a new HKP server on the given Gorilla mux router.
 func NewHkpServer(r *mux.Router) *HkpServer {
@@ -43,7 +47,7 @@ func NewHkpServer(r *mux.Router) *HkpServer {
 	r.HandleFunc(`/css/{filename:.*\.css}`,
 		func(resp http.ResponseWriter, req *http.Request) {
 			filename := mux.Vars(req)["filename"]
-			path := filepath.Join(WwwRoot, "css", filename)
+			path := filepath.Join(wwwRoot, "css", filename)
 			if stat, err := os.Stat(path); err != nil || stat.IsDir() {
 				http.NotFound(resp, req)
 				return
@@ -53,7 +57,7 @@ func NewHkpServer(r *mux.Router) *HkpServer {
 	r.HandleFunc(`/fonts/{filename:.*\.ttf}`,
 		func(resp http.ResponseWriter, req *http.Request) {
 			filename := mux.Vars(req)["filename"]
-			path := filepath.Join(WwwRoot, "fonts", filename)
+			path := filepath.Join(wwwRoot, "fonts", filename)
 			if stat, err := os.Stat(path); err != nil || stat.IsDir() {
 				http.NotFound(resp, req)
 				return

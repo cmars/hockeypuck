@@ -23,49 +23,66 @@ import (
 	"time"
 )
 
-func (mw *MgoWorker) initPksAddrs() (err error) {
+type MgoPksSync struct {
+	*MgoClient
+	PksSyncBase
+}
+
+func (mps *MgoPksSync) Init() (err error) {
+	mps.PksSyncBase.Init()
+	err = mps.initPksAddrs()
+	return
+}
+
+func (mps *MgoPksSync) initPksAddrs() (err error) {
 	// Remove all pks not in this list
-	_, err = mw.pksStat.RemoveAll(bson.M{"$not": bson.M{"addr": bson.M{"$in": mw.PksAddrs}}})
+	_, err = mps.pksStat.RemoveAll(bson.M{"$not": bson.M{"addr": bson.M{"$in": mps.PksAddrs}}})
 	if err != nil {
 		return
 	}
 	// Add pks in this list not in collection
-	for _, pksAddr := range mw.PksAddrs {
-		err = mw.pksStat.Insert(bson.M{"addr": pksAddr, "lastSync": time.Now().Unix()})
-		if !mgo.IsDup(err) {
+	for _, pksAddr := range mps.PksAddrs {
+		err = mps.pksStat.Insert(bson.M{"addr": pksAddr, "lastSync": time.Now().UnixNano()})
+		if err != nil && !mgo.IsDup(err) {
 			return
+		} else {
+			err = nil
 		}
 	}
 	return
 }
 
-func (mw *MgoWorker) SyncStats() (stats []PksStat, err error) {
-	i := mw.pksStat.Find(nil).Limit(256).Iter()
+func (mps *MgoPksSync) SyncStats() (stats []PksStat, err error) {
+	i := mps.pksStat.Find(nil).Limit(256).Iter()
 	err = i.All(&stats)
 	return
 }
 
-func (mw *MgoWorker) SendKeys(stat *PksStat) (err error) {
-	q := mw.keys.Find(bson.M{"Mtime": bson.M{"$gt": stat.LastSync}})
+func (mps *MgoPksSync) SendKeys(stat *PksStat) (err error) {
+	mps.l.Println("Sending updated keys to", stat.Addr)
+	q := mps.keys.Find(bson.M{"mtime": bson.M{"$gt": stat.LastSync}})
 	i := q.Iter()
 	key := &PubKey{}
-	for i.Next(&key) {
-		err = mw.SendKey(stat.Addr, key)
+	for i.Next(key) {
+		// Send key email
+		mps.l.Println("Sending key", key.Fingerprint, "to PKS", stat.Addr)
+		err = mps.SendKey(stat.Addr, key)
 		if err != nil {
-			mw.L.Println("Error sending key to PKS", stat.Addr, ":", err)
+			mps.l.Println("Error sending key to PKS", stat.Addr, ":", err)
+			return
+		}
+		// Send successful, update the timestamp accordingly
+		stat.LastSync = key.Mtime
+		err = mps.pksStat.Update(bson.M{"addr": stat.Addr}, stat)
+		if err != nil {
+			mps.l.Println("Error updating PKS status for", stat.Addr, err)
 			return
 		}
 		key = &PubKey{}
 	}
 	err = i.Err()
 	if err != nil {
-		mw.L.Println("Error looking up keys for PKS send:", err)
-		return
-	}
-	err = mw.pksStat.Update(bson.M{"addr": stat.Addr},
-		bson.M{"$set": bson.M{"lastSync": time.Now().Unix()}})
-	if err != nil {
-		mw.L.Println("Error updating PKS", stat.Addr, "sync timestamp:", err)
+		mps.l.Println("Error looking up keys for PKS send:", err)
 		return
 	}
 	return

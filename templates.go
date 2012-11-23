@@ -18,11 +18,17 @@
 package hockeypuck
 
 import (
+	"flag"
 	"html/template"
 	"path/filepath"
 )
 
-var WwwRoot string
+// Path to Hockeypuck's installed www directory
+var WwwRoot *string = flag.String("www-root",
+	"/var/lib/hockeypuck/www",
+	"Location of static web server files and templates")
+
+var wwwRoot string
 
 // SearchFormTemplate is used to render the default search form at '/'
 var SearchFormTemplate *template.Template
@@ -38,7 +44,7 @@ var AddResultTemplate *template.Template
 var PksIndexTemplate *template.Template
 
 func InitTemplates(path string) {
-	WwwRoot, _ = filepath.Abs(path)
+	wwwRoot, _ = filepath.Abs(path)
 	SearchFormTemplate = newSearchFormTemplate(path)
 	AddFormTemplate = newAddFormTemplate(path)
 	AddResultTemplate = newAddResultTemplate(path)

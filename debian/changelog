@@ -9,8 +9,19 @@ hockeypuck (0.7~a1) precise; urgency=low
     worker.go:
     - Consolidate PKS configuration from switches.
     - Consolidate worker process (goroutine) management.
+  * cli/cli.go, cmd/hockeypuck-mgo/main.go, mgo/pks.go, mgo/worker.go,
+    pks.go, === removed directory cli, server.go, templates.go,
+    worker.go:
+  * cli/cli.go, cmd/hockeypuck-mgo/main.go, config.go, log.go,
+    mgo/client.go, mgo/pks.go, mgo/worker.go, pks.go, === removed
+    directory cli, server.go, templates.go, worker.go:
+    - Move command line flags to associated components,
+      split out config file parsing.
+    - Pull up common mgo client connection, reuse in worker & pks sync.
+    - Fix net/smtp usage in PKS sync, added backoff delay on SMTP errors.
+      LP: #1075379
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 21 Nov 2012 15:43:42 -0600
+ -- Casey Marshall <casey.marshall@gazzang.com>  Fri, 23 Nov 2012 11:51:38 -0600
 
 hockeypuck (0.6) precise; urgency=low
 

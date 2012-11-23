@@ -19,14 +19,16 @@ package hockeypuck
 
 import (
 	"bytes"
-	"log"
-	"os"
+	"flag"
+	"runtime"
 	"strings"
-	"time"
 )
 
 const FIND_KEYS_LIMIT = 10
 const INDEX_LIMIT = 50
+
+// Number of workers to spawn
+var NumWorkers *int = flag.Int("workers", runtime.NumCPU(), "Number of workers")
 
 type Worker interface {
 	// Look up keys by search string. Prefix with 0x will look up key id,
@@ -36,30 +38,16 @@ type Worker interface {
 	LookupKey(keyid string) (*PubKey, error)
 	// Add ASCII-armored public key
 	AddKey(armoredKey string) ([]string, error)
-	// Get PKS sync status
-	SyncStats() ([]PksStat, error)
-	// Send updated keys to PKS server
-	SendKeys(stat *PksStat) error
 }
 
 type WorkerHandle struct {
-	w Worker
-	hkp *HkpServer
+	w    Worker
+	hkp  *HkpServer
 	stop chan interface{}
 }
 
 func (wh *WorkerHandle) Stop() {
 	close(wh.stop)
-}
-
-type WorkerBase struct {
-	L *log.Logger
-}
-
-func (w *WorkerBase) Init() {
-	if w.L == nil {
-		w.L = log.New(os.Stderr, "[hockeypuck]", log.LstdFlags|log.Lshortfile)
-	}
 }
 
 func GetKey(w Worker, keyid string) (string, error) {
@@ -92,26 +80,6 @@ func FindKeys(w Worker, search string) (string, error) {
 		}
 	}
 	return string(buf.Bytes()), err
-}
-
-// Poll PKS downstream servers
-func pollPks(wh *WorkerHandle) {
-	for {
-		time.Sleep(15 * time.Minute)
-		stats, err := wh.w.SyncStats()
-		if err != nil {
-			continue
-		}
-		for _, stat := range stats {
-			err = wh.w.SendKeys(&stat)
-		}
-		select {
-		case _, isOpen := <-wh.stop:
-			if !isOpen {
-				return
-			}
-		}
-	}
 }
 
 // Serve HKP requests
@@ -156,9 +124,8 @@ func serveHkp(wh *WorkerHandle) {
 	}()
 }
 
-func Start(hkp *HkpServer, w Worker) *WorkerHandle {
-	wh := &WorkerHandle{ w: w, hkp: hkp, stop: make(chan interface{}) }
+func StartWorker(hkp *HkpServer, w Worker) *WorkerHandle {
+	wh := &WorkerHandle{w: w, hkp: hkp, stop: make(chan interface{})}
 	serveHkp(wh)
-	pollPks(wh)
 	return wh
 }

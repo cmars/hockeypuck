@@ -21,8 +21,7 @@ import (
 	"code.google.com/p/gorilla/mux"
 	"flag"
 	"fmt"
-	"launchpad.net/hockeypuck"
-	. "launchpad.net/hockeypuck/cli"
+	. "launchpad.net/hockeypuck"
 	"launchpad.net/hockeypuck/mgo"
 	"net/http"
 	"os"
@@ -52,28 +51,32 @@ func main() {
 	// Create an HTTP request router
 	r := mux.NewRouter()
 	// Create a new Hockeypuck server, bound to this router
-	hkp := hockeypuck.NewHkpServer(r)
+	hkp := NewHkpServer(r)
 	ParseCfg()
 	flag.Parse()
-	// Open the log
-	log := OpenLog()
-	// Log the effective configuration (cfg file + cmdline flags)
-	LogCfg(log)
+	/*
+		// Open the log
+		log := OpenLog()
+		// Log the effective configuration (cfg file + cmdline flags)
+		LogCfg(log)
+	*/
 	// Initialize web templates
-	hockeypuck.InitTemplates(*WwwRoot)
-	// Resolve flags, get the database connection string
+	InitTemplates(*WwwRoot)
+	// Connect to MongoDB
 	connect := ConnectString()
-	for i := 0; i < *NumWorkers; i++ {
-		worker := &mgo.MgoWorker{Connect: connect,
-			PksSender: hockeypuck.PksSender{},
-			WorkerBase: hockeypuck.WorkerBase{L: log}}
-		err = worker.Init()
-		if err != nil {
-			die(err)
-		}
-		// Start the worker
-		hockeypuck.Start(hkp, worker)
+	client, err := mgo.NewMgoClient(connect)
+	if err != nil {
+		die(err)
 	}
+	// Launch the request workers
+	for i := 0; i < *NumWorkers; i++ {
+		worker := &mgo.MgoWorker{MgoClient: client}
+		StartWorker(hkp, worker)
+	}
+	// Start the PKS sync
+	pksSync := &mgo.MgoPksSync{MgoClient: client}
+	pksSync.Init()
+	StartPksSync(pksSync)
 	// Bind the router to the built-in webserver root
 	http.Handle("/", r)
 	// Start the built-in webserver, run forever

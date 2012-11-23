@@ -19,9 +19,14 @@ package hockeypuck
 import (
 	"bytes"
 	"flag"
+	"log"
 	"net/smtp"
 	"strings"
+	"time"
 )
+
+// Max delay backoff multiplier when smtp errors
+const MAX_DELAY = 60
 
 // PKS mail from address
 var PksFrom *string = flag.String("pks-from", "", "PKS sync mail from: address")
@@ -38,13 +43,34 @@ var SmtpPass *string = flag.String("smtp-pass", "", "SMTP Account Password")
 // Status of PKS synchronization
 type PksStat struct {
 	// Email address of the PKS server.
-	Addr     string
+	Addr string
 	// Timestamp of the last sync to this server.
 	LastSync int64
 }
 
-// Outbound PKS synchronization
-type PksSender struct {
+// PKS synchronization operations.
+// Implemented over a specific storage backend.
+type PksSync interface {
+	// Get PKS sync status
+	SyncStats() ([]PksStat, error)
+	// Send updated keys to PKS server
+	SendKeys(stat *PksStat) error
+}
+
+// Handle used to control PKS synchronization once started
+type PksSyncHandle struct {
+	pksSync PksSync
+	stop    chan interface{}
+	l       *log.Logger
+}
+
+// Stop a running PKS synchronization poll
+func (psh *PksSyncHandle) Stop() {
+	close(psh.stop)
+}
+
+// Basic implementation of outbound PKS synchronization
+type PksSyncBase struct {
 	// Our PKS email address, which goes into the From: address outbound
 	MailFrom string
 	// Remote PKS servers we are sending updates to
@@ -55,14 +81,21 @@ type PksSender struct {
 	SmtpAuth smtp.Auth
 }
 
-func (ps *PksSender) Init() {
-	// Obtain settings from command line switches if fields not set.
+// Initialize from command line switches if fields not set.
+func (ps *PksSyncBase) Init() {
 	if ps.MailFrom == "" {
 		ps.MailFrom = *PksFrom
 	}
 	if ps.SmtpHost == "" {
 		ps.SmtpHost = *SmtpHost
-		ps.SmtpAuth = smtp.PlainAuth(*SmtpId, *SmtpUser, *SmtpPass, *SmtpHost)
+	}
+	authHost := ps.SmtpHost
+	if parts := strings.Split(authHost, ":"); len(parts) >= 1 {
+		// Strip off the port, use only the hostname for auth
+		authHost = parts[0]
+	}
+	if ps.SmtpAuth == nil {
+		ps.SmtpAuth = smtp.PlainAuth(*SmtpId, *SmtpUser, *SmtpPass, authHost)
 	}
 	if len(ps.PksAddrs) == 0 {
 		ps.PksAddrs = strings.Split(*PksTo, ",")
@@ -70,10 +103,61 @@ func (ps *PksSender) Init() {
 }
 
 // Email an updated public key to a PKS server.
-func (ps *PksSender) SendKey(addr string, key *PubKey) (err error) {
+func (ps *PksSyncBase) SendKey(addr string, key *PubKey) (err error) {
 	msg := bytes.NewBuffer([]byte{})
 	msg.WriteString("Subject: ADD\n\n")
 	WriteKey(msg, key)
-	err = smtp.SendMail(ps.SmtpHost, ps.SmtpAuth, ps.MailFrom, []string{ addr }, msg.Bytes())
+	err = smtp.SendMail(ps.SmtpHost, ps.SmtpAuth, ps.MailFrom, []string{addr}, msg.Bytes())
 	return
+}
+
+// Poll PKS downstream servers
+func pollPks(psh *PksSyncHandle) {
+	go func() {
+		delay := 1
+		for {
+			stats, err := psh.pksSync.SyncStats()
+			if err != nil {
+				psh.l.Println("Error obtaining PKS sync stats", err)
+				goto POLL_NEXT
+			}
+			for _, stat := range stats {
+				err = psh.pksSync.SendKeys(&stat)
+				if err != nil {
+					// Increase delay backoff
+					delay++
+					if delay > MAX_DELAY {
+						delay = MAX_DELAY
+					}
+					break
+				} else {
+					// Successful mail sent, reset delay
+					delay = 1
+				}
+			}
+		POLL_NEXT:
+			// Check for stop
+			select {
+			case _, isOpen := <-psh.stop:
+				if !isOpen {
+					psh.l.Println("Stopping PKS sync")
+					return
+				}
+			default:
+				// Nothing on channels, fall thru
+
+			}
+			toSleep := time.Duration(delay) * time.Minute
+			psh.l.Println("Sleeping", toSleep)
+			time.Sleep(toSleep)
+		}
+	}()
+}
+
+// Start PKS synchronization
+func StartPksSync(pksSync PksSync) *PksSyncHandle {
+	psh := &PksSyncHandle{pksSync: pksSync, stop: make(chan interface{})}
+	EnsureLog(&psh.l)
+	pollPks(psh)
+	return psh
 }
