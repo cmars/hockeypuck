@@ -36,13 +36,13 @@ func (mps *MgoPksSync) Init() (err error) {
 
 func (mps *MgoPksSync) initPksAddrs() (err error) {
 	// Remove all pks not in this list
-	_, err = mps.pksStat.RemoveAll(bson.M{"$not": bson.M{"addr": bson.M{"$in": mps.PksAddrs}}})
+	_, err = mps.pksStat.RemoveAll(bson.M{"addr": bson.M{"$not": bson.M{"$in": mps.PksAddrs}}})
 	if err != nil {
 		return
 	}
 	// Add pks in this list not in collection
 	for _, pksAddr := range mps.PksAddrs {
-		err = mps.pksStat.Insert(bson.M{"addr": pksAddr, "lastSync": time.Now().UnixNano()})
+		err = mps.pksStat.Insert(&PksStat{Addr: pksAddr, LastSync: time.Now().UnixNano()})
 		if err != nil && !mgo.IsDup(err) {
 			return
 		} else {
@@ -59,7 +59,6 @@ func (mps *MgoPksSync) SyncStats() (stats []PksStat, err error) {
 }
 
 func (mps *MgoPksSync) SendKeys(stat *PksStat) (err error) {
-	mps.l.Println("Sending updated keys to", stat.Addr)
 	q := mps.keys.Find(bson.M{"mtime": bson.M{"$gt": stat.LastSync}})
 	i := q.Iter()
 	key := &PubKey{}

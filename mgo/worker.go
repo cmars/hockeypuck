@@ -95,7 +95,6 @@ func (mw *MgoWorker) LookupKey(keyid string) (*PubKey, error) {
 }
 
 func (mw *MgoWorker) AddKey(armoredKey string) ([]string, error) {
-	mw.l.Print("AddKey(...)")
 	// Check and decode the armor
 	armorBlock, err := armor.Decode(bytes.NewBufferString(armoredKey))
 	if err != nil {
