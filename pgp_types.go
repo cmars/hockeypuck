@@ -20,6 +20,8 @@ package hockeypuck
 import (
 	"bitbucket.org/cmars/go.crypto/openpgp/packet"
 	"bytes"
+	"crypto/sha512"
+	"encoding/hex"
 	"fmt"
 	"os"
 )
@@ -60,6 +62,7 @@ type PubKey struct {
 	Digest      string
 	Ctime       int64
 	Mtime       int64
+	CumlDigest  string
 }
 
 func (pubKey *PubKey) AppendSig(sig *Signature) {
@@ -324,4 +327,18 @@ func (pk *PubKey) SelfSignature() *Signature {
 		}
 	}
 	return nil
+}
+
+func CumlDigest(root PacketObject) string {
+	h := sha512.New()
+	pktObjChan := make(chan PacketObject)
+	go func() {
+		root.Traverse(pktObjChan)
+		close(pktObjChan)
+	}()
+	for pktObj := range pktObjChan {
+		h.Write([]byte(pktObj.GetDigest()))
+		h.Write([]byte{0})
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }

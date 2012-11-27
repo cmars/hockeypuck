@@ -97,7 +97,7 @@ func (ps *PksSyncBase) Init() {
 	if ps.SmtpAuth == nil {
 		ps.SmtpAuth = smtp.PlainAuth(*SmtpId, *SmtpUser, *SmtpPass, authHost)
 	}
-	if len(ps.PksAddrs) == 0 {
+	if len(ps.PksAddrs) == 0 && len(*PksTo) > 0 {
 		ps.PksAddrs = strings.Split(*PksTo, ",")
 	}
 }
@@ -148,7 +148,10 @@ func pollPks(psh *PksSyncHandle) {
 
 			}
 			toSleep := time.Duration(delay) * time.Minute
-			psh.l.Println("Sleeping", toSleep)
+			if delay > 1 {
+				// log delay if we had an error
+				psh.l.Println("Sleeping", toSleep)
+			}
 			time.Sleep(toSleep)
 		}
 	}()

@@ -20,8 +20,14 @@ hockeypuck (0.7~a1) precise; urgency=low
     - Pull up common mgo client connection, reuse in worker & pks sync.
     - Fix net/smtp usage in PKS sync, added backoff delay on SMTP errors.
       LP: #1075379
+  * etc/hockeypuck/hockeypuck.conf, mgo/worker.go, pgp_types.go, pks.go:
+    - Clean up commented out config example settings.
+    - Store cumulative digest of key's packets, only update when changed.
+      LP: #1083061
+    - Only use *PksTo flag if set. Only log pks poll sleep time if there was a
+      retry on SMTP error.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Fri, 23 Nov 2012 11:51:38 -0600
+ -- Casey Marshall <casey.marshall@gazzang.com>  Mon, 26 Nov 2012 22:09:27 -0600
 
 hockeypuck (0.6) precise; urgency=low
 
