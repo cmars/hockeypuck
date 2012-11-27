@@ -26,8 +26,10 @@ hockeypuck (0.7~a2) precise; urgency=low
       LP: #1083061
     - Only use *PksTo flag if set. Only log pks poll sleep time if there was a
       retry on SMTP error.
+  * mgo/client.go:
+    - Simplify ensuring indexes. Added keys.mtime.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Mon, 26 Nov 2012 22:09:27 -0600
+ -- Casey Marshall <casey.marshall@gazzang.com>  Mon, 26 Nov 2012 23:44:26 -0600
 
 hockeypuck (0.6) precise; urgency=low
 

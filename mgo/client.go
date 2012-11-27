@@ -22,6 +22,18 @@ import (
 	"log"
 )
 
+type indexInfo struct {
+	name string
+	unique bool
+}
+
+var KeysIndexFields []mgo.Index = []mgo.Index{
+	mgo.Index{ Key: []string{"fingerprint"}, Unique: true },
+	mgo.Index{ Key: []string{"keyid"} },
+	mgo.Index{ Key: []string{"shortid"} },
+	mgo.Index{ Key: []string{"mtime"} },
+	mgo.Index{ Key: []string{"identities.keywords"} }}
+
 type MgoClient struct {
 	connect string
 	l       *log.Logger
@@ -59,53 +71,12 @@ func NewMgoClient(connect string) (mc *MgoClient, err error) {
 func (mc *MgoClient) initKeys() (err error) {
 	// keys collection stores all the key material
 	mc.keys = mc.session.DB("hockeypuck").C("keys")
-	// fingerprint index
-	fpIndex := mgo.Index{
-		Key:        []string{"fingerprint"},
-		Unique:     true,
-		DropDups:   false,
-		Background: false,
-		Sparse:     false}
-	err = mc.keys.EnsureIndex(fpIndex)
-	if err != nil {
-		mc.l.Println("Ensure index failed:", err)
-		return
-	}
-	// keyid index
-	keyidIndex := mgo.Index{
-		Key:        []string{"keyid"},
-		Unique:     false,
-		DropDups:   false,
-		Background: false,
-		Sparse:     false}
-	err = mc.keys.EnsureIndex(keyidIndex)
-	if err != nil {
-		mc.l.Println("Ensure index failed:", err)
-		return
-	}
-	// shortid index
-	shortidIndex := mgo.Index{
-		Key:        []string{"shortid"},
-		Unique:     false,
-		DropDups:   false,
-		Background: false,
-		Sparse:     false}
-	err = mc.keys.EnsureIndex(shortidIndex)
-	if err != nil {
-		mc.l.Println("Ensure index failed:", err)
-		return
-	}
-	// uid keyword index
-	kwIndex := mgo.Index{
-		Key:        []string{"identities.keywords"},
-		Unique:     false,
-		DropDups:   false,
-		Background: true,
-		Sparse:     false}
-	err = mc.keys.EnsureIndex(kwIndex)
-	if err != nil {
-		mc.l.Println("Ensure index failed:", err)
-		return
+	for _, index := range KeysIndexFields {
+		err = mc.keys.EnsureIndex(index)
+		if err != nil {
+			mc.l.Println("Ensure index", index.Key, "failed:", err)
+			return
+		}
 	}
 	return
 }
@@ -113,17 +84,5 @@ func (mc *MgoClient) initKeys() (err error) {
 func (mc *MgoClient) initPksSync() (err error) {
 	// pks collection stores sync status with downstream servers
 	mc.pksStat = mc.session.DB("hockeypuck").C("pksStat")
-	// pks addr index
-	addrIndex := mgo.Index{
-		Key:        []string{"addr"},
-		Unique:     true,
-		DropDups:   false,
-		Background: true,
-		Sparse:     false}
-	err = mc.pksStat.EnsureIndex(addrIndex)
-	if err != nil {
-		mc.l.Println("Ensure index failed:", err)
-		return
-	}
 	return
 }
