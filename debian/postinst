@@ -45,6 +45,10 @@ if [ "$2" = "" ]; then
     chmod    g+s  /var/log/hockeypuck
 fi
 
+# Update the version file
+VERSION=$(gzip -dc /usr/share/doc/hockeypuck/changelog.gz | head -1 | sed 's/.*(//;s/).*//;')
+echo $VERSION > /etc/hockeypuck/version
+
 #DEBHELPER#
 
 exit 0

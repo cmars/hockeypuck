@@ -28,6 +28,7 @@ import (
 )
 
 var mgoServer *string = flag.String("server", "localhost", "mongo server")
+var showVersion *bool = flag.Bool("version", false, "Display version and exit")
 
 func usage() {
 	flag.PrintDefaults()
@@ -54,6 +55,10 @@ func main() {
 	hkp := NewHkpServer(r)
 	ParseCfg()
 	flag.Parse()
+	if *showVersion {
+		fmt.Println(Version)
+		os.Exit(0)
+	}
 	/*
 		// Open the log
 		log := OpenLog()

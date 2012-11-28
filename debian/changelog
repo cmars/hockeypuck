@@ -28,8 +28,10 @@ hockeypuck (0.7~a2) precise; urgency=low
       retry on SMTP error.
   * mgo/client.go:
     - Simplify ensuring indexes. Added keys.mtime.
+  * cmd/hockeypuck-mgo/main.go, debian/postinst, version.go:
+    - Add -version flag, setting version file from changelog in package postinst.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Mon, 26 Nov 2012 23:44:26 -0600
+ -- Casey Marshall <casey.marshall@gazzang.com>  Tue, 27 Nov 2012 23:29:54 -0600
 
 hockeypuck (0.6) precise; urgency=low
 
