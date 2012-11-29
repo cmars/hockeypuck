@@ -1,0 +1,23 @@
+{{define "title"}}Hockeypuck | Server Status{{end}}
+
+{{define "page_content"}}
+<h2>Server Status</h2>
+<table>
+<tr><th>Hostname:</th><td>{{.Hostname}}</td></tr>
+<tr><th>Port:</th><td>{{.Port}}</td></tr>
+<tr><th>Version:</th><td>{{.Version}}</td></tr>
+</table>
+{{if .PksPeers}}
+<h2>Outgoing Mailsync Peers</h2>
+<table>
+<tr><th>Email Address</th><th>Last Synchronized</th></tr>
+{{range .PksPeers}}
+<tr><td>{{.Addr}}</td><td>{{timef .LastSync}}</td></tr>
+{{end}}
+</table>
+{{end}}
+<h2>Statistics</h2>
+<table>
+<tr><th>Total number of keys:</th><td>{{.TotalKeys}}</td></tr>
+</table>
+{{end}}

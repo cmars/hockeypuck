@@ -21,6 +21,7 @@ import (
 	"flag"
 	"html/template"
 	"path/filepath"
+	"time"
 )
 
 // Path to Hockeypuck's installed www directory
@@ -88,5 +89,9 @@ func newStatusTemplate(path string) *template.Template {
 	files, _ := filepath.Glob(filepath.Join(path, "templates", "*.tmpl"))
 	files = append(files,
 		filepath.Join(path, "templates", "pks", "status.tmpl"))
-	return template.Must(template.ParseFiles(files...))
+	return template.Must(template.New("placeholder").Funcs(
+		template.FuncMap{"timef": func(ts int64) string {
+			tm := time.Unix(0, ts)
+			return tm.Format(time.RFC3339)
+		}}).ParseFiles(files...))
 }
