@@ -1,7 +1,7 @@
 {{define "title"}}Hockeypuck | Key Search Results{{end}}
 
 {{define "index-top"}}
-{{template "top"}}
+{{template "top" .}}
 <h2>Search Results: '{{.}}'</h2>
 <table>
 <tr>
@@ -14,7 +14,7 @@
 
 {{define "index-bottom"}}
 </table>
-{{template "bottom"}}
+{{template "bottom" .}}
 {{end}}
 
 {{define "pub-index-row"}}

@@ -33,6 +33,7 @@ const (
 	Get              Operation = iota
 	Index            Operation = iota
 	Vindex           Operation = iota
+	Status           Operation = iota
 )
 
 // Option bit mask in request.
@@ -47,11 +48,14 @@ const (
 
 // An HKP "lookup" request.
 type Lookup struct {
-	Op           Operation
-	Search       string
-	Option       Option
-	Fingerprint  bool
-	Exact        bool
+	Op          Operation
+	Search      string
+	Option      Option
+	Fingerprint bool
+	Exact       bool
+	// Hostname and port are used with op=status
+	Hostname     string
+	Port         int
 	responseChan ResponseChan
 }
 

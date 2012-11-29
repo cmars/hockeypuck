@@ -22,9 +22,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -102,10 +104,7 @@ func parseLookup(req *http.Request) (*Lookup, error) {
 		return nil, err
 	}
 	lookup := &Lookup{responseChan: make(chan Response)}
-	// Parse the "search" variable (section 3.1.1)
-	if lookup.Search = req.Form.Get("search"); lookup.Search == "" {
-		return nil, errors.New("Missing required parameter: search")
-	}
+	searchRequired := true
 	// Parse the "op" variable (section 3.1.2)
 	switch op := req.Form.Get("op"); op {
 	case "get":
@@ -114,10 +113,27 @@ func parseLookup(req *http.Request) (*Lookup, error) {
 		lookup.Op = Index
 	case "vindex":
 		lookup.Op = Vindex
+	case "status":
+		lookup.Op = Status
+		searchRequired = false
+		if strings.Contains(req.Host, ":") {
+			var host string
+			var port string
+			host, port, err = net.SplitHostPort(req.Host)
+			lookup.Hostname = host
+			lookup.Port, err = strconv.Atoi(port)
+		} else {
+			lookup.Hostname = req.Host
+			lookup.Port = 80
+		}
 	case "":
 		return nil, errors.New("Missing required parameter: op")
 	default:
 		return nil, errors.New(fmt.Sprintf("Unknown operation: %s", op))
+	}
+	// Parse the "search" variable (section 3.1.1)
+	if lookup.Search = req.Form.Get("search"); searchRequired && lookup.Search == "" {
+		return nil, errors.New("Missing required parameter: search")
 	}
 	// Parse the "options" variable (section 3.2.1)
 	lookup.Option = parseOptions(req.Form.Get("options"))
@@ -125,7 +141,7 @@ func parseLookup(req *http.Request) (*Lookup, error) {
 	lookup.Fingerprint = req.Form.Get("fingerprint") == "on"
 	// Parse the "exact" variable (section 3.2.3)
 	lookup.Exact = req.Form.Get("exact") == "on"
-	return lookup, nil
+	return lookup, err
 }
 
 // Parse the value of the "options" variable (section 3.2.1)

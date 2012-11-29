@@ -43,12 +43,16 @@ var AddResultTemplate *template.Template
 // responses when not in machine readable mode.
 var PksIndexTemplate *template.Template
 
+// StatusTemplate renders the op=status page
+var StatusTemplate *template.Template
+
 func InitTemplates(path string) {
 	wwwRoot, _ = filepath.Abs(path)
 	SearchFormTemplate = newSearchFormTemplate(path)
 	AddFormTemplate = newAddFormTemplate(path)
 	AddResultTemplate = newAddResultTemplate(path)
 	PksIndexTemplate = newPksIndexTemplate(path)
+	StatusTemplate = newStatusTemplate(path)
 	return
 }
 
@@ -77,5 +81,12 @@ func newPksIndexTemplate(path string) *template.Template {
 	files, _ := filepath.Glob(filepath.Join(path, "templates", "*.tmpl"))
 	files = append(files,
 		filepath.Join(path, "templates", "pks", "index.tmpl"))
+	return template.Must(template.ParseFiles(files...))
+}
+
+func newStatusTemplate(path string) *template.Template {
+	files, _ := filepath.Glob(filepath.Join(path, "templates", "*.tmpl"))
+	files = append(files,
+		filepath.Join(path, "templates", "pks", "status.tmpl"))
 	return template.Must(template.ParseFiles(files...))
 }

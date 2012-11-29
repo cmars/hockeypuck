@@ -23,6 +23,8 @@ import (
 	"time"
 )
 
+var lastPksStatus []PksStat
+
 type MgoPksSync struct {
 	*MgoClient
 	PksSyncBase
@@ -55,6 +57,7 @@ func (mps *MgoPksSync) initPksAddrs() (err error) {
 func (mps *MgoPksSync) SyncStats() (stats []PksStat, err error) {
 	i := mps.pksStat.Find(nil).Limit(256).Iter()
 	err = i.All(&stats)
+	lastPksStatus = stats
 	return
 }
 

@@ -144,3 +144,12 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 	}
 	panic("unreachable")
 }
+
+func (mw *MgoWorker) Status() (status *ServerStatus, err error) {
+	status = &ServerStatus{PksPeers: lastPksStatus, Version: Version}
+	status.TotalKeys, err = mw.keys.Count()
+	if err != nil {
+		return
+	}
+	return
+}

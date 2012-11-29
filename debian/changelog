@@ -30,8 +30,16 @@ hockeypuck (0.7~a2) precise; urgency=low
     - Simplify ensuring indexes. Added keys.mtime.
   * cmd/hockeypuck-mgo/main.go, debian/postinst, version.go:
     - Add -version flag, setting version file from changelog in package postinst.
+  * hkp_types.go, mgo/client.go, mgo/pks.go, mgo/worker.go,
+    responses.go, server.go, templates.go, worker.go,
+    www/templates/layout.tmpl, www/templates/pks/index.tmpl:
+    - Add op=status page. LP: #1075391
+    - Cache last PKS sync status for op=status response.
+    - Expose Hostname:Port in Lookup for op=status.
+    - MongoDB: Ensure unique index on pksStat.addr.
+    - Fixed template context passthru issues.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Tue, 27 Nov 2012 23:29:54 -0600
+ -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 28 Nov 2012 23:39:06 -0600
 
 hockeypuck (0.6) precise; urgency=low
 

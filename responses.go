@@ -116,6 +116,24 @@ func (r *IndexResponse) WriteTo(w http.ResponseWriter) error {
 	return err
 }
 
+type StatusResponse struct {
+	Status *ServerStatus
+	Err    error
+}
+
+func (r *StatusResponse) Error() error {
+	return r.Err
+}
+
+func (r *StatusResponse) WriteTo(w http.ResponseWriter) (err error) {
+	err = r.Err
+	if err != nil {
+		return
+	}
+	err = StatusTemplate.ExecuteTemplate(w, "layout", r.Status)
+	return
+}
+
 func AlgorithmCode(algorithm int) string {
 	switch packet.PublicKeyAlgorithm(algorithm) {
 	case packet.PubKeyAlgoRSA, packet.PubKeyAlgoRSAEncryptOnly, packet.PubKeyAlgoRSASignOnly:
