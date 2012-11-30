@@ -39,8 +39,10 @@ hockeypuck (0.7~a2) precise; urgency=low
     - Expose Hostname:Port in Lookup for op=status.
     - MongoDB: Ensure unique index on pksStat.addr.
     - Fixed template context passthru issues.
+  * www/templates/header.tmpl:
+    - Add link to PKS status page. LP: #1075391
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Thu, 29 Nov 2012 00:33:10 -0600
+ -- Casey Marshall <casey.marshall@gazzang.com>  Thu, 29 Nov 2012 22:27:25 -0600
 
 hockeypuck (0.6) precise; urgency=low
 
