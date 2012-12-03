@@ -20,4 +20,22 @@
 <table>
 <tr><th>Total number of keys:</th><td>{{.TotalKeys}}</td></tr>
 </table>
+{{if .KeyStatsHourly}}
+<h3>Keys loaded in the last 24 hours</h3>
+<table>
+<tr><th>Hour</th><th>New</th><th>Updated</th></tr>
+{{range .KeyStatsHourly}}
+<tr><td>{{.Hour}}</td><td>{{.Created}}</td><td>{{.Modified}}</td></tr>
+{{end}}
+</table>
+{{end}}
+{{if .KeyStatsDaily}}
+<h3>Keys loaded in the last 7 days</h3>
+<table>
+<tr><th>Day</th><th>New</th><th>Updated</th></tr>
+{{range .KeyStatsDaily}}
+<tr><td>{{.Day}}</td><td>{{.Created}}</td><td>{{.Modified}}</td></tr>
+{{end}}
+</table>
+{{end}}
 {{end}}

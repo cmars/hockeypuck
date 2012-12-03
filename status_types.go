@@ -20,19 +20,27 @@ import (
 	"time"
 )
 
-type AggregateKeyStatus struct {
-	Timestamp     time.Time
-	TotalCreated  int
-	TotalModified int
+type KeyOpStats struct {
+	Timestamp int64
+	Created   int
+	Modified  int
+}
+
+func (kos *KeyOpStats) Day() string {
+	return time.Unix(0, kos.Timestamp).Format("2006-01-02 MST")
+}
+
+func (kos *KeyOpStats) Hour() string {
+	return time.Unix(0, kos.Timestamp).Format("2006-01-02 15:04 MST")
 }
 
 type ServerStatus struct {
-	Timestamp       string
-	Hostname        string
-	Port            int
-	Version         string
-	PksPeers        []PksStat
-	TotalKeys       int
-	DailyHistogram  []AggregateKeyStatus
-	HourlyHistogram []AggregateKeyStatus
+	Timestamp      string
+	Hostname       string
+	Port           int
+	Version        string
+	PksPeers       []PksStat
+	TotalKeys      int
+	KeyStatsHourly []*KeyOpStats
+	KeyStatsDaily  []*KeyOpStats
 }

@@ -20,6 +20,7 @@ import (
 	"labix.org/v2/mgo"
 	. "launchpad.net/hockeypuck"
 	"log"
+	"time"
 )
 
 type indexInfo struct {
@@ -38,11 +39,13 @@ var pksStatIndexes []mgo.Index = []mgo.Index{
 	mgo.Index{Key: []string{"addr"}, Unique: true}}
 
 type MgoClient struct {
-	connect string
-	l       *log.Logger
-	session *mgo.Session
-	keys    *mgo.Collection
-	pksStat *mgo.Collection
+	connect    string
+	l          *log.Logger
+	session    *mgo.Session
+	keys       *mgo.Collection
+	pksStat    *mgo.Collection
+	keysHourly *mgo.Collection
+	keysDaily  *mgo.Collection
 }
 
 func NewMgoClient(connect string) (mc *MgoClient, err error) {
@@ -68,6 +71,7 @@ func NewMgoClient(connect string) (mc *MgoClient, err error) {
 	if err != nil {
 		return
 	}
+	err = mc.initUpdateKeys()
 	return
 }
 
@@ -94,5 +98,28 @@ func (mc *MgoClient) initPksSync() (err error) {
 			return
 		}
 	}
+	return
+}
+
+func (mc *MgoClient) initUpdateKeys() (err error) {
+	mc.keysHourly = mc.session.DB("hockeypuck").C("keysHourly")
+	err = mc.keysHourly.EnsureIndex(mgo.Index{Key: []string{"timestamp"}})
+	if err != nil {
+		return
+	}
+	mc.keysDaily = mc.session.DB("hockeypuck").C("keysDaily")
+	err = mc.keysDaily.EnsureIndex(mgo.Index{Key: []string{"timestamp"}})
+	if err != nil {
+		return
+	}
+	go func() {
+		for {
+			mc.UpdateKeysHourly(
+				time.Now().Add(time.Duration((0 - UPDATE_KEYSTATS_OVERLAP) * time.Hour)))
+			mc.UpdateKeysDaily(
+				time.Now().Add(time.Duration((0-UPDATE_KEYSTATS_OVERLAP)*24) * time.Hour))
+			time.Sleep(time.Hour)
+		}
+	}()
 	return
 }

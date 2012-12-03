@@ -25,6 +25,7 @@ import (
 	"launchpad.net/hockeypuck/mgo"
 	"net/http"
 	"os"
+	"time"
 )
 
 var mgoServer *string = flag.String("server", "localhost", "mongo server")
@@ -59,20 +60,26 @@ func main() {
 		fmt.Println(Version)
 		os.Exit(0)
 	}
-	/*
-		// Open the log
-		log := OpenLog()
-		// Log the effective configuration (cfg file + cmdline flags)
-		LogCfg(log)
-	*/
-	// Initialize web templates
-	InitTemplates(*WwwRoot)
 	// Connect to MongoDB
 	connect := ConnectString()
 	client, err := mgo.NewMgoClient(connect)
 	if err != nil {
 		die(err)
 	}
+	if *mgo.UpdateKeyStats {
+		// Update the key status and exit
+		err = client.UpdateKeysHourly(time.Unix(0, 0))
+		if err != nil {
+			die(err)
+		}
+		err = client.UpdateKeysDaily(time.Unix(0, 0))
+		if err != nil {
+			die(err)
+		}
+		os.Exit(0)
+	}
+	// Initialize web templates
+	InitTemplates(*WwwRoot)
 	// Launch the request workers
 	for i := 0; i < *NumWorkers; i++ {
 		worker := &mgo.MgoWorker{MgoClient: client}

@@ -2,9 +2,10 @@ package mgo
 
 import (
 	"flag"
-	"time"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
+	. "launchpad.net/hockeypuck"
+	"time"
 )
 
 // Perform the key stat query overlapping this many
@@ -14,18 +15,22 @@ import (
 // A number greater than 1 makes the rollups more resilient
 // to downtime and race conditions at the expense of some
 // redundant querying and updating.
-const UPDATE_QUERY_OVERLAP = 2
+const UPDATE_KEYSTATS_OVERLAP = 2
 
 // Map key creation and modification times by the nearest hour
 var mapKeysByHour = `function() {
-	emit(this.mtime - this.mtime % (3600000000000), { modified: 1 });
-	emit(this.ctime - this.ctime % (3600000000000), { created: 1 });
+	if (this.mtime > this.ctime) {
+		emit(this.mtime - this.mtime % (3600000000000), { modified: 1, created: 0 });
+	}
+	emit(this.ctime - this.ctime % (3600000000000), { modified: 0, created: 1 });
 };`
 
 // Map key creation and modification times by the nearest day
 var mapKeysByDay = `function() {
-	emit(this.mtime - this.mtime % (86400000000000), { modified: 1 });
-	emit(this.ctime - this.ctime % (86400000000000), { created: 1 });
+	if (this.mtime > this.ctime) {
+		emit(this.mtime - this.mtime % (86400000000000), { modified: 1, created: 0 });
+	}
+	emit(this.ctime - this.ctime % (86400000000000), { modified: 0, created: 1 });
 };`
 
 // Reduce the created and modified counts for a given time slice key
@@ -38,24 +43,51 @@ var reduceTimeSlices = `function(key, values) {
 	return result
 };`
 
-var updateKeyStats *bool = flag.Bool("rebuild-stats", false, "Rebuild key statistics and exit.")
+var UpdateKeyStats *bool = flag.Bool("update-keystats", false, "Update key statistics and exit.")
 
-func (c *MgoClient) UpdateKeysHourly() error {
+func (c *MgoClient) KeyStatsHourly() chan *KeyOpStats {
+	// Last 24 hours
+	return c.keyStats(c.keysHourly, time.Now().Add(time.Duration(-24)*time.Hour))
+}
+
+func (c *MgoClient) KeyStatsDaily() chan *KeyOpStats {
+	// Last 7 days
+	return c.keyStats(c.keysDaily, time.Now().Add(time.Duration(-24*7)*time.Hour))
+}
+
+func (c *MgoClient) keyStats(coll *mgo.Collection, since time.Time) chan *KeyOpStats {
+	out := make(chan *KeyOpStats)
+	go func() {
+		q := coll.Find(bson.M{"value.timestamp": bson.M{"$gt": since.UnixNano()}})
+		q = q.Sort("-timestamp")
+		i := q.Iter()
+		kos := new(struct{ Value *KeyOpStats })
+		for i.Next(kos) {
+			out <- kos.Value
+		}
+		err := i.Err()
+		if err != nil {
+			c.l.Println("Error querying key stats", err)
+		}
+		close(out)
+	}()
+	return out
+}
+
+func (c *MgoClient) UpdateKeysHourly(since time.Time) error {
 	mr := &mgo.MapReduce{
-		Map: mapKeysByHour,
+		Map:    mapKeysByHour,
 		Reduce: reduceTimeSlices,
-		Out: bson.M{"merge": "keys_hourly"}}
-	since := time.Now().Add(time.Duration((0-UPDATE_QUERY_OVERLAP) * time.Hour))
-	_, err := c.keys.Find(bson.M{"mtime": bson.M{"$gt": since}}).MapReduce(mr, nil)
+		Out:    bson.M{"merge": "keysHourly"}}
+	_, err := c.keys.Find(bson.M{"mtime": bson.M{"$gt": since.UnixNano()}}).MapReduce(mr, nil)
 	return err
 }
 
-func (c *MgoClient) UpdateKeysDaily() error {
+func (c *MgoClient) UpdateKeysDaily(since time.Time) error {
 	mr := &mgo.MapReduce{
-		Map: mapKeysByDay,
+		Map:    mapKeysByDay,
 		Reduce: reduceTimeSlices,
-		Out: bson.M{"merge": "keys_daily"}}
-	since := time.Now().Add(time.Duration((0-UPDATE_QUERY_OVERLAP)*24) * time.Hour)
-	_, err := c.keys.Find(bson.M{"mtime": bson.M{"$gt": since}}).MapReduce(mr, nil)
+		Out:    bson.M{"merge": "keysDaily"}}
+	_, err := c.keys.Find(bson.M{"mtime": bson.M{"$gt": since.UnixNano()}}).MapReduce(mr, nil)
 	return err
 }

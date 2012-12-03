@@ -147,6 +147,12 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 
 func (mw *MgoWorker) Status() (status *ServerStatus, err error) {
 	status = &ServerStatus{PksPeers: lastPksStatus, Version: Version}
+	for keyStat := range mw.KeyStatsHourly() {
+		status.KeyStatsHourly = append(status.KeyStatsHourly, keyStat)
+	}
+	for keyStat := range mw.KeyStatsDaily() {
+		status.KeyStatsDaily = append(status.KeyStatsDaily, keyStat)
+	}
 	status.TotalKeys, err = mw.keys.Count()
 	if err != nil {
 		return
