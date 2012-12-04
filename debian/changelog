@@ -48,8 +48,11 @@ hockeypuck (0.7~a2) precise; urgency=low
     mgo/worker.go, status_types.go, www/templates/pks/status.tmpl:
     - Integrate key stats into op=status page, MR, query fixes.
       LP: #1075391
+  * === added directory instroot, ... scripts/crossbuild.sh:
+    - Relocate static system installed files to instroot.
+    - Added cross-compilation script. LP: #1086192
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Sun, 02 Dec 2012 21:56:19 -0600
+ -- Casey Marshall <casey.marshall@gazzang.com>  Mon, 03 Dec 2012 21:19:10 -0600
 
 hockeypuck (0.6) precise; urgency=low
 
