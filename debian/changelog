@@ -29,7 +29,7 @@ hockeypuck (0.7~a2) precise; urgency=low
   * mgo/client.go:
     - Simplify ensuring indexes. Added keys.mtime.
   * cmd/hockeypuck-mgo/main.go, debian/postinst, version.go:
-    - Add -version flag, setting version file from changelog in package postinst.
+    - Add -version flag, setting version file from changelog in postinst.
   * hkp_types.go, mgo/client.go, mgo/pks.go, mgo/worker.go,
     responses.go, server.go, templates.go, worker.go,
     www/templates/layout.tmpl, www/templates/pks/index.tmpl,
@@ -53,8 +53,10 @@ hockeypuck (0.7~a2) precise; urgency=low
     - Added cross-compilation script. LP: #1086192
   * scripts/crossbuild.sh:
     - Add dist tarball creation.
+  * debian/control, debian/install, debian/links:
+    - Fix lintian warnings. Linking to fonts-droid for Ubuntu package.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Mon, 03 Dec 2012 21:55:24 -0600
+ -- Casey Marshall <casey.marshall@gazzang.com>  Mon, 10 Dec 2012 20:57:44 -0600
 
 hockeypuck (0.6) precise; urgency=low
 

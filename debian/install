@@ -4,4 +4,6 @@ instroot/etc/hockeypuck/hockeypuck.conf /etc/hockeypuck
 instroot/etc/init/hockeypuck-mgo.conf /etc/init
 instroot/usr/share/man/man1/hockeypuck-mgo.1 /usr/share/man/man1
 instroot/usr/share/man/man1/hockeypuck-load.1 /usr/share/man/man1
-instroot/var/lib/hockeypuck/www /var/lib/hockeypuck
+instroot/var/lib/hockeypuck/www/css /var/lib/hockeypuck/www
+instroot/var/lib/hockeypuck/www/templates /var/lib/hockeypuck/www
+instroot/var/lib/hockeypuck/www/fonts/Arvo /var/lib/hockeypuck/www/fonts
