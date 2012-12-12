@@ -18,7 +18,7 @@
 package pq
 
 import (
-	"bitbucket.org/cmars/go.crypto/openpgp/armor"
+	"code.google.com/p/go.crypto/openpgp/armor"
 	"bytes"
 	"crypto/rand"
 	"database/sql"

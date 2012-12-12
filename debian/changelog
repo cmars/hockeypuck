@@ -55,8 +55,12 @@ hockeypuck (0.7~a2) precise; urgency=low
     - Add dist tarball creation.
   * debian/control, debian/install, debian/links:
     - Fix lintian warnings. Linking to fonts-droid for Ubuntu package.
+  * cmd/lspgp/main.go, cmd/pktdump/main.go, mgo/worker.go,
+    mgo/worker_test.go, pgp.go, pgp_types.go, pq/worker.go,
+    responses.go:
+    - Switch go.crypto from my fork to proper trunk source.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Mon, 10 Dec 2012 20:57:44 -0600
+ -- Casey Marshall <casey.marshall@gazzang.com>  Tue, 11 Dec 2012 18:35:00 -0600
 
 hockeypuck (0.6) precise; urgency=low
 
