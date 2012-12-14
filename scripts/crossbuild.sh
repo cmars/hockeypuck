@@ -32,19 +32,21 @@ rm -rf $BUILD
 mkdir -p $DIST
 
 host_platform=$(go env GOOS)-$(go env GOARCH)
+version=$(head -1 debian/changelog | sed 's/.*(//;s/).*//;')
 
 for platform in $PLATFORMS;
 do
 	platform_bin=$(echo $platform | sed 's/-/_/')
-	tar -C instroot -cvf $DIST/hockeypuck-$platform.tar .
+	tarfile=$DIST/hockeypuck-$version-$platform.tar
+	tar -C instroot -cvf $tarfile .
 	mkdir -p $BUILD/$platform/usr/bin
 	if [[ $platform != $host_platform ]]; then
 		cp -r $GOPATH/bin/$platform_bin/* $BUILD/$platform/usr/bin
 	else
 		cp -r $GOPATH/bin/hockeypuck-* $BUILD/$platform/usr/bin
 	fi
-	tar -C $BUILD/$platform -rvf $DIST/hockeypuck-$platform.tar ./usr/bin
-	gzip -9f $DIST/hockeypuck-$platform.tar
+	tar -C $BUILD/$platform -rvf $tarfile ./usr/bin
+	gzip -9f $tarfile
 done
 
 #rm -rf $BUILD

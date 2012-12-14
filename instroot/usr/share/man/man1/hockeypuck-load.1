@@ -3,7 +3,7 @@
 \fBhockeypuck-load\fP \- OpenPGP Key Server Loader
 
 .SH SYNOPSIS
-\fBhockeypuck-load\fP [-hkp=<IP>:PORT] [-path=PATH]
+\fBhockeypuck-load\fP [-hkp=<IP>:PORT] [-path=PATH | -mail-add=true]
 
 .SH DESCRIPTION
 
@@ -22,6 +22,12 @@ Path to an OpenPGP public keyring file. The file must be binary, not armored for
 
 To load from standard input, use -path=/dev/stdin.
 
+.TP
+\fB-mail-add=true\fP
+Load keys from PKS email ADD and INCREMENTAL messages on standard input. Suitable for use with procmail or aliases, for example:
+
+  pgp-public-keys: "|/usr/bin/hockeypuck-load -mail-add"
+
 .SH CAVEATS
 hockeypuck-load can place heavy load on some keyserver implementations. Use with caution, and always with permission.
 
@@ -34,7 +40,7 @@ Bugs, known issues and features in development are tracked at \fBhttps://bugs.la
 The OpenPGP HTTP Keyserver Protocol (HKP)
 http://ietfreport.isoc.org/all-ids/draft-shaw-openpgp-hkp-00.txt
 .TP
-\fBhockeypuck-mgo\fP(1), \fBhockeypuck-pq\fP(1), \fBgpg\fP(1), \fBmongo\fP(1), \fIhttps://launchpad.net/hockeypuck\fP
+\fBhockeypuck-mgo\fP(1), \fBhockeypuck-pq\fP(1), \fBgpg\fP(1), \fBmongo\fP(1), \fBprocmail\fP(1), \fBaliases\fP(5), \fIhttps://launchpad.net/hockeypuck\fP
 .PD
 
 .SH AUTHOR

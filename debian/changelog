@@ -55,8 +55,12 @@ hockeypuck (0.7) precise; urgency=low
     - Add dist tarball creation.
   * debian/control, debian/install, debian/links:
     - Fix lintian warnings. Linking to fonts-droid for Ubuntu package.
+  * instroot/usr/share/man/man1/hockeypuck-load.1:
+    - Documented -mail-add=true option.
+  * scripts/crossbuild.sh:
+    - Add version to dist tarballs.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Mon, 10 Dec 2012 20:57:44 -0600
+ -- Casey Marshall <casey.marshall@gazzang.com>  Thu, 13 Dec 2012 21:39:31 -0600
 
 hockeypuck (0.6) precise; urgency=low
 
