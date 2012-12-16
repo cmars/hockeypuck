@@ -18,7 +18,7 @@
 package mgo
 
 import (
-	"bitbucket.org/cmars/go.crypto/openpgp/armor"
+	"code.google.com/p/go.crypto/openpgp/armor"
 	"bytes"
 	"flag"
 	"github.com/bmizerany/assert"

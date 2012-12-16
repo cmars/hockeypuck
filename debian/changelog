@@ -1,3 +1,15 @@
+hockeypuck (0.8~a1) precise; urgency=low
+
+  [ Casey Marshall ]
+  * Opening 0.8 milestone.
+  * cmd/lspgp/main.go, cmd/pktdump/main.go, mgo/worker.go,
+    mgo/worker_test.go, pgp.go, pgp_types.go, pq/worker.go,
+    responses.go:
+    - Using main go.crypto branch, my changes were merged.
+      LP: #1087855
+
+ -- Casey Marshall <casey.marshall@gazzang.com>  Sat, 15 Dec 2012 23:02:01 -0600
+
 hockeypuck (0.7) precise; urgency=low
 
   [ Casey Marshall ]

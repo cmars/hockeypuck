@@ -18,12 +18,12 @@
 package main
 
 import (
-	"bitbucket.org/cmars/go.crypto/openpgp"
+	"code.google.com/p/go.crypto/openpgp"
 	"fmt"
 	"os"
 	// importing these hash algorithms ensures they are registered at runtime
-	_ "bitbucket.org/cmars/go.crypto/md4"
-	_ "bitbucket.org/cmars/go.crypto/ripemd160"
+	_ "code.google.com/p/go.crypto/md4"
+	_ "code.google.com/p/go.crypto/ripemd160"
 	_ "crypto/md5"
 	_ "crypto/sha1"
 	_ "crypto/sha256"
