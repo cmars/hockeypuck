@@ -18,8 +18,8 @@
 package mgo
 
 import (
-	"code.google.com/p/go.crypto/openpgp/armor"
 	"bytes"
+	"code.google.com/p/go.crypto/openpgp/armor"
 	"flag"
 	"github.com/bmizerany/assert"
 	. "launchpad.net/hockeypuck"

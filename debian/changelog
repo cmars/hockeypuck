@@ -7,8 +7,14 @@ hockeypuck (0.8~a1) precise; urgency=low
     responses.go:
     - Using main go.crypto branch, my changes were merged.
       LP: #1087855
+  * mgo/worker.go, mgo/worker_test.go, pgp.go, pgp_types.go,
+    pq/worker.go, responses.go:
+    - Updates wrt go.crypto branch packet.Read.
+    - Fixed an issue where valid public keys preceding an
+      invalid public key were not send to the channel.
+      LP: #1090980
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Sat, 15 Dec 2012 23:02:01 -0600
+ -- Casey Marshall <casey.marshall@gazzang.com>  Sun, 16 Dec 2012 12:58:56 -0600
 
 hockeypuck (0.7) precise; urgency=low
 
