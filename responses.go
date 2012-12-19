@@ -18,7 +18,7 @@
 package hockeypuck
 
 import (
-	"bitbucket.org/cmars/go.crypto/openpgp/packet"
+	"code.google.com/p/go.crypto/openpgp/packet"
 	"bytes"
 	"encoding/base64"
 	"encoding/hex"
