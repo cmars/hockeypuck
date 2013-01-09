@@ -13,7 +13,7 @@ else
 fi
 
 GOPATH=$(pwd)/gopath
-rm -rf $(GOPATH)
+rm -rf $GOPATH
 
 APPS="launchpad.net/hockeypuck/cmd/hockeypuck-mgo launchpad.net/hockeypuck/cmd/hockeypuck-load"
 
