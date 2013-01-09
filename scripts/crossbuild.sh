@@ -39,6 +39,7 @@ do
 	platform_bin=$(echo $platform | sed 's/-/_/')
 	tarfile=$DIST/hockeypuck-$version-$platform.tar
 	tar -C instroot -cvf $tarfile .
+	tar -C instroot-extra -rvf $tarfile .
 	mkdir -p $BUILD/$platform/usr/bin
 	if [[ $platform != $host_platform ]]; then
 		cp -r $GOPATH/bin/$platform_bin/* $BUILD/$platform/usr/bin

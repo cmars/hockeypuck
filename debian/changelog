@@ -6,8 +6,19 @@ hockeypuck (0.8~a1) precise; urgency=low
     mgo/worker_test.go, pgp.go, pgp_types.go, pq/worker.go,
     responses.go:
     - Switch go.crypto from my fork to proper trunk source.
+  * instroot/var/lib/hockeypuck/www/fonts/Droid_Sans =>
+    instroot-extra/var/lib/hockeypuck/www/fonts/Droid_Sans
+    scripts/crossbuild.sh:
+    - Move droid sans font out of debian instroot, used only
+      in cross-compile tar build.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Tue, 18 Dec 2012 18:38:04 -0600
+  [ Dustin Kirkland ]
+  * debian/manpages, debian/install, debian/rules,
+    instroot/etc/init/hockeypuck-mgo.conf => debian/upstart,
+    removed directory instroot/etc/init:
+    - A handful of packaging recommendations
+
+ -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 09 Jan 2013 16:25:13 -0600
 
 hockeypuck (0.7) precise; urgency=low
 
