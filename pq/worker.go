@@ -18,8 +18,8 @@
 package pq
 
 import (
-	"code.google.com/p/go.crypto/openpgp/armor"
 	"bytes"
+	"code.google.com/p/go.crypto/openpgp/armor"
 	"crypto/rand"
 	"database/sql"
 	"encoding/base64"

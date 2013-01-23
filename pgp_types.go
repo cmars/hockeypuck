@@ -18,8 +18,8 @@
 package hockeypuck
 
 import (
-	"code.google.com/p/go.crypto/openpgp/packet"
 	"bytes"
+	"code.google.com/p/go.crypto/openpgp/packet"
 	"crypto/sha512"
 	"encoding/hex"
 	"fmt"

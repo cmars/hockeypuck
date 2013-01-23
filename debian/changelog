@@ -1,3 +1,15 @@
+hockeypuck (0.8.1) precise; urgency=low
+
+  [ Casey Marshall ]
+  * mgo/worker.go, mgo/worker_test.go, pgp.go, pgp_types.go,
+    pq/worker.go, responses.go:
+    - Updates wrt go.crypto branch packet.Read.
+    - Fixed an issue where valid public keys preceding an
+      invalid public key were not send to the channel.
+      LP: #1090980
+
+ -- Casey Marshall <casey.marshall@gazzang.com>  Tue, 22 Jan 2013 20:21:35 -0600
+
 hockeypuck (0.8) precise; urgency=low
 
   [ Casey Marshall ]
@@ -18,7 +30,7 @@ hockeypuck (0.8) precise; urgency=low
     removed directory instroot/etc/init:
     - A handful of packaging recommendations
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 09 Jan 2013 16:25:13 -0600
+ -- Casey Marshall <casey.marshall@gazzang.com>  Tue, 22 Jan 2013 11:00:00 -0600
 
 hockeypuck (0.7) precise; urgency=low
 

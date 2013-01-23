@@ -18,8 +18,8 @@
 package mgo
 
 import (
-	"code.google.com/p/go.crypto/openpgp/armor"
 	"bytes"
+	"code.google.com/p/go.crypto/openpgp/armor"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"

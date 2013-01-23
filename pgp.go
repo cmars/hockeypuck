@@ -89,24 +89,23 @@ func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 				errorChan <- err
 				return
 			}
-			p, err = op.Parse()
-			if err != nil {
-				errorChan <- err
-				return
-			}
+			p, _ = op.Parse()
 			switch p.(type) {
 			case *packet.PublicKey:
 				pk := p.(*packet.PublicKey)
+				if !pk.IsSubkey && pubKey != nil {
+					// New public key found, send prior one
+					keyChan <- pubKey
+					pubKey = nil
+				}
 				fp = Fingerprint(pk)
 				keyLength, err := pk.BitLength()
 				if err != nil {
+					log.Println("Failed to read bit length, fingerprint:", fp)
 					errorChan <- err
-					return
+					continue
 				}
 				if !pk.IsSubkey {
-					if pubKey != nil {
-						keyChan <- pubKey
-					}
 					// This is the primary public key
 					pubKey = &PubKey{
 						Fingerprint: fp,
@@ -187,10 +186,14 @@ func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 				case 2: // Bad signature packet
 					// TODO: Check for signature version 3
 					log.Println("Unsupported signature packet, skipping...")
-
 				case 6: // Bad public key packet
 					// TODO: Check for unsupported PGP public key packet version
 					// For now, clear state, ignore to next key
+					if pubKey != nil {
+						// Send prior public key, if any
+						keyChan <- pubKey
+						pubKey = nil
+					}
 					log.Println("Unsupported public key packet, skipping...")
 					pubKey = nil
 					currentSignable = nil
