@@ -20,6 +20,7 @@ package hockeypuck
 import (
 	"code.google.com/p/go.crypto/openpgp"
 	"code.google.com/p/go.crypto/openpgp/armor"
+	"code.google.com/p/go.crypto/openpgp/errors"
 	"code.google.com/p/go.crypto/openpgp/packet"
 	"crypto/sha512"
 	"encoding/binary"
@@ -77,6 +78,7 @@ func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 		defer close(keyChan)
 		defer close(errorChan)
 		var err error
+		var parseErr error
 		var currentSignable Signable
 		var currentUserId *UserId
 		or := packet.NewOpaqueReader(r)
@@ -89,7 +91,7 @@ func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 				errorChan <- err
 				return
 			}
-			p, _ = op.Parse()
+			p, parseErr = op.Parse()
 			switch p.(type) {
 			case *packet.PublicKey:
 				pk := p.(*packet.PublicKey)
@@ -173,31 +175,36 @@ func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 				currentSignable = userId
 				currentUserId = userId
 				pubKey.Identities = append(pubKey.Identities, userId)
-			case *packet.OpaquePacket:
-				// Packets not yet supported by go.crypto/openpgp
-				switch op.Tag {
-				case 17: // Process user attribute packet
-					userAttr := &UserAttribute{}
-					userAttr.SetPacket(op)
-					if currentUserId != nil {
-						currentUserId.Attributes = append(currentUserId.Attributes, userAttr)
-					}
-					currentSignable = userAttr
-				case 2: // Bad signature packet
-					// TODO: Check for signature version 3
-					log.Println("Unsupported signature packet, skipping...")
-				case 6: // Bad public key packet
-					// TODO: Check for unsupported PGP public key packet version
-					// For now, clear state, ignore to next key
-					if pubKey != nil {
-						// Send prior public key, if any
-						keyChan <- pubKey
+			default:
+				_, isUnknown := parseErr.(errors.UnknownPacketTypeError)
+				if isUnknown {
+					// Packets not yet supported by go.crypto/openpgp
+					switch op.Tag {
+					case 17: // Process user attribute packet
+						userAttr := &UserAttribute{}
+						userAttr.SetPacket(op)
+						if currentUserId != nil {
+							currentUserId.Attributes = append(currentUserId.Attributes, userAttr)
+						}
+						currentSignable = userAttr
+					case 2: // Bad signature packet
+						// TODO: Check for signature version 3
+						log.Println(parseErr)
+					case 6: // Bad public key packet
+						// TODO: Check for unsupported PGP public key packet version
+						// For now, clear state, ignore to next key
+						if pubKey != nil {
+							// Send prior public key, if any
+							keyChan <- pubKey
+							pubKey = nil
+						}
+						log.Println(parseErr)
 						pubKey = nil
+						currentSignable = nil
+						currentUserId = nil
+					default:
+						log.Println(parseErr)
 					}
-					log.Println("Unsupported public key packet, skipping...")
-					pubKey = nil
-					currentSignable = nil
-					currentUserId = nil
 				}
 				//case *packet.UserAttribute:
 			}

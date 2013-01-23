@@ -7,8 +7,11 @@ hockeypuck (0.8.1) precise; urgency=low
     - Fixed an issue where valid public keys preceding an
       invalid public key were not send to the channel.
       LP: #1090980
+  * pgp.go, pgp_types.go:
+    - Updated unknown/unsupported packet parsing wrt
+      changes in go.crypto merge.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Tue, 22 Jan 2013 20:21:35 -0600
+ -- Casey Marshall <casey.marshall@gazzang.com>  Tue, 22 Jan 2013 21:10:03 -0600
 
 hockeypuck (0.8) precise; urgency=low
 

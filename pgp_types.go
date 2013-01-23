@@ -229,11 +229,7 @@ func (o *UserAttribute) Traverse(c chan PacketObject) {
 func (o *UserAttribute) Parse() (packet.Packet, error) {
 	buf := bytes.NewBuffer(o.GetPacket())
 	opr := packet.NewOpaqueReader(buf)
-	opkt, err := opr.Next()
-	if err == nil {
-		return opkt.Parse()
-	}
-	return nil, err
+	return opr.Next()
 }
 
 // Image subpacket type
