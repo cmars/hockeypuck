@@ -11,13 +11,14 @@ fi
 
 # Build for each supported Ubuntu version
 for d in $DISTS; do
+	# Revert any changes (ie, debian/changelog)
+	bzr revert debian/changelog
 	# Append bzr revision and release distro info
 	sed -i -e "s/) [a-zA-Z0-9].*;/~bzr$REVNO~$d) $d;/i" debian/changelog
 	# Build source package
 	make debsrc
 	# Update changelog timestamp and committer
 	dch -r ""
-	# Revert any changes (ie, debian/changelog)
-	bzr revert debian/changelog
 done
 
+bzr revert debian/changelog
