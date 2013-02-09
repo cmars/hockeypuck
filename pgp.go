@@ -27,9 +27,9 @@ import (
 	"encoding/hex"
 	"io"
 	"log"
-	"regexp"
 	"strings"
 	"time"
+	"unicode"
 )
 
 // Comparable time flag for "never expires"
@@ -170,7 +170,7 @@ func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 				uid := p.(*packet.UserId)
 				userId := &UserId{
 					Id:       uid.Id,
-					Keywords: splitUserId(uid.Id)}
+					Keywords: SplitUserId(uid.Id)}
 				userId.SetPacket(op)
 				currentSignable = userId
 				currentUserId = userId
@@ -216,12 +216,22 @@ func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 	return keyChan, errorChan
 }
 
+func isUserDelim(c rune) bool {
+	return !unicode.IsLetter(c) && !unicode.IsDigit(c)
+}
+
 // Split a user ID string into fulltext searchable keywords.
-func splitUserId(id string) []string {
-	splitUidRegex, _ := regexp.Compile("\\S+")
-	result := splitUidRegex.FindAllString(id, -1)
-	for i, s := range result {
-		result[i] = strings.Trim(s, "<>")
+func SplitUserId(id string) []string {
+	m := make(map[string]bool)
+	for _, s := range strings.FieldsFunc(id, isUserDelim) {
+		s = strings.ToLower(strings.TrimFunc(s, isUserDelim))
+		if len(s) > 0 {
+			m[s] = true
+		}
+	}
+	result := []string{}
+	for k, _ := range m {
+		result = append(result, k)
 	}
 	return result
 }

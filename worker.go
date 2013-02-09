@@ -97,7 +97,7 @@ func serveHkp(wh *WorkerHandle) {
 					if lookup.Exact || strings.HasPrefix(lookup.Search, "0x") {
 						armor, err = GetKey(wh.w, lookup.Search[2:])
 					} else {
-						armor, err = FindKeys(wh.w, lookup.Search)
+						armor, err = FindKeys(wh.w, strings.ToLower(lookup.Search))
 					}
 					lookup.Response() <- &MessageResponse{Content: armor, Err: err}
 				case Index, Vindex:

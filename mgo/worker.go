@@ -52,7 +52,8 @@ type MgoWorker struct {
 }
 
 func (mw *MgoWorker) LookupKeys(search string, limit int) (keys []*PubKey, err error) {
-	q := mw.keys.Find(bson.M{"identities.keywords": search})
+	q := mw.keys.Find(bson.M{"identities.keywords":
+			bson.M{"$all": SplitUserId(search)}})
 	n, err := q.Count()
 	if n > limit {
 		return keys, TooManyResponses

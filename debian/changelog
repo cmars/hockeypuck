@@ -5,8 +5,12 @@ hockeypuck (0.8.2~a1) precise; urgency=low
     status_types.go, worker.go:
     - Added op=stats&options=json response to support spiders.
       LP: #1105592
+  * mgo/worker.go, pgp.go, worker.go:
+    - Split UID keywords into letter/digit tokens for search.
+      LP: #1108416
+    - Using $all on search terms in mongo query.
 
- -- Casey Marshall <casey.marshall@gmail.com>  Fri, 08 Feb 2013 23:24:20 -0600
+ -- Casey Marshall <casey.marshall@gmail.com>  Sat, 09 Feb 2013 00:11:05 -0600
 
 hockeypuck (0.8.1) precise; urgency=low
 
