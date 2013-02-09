@@ -115,7 +115,7 @@ func serveHkp(wh *WorkerHandle) {
 					status, err := wh.w.Status()
 					status.Hostname = lookup.Hostname
 					status.Port = lookup.Port
-					lookup.Response() <- &StatusResponse{Status: status, Err: err}
+					lookup.Response() <- &StatusResponse{Status: status, Err: err, Lookup: lookup}
 				default:
 					lookup.Response() <- &NotImplementedResponse{}
 				}

@@ -146,7 +146,8 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 }
 
 func (mw *MgoWorker) Status() (status *ServerStatus, err error) {
-	status = &ServerStatus{PksPeers: lastPksStatus, Version: Version}
+	status = &ServerStatus{Timestamp: time.Now().UnixNano(),
+		PksPeers: lastPksStatus, Version: Version}
 	for keyStat := range mw.KeyStatsHourly() {
 		status.KeyStatsHourly = append(status.KeyStatsHourly, keyStat)
 	}

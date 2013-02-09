@@ -155,6 +155,8 @@ func parseOptions(options string) Option {
 			result |= MachineReadable
 		case "nm":
 			result |= NotModifiable
+		case "json":
+			result |= JsonFormat
 		}
 	}
 	return result

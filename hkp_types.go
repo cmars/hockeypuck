@@ -43,6 +43,7 @@ type Option int
 const (
 	MachineReadable Option = 1 << iota
 	NotModifiable   Option = 1 << iota
+	JsonFormat      Option = 1 << iota
 	NoOption               = Option(0)
 )
 

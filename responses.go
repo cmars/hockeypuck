@@ -22,6 +22,7 @@ import (
 	"code.google.com/p/go.crypto/openpgp/packet"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/qpliu/qrencode-go/qrencode"
@@ -29,7 +30,10 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
+	"time"
 )
 
 type MessageResponse struct {
@@ -117,6 +121,7 @@ func (r *IndexResponse) WriteTo(w http.ResponseWriter) error {
 }
 
 type StatusResponse struct {
+	Lookup *Lookup
 	Status *ServerStatus
 	Err    error
 }
@@ -130,7 +135,49 @@ func (r *StatusResponse) WriteTo(w http.ResponseWriter) (err error) {
 	if err != nil {
 		return
 	}
-	err = StatusTemplate.ExecuteTemplate(w, "layout", r.Status)
+	if r.Lookup.Option&JsonFormat != 0 {
+		w.Header().Add("Content-Type", "application/json")
+		msg := map[string]interface{}{
+			"timestamp": time.Unix(0, r.Status.Timestamp).Unix(),
+			"hostname":  r.Status.Hostname,
+			"http_port": r.Status.Port,
+			"numkeys":   r.Status.TotalKeys,
+			"software":  filepath.Base(os.Args[0]),
+			"version":   r.Status.Version}
+		// Convert hourly stats
+		hours := []interface{}{}
+		for _, hour := range r.Status.KeyStatsHourly {
+			hours = append(hours, map[string]interface{}{
+				"time":         time.Unix(0, hour.Timestamp).Unix(),
+				"new_keys":     hour.Created,
+				"updated_keys": hour.Modified})
+		}
+		msg["stats_by_hour"] = hours
+		// Convert daily stats
+		days := []interface{}{}
+		for _, day := range r.Status.KeyStatsDaily {
+			days = append(days, map[string]interface{}{
+				"time":         time.Unix(0, day.Timestamp).Unix(),
+				"new_keys":     day.Created,
+				"updated_keys": day.Modified})
+		}
+		msg["stats_by_day"] = days
+		// Convert mailsync stats
+		mailPeers := []string{}
+		for _, pksStat := range r.Status.PksPeers {
+			mailPeers = append(mailPeers, pksStat.Addr)
+		}
+		msg["mailsync_peers"] = mailPeers
+		// Serialize and send
+		var jsonStr []byte
+		jsonStr, err = json.Marshal(msg)
+		if err == nil {
+			fmt.Fprintf(w, "%s", jsonStr)
+		}
+	} else {
+		w.Header().Add("Content-Type", "text/html")
+		err = StatusTemplate.ExecuteTemplate(w, "layout", r.Status)
+	}
 	return
 }
 

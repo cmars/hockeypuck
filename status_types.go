@@ -35,7 +35,7 @@ func (kos *KeyOpStats) Hour() string {
 }
 
 type ServerStatus struct {
-	Timestamp      string
+	Timestamp      int64
 	Hostname       string
 	Port           int
 	Version        string
