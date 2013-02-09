@@ -217,7 +217,14 @@ func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 }
 
 func isUserDelim(c rune) bool {
-	return !unicode.IsLetter(c) && !unicode.IsDigit(c)
+	switch c {
+	case '<': return true
+	case '>': return true
+	case '(': return true
+	case ')': return true
+	case '@': return true
+	}
+	return unicode.IsSpace(c)
 }
 
 // Split a user ID string into fulltext searchable keywords.
@@ -225,7 +232,7 @@ func SplitUserId(id string) []string {
 	m := make(map[string]bool)
 	for _, s := range strings.FieldsFunc(id, isUserDelim) {
 		s = strings.ToLower(strings.TrimFunc(s, isUserDelim))
-		if len(s) > 0 {
+		if len(s) > 2 {
 			m[s] = true
 		}
 	}
