@@ -343,7 +343,7 @@ func WriteMachineReadable(w io.Writer, key *PubKey) error {
 		keyExpiration = fmt.Sprintf("%d", keySelfSig.KeyExpirationTime)
 	}
 	fmt.Fprintf(w, "pub:%s:%d:%d:%d:%s:\n",
-		key.Fingerprint,
+		strings.ToUpper(key.Fingerprint),
 		key.Algorithm, key.KeyLength,
 		pk.CreationTime.Unix(),
 		keyExpiration)
@@ -361,6 +361,9 @@ func WriteMachineReadable(w io.Writer, key *PubKey) error {
 			}
 		}
 		fmt.Fprintf(w, "uid:%s:%s:%s:\n", uid.Id, sigCreation, sigExpiration)
+		for _, _ = range uid.Attributes {
+			fmt.Fprintf(w, "uat::::\n")
+		}
 	}
 	return nil
 }

@@ -11,8 +11,13 @@ hockeypuck (0.8.2~a1) precise; urgency=low
     - Using $all on search terms in mongo query.
   * scripts/fix-keywords.js:
     - Add script to repair uid keywords in existing Hockeypuck.
+  * pgp_types.go, responses.go:
+    - Display uat:::: placeholder in machine readable output.
+      LP: #1104703
+    - Removed debug print statement.
+    - Uppercased fingerprint in machine readable output.
 
- -- Casey Marshall <casey.marshall@gmail.com>  Sat, 09 Feb 2013 22:22:30 -0600
+ -- Casey Marshall <casey.marshall@gmail.com>  Sat, 09 Feb 2013 23:09:53 -0600
 
 hockeypuck (0.8.1) precise; urgency=low
 

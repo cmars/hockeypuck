@@ -22,8 +22,6 @@ import (
 	"code.google.com/p/go.crypto/openpgp/packet"
 	"crypto/sha512"
 	"encoding/hex"
-	"fmt"
-	"os"
 )
 
 // Common operations for all OpenPGP packets.
@@ -305,7 +303,6 @@ func (o *SubKey) Parse() (packet.Packet, error) {
 
 func (uid *UserId) SelfSignature() *Signature {
 	for _, userSig := range uid.Signatures {
-		fmt.Fprintf(os.Stderr, "uid sig: %v\n", userSig)
 		if packet.SignatureType(userSig.SigType) == packet.SigTypePositiveCert {
 			return userSig
 		}
