@@ -31,20 +31,24 @@ db = conn.getDB("hockeypuck");
 var c = db.keys.find()
 while (c.hasNext()) {
 	var key = c.next();
-	for (var i = 0; i < key.identities.length; i++) {
-		var id = key.identities[i]
-		var newKeywords = {};
-		id.keywords.forEach(function(kw){
-			var parts = kw.split(/\s+|[<>()@,]+/)
-			parts.forEach(function(part){
-				if (part.length > 2) {
-					part = part.toLowerCase();
-					newKeywords[part] = 1;
-				}
+	try {
+		for (var i = 0; i < key.identities.length; i++) {
+			var id = key.identities[i]
+			var newKeywords = {};
+			id.keywords.forEach(function(kw){
+				var parts = kw.split(/\s+|[<>()@,]+/)
+				parts.forEach(function(part){
+					if (part.length > 2) {
+						part = part.toLowerCase();
+						newKeywords[part] = 1;
+					}
+				});
 			});
-		});
-		id.keywords = Object.keySet(newKeywords);
-		print('updated keywords:' + id.keywords)
+			id.keywords = Object.keySet(newKeywords);
+			print('updated keywords:' + id.keywords);
+		}
+		db.keys.save(key);
+	} catch (err) {
+		print("Exception processing key " + key.fingerprint + ": " + err);
 	}
-	db.keys.save(key);
 }
