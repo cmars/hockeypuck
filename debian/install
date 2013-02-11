@@ -1,4 +1,5 @@
 gopath/bin/hockeypuck-mgo /usr/bin/
 gopath/bin/hockeypuck-load /usr/bin/
 instroot/etc/hockeypuck /etc/
+instroot/usr/share/hockeypuck/scripts /usr/share/hockeypuck/
 instroot/var/lib/hockeypuck/www /var/lib/hockeypuck/

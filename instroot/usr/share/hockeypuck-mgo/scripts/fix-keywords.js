@@ -20,9 +20,10 @@
  * ===============
  *
  * Fix keywords to improve search.
- * This script will update keywords in an existing
- * Hockeypuck MongoDB to support changes for
- * case-insensitive search, and improved keyword tokenization.
+ * This script will repair UID keywords in a Hockeypuck MongoDB
+ * prior to Hockeypuck 0.8.2, which fixed case-insensitive
+ * search and improved keyword tokenization on load.
+ * 
  * See also LP: #1108416
  */
 conn = new Mongo();
