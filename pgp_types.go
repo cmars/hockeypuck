@@ -123,6 +123,7 @@ type Signature struct {
 	KeyExpirationTime int64
 	Packet            []byte
 	Digest            string
+	IssuerUid string ",omitempty"
 }
 
 func (o *Signature) IssuerKeyId() string {

@@ -25,6 +25,7 @@ import (
 	"crypto/sha512"
 	"encoding/binary"
 	"encoding/hex"
+	Errors "errors"
 	"io"
 	"log"
 	"time"
@@ -212,4 +213,69 @@ func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 		}
 	}()
 	return keyChan, errorChan
+}
+
+func ReadValidKeys(r io.Reader) (validKeyChan chan *PubKey, validErrorChan chan error) {
+	validKeyChan = make(chan *PubKey)
+	validErrorChan = make(chan error)
+	keyChan, errorChan := ReadKeys(r)
+	go func(){
+		defer close(validKeyChan)
+		defer close(validErrorChan)
+		for {
+			select {
+			case pubKey, ok :=<-keyChan:
+				if !ok {
+					return
+				}
+				err := checkValidSignatures(pubKey)
+				if err == nil {
+					validKeyChan <- pubKey
+				} else {
+					validErrorChan <- err
+				}
+			case err, ok :=<-errorChan:
+				if !ok {
+					return
+				}
+				validErrorChan <- err
+			}
+		}
+	}()
+	return
+}
+
+var BadSelfSigError error = Errors.New("Bad self-signature")
+var MissingSelfSigError error = Errors.New("Missing self-signature")
+
+func checkValidSignatures(key *PubKey) error {
+	pkPkt, err := key.Parse()
+	pk := pkPkt.(*packet.PublicKey)
+	if err != nil {
+		return err
+	}
+	packets := make(chan PacketObject)
+	go func(){
+		key.Traverse(packets)
+		close(packets)
+	}()
+	for _, uid := range key.Identities {
+		var goodSelfSig *Signature
+		for _, sig := range uid.Signatures {
+			sigPkt, err := sig.Parse()
+			s := sigPkt.(*packet.Signature)
+			if (s.SigType == packet.SigTypePositiveCert || s.SigType == packet.SigTypeGenericCert) && s.IssuerKeyId != nil && *s.IssuerKeyId == pk.KeyId {
+				if err = pk.VerifyUserIdSignature(uid.Id, s); err == nil {
+					goodSelfSig = sig
+					break
+				} else {
+					return BadSelfSigError
+				}
+			}
+		}
+		if goodSelfSig == nil {
+			return MissingSelfSigError
+		}
+	}
+	return nil
 }

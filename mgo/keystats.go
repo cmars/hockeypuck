@@ -23,8 +23,7 @@ func (c *MgoClient) keyStats(coll *mgo.Collection, since time.Time) chan *KeyOpS
 		q := coll.Find(bson.M{"timestamp": bson.M{"$gt": since.UnixNano()}})
 		q = q.Sort("-timestamp")
 		i := q.Iter()
-		kos := &KeyOpStats{}
-		for i.Next(kos) {
+		for kos := new(KeyOpStats); i.Next(kos); kos = new(KeyOpStats) {
 			out <- kos
 		}
 		err := i.Err()

@@ -314,10 +314,11 @@ func WriteVindex(w io.Writer, key *PubKey) error {
 				LongId  string
 				ShortId string
 				SigTime string
+				Uid string
 			}{
 				longId,
 				longId[8:16],
-				sigTime})
+				sigTime, sig.IssuerUid})
 		case *UserAttribute:
 			uattr := pktObj.(*UserAttribute)
 			for _, imageData := range uattr.GetJpegData() {

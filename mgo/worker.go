@@ -74,6 +74,7 @@ func (mw *MgoWorker) LookupKeys(search string, limit int) (keys []*PubKey, err e
 	pubKey := new(PubKey)
 	iter := q.Iter()
 	for iter.Next(pubKey) {
+		mw.addSignatureUids(pubKey)
 		keys = append(keys, pubKey)
 		pubKey = new(PubKey)
 	}
@@ -107,7 +108,35 @@ func (mw *MgoWorker) LookupKey(keyid string) (*PubKey, error) {
 	} else if err != nil {
 		return nil, err
 	}
+	mw.addSignatureUids(key)
 	return key, nil
+}
+
+func (mw *MgoWorker) addSignatureUids(key *PubKey) (err error) {
+	pktChan := make(chan PacketObject)
+	go func(){
+		key.Traverse(pktChan)
+		close(pktChan)
+	}()
+	for pktObj := range pktChan {
+		if sig, is := pktObj.(*Signature); is {
+			if sig.IssuerUid == "" {
+				result := &struct{Identities []*struct{ Id string }}{}
+						//Id string }}//make(map[string]interface{})
+				q := mw.keys.Find(bson.M{"rfingerprint":
+					bson.RegEx{Pattern: fmt.Sprintf("^%s", sig.RIssuerKeyId)}})
+				q.Select(bson.M{"identities.id": 1})
+				err = q.One(result)
+				if err != nil {
+					return
+				}
+				if len(result.Identities) > 0 {
+					sig.IssuerUid = result.Identities[0].Id
+				}
+			}
+		}
+	}
+	return
 }
 
 func (mw *MgoWorker) AddKey(armoredKey string) ([]string, error) {
@@ -120,7 +149,7 @@ func (mw *MgoWorker) AddKey(armoredKey string) ([]string, error) {
 }
 
 func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
-	keyChan, errChan := ReadKeys(r)
+	keyChan, errChan := ReadValidKeys(r)
 	for {
 		select {
 		case key, moreKeys := <-keyChan:
@@ -136,7 +165,7 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 						lastKey.Mtime = time.Now().UnixNano()
 						err = mw.keys.Update(bson.M{"fingerprint": key.Fingerprint()}, lastKey)
 						if err == nil {
-							mw.createdKeys <- lastKey
+							mw.modifiedKeys <- lastKey
 						}
 					} else {
 						mw.l.Print("Update: skipped, no change in cumulative digest")
@@ -148,7 +177,7 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 					key.CumlDigest = CumlDigest(key)
 					err = mw.keys.Insert(key)
 					if err == nil {
-						mw.modifiedKeys <- key
+						mw.createdKeys <- key
 					}
 				}
 				if err != nil {
@@ -168,23 +197,35 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 }
 
 func (mw *MgoWorker) updateStats() {
+	keysCreatedDaily := make(map[int64]int)
+	keysCreatedHourly := make(map[int64]int)
+	keysModifiedDaily := make(map[int64]int)
+	keysModifiedHourly := make(map[int64]int)
+	flushedAt := time.Now()
 	for {
 		select {
 		case key :=<-mw.createdKeys:
-			mw.keysDaily.Upsert(bson.M{
-				"timestamp": key.Ctime - (key.Ctime % int64(24*time.Hour))},
-				bson.M{"$inc": bson.M{ "created": 1 }})
-			mw.keysHourly.Upsert(bson.M{
-				"timestamp": key.Ctime - (key.Ctime % int64(time.Hour))},
-				bson.M{"$inc": bson.M{ "created": 1 }})
+			keysCreatedDaily[key.Ctime - (key.Ctime % int64(24*time.Hour))]++
+			keysCreatedHourly[key.Ctime - (key.Ctime % int64(time.Hour))]++
 		case key :=<-mw.modifiedKeys:
-			mw.keysDaily.Upsert(bson.M{
-				"timestamp": key.Mtime - (key.Mtime % int64(24*time.Hour))},
-				bson.M{"$inc": bson.M{ "modified": 1 }})
-			mw.keysHourly.Upsert(bson.M{
-				"timestamp": key.Mtime - (key.Mtime % int64(time.Hour))},
-				bson.M{"$inc": bson.M{ "modified": 1 }})
+			keysModifiedDaily[key.Ctime - (key.Mtime % int64(24*time.Hour))]++
+			keysModifiedHourly[key.Ctime - (key.Mtime % int64(time.Hour))]++
 		}
+		if time.Since(flushedAt) > time.Minute {
+			updateStat(mw.keysDaily, keysCreatedDaily, "created")
+			updateStat(mw.keysHourly, keysCreatedHourly, "created")
+			updateStat(mw.keysDaily, keysModifiedDaily, "modified")
+			updateStat(mw.keysHourly, keysModifiedHourly, "modified")
+			flushedAt = time.Now()
+		}
+	}
+}
+
+func updateStat(c *mgo.Collection, stats map[int64]int, field string) {
+	for timestamp, count := range stats {
+		c.Upsert(bson.M{"timestamp": timestamp},
+			bson.M{"$inc": bson.M{ field: count }})
+		delete(stats, timestamp)
 	}
 }
 

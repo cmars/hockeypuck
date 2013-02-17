@@ -27,8 +27,15 @@ hockeypuck (0.9~a1) precise; urgency=low
     - Remove invalid UTF-8 characters from uid strings.
     - Reversed issuer key ID in signature for faster lookups
       (anchored regex for mongo, prefixed LIKE for RDBMS).
+  * instroot/var/lib/hockeypuck/www/templates/pks/index.tmpl,
+    mgo/keystats.go, mgo/worker.go, pgp.go, pgp_types.go, responses.go:
+    - Require valid UID self-sign to load key material.
+    - Send proper key var to stats channel on insert/update.
+    - Get UID of signature keyid in LookupKey(s), display in vindex.
+    - Aggregate loading statistics, bulk upsert increments to
+      reduce mongodb load.
 
- -- Casey Marshall <casey.marshall@gmail.com>  Sat, 16 Feb 2013 18:33:17 -0600
+ -- Casey Marshall <casey.marshall@gmail.com>  Sun, 17 Feb 2013 02:03:55 -0600
 
 hockeypuck (0.8.1) precise; urgency=low
 
