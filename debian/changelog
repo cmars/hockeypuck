@@ -1,4 +1,4 @@
-hockeypuck (0.8.2~a1) precise; urgency=low
+hockeypuck (0.9~a1) precise; urgency=low
 
   [ Casey Marshall ]
   * hkp_types.go, mgo/worker.go, responses.go, server.go,
@@ -16,8 +16,19 @@ hockeypuck (0.8.2~a1) precise; urgency=low
       LP: #1104703
     - Removed debug print statement.
     - Uppercased fingerprint in machine readable output.
+  * cmd/hockeypuck-mgo/main.go, mgo/client.go, mgo/keystats.go,
+    mgo/pks.go, mgo/worker.go, pgp.go, pgp_types.go, responses.go,
+    strings.go:
+    - Several MongoDB improvements:
+      - Leverage reversed fingerprint for long, short keyid lookup
+        with regex indexed query, removed indexed on these.
+      - Replace map-reduce generated stats with time-bucket
+        increments on load.
+    - Remove invalid UTF-8 characters from uid strings.
+    - Reversed issuer key ID in signature for faster lookups
+      (anchored regex for mongo, prefixed LIKE for RDBMS).
 
- -- Casey Marshall <casey.marshall@gmail.com>  Sat, 09 Feb 2013 23:09:53 -0600
+ -- Casey Marshall <casey.marshall@gmail.com>  Sat, 16 Feb 2013 18:33:17 -0600
 
 hockeypuck (0.8.1) precise; urgency=low
 

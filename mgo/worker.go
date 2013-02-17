@@ -24,6 +24,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
@@ -47,8 +48,20 @@ func NewUuid() (string, error) {
 	return string(buf.Bytes()), nil
 }
 
+type StatKeyChan chan *PubKey
+
 type MgoWorker struct {
 	*MgoClient
+	createdKeys StatKeyChan
+	modifiedKeys StatKeyChan
+}
+
+func NewMgoWorker(client *MgoClient) *MgoWorker {
+	worker := &MgoWorker{MgoClient:client,
+		createdKeys: make(StatKeyChan, 10),
+		modifiedKeys: make(StatKeyChan, 10)}
+	go worker.updateStats()
+	return worker
 }
 
 func (mw *MgoWorker) LookupKeys(search string, limit int) (keys []*PubKey, err error) {
@@ -75,13 +88,15 @@ func (mw *MgoWorker) LookupKey(keyid string) (*PubKey, error) {
 		return nil, InvalidKeyId
 	}
 	var q *mgo.Query
+	rkeyid := Reverse(keyid)
 	switch len(raw) {
 	case 4:
-		q = mw.keys.Find(bson.M{"shortid": raw})
+		fallthrough
 	case 8:
-		q = mw.keys.Find(bson.M{"keyid": raw})
+		q = mw.keys.Find(bson.M{"rfingerprint": bson.RegEx{
+			Pattern: fmt.Sprintf("^%s", rkeyid)}})
 	case 20:
-		q = mw.keys.Find(bson.M{"fingerprint": keyid})
+		q = mw.keys.Find(bson.M{"rfingerprint": rkeyid})
 	default:
 		return nil, InvalidKeyId
 	}
@@ -111,30 +126,36 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 		case key, moreKeys := <-keyChan:
 			if key != nil {
 				var lastKey *PubKey
-				lastKey, err = mw.LookupKey(key.Fingerprint)
+				lastKey, err = mw.LookupKey(key.Fingerprint())
 				if err == nil && lastKey != nil {
 					lastCuml := lastKey.CumlDigest
 					MergeKey(lastKey, key)
 					lastKey.CumlDigest = CumlDigest(lastKey)
 					if lastKey.CumlDigest != lastCuml {
-						mw.l.Print("Updated:", key.Fingerprint)
+						mw.l.Print("Updated:", key.Fingerprint())
 						lastKey.Mtime = time.Now().UnixNano()
-						err = mw.keys.Update(bson.M{"fingerprint": key.Fingerprint}, lastKey)
+						err = mw.keys.Update(bson.M{"fingerprint": key.Fingerprint()}, lastKey)
+						if err == nil {
+							mw.createdKeys <- lastKey
+						}
 					} else {
 						mw.l.Print("Update: skipped, no change in cumulative digest")
 					}
 				} else if err == KeyNotFound {
-					mw.l.Print("Insert:", key.Fingerprint)
+					mw.l.Print("Insert:", key.Fingerprint())
 					key.Ctime = time.Now().UnixNano()
 					key.Mtime = key.Ctime
 					key.CumlDigest = CumlDigest(key)
 					err = mw.keys.Insert(key)
+					if err == nil {
+						mw.modifiedKeys <- key
+					}
 				}
 				if err != nil {
+					mw.l.Print("Error:", err)
 					return
-				} else {
-					fps = append(fps, key.Fingerprint)
 				}
+				fps = append(fps, key.Fingerprint())
 			}
 			if !moreKeys {
 				return
@@ -144,6 +165,27 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 		}
 	}
 	panic("unreachable")
+}
+
+func (mw *MgoWorker) updateStats() {
+	for {
+		select {
+		case key :=<-mw.createdKeys:
+			mw.keysDaily.Upsert(bson.M{
+				"timestamp": key.Ctime - (key.Ctime % int64(24*time.Hour))},
+				bson.M{"$inc": bson.M{ "created": 1 }})
+			mw.keysHourly.Upsert(bson.M{
+				"timestamp": key.Ctime - (key.Ctime % int64(time.Hour))},
+				bson.M{"$inc": bson.M{ "created": 1 }})
+		case key :=<-mw.modifiedKeys:
+			mw.keysDaily.Upsert(bson.M{
+				"timestamp": key.Mtime - (key.Mtime % int64(24*time.Hour))},
+				bson.M{"$inc": bson.M{ "modified": 1 }})
+			mw.keysHourly.Upsert(bson.M{
+				"timestamp": key.Mtime - (key.Mtime % int64(time.Hour))},
+				bson.M{"$inc": bson.M{ "modified": 1 }})
+		}
+	}
 }
 
 func (mw *MgoWorker) Status() (status *ServerStatus, err error) {

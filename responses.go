@@ -21,7 +21,6 @@ import (
 	"bytes"
 	"code.google.com/p/go.crypto/openpgp/packet"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -237,9 +236,9 @@ func WriteIndex(w io.Writer, key *PubKey) error {
 			}{
 				key.KeyLength,
 				AlgorithmCode(key.Algorithm),
-				key.Fingerprint,
-				qrEncodeToDataUri(key.Fingerprint),
-				strings.ToUpper(key.Fingerprint[32:40]),
+				key.Fingerprint(),
+				qrEncodeToDataUri(key.Fingerprint()),
+				strings.ToUpper(key.Fingerprint()[32:40]),
 				pk.CreationTime.Format("2006-01-02")})
 		case *UserId:
 			uid := pktObj.(*UserId)
@@ -247,7 +246,7 @@ func WriteIndex(w io.Writer, key *PubKey) error {
 				Fingerprint string
 				Id          string
 			}{
-				key.Fingerprint,
+				key.Fingerprint(),
 				uid.Id})
 		case *UserAttribute:
 			uattr := pktObj.(*UserAttribute)
@@ -287,9 +286,9 @@ func WriteVindex(w io.Writer, key *PubKey) error {
 			}{
 				key.KeyLength,
 				AlgorithmCode(key.Algorithm),
-				key.Fingerprint,
-				qrEncodeToDataUri(key.Fingerprint),
-				strings.ToUpper(key.Fingerprint[32:40]),
+				key.Fingerprint(),
+				qrEncodeToDataUri(key.Fingerprint()),
+				strings.ToUpper(key.Fingerprint()[32:40]),
 				pk.CreationTime.Format("2006-01-02")})
 		case *UserId:
 			uid := pktObj.(*UserId)
@@ -297,11 +296,11 @@ func WriteVindex(w io.Writer, key *PubKey) error {
 				Fingerprint string
 				Id          string
 			}{
-				key.Fingerprint,
+				key.Fingerprint(),
 				uid.Id})
 		case *Signature:
 			sig := pktObj.(*Signature)
-			longId := strings.ToUpper(hex.EncodeToString(sig.IssuerKeyId))
+			longId := sig.IssuerKeyId()
 			pkt, err := sig.Parse()
 			if err != nil {
 				return err
@@ -343,7 +342,7 @@ func WriteMachineReadable(w io.Writer, key *PubKey) error {
 		keyExpiration = fmt.Sprintf("%d", keySelfSig.KeyExpirationTime)
 	}
 	fmt.Fprintf(w, "pub:%s:%d:%d:%d:%s:\n",
-		strings.ToUpper(key.Fingerprint),
+		strings.ToUpper(key.Fingerprint()),
 		key.Algorithm, key.KeyLength,
 		pk.CreationTime.Unix(),
 		keyExpiration)

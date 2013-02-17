@@ -48,19 +48,29 @@ type Signable interface {
 // Searchable fields are extracted from the packet key material
 // stored in Packet, for database indexing.
 type PubKey struct {
-	Fingerprint string
-	KeyId       []byte
-	ShortId     []byte
-	Algorithm   int
-	KeyLength   uint16
-	Signatures  []*Signature
-	Identities  []*UserId
-	SubKeys     []*SubKey
-	Packet      []byte
-	Digest      string
-	Ctime       int64
-	Mtime       int64
-	CumlDigest  string
+	RFingerprint string
+	Algorithm    int
+	KeyLength    uint16
+	Signatures   []*Signature
+	Identities   []*UserId
+	SubKeys      []*SubKey
+	Packet       []byte
+	Digest       string
+	Ctime        int64
+	Mtime        int64
+	CumlDigest   string
+}
+
+func (pubKey *PubKey) Fingerprint() string {
+	return Reverse(pubKey.RFingerprint)
+}
+
+func (pubKey *PubKey) KeyId() string {
+	return Reverse(pubKey.RFingerprint[:16])
+}
+
+func (pubKey *PubKey) ShortId() string {
+	return Reverse(pubKey.RFingerprint[:8])
 }
 
 func (pubKey *PubKey) AppendSig(sig *Signature) {
@@ -107,12 +117,16 @@ func (o *PubKey) Parse() (packet.Packet, error) {
 
 type Signature struct {
 	SigType           int
-	IssuerKeyId       []byte
+	RIssuerKeyId      string
 	CreationTime      int64
 	SigExpirationTime int64
 	KeyExpirationTime int64
 	Packet            []byte
 	Digest            string
+}
+
+func (o *Signature) IssuerKeyId() string {
+	return Reverse(o.RIssuerKeyId)
 }
 
 func (o *Signature) GetPacket() []byte {
@@ -257,12 +271,24 @@ func (userAttr *UserAttribute) GetJpegData() (result []*bytes.Buffer) {
 }
 
 type SubKey struct {
-	Fingerprint string
+	RFingerprint string
 	Algorithm   int
 	KeyLength   uint16
 	Signatures  []*Signature
 	Packet      []byte
 	Digest      string
+}
+
+func (subKey *SubKey) Fingerprint() string {
+	return Reverse(subKey.RFingerprint)
+}
+
+func (subKey *SubKey) KeyId() string {
+	return Reverse(subKey.RFingerprint[:16])
+}
+
+func (subKey *SubKey) ShortId() string {
+	return Reverse(subKey.RFingerprint[:8])
 }
 
 func (subKey *SubKey) AppendSig(sig *Signature) {

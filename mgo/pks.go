@@ -67,7 +67,7 @@ func (mps *MgoPksSync) SendKeys(stat *PksStat) (err error) {
 	key := &PubKey{}
 	for i.Next(key) {
 		// Send key email
-		mps.l.Println("Sending key", key.Fingerprint, "to PKS", stat.Addr)
+		mps.l.Println("Sending key", key.Fingerprint(), "to PKS", stat.Addr)
 		err = mps.SendKey(stat.Addr, key)
 		if err != nil {
 			mps.l.Println("Error sending key to PKS", stat.Addr, ":", err)

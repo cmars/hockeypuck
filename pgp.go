@@ -27,9 +27,7 @@ import (
 	"encoding/hex"
 	"io"
 	"log"
-	"strings"
 	"time"
-	"unicode"
 )
 
 // Comparable time flag for "never expires"
@@ -110,9 +108,7 @@ func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 				if !pk.IsSubkey {
 					// This is the primary public key
 					pubKey = &PubKey{
-						Fingerprint: fp,
-						KeyId:       pk.Fingerprint[12:20],
-						ShortId:     pk.Fingerprint[16:20],
+						RFingerprint: Reverse(fp),
 						Algorithm:   int(pk.PubKeyAlgo),
 						KeyLength:   keyLength}
 					pubKey.SetPacket(op)
@@ -123,7 +119,7 @@ func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 					}
 					// This is a sub key
 					subKey := &SubKey{
-						Fingerprint: fp,
+						RFingerprint: Reverse(fp),
 						Algorithm:   int(pk.PubKeyAlgo),
 						KeyLength:   keyLength}
 					subKey.SetPacket(op)
@@ -140,7 +136,7 @@ func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 				if s.IssuerKeyId == nil {
 					// Without an issuer, a signature doesn't mean much
 					log.Println("Signature missing IssuerKeyId!", "Public key fingerprint:",
-						pubKey.Fingerprint)
+						pubKey.Fingerprint())
 					continue
 				}
 				var issuerKeyId [8]byte
@@ -155,9 +151,10 @@ func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 					keyExpirationTime = s.CreationTime.Add(
 						time.Duration(*s.KeyLifetimeSecs) * time.Second).Unix()
 				}
+				sigKeyId := hex.EncodeToString(issuerKeyId[:])
 				sig := &Signature{
 					SigType:           int(s.SigType),
-					IssuerKeyId:       issuerKeyId[:],
+					RIssuerKeyId:       Reverse(sigKeyId),
 					CreationTime:      s.CreationTime.Unix(),
 					SigExpirationTime: sigExpirationTime,
 					KeyExpirationTime: keyExpirationTime}
@@ -168,9 +165,10 @@ func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 					continue
 				}
 				uid := p.(*packet.UserId)
+				id := CleanUtf8(uid.Id)
 				userId := &UserId{
-					Id:       uid.Id,
-					Keywords: SplitUserId(uid.Id)}
+					Id:       id,
+					Keywords: SplitUserId(id)}
 				userId.SetPacket(op)
 				currentSignable = userId
 				currentUserId = userId
@@ -214,31 +212,4 @@ func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 		}
 	}()
 	return keyChan, errorChan
-}
-
-func isUserDelim(c rune) bool {
-	switch c {
-	case '<': return true
-	case '>': return true
-	case '(': return true
-	case ')': return true
-	case '@': return true
-	}
-	return unicode.IsSpace(c)
-}
-
-// Split a user ID string into fulltext searchable keywords.
-func SplitUserId(id string) []string {
-	m := make(map[string]bool)
-	for _, s := range strings.FieldsFunc(id, isUserDelim) {
-		s = strings.ToLower(strings.TrimFunc(s, isUserDelim))
-		if len(s) > 2 {
-			m[s] = true
-		}
-	}
-	result := []string{}
-	for k, _ := range m {
-		result = append(result, k)
-	}
-	return result
 }
