@@ -52,21 +52,20 @@ type StatKeyChan chan *PubKey
 
 type MgoWorker struct {
 	*MgoClient
-	createdKeys StatKeyChan
+	createdKeys  StatKeyChan
 	modifiedKeys StatKeyChan
 }
 
 func NewMgoWorker(client *MgoClient) *MgoWorker {
-	worker := &MgoWorker{MgoClient:client,
-		createdKeys: make(StatKeyChan, 10),
+	worker := &MgoWorker{MgoClient: client,
+		createdKeys:  make(StatKeyChan, 10),
 		modifiedKeys: make(StatKeyChan, 10)}
 	go worker.updateStats()
 	return worker
 }
 
 func (mw *MgoWorker) LookupKeys(search string, limit int) (keys []*PubKey, err error) {
-	q := mw.keys.Find(bson.M{"identities.keywords":
-			bson.M{"$all": SplitUserId(search)}})
+	q := mw.keys.Find(bson.M{"identities.keywords": bson.M{"$all": SplitUserId(search)}})
 	n, err := q.Count()
 	if n > limit {
 		return keys, TooManyResponses
@@ -114,17 +113,16 @@ func (mw *MgoWorker) LookupKey(keyid string) (*PubKey, error) {
 
 func (mw *MgoWorker) addSignatureUids(key *PubKey) (err error) {
 	pktChan := make(chan PacketObject)
-	go func(){
+	go func() {
 		key.Traverse(pktChan)
 		close(pktChan)
 	}()
 	for pktObj := range pktChan {
 		if sig, is := pktObj.(*Signature); is {
 			if sig.IssuerUid == "" {
-				result := &struct{Identities []*struct{ Id string }}{}
-						//Id string }}//make(map[string]interface{})
-				q := mw.keys.Find(bson.M{"rfingerprint":
-					bson.RegEx{Pattern: fmt.Sprintf("^%s", sig.RIssuerKeyId)}})
+				result := &struct{ Identities []*struct{ Id string } }{}
+				//Id string }}//make(map[string]interface{})
+				q := mw.keys.Find(bson.M{"rfingerprint": bson.RegEx{Pattern: fmt.Sprintf("^%s", sig.RIssuerKeyId)}})
 				q.Select(bson.M{"identities.id": 1})
 				err = q.One(result)
 				if err != nil {
@@ -204,12 +202,12 @@ func (mw *MgoWorker) updateStats() {
 	flushedAt := time.Now()
 	for {
 		select {
-		case key :=<-mw.createdKeys:
-			keysCreatedDaily[key.Ctime - (key.Ctime % int64(24*time.Hour))]++
-			keysCreatedHourly[key.Ctime - (key.Ctime % int64(time.Hour))]++
-		case key :=<-mw.modifiedKeys:
-			keysModifiedDaily[key.Ctime - (key.Mtime % int64(24*time.Hour))]++
-			keysModifiedHourly[key.Ctime - (key.Mtime % int64(time.Hour))]++
+		case key := <-mw.createdKeys:
+			keysCreatedDaily[key.Ctime-(key.Ctime%int64(24*time.Hour))]++
+			keysCreatedHourly[key.Ctime-(key.Ctime%int64(time.Hour))]++
+		case key := <-mw.modifiedKeys:
+			keysModifiedDaily[key.Ctime-(key.Mtime%int64(24*time.Hour))]++
+			keysModifiedHourly[key.Ctime-(key.Mtime%int64(time.Hour))]++
 		}
 		if time.Since(flushedAt) > time.Minute {
 			updateStat(mw.keysDaily, keysCreatedDaily, "created")
@@ -224,7 +222,7 @@ func (mw *MgoWorker) updateStats() {
 func updateStat(c *mgo.Collection, stats map[int64]int, field string) {
 	for timestamp, count := range stats {
 		c.Upsert(bson.M{"timestamp": timestamp},
-			bson.M{"$inc": bson.M{ field: count }})
+			bson.M{"$inc": bson.M{field: count}})
 		delete(stats, timestamp)
 	}
 }

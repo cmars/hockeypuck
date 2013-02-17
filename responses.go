@@ -314,7 +314,7 @@ func WriteVindex(w io.Writer, key *PubKey) error {
 				LongId  string
 				ShortId string
 				SigTime string
-				Uid string
+				Uid     string
 			}{
 				longId,
 				longId[8:16],

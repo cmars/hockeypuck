@@ -18,14 +18,20 @@
 package hockeypuck
 
 import (
+	_ "code.google.com/p/go.crypto/md4"
 	"code.google.com/p/go.crypto/openpgp"
 	"code.google.com/p/go.crypto/openpgp/armor"
 	"code.google.com/p/go.crypto/openpgp/errors"
 	"code.google.com/p/go.crypto/openpgp/packet"
+	_ "code.google.com/p/go.crypto/ripemd160"
+	_ "crypto/md5"
+	_ "crypto/sha1"
+	_ "crypto/sha256"
 	"crypto/sha512"
 	"encoding/binary"
 	"encoding/hex"
 	Errors "errors"
+	"fmt"
 	"io"
 	"log"
 	"time"
@@ -110,8 +116,8 @@ func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 					// This is the primary public key
 					pubKey = &PubKey{
 						RFingerprint: Reverse(fp),
-						Algorithm:   int(pk.PubKeyAlgo),
-						KeyLength:   keyLength}
+						Algorithm:    int(pk.PubKeyAlgo),
+						KeyLength:    keyLength}
 					pubKey.SetPacket(op)
 					currentSignable = pubKey
 				} else {
@@ -121,8 +127,8 @@ func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 					// This is a sub key
 					subKey := &SubKey{
 						RFingerprint: Reverse(fp),
-						Algorithm:   int(pk.PubKeyAlgo),
-						KeyLength:   keyLength}
+						Algorithm:    int(pk.PubKeyAlgo),
+						KeyLength:    keyLength}
 					subKey.SetPacket(op)
 					pubKey.SubKeys = append(pubKey.SubKeys, subKey)
 					currentSignable = subKey
@@ -155,7 +161,7 @@ func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 				sigKeyId := hex.EncodeToString(issuerKeyId[:])
 				sig := &Signature{
 					SigType:           int(s.SigType),
-					RIssuerKeyId:       Reverse(sigKeyId),
+					RIssuerKeyId:      Reverse(sigKeyId),
 					CreationTime:      s.CreationTime.Unix(),
 					SigExpirationTime: sigExpirationTime,
 					KeyExpirationTime: keyExpirationTime}
@@ -219,12 +225,12 @@ func ReadValidKeys(r io.Reader) (validKeyChan chan *PubKey, validErrorChan chan 
 	validKeyChan = make(chan *PubKey)
 	validErrorChan = make(chan error)
 	keyChan, errorChan := ReadKeys(r)
-	go func(){
+	go func() {
 		defer close(validKeyChan)
 		defer close(validErrorChan)
 		for {
 			select {
-			case pubKey, ok :=<-keyChan:
+			case pubKey, ok := <-keyChan:
 				if !ok {
 					return
 				}
@@ -234,7 +240,7 @@ func ReadValidKeys(r io.Reader) (validKeyChan chan *PubKey, validErrorChan chan 
 				} else {
 					validErrorChan <- err
 				}
-			case err, ok :=<-errorChan:
+			case err, ok := <-errorChan:
 				if !ok {
 					return
 				}
@@ -247,34 +253,71 @@ func ReadValidKeys(r io.Reader) (validKeyChan chan *PubKey, validErrorChan chan 
 
 var BadSelfSigError error = Errors.New("Bad self-signature")
 var MissingSelfSigError error = Errors.New("Missing self-signature")
+var BadSubKeySigError error = Errors.New("Bad sub-key signature")
+var MissingSubKeySigError error = Errors.New("Missing sub-key signature")
 
-func checkValidSignatures(key *PubKey) error {
+func checkValidSignatures(key *PubKey) (verr error) {
+	defer func() {
+		if r := recover(); r != nil {
+			verr = Errors.New(fmt.Sprintf("%v", r))
+		}
+	}()
 	pkPkt, err := key.Parse()
 	pk := pkPkt.(*packet.PublicKey)
 	if err != nil {
 		return err
 	}
-	packets := make(chan PacketObject)
-	go func(){
-		key.Traverse(packets)
-		close(packets)
-	}()
 	for _, uid := range key.Identities {
 		var goodSelfSig *Signature
 		for _, sig := range uid.Signatures {
 			sigPkt, err := sig.Parse()
+			if err != nil {
+				return err
+			}
 			s := sigPkt.(*packet.Signature)
 			if (s.SigType == packet.SigTypePositiveCert || s.SigType == packet.SigTypeGenericCert) && s.IssuerKeyId != nil && *s.IssuerKeyId == pk.KeyId {
-				if err = pk.VerifyUserIdSignature(uid.Id, s); err == nil {
-					goodSelfSig = sig
-					break
-				} else {
+				if err = pk.VerifyUserIdSignature(uid.Id, s); err != nil {
 					return BadSelfSigError
+				} else {
+					goodSelfSig = sig
 				}
 			}
 		}
 		if goodSelfSig == nil {
 			return MissingSelfSigError
+		}
+		/*
+			for _, uat := range uid.Attributes {
+				var goodSig *Signature
+				for _, sig := range uid.Signatures {
+					sigPkt, err := sig.Parse()
+					s := sigPkt.(*packet.Signature)
+					// TODO: verify uat packet
+				}
+			}
+		*/
+	}
+	for _, subKey := range key.SubKeys {
+		skPkt, err := subKey.Parse()
+		if err != nil {
+			return err
+		}
+		sk := skPkt.(*packet.PublicKey)
+		var goodSig *Signature
+		for _, sig := range subKey.Signatures {
+			sigPkt, err := sig.Parse()
+			s := sigPkt.(*packet.Signature)
+			if s.SigType != packet.SigTypeSubkeyBinding {
+				return errors.StructuralError("subkey signature with wrong type")
+			}
+			if err = pk.VerifyKeySignature(sk, s); err != nil {
+				return BadSubKeySigError
+			} else {
+				goodSig = sig
+			}
+		}
+		if goodSig == nil {
+			return MissingSubKeySigError
 		}
 	}
 	return nil

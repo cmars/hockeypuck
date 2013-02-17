@@ -34,8 +34,17 @@ hockeypuck (0.9~a1) precise; urgency=low
     - Get UID of signature keyid in LookupKey(s), display in vindex.
     - Aggregate loading statistics, bulk upsert increments to
       reduce mongodb load.
+  * mgo/worker.go, pgp.go, pgp_test.go, pgp_types.go, responses.go,
+    strings.go:
+    - Link all supported hash algorithms into runtime.
+    - Recover from panic due to missing hash algorithm in
+      key material verification, return as error.
+    - Verify subkey signatures.
+    - Add unit test to catch invalid UID with missing self-sig
+      (Thanks: Peter Karneef)
+    - Remove unused goroutine from checkValidSignatures.
 
- -- Casey Marshall <casey.marshall@gmail.com>  Sun, 17 Feb 2013 02:03:55 -0600
+ -- Casey Marshall <casey.marshall@gmail.com>  Sun, 17 Feb 2013 03:30:32 -0600
 
 hockeypuck (0.8.1) precise; urgency=low
 

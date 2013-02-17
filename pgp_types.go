@@ -123,7 +123,7 @@ type Signature struct {
 	KeyExpirationTime int64
 	Packet            []byte
 	Digest            string
-	IssuerUid string ",omitempty"
+	IssuerUid         string ",omitempty"
 }
 
 func (o *Signature) IssuerKeyId() string {
@@ -273,11 +273,11 @@ func (userAttr *UserAttribute) GetJpegData() (result []*bytes.Buffer) {
 
 type SubKey struct {
 	RFingerprint string
-	Algorithm   int
-	KeyLength   uint16
-	Signatures  []*Signature
-	Packet      []byte
-	Digest      string
+	Algorithm    int
+	KeyLength    uint16
+	Signatures   []*Signature
+	Packet       []byte
+	Digest       string
 }
 
 func (subKey *SubKey) Fingerprint() string {
