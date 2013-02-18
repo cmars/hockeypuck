@@ -354,19 +354,19 @@ func verifyUserAttributeSignature(userAttr *UserAttribute, key *PubKey, sig *Sig
 	h := s.Hash.New()
 	// RFC 4880, section 5.2.4
 	// Write the signature prefix and public key contents to hash
-    pk.SerializeSignaturePrefix(h)
+	pk.SerializeSignaturePrefix(h)
 	h.Write(pkOpaque.Contents) // equivalent to pk.serializeWithoutHeaders(h)
 	// V4 certification hash
-    var buf [5]byte
+	var buf [5]byte
 	// User attribute constant
-    buf[0] = 0xd1
+	buf[0] = 0xd1
 	// Big-endian length of user attribute contents
-    buf[1] = byte(len(uatOpaque.Contents) >> 24)
-    buf[2] = byte(len(uatOpaque.Contents) >> 16)
-    buf[3] = byte(len(uatOpaque.Contents) >> 8)
-    buf[4] = byte(len(uatOpaque.Contents))
-    h.Write(buf[:])
+	buf[1] = byte(len(uatOpaque.Contents) >> 24)
+	buf[2] = byte(len(uatOpaque.Contents) >> 16)
+	buf[3] = byte(len(uatOpaque.Contents) >> 8)
+	buf[4] = byte(len(uatOpaque.Contents))
+	h.Write(buf[:])
 	// User attribute contents
-    h.Write(uatOpaque.Contents)
+	h.Write(uatOpaque.Contents)
 	return pk.VerifySignature(h, s)
 }
