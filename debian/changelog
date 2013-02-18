@@ -22,18 +22,20 @@ hockeypuck (0.9~a1) precise; urgency=low
     - Several MongoDB improvements:
       - Leverage reversed fingerprint for long, short keyid lookup
         with regex indexed query, removed indexed on these.
+        LP: #1128565
       - Replace map-reduce generated stats with time-bucket
-        increments on load.
+        increments on load. LP: #1128611
     - Remove invalid UTF-8 characters from uid strings.
     - Reversed issuer key ID in signature for faster lookups
       (anchored regex for mongo, prefixed LIKE for RDBMS).
   * instroot/var/lib/hockeypuck/www/templates/pks/index.tmpl,
     mgo/keystats.go, mgo/worker.go, pgp.go, pgp_types.go, responses.go:
-    - Require valid UID self-sign to load key material.
+    - Require valid UID self-sign to load key material. LP: #1128561
     - Send proper key var to stats channel on insert/update.
     - Get UID of signature keyid in LookupKey(s), display in vindex.
+      LP: #1120869
     - Aggregate loading statistics, bulk upsert increments to
-      reduce mongodb load.
+      reduce mongodb load. LP: #1128611
   * mgo/worker.go, pgp.go, pgp_test.go, pgp_types.go, responses.go,
     strings.go:
     - Link all supported hash algorithms into runtime.
