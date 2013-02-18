@@ -18,6 +18,7 @@
 package hockeypuck
 
 import (
+	"bytes"
 	_ "code.google.com/p/go.crypto/md4"
 	"code.google.com/p/go.crypto/openpgp"
 	"code.google.com/p/go.crypto/openpgp/armor"
@@ -221,6 +222,7 @@ func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
 	return keyChan, errorChan
 }
 
+// Read only keys with valid self/cross-signatures from input.
 func ReadValidKeys(r io.Reader) (validKeyChan chan *PubKey, validErrorChan chan error) {
 	validKeyChan = make(chan *PubKey)
 	validErrorChan = make(chan error)
@@ -244,16 +246,17 @@ func ReadValidKeys(r io.Reader) (validKeyChan chan *PubKey, validErrorChan chan 
 				if !ok {
 					return
 				}
-				validErrorChan <- err
+				if err != nil {
+					validErrorChan <- err
+				}
 			}
 		}
 	}()
 	return
 }
 
-var BadSelfSigError error = Errors.New("Bad self-signature")
-var MissingSelfSigError error = Errors.New("Missing self-signature")
-var BadSubKeySigError error = Errors.New("Bad sub-key signature")
+var MissingSelfSigError error = Errors.New("Missing uid self-signature")
+var MissingAttrSelfSigError error = Errors.New("Missing attribute self-signature")
 var MissingSubKeySigError error = Errors.New("Missing sub-key signature")
 
 func checkValidSignatures(key *PubKey) (verr error) {
@@ -276,26 +279,27 @@ func checkValidSignatures(key *PubKey) (verr error) {
 			}
 			s := sigPkt.(*packet.Signature)
 			if (s.SigType == packet.SigTypePositiveCert || s.SigType == packet.SigTypeGenericCert) && s.IssuerKeyId != nil && *s.IssuerKeyId == pk.KeyId {
-				if err = pk.VerifyUserIdSignature(uid.Id, s); err != nil {
-					return BadSelfSigError
-				} else {
+				if err = pk.VerifyUserIdSignature(uid.Id, s); err == nil {
 					goodSelfSig = sig
+					break
 				}
 			}
 		}
 		if goodSelfSig == nil {
 			return MissingSelfSigError
 		}
-		/*
-			for _, uat := range uid.Attributes {
-				var goodSig *Signature
-				for _, sig := range uid.Signatures {
-					sigPkt, err := sig.Parse()
-					s := sigPkt.(*packet.Signature)
-					// TODO: verify uat packet
+		for _, uat := range uid.Attributes {
+			var goodAttrSig *Signature
+			for _, sig := range uat.Signatures {
+				if err = verifyUserAttributeSignature(uat, key, sig); err == nil {
+					goodAttrSig = sig
+					break
 				}
 			}
-		*/
+			if goodAttrSig == nil {
+				return MissingAttrSelfSigError
+			}
+		}
 	}
 	for _, subKey := range key.SubKeys {
 		skPkt, err := subKey.Parse()
@@ -310,10 +314,9 @@ func checkValidSignatures(key *PubKey) (verr error) {
 			if s.SigType != packet.SigTypeSubkeyBinding {
 				return errors.StructuralError("subkey signature with wrong type")
 			}
-			if err = pk.VerifyKeySignature(sk, s); err != nil {
-				return BadSubKeySigError
-			} else {
+			if err = pk.VerifyKeySignature(sk, s); err == nil {
 				goodSig = sig
+				break
 			}
 		}
 		if goodSig == nil {
@@ -321,4 +324,49 @@ func checkValidSignatures(key *PubKey) (verr error) {
 		}
 	}
 	return nil
+}
+
+func verifyUserAttributeSignature(userAttr *UserAttribute, key *PubKey, sig *Signature) error {
+	// Get packet signature
+	sigPkt, err := sig.Parse()
+	if err != nil {
+		return err
+	}
+	s := sigPkt.(*packet.Signature)
+	// Get user attribute opaque packet
+	opr := packet.NewOpaqueReader(bytes.NewBuffer(userAttr.GetPacket()))
+	uatOpaque, err := opr.Next()
+	if err != nil {
+		return err
+	}
+	// Get public key opaque packet & typed packet
+	opr = packet.NewOpaqueReader(bytes.NewBuffer(key.GetPacket()))
+	pkOpaque, err := opr.Next()
+	if err != nil {
+		return err
+	}
+	pkPkt, err := key.Parse()
+	if err != nil {
+		return err
+	}
+	pk := pkPkt.(*packet.PublicKey)
+	// Build up the hash for the signature
+	h := s.Hash.New()
+	// RFC 4880, section 5.2.4
+	// Write the signature prefix and public key contents to hash
+    pk.SerializeSignaturePrefix(h)
+	h.Write(pkOpaque.Contents) // equivalent to pk.serializeWithoutHeaders(h)
+	// V4 certification hash
+    var buf [5]byte
+	// User attribute constant
+    buf[0] = 0xd1
+	// Big-endian length of user attribute contents
+    buf[1] = byte(len(uatOpaque.Contents) >> 24)
+    buf[2] = byte(len(uatOpaque.Contents) >> 16)
+    buf[3] = byte(len(uatOpaque.Contents) >> 8)
+    buf[4] = byte(len(uatOpaque.Contents))
+    h.Write(buf[:])
+	// User attribute contents
+    h.Write(uatOpaque.Contents)
+	return pk.VerifySignature(h, s)
 }

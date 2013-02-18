@@ -20,10 +20,7 @@ package mgo
 import (
 	"bytes"
 	"code.google.com/p/go.crypto/openpgp/armor"
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"labix.org/v2/mgo"
@@ -32,21 +29,6 @@ import (
 	"strings"
 	"time"
 )
-
-const UUID_LEN = 43 // log(2**256, 64) = 42.666...
-
-func NewUuid() (string, error) {
-	buf := bytes.NewBuffer([]byte{})
-	enc := base64.NewEncoder(base64.StdEncoding, buf)
-	n, err := io.CopyN(enc, rand.Reader, UUID_LEN)
-	if err != nil {
-		return "", err
-	}
-	if n < UUID_LEN {
-		return "", errors.New("Failed to generate UUID")
-	}
-	return string(buf.Bytes()), nil
-}
 
 type StatKeyChan chan *PubKey
 
@@ -187,8 +169,10 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 			if !moreKeys {
 				return
 			}
-		case err = <-errChan:
-			return
+		case err, ok := <-errChan:
+			if ok {
+				mw.l.Print(err)
+			}
 		}
 	}
 	panic("unreachable")

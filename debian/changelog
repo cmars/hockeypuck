@@ -39,12 +39,15 @@ hockeypuck (0.9~a1) precise; urgency=low
     - Link all supported hash algorithms into runtime.
     - Recover from panic due to missing hash algorithm in
       key material verification, return as error.
-    - Verify subkey signatures.
+    - Verify subkey signatures. LP: #1128561
     - Add unit test to catch invalid UID with missing self-sig
-      (Thanks: Peter Karneef)
+      LP: #1128561
     - Remove unused goroutine from checkValidSignatures.
+  * mgo/worker.go, pgp.go, pgp_test.go:
+    - Verify user attribute packets too. Some unsigned images
+      cannot be unseen. LP: #1128561
 
- -- Casey Marshall <casey.marshall@gmail.com>  Sun, 17 Feb 2013 03:30:32 -0600
+ -- Casey Marshall <casey.marshall@gmail.com>  Sun, 17 Feb 2013 18:52:14 -0600
 
 hockeypuck (0.8.1) precise; urgency=low
 
