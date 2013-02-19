@@ -61,7 +61,6 @@ type PksSync interface {
 type PksSyncHandle struct {
 	pksSync PksSync
 	stop    chan interface{}
-	l       *log.Logger
 }
 
 // Stop a running PKS synchronization poll
@@ -118,7 +117,7 @@ func pollPks(psh *PksSyncHandle) {
 		for {
 			stats, err := psh.pksSync.SyncStats()
 			if err != nil {
-				psh.l.Println("Error obtaining PKS sync stats", err)
+				log.Println("Error obtaining PKS sync stats", err)
 				goto POLL_NEXT
 			}
 			for _, stat := range stats {
@@ -140,7 +139,7 @@ func pollPks(psh *PksSyncHandle) {
 			select {
 			case _, isOpen := <-psh.stop:
 				if !isOpen {
-					psh.l.Println("Stopping PKS sync")
+					log.Println("Stopping PKS sync")
 					return
 				}
 			default:
@@ -150,7 +149,7 @@ func pollPks(psh *PksSyncHandle) {
 			toSleep := time.Duration(delay) * time.Minute
 			if delay > 1 {
 				// log delay if we had an error
-				psh.l.Println("Sleeping", toSleep)
+				log.Println("Sleeping", toSleep)
 			}
 			time.Sleep(toSleep)
 		}
@@ -160,7 +159,6 @@ func pollPks(psh *PksSyncHandle) {
 // Start PKS synchronization
 func StartPksSync(pksSync PksSync) *PksSyncHandle {
 	psh := &PksSyncHandle{pksSync: pksSync, stop: make(chan interface{})}
-	EnsureLog(&psh.l)
 	pollPks(psh)
 	return psh
 }

@@ -27,9 +27,9 @@ import (
 	"strings"
 )
 
-func LogCfg(l *log.Logger) {
+func LogCfg() {
 	flag.VisitAll(func(f *flag.Flag) {
-		l.Println(f.Name, "=", f.Value)
+		log.Println(f.Name, "=", f.Value)
 	})
 }
 

@@ -47,6 +47,7 @@ func usage() {
 
 func main() {
 	flag.Parse()
+	hockeypuck.InitLog()
 	var err error
 	if *mailAdd {
 		err = loadMail(*hkpServer)
@@ -56,7 +57,7 @@ func main() {
 		usage()
 	}
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		log.Println("Error:", err)
 		os.Exit(1)
 	}
 	os.Exit(0)

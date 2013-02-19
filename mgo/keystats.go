@@ -4,6 +4,7 @@ import (
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
 	. "launchpad.net/hockeypuck"
+	"log"
 	"time"
 )
 
@@ -28,7 +29,7 @@ func (c *MgoClient) keyStats(coll *mgo.Collection, since time.Time) chan *KeyOpS
 		}
 		err := i.Err()
 		if err != nil {
-			c.l.Println("Error querying key stats", err)
+			log.Println("Error querying key stats", err)
 		}
 		close(out)
 	}()

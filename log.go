@@ -18,11 +18,12 @@ package hockeypuck
 
 import (
 	"flag"
-	"fmt"
 	"io"
 	"log"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 )
 
 const CONFIG_PATH = "/etc/hockeypuck/hockeypuck.conf"
@@ -30,31 +31,45 @@ const CONFIG_PATH = "/etc/hockeypuck/hockeypuck.conf"
 // Logfile option
 var LogFile *string = flag.String("logfile", "", "Logfile (default stderr)")
 
-var logOut *log.Logger = nil
+var logOut io.Writer = nil
 
-func EnsureLog(logp **log.Logger) {
-	if *logp == nil {
-		if logOut == nil {
-			logOut = OpenLog()
-		}
-		*logp = logOut
+func InitLog() {
+	if *LogFile != "" {
+		// Handle signals for log rotation
+		sigChan := make(chan os.Signal)
+		signal.Notify(sigChan, syscall.SIGHUP, syscall.SIGUSR1, syscall.SIGUSR2)
+		go func() {
+			for {
+				select {
+				case _ = <-sigChan:
+					closeable, canClose := logOut.(io.WriteCloser)
+					openLog()
+					if canClose {
+						closeable.Close()
+					}
+					log.Println("Reopened logfile")
+				}
+			}
+		}()
 	}
+	// Open the log
+	openLog()
 }
 
-func OpenLog() *log.Logger {
-	var LogOut io.Writer = os.Stderr
-	var logFerr error
+func openLog() {
 	if *LogFile != "" {
-		LogOut, logFerr = os.OpenFile(*LogFile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
-		if logFerr != nil {
-			LogOut = os.Stderr
+		var err error
+		logOut, err = os.OpenFile(*LogFile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+		if err != nil {
+			logOut = os.Stderr
 		}
+		log.SetOutput(logOut)
+		if err != nil {
+			log.Println("Failed to open logfile", err)
+		}
+	} else {
+		log.SetOutput(os.Stderr)
 	}
-	newLog := log.New(LogOut, fmt.Sprintf("[%s]", filepath.Base(os.Args[0])),
-		log.LstdFlags|log.Lshortfile)
-	if logFerr != nil {
-		newLog.Println("Warning: could not open logfile", LogFile, ":", logFerr)
-		newLog.Println("Logging will be sent to stderr")
-	}
-	return newLog
+	log.SetPrefix(filepath.Base(os.Args[0]))
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 }

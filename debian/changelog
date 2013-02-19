@@ -55,8 +55,13 @@ hockeypuck (0.9~a1) precise; urgency=low
     - Update fix keyword script to use above simplified approach.
   * mgo/worker.go:
     - Escape regular expression characters from search terms.
+  * cmd/hockeypuck-load/main.go, cmd/hockeypuck-mgo/main.go, config.go,
+    log.go, mgo/client.go, mgo/keystats.go, mgo/pks.go, mgo/worker.go,
+    pks.go:
+    - Using standard logger, reopen log on SIGHUP/SIGUSR1/SIGUSR2.
+      LP: #1121700
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Tue, 19 Feb 2013 12:39:16 -0600
+ -- Casey Marshall <casey.marshall@gazzang.com>  Tue, 19 Feb 2013 13:43:17 -0600
 
 hockeypuck (0.8.1) precise; urgency=low
 

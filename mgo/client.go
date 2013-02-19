@@ -18,7 +18,6 @@ package mgo
 
 import (
 	"labix.org/v2/mgo"
-	. "launchpad.net/hockeypuck"
 	"log"
 )
 
@@ -36,7 +35,6 @@ var pksStatIndexes []mgo.Index = []mgo.Index{
 
 type MgoClient struct {
 	connect    string
-	l          *log.Logger
 	session    *mgo.Session
 	keys       *mgo.Collection
 	pksStat    *mgo.Collection
@@ -46,11 +44,10 @@ type MgoClient struct {
 
 func NewMgoClient(connect string) (mc *MgoClient, err error) {
 	mc = &MgoClient{connect: connect}
-	EnsureLog(&mc.l)
-	mc.l.Println("Connecting to mongodb:", mc.connect)
+	log.Println("Connecting to mongodb:", mc.connect)
 	mc.session, err = mgo.Dial(mc.connect)
 	if err != nil {
-		mc.l.Println("Connection failed:", err)
+		log.Println("Connection failed:", err)
 		return
 	}
 	mc.session.SetMode(mgo.Strong, true)
@@ -80,7 +77,7 @@ func (mc *MgoClient) initKeys() (err error) {
 	for _, index := range keysIndexes {
 		err = mc.keys.EnsureIndex(index)
 		if err != nil {
-			mc.l.Println("Ensure index", index.Key, "failed:", err)
+			log.Println("Ensure index", index.Key, "failed:", err)
 			return
 		}
 	}
@@ -93,7 +90,7 @@ func (mc *MgoClient) initPksSync() (err error) {
 	for _, index := range pksStatIndexes {
 		err = mc.pksStat.EnsureIndex(index)
 		if err != nil {
-			mc.l.Println("Ensure index", index.Key, "failed:", err)
+			log.Println("Ensure index", index.Key, "failed:", err)
 			return
 		}
 	}

@@ -59,6 +59,7 @@ func main() {
 		fmt.Println(Version)
 		os.Exit(0)
 	}
+	InitLog()
 	// Connect to MongoDB
 	connect := ConnectString()
 	client, err := mgo.NewMgoClient(connect)

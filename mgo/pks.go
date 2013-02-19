@@ -20,6 +20,7 @@ import (
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
 	. "launchpad.net/hockeypuck"
+	"log"
 	"time"
 )
 
@@ -67,24 +68,24 @@ func (mps *MgoPksSync) SendKeys(stat *PksStat) (err error) {
 	key := &PubKey{}
 	for i.Next(key) {
 		// Send key email
-		mps.l.Println("Sending key", key.Fingerprint(), "to PKS", stat.Addr)
+		log.Println("Sending key", key.Fingerprint(), "to PKS", stat.Addr)
 		err = mps.SendKey(stat.Addr, key)
 		if err != nil {
-			mps.l.Println("Error sending key to PKS", stat.Addr, ":", err)
+			log.Println("Error sending key to PKS", stat.Addr, ":", err)
 			return
 		}
 		// Send successful, update the timestamp accordingly
 		stat.LastSync = key.Mtime
 		err = mps.pksStat.Update(bson.M{"addr": stat.Addr}, stat)
 		if err != nil {
-			mps.l.Println("Error updating PKS status for", stat.Addr, err)
+			log.Println("Error updating PKS status for", stat.Addr, err)
 			return
 		}
 		key = &PubKey{}
 	}
 	err = i.Err()
 	if err != nil {
-		mps.l.Println("Error looking up keys for PKS send:", err)
+		log.Println("Error looking up keys for PKS send:", err)
 		return
 	}
 	return

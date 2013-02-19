@@ -26,6 +26,7 @@ import (
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
 	. "launchpad.net/hockeypuck"
+	"log"
 	"regexp"
 	"strings"
 	"time"
@@ -59,6 +60,7 @@ func (mw *MgoWorker) LookupKeys(search string, limit int) (keys []*PubKey, err e
 		switch len(keywords) {
 		case 0:
 			// Couldn't even make sense of it...
+			log.Println("Invalid search term:", search)
 			err = KeyNotFound
 			return
 		case 1:
@@ -71,11 +73,12 @@ func (mw *MgoWorker) LookupKeys(search string, limit int) (keys []*PubKey, err e
 	}
 	if len(keyword) < 3 {
 		// My database has better things to do...
+		log.Println("Rejected short search terms:", search)
 		err = TooManyResponses
 		return
 	}
 	q := mw.keys.Find(bson.M{"identities.keywords": bson.RegEx{
-			Pattern: fmt.Sprintf("^%s", regexp.QuoteMeta(keyword))}})
+		Pattern: fmt.Sprintf("^%s", regexp.QuoteMeta(keyword))}})
 	n, err := q.Count()
 	if n > limit {
 		return keys, TooManyResponses
@@ -131,7 +134,6 @@ func (mw *MgoWorker) addSignatureUids(key *PubKey) (err error) {
 		if sig, is := pktObj.(*Signature); is {
 			if sig.IssuerUid == "" {
 				result := &struct{ Identities []*struct{ Id string } }{}
-				//Id string }}//make(map[string]interface{})
 				q := mw.keys.Find(bson.M{"rfingerprint": bson.RegEx{Pattern: fmt.Sprintf("^%s", sig.RIssuerKeyId)}})
 				q.Select(bson.M{"identities.id": 1})
 				err = q.One(result)
@@ -169,17 +171,17 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 					MergeKey(lastKey, key)
 					lastKey.CumlDigest = CumlDigest(lastKey)
 					if lastKey.CumlDigest != lastCuml {
-						mw.l.Print("Updated:", key.Fingerprint())
+						log.Println("Updated:", key.Fingerprint())
 						lastKey.Mtime = time.Now().UnixNano()
 						err = mw.keys.Update(bson.M{"fingerprint": key.Fingerprint()}, lastKey)
 						if err == nil {
 							mw.modifiedKeys <- lastKey
 						}
 					} else {
-						mw.l.Print("Update: skipped, no change in cumulative digest")
+						log.Println("Update: skipped, no change in cumulative digest")
 					}
 				} else if err == KeyNotFound {
-					mw.l.Print("Insert:", key.Fingerprint())
+					log.Println("Insert:", key.Fingerprint())
 					key.Ctime = time.Now().UnixNano()
 					key.Mtime = key.Ctime
 					key.CumlDigest = CumlDigest(key)
@@ -189,7 +191,7 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 					}
 				}
 				if err != nil {
-					mw.l.Print("Error:", err)
+					log.Println("Error:", err)
 					return
 				}
 				fps = append(fps, key.Fingerprint())
@@ -199,7 +201,7 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 			}
 		case err, ok := <-errChan:
 			if ok {
-				mw.l.Print(err)
+				log.Println(err)
 			}
 		}
 	}
