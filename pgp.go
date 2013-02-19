@@ -227,8 +227,14 @@ func ReadValidKeys(r io.Reader) (validKeyChan chan *PubKey, validErrorChan chan 
 	validKeyChan = make(chan *PubKey)
 	validErrorChan = make(chan error)
 	keyChan, errorChan := ReadKeys(r)
-	defer func(){for _ = range keyChan {}}()
-	defer func(){for _ = range errorChan {}}()
+	defer func() {
+		for _ = range keyChan {
+		}
+	}()
+	defer func() {
+		for _ = range errorChan {
+		}
+	}()
 	go func() {
 		defer close(validKeyChan)
 		defer close(validErrorChan)

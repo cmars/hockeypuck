@@ -161,8 +161,14 @@ func (mw *MgoWorker) AddKey(armoredKey string) ([]string, error) {
 
 func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 	keyChan, errChan := ReadValidKeys(r)
-	defer func(){for _ = range keyChan {}}()
-	defer func(){for _ = range errChan {}}()
+	defer func() {
+		for _ = range keyChan {
+		}
+	}()
+	defer func() {
+		for _ = range errChan {
+		}
+	}()
 	for {
 		select {
 		case key, moreKeys := <-keyChan:

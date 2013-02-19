@@ -46,7 +46,8 @@ type Signable interface {
 
 // Finish the traversal, cleaning up goroutines.
 func FinishTraversal(c chan PacketObject) {
-	for _ = range c {}
+	for _ = range c {
+	}
 }
 
 // Model representing an OpenPGP public key packets.
