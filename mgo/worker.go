@@ -26,6 +26,7 @@ import (
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
 	. "launchpad.net/hockeypuck"
+	"regexp"
 	"strings"
 	"time"
 	"unicode"
@@ -74,7 +75,7 @@ func (mw *MgoWorker) LookupKeys(search string, limit int) (keys []*PubKey, err e
 		return
 	}
 	q := mw.keys.Find(bson.M{"identities.keywords": bson.RegEx{
-			Pattern: fmt.Sprintf("^%s", keyword)}})
+			Pattern: fmt.Sprintf("^%s", regexp.QuoteMeta(keyword))}})
 	n, err := q.Count()
 	if n > limit {
 		return keys, TooManyResponses

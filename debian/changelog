@@ -53,8 +53,10 @@ hockeypuck (0.9~a1) precise; urgency=low
       and search term flexibility. LP: #1108416
   * instroot/usr/share/hockeypuck-mgo/scripts/fix-keywords.js:
     - Update fix keyword script to use above simplified approach.
+  * mgo/worker.go:
+    - Escape regular expression characters from search terms.
 
- -- Casey Marshall <casey.marshall@gmail.com>  Tue, 19 Feb 2013 08:44:30 -0600
+ -- Casey Marshall <casey.marshall@gmail.com>  Tue, 19 Feb 2013 09:15:45 -0600
 
 hockeypuck (0.8.1) precise; urgency=low
 
