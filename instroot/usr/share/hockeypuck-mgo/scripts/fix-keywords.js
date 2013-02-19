@@ -57,8 +57,8 @@ while (c.hasNext()) {
 			if (matches[3] == undefined) {
 				matches[3] = "";
 			}
-			var comment = matches[2].replace(/^\(|\)$/, '');
-			var email = matches[3].replace(/^<|>$/, '');
+			var comment = matches[2].replace(/^\(|\)$/g, '');
+			var email = matches[3].replace(/^<|>$/g, '');
 			name = name.toLowerCase();
 			comment = comment.toLowerCase();
 			name = keywordNormalize(name);
