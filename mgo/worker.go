@@ -28,6 +28,7 @@ import (
 	. "launchpad.net/hockeypuck"
 	"strings"
 	"time"
+	"unicode"
 )
 
 type StatKeyChan chan *PubKey
@@ -47,7 +48,33 @@ func NewMgoWorker(client *MgoClient) *MgoWorker {
 }
 
 func (mw *MgoWorker) LookupKeys(search string, limit int) (keys []*PubKey, err error) {
-	q := mw.keys.Find(bson.M{"identities.keywords": bson.M{"$all": SplitUserId(search)}})
+	var keyword string
+	if strings.IndexFunc(search, func(c rune) bool { return unicode.IsSpace(c) }) == -1 {
+		// No space in search, just lowercase it
+		keyword = strings.ToLower(search)
+	} else {
+		// Try user id splitting
+		keywords := SplitUserId(search)
+		switch len(keywords) {
+		case 0:
+			// Couldn't even make sense of it...
+			err = KeyNotFound
+			return
+		case 1:
+			// We have a name.
+			keyword = keywords[0]
+		default:
+			// Prefer the email address.
+			keyword = keywords[1]
+		}
+	}
+	if len(keyword) < 3 {
+		// My database has better things to do...
+		err = TooManyResponses
+		return
+	}
+	q := mw.keys.Find(bson.M{"identities.keywords": bson.RegEx{
+			Pattern: fmt.Sprintf("^%s", keyword)}})
 	n, err := q.Count()
 	if n > limit {
 		return keys, TooManyResponses

@@ -48,8 +48,11 @@ hockeypuck (0.9~a1) precise; urgency=low
   * mgo/worker.go, pgp.go, pgp_test.go:
     - Verify user attribute packets too. Some unsigned images
       cannot be unseen. LP: #1128561
+  * mgo/worker.go, strings.go, strings_test.go:
+    - Simplify keyword search, balance between MongoDB performance
+      and search term flexibility. LP: #1108416
 
- -- Casey Marshall <casey.marshall@gmail.com>  Sun, 17 Feb 2013 18:52:14 -0600
+ -- Casey Marshall <casey.marshall@gmail.com>  Mon, 18 Feb 2013 22:20:45 -0600
 
 hockeypuck (0.8.1) precise; urgency=low
 

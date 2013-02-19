@@ -18,6 +18,7 @@
 package hockeypuck
 
 import (
+	"regexp"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -31,36 +32,33 @@ func Reverse(s string) string {
 	return string(runes)
 }
 
+var UserIdRegex *regexp.Regexp = regexp.MustCompile(`^(([^<(]+\s*)+\b)?\s*(\(([^(]+)\))?\s*(<([^>]+)>)?$`)
+
 func isUserDelim(c rune) bool {
-	switch c {
-	case '<':
-		return true
-	case '>':
-		return true
-	case '(':
-		return true
-	case ')':
-		return true
-	case '@':
-		return true
-	}
-	return unicode.IsSpace(c)
+	return !unicode.IsLetter(c) && !unicode.IsDigit(c)
 }
 
 // Split a user ID string into fulltext searchable keywords.
-func SplitUserId(id string) []string {
-	m := make(map[string]bool)
-	for _, s := range strings.FieldsFunc(id, isUserDelim) {
+func SplitUserId(id string) (keywords []string) {
+	matches := UserIdRegex.FindStringSubmatch(id)
+	if len(matches) > 1 && len(matches[1]) > 0 {
+		keywords = append(keywords, keywordNormalize(matches[1]))
+	}
+	if len(matches) > 6 && len(matches[6]) > 0 {
+		keywords = append(keywords, strings.ToLower(matches[6]))
+	}
+	return keywords
+}
+
+func keywordNormalize(s string) string {
+	var fields []string
+	for _, s := range strings.FieldsFunc(s, isUserDelim) {
 		s = strings.ToLower(strings.TrimFunc(s, isUserDelim))
 		if len(s) > 2 {
-			m[s] = true
+			fields = append(fields, s)
 		}
 	}
-	result := []string{}
-	for k, _ := range m {
-		result = append(result, CleanUtf8(k))
-	}
-	return result
+	return strings.Join(fields, " ")
 }
 
 func CleanUtf8(s string) string {
