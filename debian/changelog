@@ -56,7 +56,7 @@ hockeypuck (0.9~a1) precise; urgency=low
   * mgo/worker.go:
     - Escape regular expression characters from search terms.
 
- -- Casey Marshall <casey.marshall@gmail.com>  Tue, 19 Feb 2013 09:15:45 -0600
+ -- Casey Marshall <casey.marshall@gazzang.com>  Tue, 19 Feb 2013 12:39:16 -0600
 
 hockeypuck (0.8.1) precise; urgency=low
 
