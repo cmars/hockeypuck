@@ -54,7 +54,7 @@ hockeypuck (0.9~a1) precise; urgency=low
   * instroot/usr/share/hockeypuck-mgo/scripts/fix-keywords.js:
     - Update fix keyword script to use above simplified approach.
 
- -- Casey Marshall <casey.marshall@gmail.com>  Mon, 18 Feb 2013 22:56:02 -0600
+ -- Casey Marshall <casey.marshall@gmail.com>  Tue, 19 Feb 2013 00:34:41 -0600
 
 hockeypuck (0.8.1) precise; urgency=low
 
