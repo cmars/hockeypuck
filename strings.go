@@ -24,6 +24,8 @@ import (
 	"unicode/utf8"
 )
 
+const MIN_KEYWORD_LEN = 3
+
 func Reverse(s string) string {
 	runes := []rune(s)
 	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
@@ -32,7 +34,7 @@ func Reverse(s string) string {
 	return string(runes)
 }
 
-var UserIdRegex *regexp.Regexp = regexp.MustCompile(`^(([^<(]+\s*)+\b)?\s*(\(([^(]+)\))?\s*(<([^>]+)>)?$`)
+var UserIdRegex *regexp.Regexp = regexp.MustCompile(`^\s*(\S.*\b)?\s*(\([^(]+\))?\s*(<[^>]+>)?$`)
 
 func isUserDelim(c rune) bool {
 	return !unicode.IsLetter(c) && !unicode.IsDigit(c)
@@ -41,11 +43,23 @@ func isUserDelim(c rune) bool {
 // Split a user ID string into fulltext searchable keywords.
 func SplitUserId(id string) (keywords []string) {
 	matches := UserIdRegex.FindStringSubmatch(id)
-	if len(matches) > 1 && len(matches[1]) > 0 {
-		keywords = append(keywords, keywordNormalize(matches[1]))
+	if len(matches) > 1 {
+		match := keywordNormalize(matches[1])
+		if len(match) >= MIN_KEYWORD_LEN {
+			keywords = append(keywords, match)
+		}
 	}
-	if len(matches) > 6 && len(matches[6]) > 0 {
-		keywords = append(keywords, strings.ToLower(matches[6]))
+	if len(matches) > 2 {
+		match := keywordNormalize(strings.Trim(matches[2], "()"))
+		if len(match) >= MIN_KEYWORD_LEN {
+			keywords = append(keywords, match)
+		}
+	}
+	if len(matches) > 3 {
+		match := strings.ToLower(strings.Trim(matches[3], "<>"))
+		if len(match) >= MIN_KEYWORD_LEN {
+			keywords = append(keywords, match)
+		}
 	}
 	return keywords
 }

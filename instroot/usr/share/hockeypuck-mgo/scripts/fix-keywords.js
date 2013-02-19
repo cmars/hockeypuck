@@ -29,31 +29,48 @@
 conn = new Mongo();
 db = conn.getDB("hockeypuck");
 var c = db.keys.find()
+
+var minKeywordLen = 3;
+
+function keywordNormalize(str) {
+	var fix = [];
+	str.split(/\W/).forEach(function(s){
+		if (s.length > 2) {
+			fix[fix.length] = s;
+		}
+	});
+	return fix.join(" ");
+}
+
 while (c.hasNext()) {
 	var key = c.next();
 	try {
-		var prevName = "";
+		var kwSet = {};
 		for (var i = 0; i < key.identities.length; i++) {
 			var uid = key.identities[i]
 			var newKeywords = [];
-			var matches = uid.id.match(/(([^<()]+\s*)+\b)?\s*(\(([^()]+)\))?\s*(<([^>]+)>)?$/);
+			var matches = uid.id.match(/^\s*(\S.*\b)?\s*(\([^(]+\))?\s*(<[^>]+>)?$/);
 			var name = matches[1];
-			var comment = matches[4];
-			var email = matches[6];
+			if (matches[2] == undefined) {
+				matches[2] = "";
+			}
+			if (matches[3] == undefined) {
+				matches[3] = "";
+			}
+			var comment = matches[2].replace(/^\(|\)$/, '');
+			var email = matches[3].replace(/^<|>$/, '');
 			name = name.toLowerCase();
+			comment = comment.toLowerCase();
+			name = keywordNormalize(name);
+			comment = keywordNormalize(comment);
 			email = email.toLowerCase();
-			var fixName = [];
-			name.split(/\W/).forEach(function(s){
-				if (s.length > 2) {
-					fixName[fixName.length] = s;
+			uid.keywords = [];
+			[name, comment, email].forEach(function(s){
+				if (s.length > minKeywordLen && kwSet[s] == undefined) {
+					uid.keywords[uid.keywords.length] = s;
+					kwSet[s] = 1;
 				}
 			});
-			name = fixName.join(" ");
-			uid.keywords = [email];
-			if (name != prevName) {
-				uid.keywords[uid.keywords.length] = name;
-				prevName = name;
-			}
 			print('id: ' + uid.id + ' keywords: ' + uid.keywords);
 		}
 		db.keys.save(key);
