@@ -32,20 +32,29 @@ var c = db.keys.find()
 while (c.hasNext()) {
 	var key = c.next();
 	try {
+		var prevName = "";
 		for (var i = 0; i < key.identities.length; i++) {
-			var id = key.identities[i]
-			var newKeywords = {};
-			id.keywords.forEach(function(kw){
-				var parts = kw.split(/\s+|[<>()@,]+/)
-				parts.forEach(function(part){
-					if (part.length > 2) {
-						part = part.toLowerCase();
-						newKeywords[part] = 1;
-					}
-				});
+			var uid = key.identities[i]
+			var newKeywords = [];
+			var matches = uid.id.match(/(([^<()]+\s*)+\b)?\s*(\(([^()]+)\))?\s*(<([^>]+)>)?$/);
+			var name = matches[1];
+			var comment = matches[4];
+			var email = matches[6];
+			name = name.toLowerCase();
+			email = email.toLowerCase();
+			var fixName = [];
+			name.split(/\W/).forEach(function(s){
+				if (s.length > 2) {
+					fixName[fixName.length] = s;
+				}
 			});
-			id.keywords = Object.keySet(newKeywords);
-			print('updated keywords:' + id.keywords);
+			name = fixName.join(" ");
+			uid.keywords = [email];
+			if (name != prevName) {
+				uid.keywords[uid.keywords.length] = name;
+				prevName = name;
+			}
+			print('id: ' + uid.id + ' keywords: ' + uid.keywords);
 		}
 		db.keys.save(key);
 	} catch (err) {
