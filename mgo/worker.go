@@ -126,6 +126,7 @@ func (mw *MgoWorker) LookupKey(keyid string) (*PubKey, error) {
 
 func (mw *MgoWorker) addSignatureUids(key *PubKey) (err error) {
 	pktChan := make(chan PacketObject)
+	defer FinishTraversal(pktChan)
 	go func() {
 		key.Traverse(pktChan)
 		close(pktChan)
@@ -160,6 +161,8 @@ func (mw *MgoWorker) AddKey(armoredKey string) ([]string, error) {
 
 func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 	keyChan, errChan := ReadValidKeys(r)
+	defer func(){for _ = range keyChan {}}()
+	defer func(){for _ = range errChan {}}()
 	for {
 		select {
 		case key, moreKeys := <-keyChan:
@@ -199,9 +202,11 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 			if !moreKeys {
 				return
 			}
-		case err, ok := <-errChan:
+		case readErr, ok := <-errChan:
 			if ok {
-				log.Println(err)
+				log.Println(readErr)
+			} else {
+				return
 			}
 		}
 	}

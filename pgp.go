@@ -62,6 +62,7 @@ func WriteKey(out io.Writer, key *PubKey) error {
 	}
 	defer w.Close()
 	pktObjChan := make(chan PacketObject)
+	defer FinishTraversal(pktObjChan)
 	go func() {
 		key.Traverse(pktObjChan)
 		close(pktObjChan)
@@ -69,7 +70,6 @@ func WriteKey(out io.Writer, key *PubKey) error {
 	for pktObj := range pktObjChan {
 		_, err = w.Write(pktObj.GetPacket())
 		if err != nil {
-			close(pktObjChan)
 			return err
 		}
 	}
@@ -227,6 +227,8 @@ func ReadValidKeys(r io.Reader) (validKeyChan chan *PubKey, validErrorChan chan 
 	validKeyChan = make(chan *PubKey)
 	validErrorChan = make(chan error)
 	keyChan, errorChan := ReadKeys(r)
+	defer func(){for _ = range keyChan {}}()
+	defer func(){for _ = range errorChan {}}()
 	go func() {
 		defer close(validKeyChan)
 		defer close(validErrorChan)

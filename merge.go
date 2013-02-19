@@ -23,6 +23,7 @@ package hockeypuck
 func MergeKey(dstKey *PubKey, srcKey *PubKey) {
 	dstObjects := mapKey(dstKey)
 	pktObjChan := make(chan PacketObject)
+	defer FinishTraversal(pktObjChan)
 	go func() {
 		srcKey.Traverse(pktObjChan)
 		close(pktObjChan)
@@ -75,6 +76,7 @@ func MergeKey(dstKey *PubKey, srcKey *PubKey) {
 func mapKey(root PacketObject) (objects map[string]PacketObject) {
 	objects = make(map[string]PacketObject)
 	pktObjChan := make(chan PacketObject)
+	defer FinishTraversal(pktObjChan)
 	go func() {
 		root.Traverse(pktObjChan)
 		close(pktObjChan)
