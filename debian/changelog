@@ -1,4 +1,4 @@
-hockeypuck (0.9~a1) precise; urgency=low
+hockeypuck (0.9~b1) precise; urgency=low
 
   [ Casey Marshall ]
   * hkp_types.go, mgo/worker.go, responses.go, server.go,
@@ -62,6 +62,8 @@ hockeypuck (0.9~a1) precise; urgency=low
       LP: #1121700
   * merge.go, mgo/worker.go, pgp.go, pgp_types.go:
     - Fix goroutine leaks in traverse, reading keys.
+  * debian/hockeypuck.logrotate:
+    - Add logrotate configuration. LP: #1121700
 
  -- Casey Marshall <casey.marshall@gazzang.com>  Tue, 19 Feb 2013 17:30:10 -0600
 
