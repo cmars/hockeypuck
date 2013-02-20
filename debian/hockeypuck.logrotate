@@ -1,0 +1,10 @@
+/var/log/hockeypuck/*.log {
+	missingok
+	notifempty
+	daily
+	rotate 7
+	compress
+	postrotate
+		/usr/sbin/service hockeypuck reload
+	endscript
+}
