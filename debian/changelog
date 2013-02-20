@@ -64,8 +64,10 @@ hockeypuck (0.9~b1) precise; urgency=low
     - Fix goroutine leaks in traverse, reading keys.
   * debian/hockeypuck.logrotate:
     - Add logrotate configuration. LP: #1121700
+  * debian/control:
+    - Add dependencies recommended for a ready-to-run server.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Tue, 19 Feb 2013 17:30:10 -0600
+ -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 20 Feb 2013 10:41:09 -0600
 
 hockeypuck (0.8.1) precise; urgency=low
 

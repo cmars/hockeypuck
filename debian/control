@@ -10,6 +10,6 @@ Package: hockeypuck
 Architecture: i386 amd64
 Depends: ${shlibs:Depends}, ${misc:Depends}, adduser, fonts-droid
 Recommends:
- mongodb-server
+ logrotate, mongodb-10gen | mongodb-server, upstart
 Description: OpenPGP Key Server
  Hockeypuck is an OpenPGP Key Server implementing the HTTP Keyserver Protocol.
