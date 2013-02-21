@@ -182,7 +182,7 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 					if lastKey.CumlDigest != lastCuml {
 						log.Println("Updated:", key.Fingerprint())
 						lastKey.Mtime = time.Now().UnixNano()
-						err = mw.keys.Update(bson.M{"fingerprint": key.Fingerprint()}, lastKey)
+						err = mw.keys.Update(bson.M{"rfingerprint": key.RFingerprint}, lastKey)
 						if err == nil {
 							mw.modifiedKeys <- lastKey
 						}
