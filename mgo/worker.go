@@ -231,8 +231,8 @@ func (mw *MgoWorker) updateStats() {
 			keysCreatedDaily[key.Ctime-(key.Ctime%int64(24*time.Hour))]++
 			keysCreatedHourly[key.Ctime-(key.Ctime%int64(time.Hour))]++
 		case key := <-mw.modifiedKeys:
-			keysModifiedDaily[key.Ctime-(key.Mtime%int64(24*time.Hour))]++
-			keysModifiedHourly[key.Ctime-(key.Mtime%int64(time.Hour))]++
+			keysModifiedDaily[key.Mtime-(key.Mtime%int64(24*time.Hour))]++
+			keysModifiedHourly[key.Mtime-(key.Mtime%int64(time.Hour))]++
 		}
 		if time.Since(flushedAt) > time.Minute {
 			updateStat(mw.keysDaily, keysCreatedDaily, "created")

@@ -99,11 +99,11 @@ func (mc *MgoClient) initPksSync() (err error) {
 
 func (mc *MgoClient) initUpdateKeys() (err error) {
 	mc.keysHourly = mc.session.DB("hockeypuck").C("keysHourly")
-	err = mc.keysHourly.EnsureIndex(mgo.Index{Key: []string{"timestamp"}})
+	err = mc.keysHourly.EnsureIndex(mgo.Index{Key: []string{"timestamp"}, Unique: true})
 	if err != nil {
 		return
 	}
 	mc.keysDaily = mc.session.DB("hockeypuck").C("keysDaily")
-	err = mc.keysDaily.EnsureIndex(mgo.Index{Key: []string{"timestamp"}})
+	err = mc.keysDaily.EnsureIndex(mgo.Index{Key: []string{"timestamp"}, Unique: true})
 	return
 }

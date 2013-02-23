@@ -68,8 +68,10 @@ hockeypuck (0.9~b1) precise; urgency=low
     - Add dependencies recommended for a ready-to-run server.
   * mgo/worker.go:
     - Update with reversed fingerprint.
+  * mgo/client.go, mgo/worker.go:
+    - Fix typo in modified stats aggregation. Make stats timestamp index unique.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 20 Feb 2013 23:32:36 -0600
+ -- Casey Marshall <casey.marshall@gazzang.com>  Sat, 23 Feb 2013 10:00:43 -0800
 
 hockeypuck (0.8.1) precise; urgency=low
 
