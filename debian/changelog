@@ -72,11 +72,13 @@ hockeypuck (0.9) precise; urgency=low
     - Fix typo in modified stats aggregation. Make stats timestamp index unique.
   * hkp_types.go, instroot/var/lib/hockeypuck/www/templates/header.tmpl,
     mgo/client.go, mgo/pks.go, mgo/worker.go, pks.go, responses.go,
-    server.go, status_types.go, templates.go, worker.go:
+    server.go, status_types.go, templates.go, worker.go,
+    instroot/var/lib/hockeypuck/www/templates/pks/status.tmpl =>
+    instroot/var/lib/hockeypuck/www/templates/pks/stats.tmpl:
     - Change op=status to op=stats. Make distinction between "status" and "stats"
       elsewhere in the codebase while we're at it.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Tue, 26 Feb 2013 16:52:24 -0600
+ -- Casey Marshall <casey.marshall@gazzang.com>  Tue, 26 Feb 2013 17:17:32 -0600
 
 hockeypuck (0.8.1) precise; urgency=low
 
