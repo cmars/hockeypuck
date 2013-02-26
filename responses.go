@@ -119,17 +119,17 @@ func (r *IndexResponse) WriteTo(w http.ResponseWriter) error {
 	return err
 }
 
-type StatusResponse struct {
+type StatsResponse struct {
 	Lookup *Lookup
-	Status *ServerStatus
+	Stats  *ServerStats
 	Err    error
 }
 
-func (r *StatusResponse) Error() error {
+func (r *StatsResponse) Error() error {
 	return r.Err
 }
 
-func (r *StatusResponse) WriteTo(w http.ResponseWriter) (err error) {
+func (r *StatsResponse) WriteTo(w http.ResponseWriter) (err error) {
 	err = r.Err
 	if err != nil {
 		return
@@ -137,15 +137,15 @@ func (r *StatusResponse) WriteTo(w http.ResponseWriter) (err error) {
 	if r.Lookup.Option&JsonFormat != 0 {
 		w.Header().Add("Content-Type", "application/json")
 		msg := map[string]interface{}{
-			"timestamp": time.Unix(0, r.Status.Timestamp).Unix(),
-			"hostname":  r.Status.Hostname,
-			"http_port": r.Status.Port,
-			"numkeys":   r.Status.TotalKeys,
+			"timestamp": time.Unix(0, r.Stats.Timestamp).Unix(),
+			"hostname":  r.Stats.Hostname,
+			"http_port": r.Stats.Port,
+			"numkeys":   r.Stats.TotalKeys,
 			"software":  filepath.Base(os.Args[0]),
-			"version":   r.Status.Version}
+			"version":   r.Stats.Version}
 		// Convert hourly stats
 		hours := []interface{}{}
-		for _, hour := range r.Status.KeyStatsHourly {
+		for _, hour := range r.Stats.KeyStatsHourly {
 			hours = append(hours, map[string]interface{}{
 				"time":         time.Unix(0, hour.Timestamp).Unix(),
 				"new_keys":     hour.Created,
@@ -154,7 +154,7 @@ func (r *StatusResponse) WriteTo(w http.ResponseWriter) (err error) {
 		msg["stats_by_hour"] = hours
 		// Convert daily stats
 		days := []interface{}{}
-		for _, day := range r.Status.KeyStatsDaily {
+		for _, day := range r.Stats.KeyStatsDaily {
 			days = append(days, map[string]interface{}{
 				"time":         time.Unix(0, day.Timestamp).Unix(),
 				"new_keys":     day.Created,
@@ -163,7 +163,7 @@ func (r *StatusResponse) WriteTo(w http.ResponseWriter) (err error) {
 		msg["stats_by_day"] = days
 		// Convert mailsync stats
 		mailPeers := []string{}
-		for _, pksStat := range r.Status.PksPeers {
+		for _, pksStat := range r.Stats.PksPeers {
 			mailPeers = append(mailPeers, pksStat.Addr)
 		}
 		msg["mailsync_peers"] = mailPeers
@@ -175,7 +175,7 @@ func (r *StatusResponse) WriteTo(w http.ResponseWriter) (err error) {
 		}
 	} else {
 		w.Header().Add("Content-Type", "text/html")
-		err = StatusTemplate.ExecuteTemplate(w, "layout", r.Status)
+		err = StatsTemplate.ExecuteTemplate(w, "layout", r.Stats)
 	}
 	return
 }

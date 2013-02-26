@@ -252,16 +252,16 @@ func updateStat(c *mgo.Collection, stats map[int64]int, field string) {
 	}
 }
 
-func (mw *MgoWorker) Status() (status *ServerStatus, err error) {
-	status = &ServerStatus{Timestamp: time.Now().UnixNano(),
+func (mw *MgoWorker) Stats() (stats *ServerStats, err error) {
+	stats = &ServerStats{Timestamp: time.Now().UnixNano(),
 		PksPeers: lastPksStatus, Version: Version}
 	for keyStat := range mw.KeyStatsHourly() {
-		status.KeyStatsHourly = append(status.KeyStatsHourly, keyStat)
+		stats.KeyStatsHourly = append(stats.KeyStatsHourly, keyStat)
 	}
 	for keyStat := range mw.KeyStatsDaily() {
-		status.KeyStatsDaily = append(status.KeyStatsDaily, keyStat)
+		stats.KeyStatsDaily = append(stats.KeyStatsDaily, keyStat)
 	}
-	status.TotalKeys, err = mw.keys.Count()
+	stats.TotalKeys, err = mw.keys.Count()
 	if err != nil {
 		return
 	}

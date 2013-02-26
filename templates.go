@@ -44,8 +44,8 @@ var AddResultTemplate *template.Template
 // responses when not in machine readable mode.
 var PksIndexTemplate *template.Template
 
-// StatusTemplate renders the op=status page
-var StatusTemplate *template.Template
+// StatsTemplate renders the op=stats page
+var StatsTemplate *template.Template
 
 func InitTemplates(path string) {
 	wwwRoot, _ = filepath.Abs(path)
@@ -53,7 +53,7 @@ func InitTemplates(path string) {
 	AddFormTemplate = newAddFormTemplate(path)
 	AddResultTemplate = newAddResultTemplate(path)
 	PksIndexTemplate = newPksIndexTemplate(path)
-	StatusTemplate = newStatusTemplate(path)
+	StatsTemplate = newStatsTemplate(path)
 	return
 }
 
@@ -85,10 +85,10 @@ func newPksIndexTemplate(path string) *template.Template {
 	return template.Must(template.ParseFiles(files...))
 }
 
-func newStatusTemplate(path string) *template.Template {
+func newStatsTemplate(path string) *template.Template {
 	files, _ := filepath.Glob(filepath.Join(path, "templates", "*.tmpl"))
 	files = append(files,
-		filepath.Join(path, "templates", "pks", "status.tmpl"))
+		filepath.Join(path, "templates", "pks", "stats.tmpl"))
 	return template.Must(template.New("placeholder").Funcs(
 		template.FuncMap{"timef": func(ts int64) string {
 			tm := time.Unix(0, ts)

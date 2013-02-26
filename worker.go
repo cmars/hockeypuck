@@ -38,8 +38,8 @@ type Worker interface {
 	LookupKey(keyid string) (*PubKey, error)
 	// Add ASCII-armored public key
 	AddKey(armoredKey string) ([]string, error)
-	// Get server status
-	Status() (*ServerStatus, error)
+	// Get server stats
+	Stats() (*ServerStats, error)
 }
 
 type WorkerHandle struct {
@@ -111,11 +111,11 @@ func serveHkp(wh *WorkerHandle) {
 						keys, err = wh.w.LookupKeys(lookup.Search, INDEX_LIMIT)
 					}
 					lookup.Response() <- &IndexResponse{Keys: keys, Err: err, Lookup: lookup}
-				case Status:
-					status, err := wh.w.Status()
-					status.Hostname = lookup.Hostname
-					status.Port = lookup.Port
-					lookup.Response() <- &StatusResponse{Status: status, Err: err, Lookup: lookup}
+				case Stats:
+					stats, err := wh.w.Stats()
+					stats.Hostname = lookup.Hostname
+					stats.Port = lookup.Port
+					lookup.Response() <- &StatsResponse{Stats: stats, Err: err, Lookup: lookup}
 				default:
 					lookup.Response() <- &NotImplementedResponse{}
 				}

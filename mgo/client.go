@@ -30,14 +30,14 @@ var keysIndexes []mgo.Index = []mgo.Index{
 	mgo.Index{Key: []string{"rfingerprint"}, Unique: true},
 	mgo.Index{Key: []string{"identities.keywords"}}}
 
-var pksStatIndexes []mgo.Index = []mgo.Index{
+var pksStatusIndexes []mgo.Index = []mgo.Index{
 	mgo.Index{Key: []string{"addr"}, Unique: true}}
 
 type MgoClient struct {
 	connect    string
 	session    *mgo.Session
 	keys       *mgo.Collection
-	pksStat    *mgo.Collection
+	pksStatus  *mgo.Collection
 	keysHourly *mgo.Collection
 	keysDaily  *mgo.Collection
 }
@@ -86,9 +86,9 @@ func (mc *MgoClient) initKeys() (err error) {
 
 func (mc *MgoClient) initPksSync() (err error) {
 	// pks collection stores sync status with downstream servers
-	mc.pksStat = mc.session.DB("hockeypuck").C("pksStat")
-	for _, index := range pksStatIndexes {
-		err = mc.pksStat.EnsureIndex(index)
+	mc.pksStatus = mc.session.DB("hockeypuck").C("pksStatus")
+	for _, index := range pksStatusIndexes {
+		err = mc.pksStatus.EnsureIndex(index)
 		if err != nil {
 			log.Println("Ensure index", index.Key, "failed:", err)
 			return

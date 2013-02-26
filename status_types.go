@@ -34,12 +34,12 @@ func (kos *KeyOpStats) Hour() string {
 	return time.Unix(0, kos.Timestamp).Format("2006-01-02 15:04 MST")
 }
 
-type ServerStatus struct {
+type ServerStats struct {
 	Timestamp      int64
 	Hostname       string
 	Port           int
 	Version        string
-	PksPeers       []PksStat
+	PksPeers       []PksStatus
 	TotalKeys      int
 	KeyStatsHourly []*KeyOpStats
 	KeyStatsDaily  []*KeyOpStats

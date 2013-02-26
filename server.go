@@ -113,8 +113,8 @@ func parseLookup(req *http.Request) (*Lookup, error) {
 		lookup.Op = Index
 	case "vindex":
 		lookup.Op = Vindex
-	case "status":
-		lookup.Op = Status
+	case "stats":
+		lookup.Op = Stats
 		searchRequired = false
 		if strings.Contains(req.Host, ":") {
 			var host string

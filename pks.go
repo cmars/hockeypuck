@@ -41,7 +41,7 @@ var SmtpUser *string = flag.String("smtp-user", "", "SMTP Account Username")
 var SmtpPass *string = flag.String("smtp-pass", "", "SMTP Account Password")
 
 // Status of PKS synchronization
-type PksStat struct {
+type PksStatus struct {
 	// Email address of the PKS server.
 	Addr string
 	// Timestamp of the last sync to this server.
@@ -52,9 +52,9 @@ type PksStat struct {
 // Implemented over a specific storage backend.
 type PksSync interface {
 	// Get PKS sync status
-	SyncStats() ([]PksStat, error)
+	SyncStatus() ([]PksStatus, error)
 	// Send updated keys to PKS server
-	SendKeys(stat *PksStat) error
+	SendKeys(stat *PksStatus) error
 }
 
 // Handle used to control PKS synchronization once started
@@ -115,13 +115,13 @@ func pollPks(psh *PksSyncHandle) {
 	go func() {
 		delay := 1
 		for {
-			stats, err := psh.pksSync.SyncStats()
+			statuses, err := psh.pksSync.SyncStatus()
 			if err != nil {
-				log.Println("Error obtaining PKS sync stats", err)
+				log.Println("Error obtaining PKS sync status", err)
 				goto POLL_NEXT
 			}
-			for _, stat := range stats {
-				err = psh.pksSync.SendKeys(&stat)
+			for _, status := range statuses {
+				err = psh.pksSync.SendKeys(&status)
 				if err != nil {
 					// Increase delay backoff
 					delay++

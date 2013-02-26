@@ -33,7 +33,7 @@ const (
 	Get              Operation = iota
 	Index            Operation = iota
 	Vindex           Operation = iota
-	Status           Operation = iota
+	Stats            Operation = iota
 )
 
 // Option bit mask in request.
@@ -54,7 +54,7 @@ type Lookup struct {
 	Option      Option
 	Fingerprint bool
 	Exact       bool
-	// Hostname and port are used with op=status
+	// Hostname and port are used with op=stats
 	Hostname     string
 	Port         int
 	responseChan ResponseChan

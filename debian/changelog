@@ -70,8 +70,13 @@ hockeypuck (0.9) precise; urgency=low
     - Update with reversed fingerprint.
   * mgo/client.go, mgo/worker.go:
     - Fix typo in modified stats aggregation. Make stats timestamp index unique.
+  * hkp_types.go, instroot/var/lib/hockeypuck/www/templates/header.tmpl,
+    mgo/client.go, mgo/pks.go, mgo/worker.go, pks.go, responses.go,
+    server.go, status_types.go, templates.go, worker.go:
+    - Change op=status to op=stats. Make distinction between "status" and "stats"
+      elsewhere in the codebase while we're at it.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Sat, 23 Feb 2013 10:00:43 -0800
+ -- Casey Marshall <casey.marshall@gazzang.com>  Tue, 26 Feb 2013 16:52:24 -0600
 
 hockeypuck (0.8.1) precise; urgency=low
 
