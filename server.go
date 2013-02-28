@@ -116,15 +116,17 @@ func parseLookup(req *http.Request) (*Lookup, error) {
 	case "stats":
 		lookup.Op = Stats
 		searchRequired = false
-		if strings.Contains(req.Host, ":") {
-			var host string
-			var port string
-			host, port, err = net.SplitHostPort(req.Host)
+		var host string
+		var port string
+		var hpErr error
+		if host, port, hpErr = net.SplitHostPort(req.Host); hpErr == nil {
 			lookup.Hostname = host
-			lookup.Port, err = strconv.Atoi(port)
-		} else {
+			lookup.Port, hpErr = strconv.Atoi(port)
+		}
+		if hpErr != nil || len(lookup.Hostname) == 0 || lookup.Port == 0 {
+			// Default if host:port parsing has an error
 			lookup.Hostname = req.Host
-			lookup.Port = 80
+			lookup.Port = 11371
 		}
 	case "":
 		return nil, errors.New("Missing required parameter: op")

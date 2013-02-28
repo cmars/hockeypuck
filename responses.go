@@ -134,7 +134,8 @@ func (r *StatsResponse) WriteTo(w http.ResponseWriter) (err error) {
 	if err != nil {
 		return
 	}
-	if r.Lookup.Option&JsonFormat != 0 {
+	if r.Lookup.Option&(JsonFormat|MachineReadable) != 0 {
+		// JSON is the only supported machine readable stats format.
 		w.Header().Add("Content-Type", "application/json")
 		msg := map[string]interface{}{
 			"timestamp": time.Unix(0, r.Stats.Timestamp).Unix(),
