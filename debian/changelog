@@ -1,4 +1,4 @@
-hockeypuck (0.9) precise; urgency=low
+hockeypuck (0.9-0ubuntu1) precise; urgency=low
 
   [ Casey Marshall ]
   * hkp_types.go, mgo/worker.go, responses.go, server.go,
