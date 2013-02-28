@@ -9,12 +9,19 @@ else
 	DISTS=$1
 fi
 
+bzr revert debian/changelog
+
+# Detect whether this is a development build or production release
+DEVBUILD=$(head -1 debian/changelog | grep \~ && echo true)
+
 # Build for each supported Ubuntu version
 for d in $DISTS; do
 	# Revert any changes (ie, debian/changelog)
 	bzr revert debian/changelog
-	# Append bzr revision and release distro info
-	sed -i -e "s/) [a-zA-Z0-9].*;/~bzr$REVNO~$d) $d;/i" debian/changelog
+	if [ -n "$DEVBUILD" ]; then
+		# Append bzr revision and release distro info
+		sed -i -e "s/) [a-zA-Z0-9].*;/~bzr$REVNO~$d) $d;/i" debian/changelog
+	fi
 	# Build source package
 	make debsrc
 	# Update changelog timestamp and committer
