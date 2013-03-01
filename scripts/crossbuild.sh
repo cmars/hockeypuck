@@ -7,7 +7,7 @@
 . $HOME/local/bin/golang-crosscompile
 
 if [ -z "$1" ]; then
-	PLATFORMS="darwin-386 darwin-amd64 freebsd-386 freebsd-amd64 linux-386 linux-amd64 windows-386 windows-amd64"
+	PLATFORMS="darwin-386 darwin-amd64 freebsd-386 freebsd-amd64 linux-386 linux-amd64"
 else
 	PLATFORMS=$1
 fi
