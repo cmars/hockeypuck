@@ -1,3 +1,10 @@
+hockeypuck (1.0~a1) precise; urgency=low
+
+  [ Casey Marshall ]
+  * Opening 1.0~a1 development
+
+ -- Casey Marshall <casey.marshall@gazzang.com>  Sat, 02 Mar 2013 14:00:44 -0600
+
 hockeypuck (0.9) precise; urgency=low
 
   [ Casey Marshall ]
