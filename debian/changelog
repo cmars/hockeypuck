@@ -69,19 +69,22 @@ hockeypuck (0.9) precise; urgency=low
   * mgo/worker.go:
     - Update with reversed fingerprint.
   * mgo/client.go, mgo/worker.go:
-    - Fix typo in modified stats aggregation. Make stats timestamp index unique.
+    - Fix typo in modified stats aggregation.
+      Make stats timestamp index unique.
   * hkp_types.go, instroot/var/lib/hockeypuck/www/templates/header.tmpl,
     mgo/client.go, mgo/pks.go, mgo/worker.go, pks.go, responses.go,
     server.go, status_types.go, templates.go, worker.go,
-    instroot/var/lib/hockeypuck/www/templates/pks/status.tmpl =>
     instroot/var/lib/hockeypuck/www/templates/pks/stats.tmpl:
-    - Change op=status to op=stats. Make distinction between "status" and "stats"
-      elsewhere in the codebase while we're at it.
+    - Change op=status to op=stats. Make distinction between
+      "status" and "stats" elsewhere in the codebase while we're at it.
   * responses.go, server.go:
     - Default op=stats HTTP port to 11371, improve Host: parsing.
     - Respond with JSON for mr option if op=stats.
+  * debian/copyright:
+    - Proper Debian license attribution of all Go library dependencies
+      redistributed in source package.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 27 Feb 2013 18:10:28 -0600
+ -- Casey Marshall <casey.marshall@gazzang.com>  Mon, 04 Mar 2013 12:32:38 -0600
 
 hockeypuck (0.8.1) precise; urgency=low
 
