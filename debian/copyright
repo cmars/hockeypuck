@@ -102,6 +102,7 @@ License: BSD-2-clause
  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Files: gopath/src/github.com/qpliu/qrencode-go/*
+Copyright: 2012, Q P Liu
 License: LGPL-3.0
  GNU LESSER GENERAL PUBLIC LICENSE
  Version 3, 29 June 2007
