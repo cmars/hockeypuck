@@ -83,8 +83,11 @@ hockeypuck (0.9) precise; urgency=low
   * debian/copyright:
     - Proper Debian license attribution of all Go library dependencies
       redistributed in source package.
+  * pgp.go:
+    - Fixed deadlock in ReadValidKeys, defer draining source channels
+      in its goroutine.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Mon, 04 Mar 2013 12:32:38 -0600
+ -- Casey Marshall <casey.marshall@gazzang.com>  Sat, 09 Mar 2013 23:55:24 -0600
 
 hockeypuck (0.8.1) precise; urgency=low
 
