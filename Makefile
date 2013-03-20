@@ -6,8 +6,8 @@ GO=go
 HOCKEYPATH=$(GOPATH)/src/launchpad.net/hockeypuck
 
 all:
-	mkdir -p $(GOPATH)/src/launchpad.net/hockeypuck
-	rsync -aP --exclude $(GOPATH) $(CURDIR)/ $(GOPATH)/src/launchpad.net/hockeypuck/
+	mkdir -p $(GOPATH)/src/launchpad.net
+	ln -s $(CURDIR) $(GOPATH)/src/launchpad.net/hockeypuck
 	GOPATH="${GOPATH}" $(GO) get launchpad.net/hockeypuck/cmd/hockeypuck-mgo
 	GOPATH="${GOPATH}" $(GO) get launchpad.net/hockeypuck/cmd/hockeypuck-load
 	GOPATH="${GOPATH}" $(GO) install launchpad.net/hockeypuck/cmd/hockeypuck-mgo
