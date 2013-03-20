@@ -28,6 +28,7 @@ type indexInfo struct {
 
 var keysIndexes []mgo.Index = []mgo.Index{
 	mgo.Index{Key: []string{"rfingerprint"}, Unique: true},
+	mgo.Index{Key: []string{"subkeys.rfingerprint"}},
 	mgo.Index{Key: []string{"identities.keywords"}}}
 
 var pksStatusIndexes []mgo.Index = []mgo.Index{

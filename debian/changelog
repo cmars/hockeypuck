@@ -3,7 +3,12 @@ hockeypuck (1.0~a1) precise; urgency=low
   [ Casey Marshall ]
   * Opening 1.0~a1 development
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Sat, 02 Mar 2013 14:00:44 -0600
+  [ Evan Broder ]
+  * Makefile, mgo/client.go, mgo/worker.go:
+    - Add support for subkey fingerprint query.
+    - Use a symlink instead of rsync to satisfy build-deps.
+
+ -- Casey Marshall <casey.marshall@gazzang.com>  Tue, 19 Mar 2013 23:25:42 -0500
 
 hockeypuck (0.9) precise; urgency=low
 
