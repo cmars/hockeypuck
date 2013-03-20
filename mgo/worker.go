@@ -106,10 +106,10 @@ func (mw *MgoWorker) LookupKey(keyid string) (*PubKey, error) {
 	case 4:
 		fallthrough
 	case 8:
-		q = mw.keys.Find(bson.M{"rfingerprint": bson.RegEx{
-			Pattern: fmt.Sprintf("^%s", rkeyid)}})
+		var regex = bson.RegEx{Pattern: fmt.Sprintf("^%s", rkeyid)}
+		q = mw.keys.Find(bson.M{"$or": []bson.M{bson.M{"rfingerprint": regex}, bson.M{"subkeys.rfingerprint": regex}}})
 	case 20:
-		q = mw.keys.Find(bson.M{"rfingerprint": rkeyid})
+		q = mw.keys.Find(bson.M{"$or": []bson.M{bson.M{"rfingerprint": rkeyid}, bson.M{"subkeys.rfingerprint": rkeyid}}})
 	default:
 		return nil, InvalidKeyId
 	}
