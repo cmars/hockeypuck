@@ -13,7 +13,7 @@ else
 fi
 
 GOPATH=$(pwd)/gopath
-rm -rf $GOPATH
+rm -rf $GOPATH/bin $GOPATH/pkg
 
 APPS="launchpad.net/hockeypuck/cmd/hockeypuck-mgo launchpad.net/hockeypuck/cmd/hockeypuck-load"
 
@@ -37,7 +37,7 @@ version=$(head -1 debian/changelog | sed 's/.*(//;s/).*//;')
 for platform in $PLATFORMS;
 do
 	platform_bin=$(echo $platform | sed 's/-/_/')
-	tarfile=$DIST/hockeypuck-$version-$platform.tar
+	tarfile=$DIST/hockeypuck-$version.0$(bzr revno)-$platform.tar
 	tar -C instroot -cvf $tarfile .
 	tar -C instroot-extra -rvf $tarfile .
 	mkdir -p $BUILD/$platform/usr/bin

@@ -98,8 +98,11 @@ hockeypuck (0.9) precise; urgency=low
   * pgp.go:
     - Fixed deadlock in ReadValidKeys, defer draining source channels
       in its goroutine.
+  * scripts/crossbuild.sh:
+    - Add build number to cross-compiled tarballs, remove only binaries
+      on subsequent platforms.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Sat, 09 Mar 2013 23:55:24 -0600
+ -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 20 Mar 2013 22:54:03 -0500
 
 hockeypuck (0.8.1) precise; urgency=low
 
