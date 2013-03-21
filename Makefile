@@ -7,7 +7,7 @@ HOCKEYPATH=$(GOPATH)/src/launchpad.net/hockeypuck
 
 all:
 	mkdir -p $(GOPATH)/src/launchpad.net
-	ln -s $(CURDIR) $(GOPATH)/src/launchpad.net/hockeypuck
+	test -e $(GOPATH)/src/launchpad.net/hockeypuck || ln -s $(CURDIR) $(GOPATH)/src/launchpad.net/hockeypuck
 	GOPATH="${GOPATH}" $(GO) get launchpad.net/hockeypuck/cmd/hockeypuck-mgo
 	GOPATH="${GOPATH}" $(GO) get launchpad.net/hockeypuck/cmd/hockeypuck-load
 	GOPATH="${GOPATH}" $(GO) install launchpad.net/hockeypuck/cmd/hockeypuck-mgo
