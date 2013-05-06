@@ -20,6 +20,7 @@ package hockeypuck
 import (
 	"bytes"
 	"code.google.com/p/go.crypto/openpgp/packet"
+	"crypto/md5"
 	"crypto/sha512"
 	"encoding/hex"
 )
@@ -365,6 +366,24 @@ func CumlDigest(root PacketObject) string {
 	for pktObj := range pktObjChan {
 		h.Write([]byte(pktObj.GetDigest()))
 		h.Write([]byte{0})
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// SksDigest calculates a strong cryptographic digest
+// for public key material using a method compatible
+// with SKS.
+func SksDigest(key *PubKey) string {
+	h := md5.New()
+	pktObjChan := make(chan PacketObject)
+	go func() {
+		key.Traverse(pktObjChan)
+		close(pktObjChan)
+	}()
+	for pktObj := range pktObjChan {
+		buf := pktObj.GetPacket()
+		h.Write(buf)
+		h.Write(make([]byte, 4-(len(buf)%4)))
 	}
 	return hex.EncodeToString(h.Sum(nil))
 }
