@@ -42,12 +42,10 @@ func ParseCfg() {
 	if fi, err = os.Stat(CONFIG_PATH); err != nil || fi.IsDir() {
 		// no config file or not found
 		goto CFGERR
-		return
 	}
 	f, err = os.Open(CONFIG_PATH)
 	if err != nil {
 		goto CFGERR
-		return
 	}
 	fmt.Fprintf(os.Stderr, "Reading configuration from %v\n", f.Name())
 	bf = bufio.NewReader(f)

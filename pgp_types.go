@@ -22,7 +22,10 @@ import (
 	"code.google.com/p/go.crypto/openpgp/packet"
 	"crypto/md5"
 	"crypto/sha512"
+	"encoding/binary"
 	"encoding/hex"
+	"log"
+	"sort"
 )
 
 // Common operations for all OpenPGP packets.
@@ -370,10 +373,33 @@ func CumlDigest(root PacketObject) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
+type packetSlice []*packet.OpaquePacket
+
+func (ps packetSlice) Len() int {
+	return len(ps)
+}
+
+func (ps packetSlice) Swap(i, j int) {
+	ps[i], ps[j] = ps[j], ps[i]
+}
+
+type packetSorter struct{ packetSlice }
+
+func (ps packetSorter) Less(i, j int) bool {
+	cmp := int32(ps.packetSlice[i].Tag) - int32(ps.packetSlice[j].Tag)
+	if cmp < 0 {
+		return true
+	} else if cmp > 0 {
+		return false
+	}
+	return bytes.Compare(ps.packetSlice[i].Contents, ps.packetSlice[j].Contents) < 0
+}
+
 // SksDigest calculates a strong cryptographic digest
 // for public key material using a method compatible
 // with SKS.
 func SksDigest(key *PubKey) string {
+	var packets []*packet.OpaquePacket
 	h := md5.New()
 	pktObjChan := make(chan PacketObject)
 	go func() {
@@ -381,9 +407,19 @@ func SksDigest(key *PubKey) string {
 		close(pktObjChan)
 	}()
 	for pktObj := range pktObjChan {
-		buf := pktObj.GetPacket()
-		h.Write(buf)
-		h.Write(make([]byte, 4-(len(buf)%4)))
+		buf := bytes.NewBuffer(pktObj.GetPacket())
+		opr := packet.NewOpaqueReader(buf)
+		opkt, err := opr.Next()
+		if err == nil {
+			packets = append(packets, opkt)
+		}
+	}
+	sort.Sort(packetSorter{packets})
+	for _, opkt := range packets {
+		log.Println("Tag=", opkt.Tag)
+		binary.Write(h, binary.BigEndian, int32(opkt.Tag))
+		binary.Write(h, binary.BigEndian, int32(len(opkt.Contents)))
+		h.Write(opkt.Contents)
 	}
 	return hex.EncodeToString(h.Sum(nil))
 }

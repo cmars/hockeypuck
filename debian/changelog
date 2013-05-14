@@ -5,6 +5,10 @@ hockeypuck (1.0~a1) precise; urgency=low
   * === added directory cmd/sks-hash, cmd/sks-hash/main.go,
     pgp_types.go:
     - Add SksDigest function, test utility. LP: #1176689
+  * config.go, pgp_test.go, pgp_types.go, server_test.go:
+    - SksDigest function passing basic unit test. LP: #1176689
+    - Fix server unit tests, canned http.Request objects.
+    - Removed unreachable returns in config.go.
 
   [ Evan Broder ]
   * Makefile, mgo/client.go, mgo/worker.go:
@@ -105,7 +109,7 @@ hockeypuck (0.9) precise; urgency=low
     - Add build number to cross-compiled tarballs, remove only binaries
       on subsequent platforms.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 20 Mar 2013 22:54:03 -0500
+ -- Casey Marshall <casey.marshall@gmail.com>  Wed, 20 Mar 2013 22:54:03 -0500
 
 hockeypuck (0.8.1) precise; urgency=low
 
@@ -120,7 +124,7 @@ hockeypuck (0.8.1) precise; urgency=low
     - Updated unknown/unsupported packet parsing wrt
       changes in go.crypto merge.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Tue, 22 Jan 2013 21:10:03 -0600
+ -- Casey Marshall <casey.marshall@gmail.com>  Tue, 22 Jan 2013 21:10:03 -0600
 
 hockeypuck (0.8) precise; urgency=low
 
@@ -142,7 +146,7 @@ hockeypuck (0.8) precise; urgency=low
     removed directory instroot/etc/init:
     - A handful of packaging recommendations
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Tue, 22 Jan 2013 11:00:00 -0600
+ -- Casey Marshall <casey.marshall@gmail.com>  Tue, 22 Jan 2013 11:00:00 -0600
 
 hockeypuck (0.7) precise; urgency=low
 
@@ -206,7 +210,7 @@ hockeypuck (0.7) precise; urgency=low
   * scripts/crossbuild.sh:
     - Add version to dist tarballs.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Thu, 13 Dec 2012 21:39:31 -0600
+ -- Casey Marshall <casey.marshall@gmail.com>  Thu, 13 Dec 2012 21:39:31 -0600
 
 hockeypuck (0.6) precise; urgency=low
 
@@ -245,7 +249,7 @@ hockeypuck (0.6) precise; urgency=low
     - Parse configuration file on startup, sets default values for
       flags. Added to package install. LP: #1040384
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Thu, 15 Nov 2012 22:56:28 -0600
+ -- Casey Marshall <casey.marshall@gmail.com>  Thu, 15 Nov 2012 22:56:28 -0600
 
 hockeypuck (0.5) precise; urgency=low
 
@@ -317,7 +321,7 @@ hockeypuck (0.5) precise; urgency=low
     mgo.conf:
     - Add upstart config, postinst to set up hockeypuck user, log dirs.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 31 Oct 2012 00:10:27 -0500
+ -- Casey Marshall <casey.marshall@gmail.com>  Wed, 31 Oct 2012 00:10:27 -0500
 
 hockeypuck (0.1~alpha1) precise; urgency=low
 
@@ -371,4 +375,4 @@ hockeypuck (0.1~alpha1) precise; urgency=low
     - Improved mongo document model.
     - Add fingerprint unique index.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Thu, 30 Aug 2012 23:04:38 -0500
+ -- Casey Marshall <casey.marshall@gmail.com>  Thu, 30 Aug 2012 23:04:38 -0500

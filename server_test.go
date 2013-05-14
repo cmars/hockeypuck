@@ -18,6 +18,7 @@
 package hockeypuck
 
 import (
+	"bytes"
 	"github.com/bmizerany/assert"
 	"net/http"
 	"net/url"
@@ -116,10 +117,8 @@ func TestAdd(t *testing.T) {
 	assert.Equal(t, err, nil)
 	postData := make(map[string][]string)
 	postData["keytext"] = []string{"sus llaves aqui"}
-	req := &http.Request{
-		Method: "POST",
-		URL:    testUrl,
-		Form:   url.Values(postData)}
+	req, err := http.NewRequest("POST", testUrl.String(), bytes.NewBuffer(nil))
+	req.PostForm = url.Values(postData)
 	add, err := parseAdd(req)
 	assert.Equal(t, err, nil)
 	assert.Equal(t, "sus llaves aqui", add.Keytext)
@@ -133,10 +132,8 @@ func TestAddOptions(t *testing.T) {
 	postData := make(map[string][]string)
 	postData["keytext"] = []string{"sus llaves estan aqui"}
 	postData["options"] = []string{"mr"}
-	req := &http.Request{
-		Method: "POST",
-		URL:    testUrl,
-		Form:   url.Values(postData)}
+	req, err := http.NewRequest("POST", testUrl.String(), bytes.NewBuffer(nil))
+	req.PostForm = url.Values(postData)
 	add, err := parseAdd(req)
 	assert.Equal(t, err, nil)
 	assert.Equal(t, "sus llaves estan aqui", add.Keytext)
