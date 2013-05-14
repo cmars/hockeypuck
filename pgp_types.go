@@ -24,7 +24,6 @@ import (
 	"crypto/sha512"
 	"encoding/binary"
 	"encoding/hex"
-	"log"
 	"sort"
 )
 
@@ -416,7 +415,6 @@ func SksDigest(key *PubKey) string {
 	}
 	sort.Sort(packetSorter{packets})
 	for _, opkt := range packets {
-		log.Println("Tag=", opkt.Tag)
 		binary.Write(h, binary.BigEndian, int32(opkt.Tag))
 		binary.Write(h, binary.BigEndian, int32(len(opkt.Contents)))
 		h.Write(opkt.Contents)
