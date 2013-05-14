@@ -176,10 +176,10 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 				var lastKey *PubKey
 				lastKey, err = mw.LookupKey(key.Fingerprint())
 				if err == nil && lastKey != nil {
-					lastCuml := lastKey.CumlDigest
+					lastCuml := lastKey.SksDigest
 					MergeKey(lastKey, key)
-					lastKey.CumlDigest = CumlDigest(lastKey)
-					if lastKey.CumlDigest != lastCuml {
+					lastKey.SksDigest = SksDigest(lastKey)
+					if lastKey.SksDigest != lastCuml {
 						log.Println("Updated:", key.Fingerprint())
 						lastKey.Mtime = time.Now().UnixNano()
 						err = mw.keys.Update(bson.M{"rfingerprint": key.RFingerprint}, lastKey)
@@ -193,7 +193,7 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 					log.Println("Insert:", key.Fingerprint())
 					key.Ctime = time.Now().UnixNano()
 					key.Mtime = key.Ctime
-					key.CumlDigest = CumlDigest(key)
+					key.SksDigest = SksDigest(key)
 					err = mw.keys.Insert(key)
 					if err == nil {
 						mw.createdKeys <- key

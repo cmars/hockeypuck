@@ -9,6 +9,9 @@ hockeypuck (1.0~a1) precise; urgency=low
     - SksDigest function passing basic unit test. LP: #1176689
     - Fix server unit tests, canned http.Request objects.
     - Removed unreachable returns in config.go.
+  * mgo/worker.go, pgp_types.go:
+    - Replace arbitrary cumulative key digest method with SKS
+      method for recon compatibility. LP: #1176689
 
   [ Evan Broder ]
   * Makefile, mgo/client.go, mgo/worker.go:

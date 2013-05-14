@@ -21,7 +21,6 @@ import (
 	"bytes"
 	"code.google.com/p/go.crypto/openpgp/packet"
 	"crypto/md5"
-	"crypto/sha512"
 	"encoding/binary"
 	"encoding/hex"
 	"sort"
@@ -67,7 +66,7 @@ type PubKey struct {
 	Digest       string
 	Ctime        int64
 	Mtime        int64
-	CumlDigest   string
+	SksDigest   string
 }
 
 func (pubKey *PubKey) Fingerprint() string {
@@ -358,20 +357,6 @@ func (pk *PubKey) SelfSignature() *Signature {
 	return nil
 }
 
-func CumlDigest(root PacketObject) string {
-	h := sha512.New()
-	pktObjChan := make(chan PacketObject)
-	go func() {
-		root.Traverse(pktObjChan)
-		close(pktObjChan)
-	}()
-	for pktObj := range pktObjChan {
-		h.Write([]byte(pktObj.GetDigest()))
-		h.Write([]byte{0})
-	}
-	return hex.EncodeToString(h.Sum(nil))
-}
-
 type packetSlice []*packet.OpaquePacket
 
 func (ps packetSlice) Len() int {
@@ -394,7 +379,7 @@ func (ps packetSorter) Less(i, j int) bool {
 	return bytes.Compare(ps.packetSlice[i].Contents, ps.packetSlice[j].Contents) < 0
 }
 
-// SksDigest calculates a strong cryptographic digest
+// CumlDigest calculates a strong cryptographic digest
 // for public key material using a method compatible
 // with SKS.
 func SksDigest(key *PubKey) string {
