@@ -12,13 +12,15 @@ hockeypuck (1.0~a1) precise; urgency=low
   * mgo/worker.go, pgp_types.go:
     - Replace arbitrary cumulative key digest method with SKS
       method for recon compatibility. LP: #1176689
+  * === added directory peer, peer/peer.go:
+    - Add reconciliation peer. LP: #1044767
 
   [ Evan Broder ]
   * Makefile, mgo/client.go, mgo/worker.go:
     - Add support for subkey fingerprint query.
     - Use a symlink instead of rsync to satisfy build-deps.
 
- -- Casey Marshall <casey.marshall@gmail.com>  Tue, 19 Mar 2013 23:25:42 -0500
+ -- Casey Marshall <casey.marshall@gmail.com>  Tue, 21 May 2013 01:29:09 -0500
 
 hockeypuck (0.9) precise; urgency=low
 
