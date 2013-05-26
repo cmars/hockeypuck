@@ -36,6 +36,8 @@ type Worker interface {
 	LookupKeys(search string, limit int) ([]*PubKey, error)
 	// Look up a key by ID.
 	LookupKey(keyid string) (*PubKey, error)
+	// Look up a key by hash.
+	LookupHash(hash string) (*PubKey, error)
 	// Add ASCII-armored public key
 	AddKey(armoredKey string) ([]string, error)
 	// Get server stats
@@ -116,6 +118,13 @@ func serveHkp(wh *WorkerHandle) {
 					stats.Hostname = lookup.Hostname
 					stats.Port = lookup.Port
 					lookup.Response() <- &StatsResponse{Stats: stats, Err: err, Lookup: lookup}
+				case HashGet:
+					out := bytes.NewBuffer(nil)
+					key, err := wh.w.LookupHash(lookup.Search)
+					if err == nil {
+						err = WriteKey(out, key)
+					}
+					lookup.Response() <- &MessageResponse{Content: string(out.Bytes()), Err: err}
 				default:
 					lookup.Response() <- &NotImplementedResponse{}
 				}

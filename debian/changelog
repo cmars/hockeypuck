@@ -14,13 +14,17 @@ hockeypuck (1.0~a1) precise; urgency=low
       method for recon compatibility. LP: #1176689
   * === added directory peer, peer/peer.go:
     - Add reconciliation peer. LP: #1044767
+  * errors.go, hkp_types.go, mgo/worker.go, mgo/worker_test.go,
+    server.go, worker.go:
+    - Add op=hget. LP: #1044767
+    - Remove unreachable panics, not needed for Go 1.1.
 
   [ Evan Broder ]
   * Makefile, mgo/client.go, mgo/worker.go:
     - Add support for subkey fingerprint query.
     - Use a symlink instead of rsync to satisfy build-deps.
 
- -- Casey Marshall <casey.marshall@gmail.com>  Tue, 21 May 2013 01:29:09 -0500
+ -- Casey Marshall <casey.marshall@gmail>  Sun, 26 May 2013 02:53:55 -0500
 
 hockeypuck (0.9) precise; urgency=low
 

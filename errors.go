@@ -30,6 +30,9 @@ var InternalKeyInvalid = errors.New("Stored key ring is invalid.")
 // Key ID is invalid.
 var InvalidKeyId = errors.New("Invalid key ID.")
 
+// Key hash is invalid.
+var InvalidKeyHash = errors.New("Invalid key hash.")
+
 // A lookup with a short key ID found a collision.
 // This is quite possible with short key IDs, remotely possibly with long IDs.
 var KeyIdCollision = errors.New("Short key ID matches multiple public keys. Try again with a longer key ID.")

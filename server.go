@@ -128,6 +128,8 @@ func parseLookup(req *http.Request) (*Lookup, error) {
 			lookup.Hostname = req.Host
 			lookup.Port = 11371
 		}
+	case "hget":
+		lookup.Op = HashGet
 	case "":
 		return nil, errors.New("Missing required parameter: op")
 	default:

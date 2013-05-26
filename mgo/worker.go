@@ -20,6 +20,7 @@ package mgo
 import (
 	"bytes"
 	"code.google.com/p/go.crypto/openpgp/armor"
+	"crypto/md5"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -124,6 +125,27 @@ func (mw *MgoWorker) LookupKey(keyid string) (*PubKey, error) {
 	return key, nil
 }
 
+func (mw *MgoWorker) LookupHash(hash string) (*PubKey, error) {
+	hash = strings.ToLower(hash)
+	raw, err := hex.DecodeString(hash)
+	if err != nil {
+		return nil, InvalidKeyHash
+	}
+	if len(raw) != md5.Size {
+		return nil, InvalidKeyHash
+	}
+	q := mw.keys.Find(bson.M{"sksdigest": hash})
+	key := new(PubKey)
+	err = q.One(key)
+	if err == mgo.ErrNotFound {
+		return nil, KeyNotFound
+	} else if err != nil {
+		return nil, err
+	}
+	mw.addSignatureUids(key)
+	return key, nil
+}
+
 func (mw *MgoWorker) addSignatureUids(key *PubKey) (err error) {
 	pktChan := make(chan PacketObject)
 	defer FinishTraversal(pktChan)
@@ -216,7 +238,6 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 			}
 		}
 	}
-	panic("unreachable")
 }
 
 func (mw *MgoWorker) updateStats() {

@@ -63,7 +63,6 @@ func normalizeArmoredKey(t *testing.T, armoredKey string) string {
 			}
 		}
 	}
-	panic("should not get here")
 }
 
 // Add a key.
