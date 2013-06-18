@@ -18,13 +18,21 @@ hockeypuck (1.0~a1) precise; urgency=low
     server.go, worker.go:
     - Add op=hget. LP: #1044767
     - Remove unreachable panics, not needed for Go 1.1.
+  * === added directory doc, === added directory doc/publish, === added
+    directory doc/publish/static, doc/install.article,
+    doc/publish/install.html, doc/publish/static/article.css,
+    doc/publish/static/dir.css, doc/publish/static/dir.js,
+    doc/publish/static/favicon.ico, doc/publish/static/print.css,
+    doc/publish/static/slides.js, doc/publish/static/styles.css:
+    - Add install doc, Present source and generated HTML.
+      Published to http://cmars.github.io/hockeypuck/install.html
 
   [ Evan Broder ]
   * Makefile, mgo/client.go, mgo/worker.go:
     - Add support for subkey fingerprint query.
     - Use a symlink instead of rsync to satisfy build-deps.
 
- -- Casey Marshall <casey.marshall@gmail>  Sun, 26 May 2013 02:53:55 -0500
+ -- Casey Marshall <casey.marshall@gmail.com>  Sun, 26 May 2013 02:53:55 -0500
 
 hockeypuck (0.9) precise; urgency=low
 
