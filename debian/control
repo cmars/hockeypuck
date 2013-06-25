@@ -8,7 +8,7 @@ Homepage: http://launchpad.net/hockeypuck
 
 Package: hockeypuck
 Architecture: i386 amd64
-Depends: ${shlibs:Depends}, ${misc:Depends}, adduser, fonts-droid
+Depends: ${shlibs:Depends}, ${misc:Depends}, adduser, fonts-droid, libleveldb1 (>= 1.6)
 Recommends:
  logrotate, mongodb-10gen | mongodb-server, upstart
 Description: OpenPGP Key Server

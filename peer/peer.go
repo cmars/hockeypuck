@@ -1,24 +1,30 @@
 package peer
 
 import (
-	"github.com/cmars/conflux/recon"
-	"github.com/cmars/conflux/recon/cask"
-	//. "launchpad.net/hockeypuck"
 	"errors"
 	"flag"
+	"fmt"
+	"github.com/cmars/conflux/recon"
+	"github.com/cmars/conflux/recon/leveldb"
+	"io/ioutil"
+	. "launchpad.net/hockeypuck"
+	"log"
+	"net"
+	"net/http"
 )
 
 var reconDir *string = flag.String("recon-db-path", "/var/lib/hockeypuck/recon-db", "Recon database path")
 var reconCfg *string = flag.String("recon-cfg", "/etc/hockeypuck/recon.conf", "Recon configuration file")
 
-type ReconPeer struct {
-	peer *recon.Peer
-	stop chan interface{}
+type SksPeer struct {
+	*recon.Peer
+	Hkp          *HkpServer
+	stopRecovery chan interface{}
 }
 
 var ReconNotConfigured error = errors.New("Reconciliation peer not configured.")
 
-func NewPeer() (*ReconPeer, error) {
+func NewPeer(hkp *HkpServer) (*SksPeer, error) {
 	var settings *recon.Settings
 	if *reconCfg != "" {
 		settings = recon.LoadSettings(*reconCfg)
@@ -28,33 +34,64 @@ func NewPeer() (*ReconPeer, error) {
 	if *reconDir != "" {
 		return nil, ReconNotConfigured
 	}
-	peer, err := cask.NewPeer(*reconDir, settings)
+	peer, err := leveldb.NewPeer(*reconDir, settings)
 	if err != nil {
 		return nil, err
 	}
-	return &ReconPeer{peer, make(chan interface{})}, nil
+	return &SksPeer{peer, hkp, make(chan interface{})}, nil
 }
 
-func (rp *ReconPeer) Start() {
+func (rp *SksPeer) Start() {
+	go rp.HandleRecovery()
+	go rp.Peer.Start()
+}
+
+func (rp *SksPeer) HandleRecovery() {
 	go func() {
 		for {
 			select {
-			case r, ok := <-rp.peer.RecoverChan:
+			case r, ok := <-rp.Peer.RecoverChan:
 				if !ok {
 					return
 				}
-				for _ /*z*/, _ = range r.RemoteElements {
-					// TODO: hget from remote addr (need http address)
-					// TODO: Merge locally
+				host, _, err := net.SplitHostPort(r.RemoteAddr.String())
+				if err != nil {
+					log.Println("Cannot parse remote address:", err)
+					continue
 				}
-			case <-rp.stop:
+				httpPort, has := r.RemoteConfig["HttpPort"]
+				if !has {
+					log.Println("Remote config missing HttpPort!")
+					httpPort = "11370"
+				}
+				for _, z := range r.RemoteElements {
+					// hget from remote addr (need http address)
+					url := fmt.Sprintf("http://%s:%s/pks/lookup?op=hget&search=%s",
+						host, httpPort, z)
+					resp, err := http.Get(url)
+					if err != nil {
+						log.Println(host, ": HGet request failed:", err)
+						continue
+					}
+					defer resp.Body.Close()
+					keytext, err := ioutil.ReadAll(resp.Body)
+					if err != nil {
+						log.Println("Error reading HGet response:", err)
+						continue
+					}
+					// Merge locally
+					rp.Hkp.AddRequests <- &Add{
+						Keytext: string(keytext),
+						Option:  NoOption}
+				}
+			case <-rp.stopRecovery:
 				return
 			}
 		}
 	}()
 }
 
-func (rp *ReconPeer) Stop() {
-	rp.stop <- nil
-	rp.peer.Stop()
+func (rp *SksPeer) Stop() {
+	rp.stopRecovery <- nil
+	rp.Peer.Stop()
 }

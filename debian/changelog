@@ -26,6 +26,10 @@ hockeypuck (1.0~a1) precise; urgency=low
     doc/publish/static/slides.js, doc/publish/static/styles.css:
     - Add install doc, Present source and generated HTML.
       Published to http://cmars.github.io/hockeypuck/install.html
+  * debian/control, mgo/worker.go, peer/peer.go:
+    - hget fetch on recovery. Using LevelDB backend. LP: #1044767
+    - Add libleveldb package dependency for levigo.
+    - Add impossible return to worker for compiler's sake.
 
   [ Evan Broder ]
   * Makefile, mgo/client.go, mgo/worker.go:

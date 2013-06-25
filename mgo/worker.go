@@ -238,6 +238,7 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 			}
 		}
 	}
+	return
 }
 
 func (mw *MgoWorker) updateStats() {
