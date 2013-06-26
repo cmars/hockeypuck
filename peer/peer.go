@@ -13,8 +13,8 @@ import (
 	"net/http"
 )
 
-var reconDir *string = flag.String("recon-db-path", "/var/lib/hockeypuck/recon-db", "Recon database path")
-var reconCfg *string = flag.String("recon-cfg", "/etc/hockeypuck/recon.conf", "Recon configuration file")
+var reconDir *string = flag.String("recon-db", "/var/lib/hockeypuck/recon.db", "Recon database path")
+var reconCfg *string = flag.String("recon-conf", "/etc/hockeypuck/recon.conf", "Recon configuration file")
 
 type SksPeer struct {
 	*recon.Peer
@@ -31,7 +31,7 @@ func NewPeer(hkp *HkpServer) (*SksPeer, error) {
 	} else {
 		return nil, ReconNotConfigured
 	}
-	if *reconDir != "" {
+	if *reconDir == "" {
 		return nil, ReconNotConfigured
 	}
 	peer, err := leveldb.NewPeer(*reconDir, settings)
