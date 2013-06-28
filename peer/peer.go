@@ -59,11 +59,7 @@ func (rp *SksPeer) HandleRecovery() {
 					log.Println("Cannot parse remote address:", err)
 					continue
 				}
-				httpPort, has := r.RemoteConfig["HttpPort"]
-				if !has {
-					log.Println("Remote config missing HttpPort!")
-					httpPort = "11370"
-				}
+				httpPort := r.RemoteConfig.HttpPort
 				for _, z := range r.RemoteElements {
 					// hget from remote addr (need http address)
 					url := fmt.Sprintf("http://%s:%s/pks/lookup?op=hget&search=%s",
