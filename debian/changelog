@@ -37,7 +37,7 @@ hockeypuck (1.0~a1) precise; urgency=low
   * peer/peer.go:
     - Updated wrt recent changes in the conflux/recon Config struct.
   * Makefile
-    - Work around launchpad build env issues.
+    - Symbolic link hack to work around launchpad build env issues.
 
   [ Evan Broder ]
   * Makefile, mgo/client.go, mgo/worker.go:
