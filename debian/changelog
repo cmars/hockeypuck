@@ -38,6 +38,8 @@ hockeypuck (1.0~a1) precise; urgency=low
     - Updated wrt recent changes in the conflux/recon Config struct.
   * Makefile
     - Symbolic link hack to work around launchpad build env issues.
+  * debian/control:
+    - Add libleveldb-dev to source build package dependencies.
 
   [ Evan Broder ]
   * Makefile, mgo/client.go, mgo/worker.go:
