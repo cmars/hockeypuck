@@ -39,7 +39,7 @@ type Worker interface {
 	// Look up a key by hash.
 	LookupHash(hash string) (*PubKey, error)
 	// Add ASCII-armored public key
-	AddKey(armoredKey string) ([]string, error)
+	AddKey(armoredKey string) ([]*LoadKeyStatus, error)
 	// Get server stats
 	Stats() (*ServerStats, error)
 }
@@ -86,6 +86,15 @@ func FindKeys(w Worker, search string) (string, error) {
 	return string(buf.Bytes()), err
 }
 
+type LoadKeyStatus struct {
+	// Public key fingerprint of the loaded keyring
+	Fingerprint string
+	// Latest digest of the merged key
+	Digest string
+	// Prior digest before merged, or empty string if new inserted key.
+	LastDigest string
+}
+
 // Serve HKP requests
 func serveHkp(wh *WorkerHandle) {
 	go func() {
@@ -129,8 +138,11 @@ func serveHkp(wh *WorkerHandle) {
 					lookup.Response() <- &NotImplementedResponse{}
 				}
 			case add := <-wh.hkp.AddRequests:
-				fps, err := wh.w.AddKey(add.Keytext)
-				add.Response() <- &AddResponse{Fingerprints: fps, Err: err}
+				statuses, err := wh.w.AddKey(add.Keytext)
+				if wh.hkp.recon != nil {
+					wh.hkp.recon.loadedKeys <- statuses
+				}
+				add.Response() <- &AddResponse{Statuses: statuses, Err: err}
 			case _, isOpen := <-wh.stop:
 				if !isOpen {
 					return

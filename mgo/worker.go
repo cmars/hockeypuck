@@ -172,16 +172,16 @@ func (mw *MgoWorker) addSignatureUids(key *PubKey) (err error) {
 	return
 }
 
-func (mw *MgoWorker) AddKey(armoredKey string) ([]string, error) {
+func (mw *MgoWorker) AddKey(armoredKey string) ([]*LoadKeyStatus, error) {
 	// Check and decode the armor
 	armorBlock, err := armor.Decode(bytes.NewBufferString(armoredKey))
 	if err != nil {
-		return []string{}, err
+		return nil, err
 	}
 	return mw.LoadKeys(armorBlock.Body)
 }
 
-func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
+func (mw *MgoWorker) LoadKeys(r io.Reader) (statuses []*LoadKeyStatus, err error) {
 	keyChan, errChan := ReadValidKeys(r)
 	defer func() {
 		for _ = range keyChan {
@@ -197,10 +197,13 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 			if key != nil {
 				var lastKey *PubKey
 				lastKey, err = mw.LookupKey(key.Fingerprint())
+				var cuml string
+				var lastCuml string
 				if err == nil && lastKey != nil {
-					lastCuml := lastKey.SksDigest
+					lastCuml = lastKey.SksDigest
 					MergeKey(lastKey, key)
 					lastKey.SksDigest = SksDigest(lastKey)
+					cuml = lastKey.SksDigest
 					if lastKey.SksDigest != lastCuml {
 						log.Println("Updated:", key.Fingerprint())
 						lastKey.Mtime = time.Now().UnixNano()
@@ -216,6 +219,7 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 					key.Ctime = time.Now().UnixNano()
 					key.Mtime = key.Ctime
 					key.SksDigest = SksDigest(key)
+					cuml = key.SksDigest
 					err = mw.keys.Insert(key)
 					if err == nil {
 						mw.createdKeys <- key
@@ -225,7 +229,11 @@ func (mw *MgoWorker) LoadKeys(r io.Reader) (fps []string, err error) {
 					log.Println("Error:", err)
 					return
 				}
-				fps = append(fps, key.Fingerprint())
+				log.Println(key.SksDigest)
+				statuses = append(statuses, &LoadKeyStatus{
+					Fingerprint: key.Fingerprint(),
+					Digest:      cuml,
+					LastDigest:  lastCuml})
 			}
 			if !moreKeys {
 				return

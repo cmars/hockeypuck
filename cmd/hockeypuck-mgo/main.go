@@ -23,7 +23,6 @@ import (
 	"fmt"
 	. "launchpad.net/hockeypuck"
 	"launchpad.net/hockeypuck/mgo"
-	. "launchpad.net/hockeypuck/peer"
 	"log"
 	"net/http"
 	"os"
@@ -80,11 +79,11 @@ func main() {
 	pksSync.Init()
 	StartPksSync(pksSync)
 	// Start the recon peer
-	sksPeer, err := NewPeer(hkp)
+	sksRecon, err := NewSksRecon(hkp)
 	if err != nil {
 		log.Println("Warning: Sks-compatible recon peer failed:", err)
 	} else {
-		sksPeer.Start()
+		sksRecon.Start()
 	}
 	// Bind the router to the built-in webserver root
 	http.Handle("/", r)

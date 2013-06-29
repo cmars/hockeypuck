@@ -34,7 +34,7 @@ const (
 	Index            Operation = iota
 	Vindex           Operation = iota
 	Stats            Operation = iota
-	HashGet        Operation = iota
+	HashGet          Operation = iota
 )
 
 // Option bit mask in request.
@@ -104,4 +104,5 @@ type ResponseChan chan Response
 type HkpServer struct {
 	LookupRequests LookupChan
 	AddRequests    AddChan
+	recon          *SksRecon
 }

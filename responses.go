@@ -50,8 +50,8 @@ func (r *MessageResponse) WriteTo(w http.ResponseWriter) error {
 }
 
 type AddResponse struct {
-	Fingerprints []string
-	Err          error
+	Statuses []*LoadKeyStatus
+	Err      error
 }
 
 func (r *AddResponse) Error() error {
