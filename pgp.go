@@ -55,25 +55,31 @@ func Digest(data []byte) string {
 }
 
 // Write a public key as ASCII armored text.
-func WriteKey(out io.Writer, key *PubKey) error {
+func WriteKeys(out io.Writer, keys []*PubKey) error {
 	w, err := armor.Encode(out, openpgp.PublicKeyType, nil)
 	if err != nil {
 		return err
 	}
 	defer w.Close()
-	pktObjChan := make(chan PacketObject)
-	defer FinishTraversal(pktObjChan)
-	go func() {
-		key.Traverse(pktObjChan)
-		close(pktObjChan)
-	}()
-	for pktObj := range pktObjChan {
-		_, err = w.Write(pktObj.GetPacket())
-		if err != nil {
-			return err
+	for _, key := range keys {
+		pktObjChan := make(chan PacketObject)
+		defer FinishTraversal(pktObjChan)
+		go func() {
+			key.Traverse(pktObjChan)
+			close(pktObjChan)
+		}()
+		for pktObj := range pktObjChan {
+			_, err = w.Write(pktObj.GetPacket())
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
+}
+
+func WriteKey(out io.Writer, key *PubKey) error {
+	return WriteKeys(out, []*PubKey{key})
 }
 
 // Read one or more public keys from input.

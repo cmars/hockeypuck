@@ -44,6 +44,9 @@ hockeypuck (1.0~a1) precise; urgency=low
     peer/peer.go, recon.go, responses.go, worker.go:
     - Refactored recon peer, key status information from loading keys.
       Insert & remove recon ptree digests on key insert/update.
+  * hkp_types.go, pgp.go, server.go, worker.go:
+    - Implement /pks/hashquery to support SKS recovery & catchup.
+      LP: #1197618
 
   [ Evan Broder ]
   * Makefile, mgo/client.go, mgo/worker.go:

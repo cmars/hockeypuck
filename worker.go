@@ -20,6 +20,8 @@ package hockeypuck
 import (
 	"bytes"
 	"flag"
+	"github.com/cmars/conflux/recon"
+	"log"
 	"runtime"
 	"strings"
 )
@@ -132,6 +134,45 @@ func serveHkp(wh *WorkerHandle) {
 					key, err := wh.w.LookupHash(lookup.Search)
 					if err == nil {
 						err = WriteKey(out, key)
+					}
+					lookup.Response() <- &MessageResponse{Content: string(out.Bytes()), Err: err}
+				case HashQuery:
+					out := bytes.NewBuffer(nil)
+					hashes := strings.Split(lookup.Search, ",")
+					var key *PubKey
+					var err error
+					err = recon.WriteInt(out, len(hashes))
+					for _, hash := range hashes {
+						key, err = wh.w.LookupHash(hash)
+						if err != nil {
+							log.Println("hashquery: error looking up hash", hash, ":", err)
+							break
+						}
+						keyOut := bytes.NewBuffer(nil)
+						pktObjChan := make(chan PacketObject)
+						go func() {
+							key.Traverse(pktObjChan)
+							close(pktObjChan)
+						}()
+						for pktObj := range pktObjChan {
+							_, err = keyOut.Write(pktObj.GetPacket())
+							if err != nil {
+								log.Println("hashquery: error writing key for hash", hash)
+								break
+							}
+						}
+						FinishTraversal(pktObjChan)
+						err = recon.WriteInt(out, keyOut.Len())
+						if err != nil {
+							log.Println("hashquery: error writing key length for hash", hash)
+							break
+						}
+						_, err = out.Write(keyOut.Bytes())
+						if err != nil {
+							log.Println("hashquery: error writing key contents for hash", hash)
+							break
+						}
+						log.Println("hashquery: wrote hash", hash)
 					}
 					lookup.Response() <- &MessageResponse{Content: string(out.Bytes()), Err: err}
 				default:

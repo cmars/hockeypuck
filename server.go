@@ -19,9 +19,12 @@ package hockeypuck
 
 import (
 	"code.google.com/p/gorilla/mux"
+	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/cmars/conflux/recon"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -70,6 +73,10 @@ func NewHkpServer(r *mux.Router) *HkpServer {
 		func(resp http.ResponseWriter, req *http.Request) {
 			hkp.lookup(resp, req)
 		})
+	r.HandleFunc("/pks/hashquery",
+		func(resp http.ResponseWriter, req *http.Request) {
+			hkp.hashQuery(resp, req)
+		})
 	r.HandleFunc("/pks/add",
 		func(resp http.ResponseWriter, req *http.Request) {
 			hkp.add(resp, req)
@@ -86,6 +93,36 @@ func (hkp *HkpServer) lookup(respWriter http.ResponseWriter, req *http.Request) 
 		return err
 	}
 	hkp.LookupRequests <- lookup
+	return respondWith(respWriter, lookup)
+}
+
+// Handle SKS hashquery HTTP requests
+func (hkp *HkpServer) hashQuery(respWriter http.ResponseWriter, req *http.Request) error {
+	// Parse hashquery POST
+	defer req.Body.Close()
+	n, err := recon.ReadInt(req.Body)
+	if err != nil {
+		return err
+	}
+	log.Println("hashquery:", n, "keys requested")
+	searchDigests := make([]string, n)
+	for i := 0; i < n; i++ {
+		hashlen, err := recon.ReadInt(req.Body)
+		if err != nil {
+			return err
+		}
+		hash := make([]byte, hashlen)
+		_, err = req.Body.Read(hash)
+		if err != nil {
+			return err
+		}
+		searchDigests[i] = hex.EncodeToString(hash)
+	}
+	log.Println("hashquery:", searchDigests, "requested")
+	lookup := &Lookup{responseChan: make(chan Response),
+		Op: HashQuery, Search: strings.Join(searchDigests, ",")}
+	hkp.LookupRequests <- lookup
+	respWriter.Header().Set("Content-Type", "pgp/keys")
 	return respondWith(respWriter, lookup)
 }
 

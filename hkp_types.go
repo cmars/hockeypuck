@@ -35,6 +35,7 @@ const (
 	Vindex           Operation = iota
 	Stats            Operation = iota
 	HashGet          Operation = iota
+	HashQuery        Operation = iota
 )
 
 // Option bit mask in request.
