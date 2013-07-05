@@ -112,7 +112,7 @@ func serveHkp(wh *WorkerHandle) {
 					} else {
 						armor, err = FindKeys(wh.w, strings.ToLower(lookup.Search))
 					}
-					lookup.Response() <- &MessageResponse{Content: armor, Err: err}
+					lookup.Response() <- &MessageResponse{Content: []byte(armor), Err: err}
 				case Index, Vindex:
 					var key *PubKey
 					var err error
@@ -135,7 +135,7 @@ func serveHkp(wh *WorkerHandle) {
 					if err == nil {
 						err = WriteKey(out, key)
 					}
-					lookup.Response() <- &MessageResponse{Content: string(out.Bytes()), Err: err}
+					lookup.Response() <- &MessageResponse{Content: out.Bytes(), Err: err}
 				case HashQuery:
 					out := bytes.NewBuffer(nil)
 					hashes := strings.Split(lookup.Search, ",")
@@ -174,7 +174,9 @@ func serveHkp(wh *WorkerHandle) {
 						}
 						log.Println("hashquery: wrote hash", hash)
 					}
-					lookup.Response() <- &MessageResponse{Content: string(out.Bytes()), Err: err}
+					// SKS expects hashquery response to terminate with a CRLF
+					out.Write([]byte{0x0d, 0x0a})
+					lookup.Response() <- &MessageResponse{Content: out.Bytes(), Err: err}
 				default:
 					lookup.Response() <- &NotImplementedResponse{}
 				}

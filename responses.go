@@ -36,7 +36,7 @@ import (
 )
 
 type MessageResponse struct {
-	Content string
+	Content []byte
 	Err     error
 }
 

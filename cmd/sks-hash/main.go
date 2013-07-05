@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	keys, errors := hockeypuck.ReadKeys(os.Stdin)
+	keys, errors := hockeypuck.ReadValidKeys(os.Stdin)
 LOOP:
 	for {
 		select {
