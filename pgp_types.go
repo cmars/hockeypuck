@@ -66,7 +66,7 @@ type PubKey struct {
 	Digest       string
 	Ctime        int64
 	Mtime        int64
-	SksDigest   string
+	SksDigest    string
 }
 
 func (pubKey *PubKey) Fingerprint() string {

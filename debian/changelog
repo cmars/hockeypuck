@@ -48,6 +48,9 @@ hockeypuck (1.0~a1) precise; urgency=low
     - Implement /pks/hashquery to support SKS recovery & catchup.
       LP: #1197618
     - Added sks-hashquery utility to determine protocol.
+  * pgp_types.go, recon.go:
+    - Recon recovery makes /pks/hashquery request instead of hget.
+      LP: #1044767
 
   [ Evan Broder ]
   * Makefile, mgo/client.go, mgo/worker.go:

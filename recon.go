@@ -18,6 +18,9 @@
 package hockeypuck
 
 import (
+	"bytes"
+	"code.google.com/p/go.crypto/openpgp"
+	"code.google.com/p/go.crypto/openpgp/armor"
 	"encoding/hex"
 	"errors"
 	"flag"
@@ -25,7 +28,7 @@ import (
 	"github.com/cmars/conflux"
 	"github.com/cmars/conflux/recon"
 	"github.com/cmars/conflux/recon/leveldb"
-	"io/ioutil"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -115,30 +118,83 @@ func (rp *SksRecon) HandleRecovery() {
 				continue
 			}
 			httpPort := r.RemoteConfig.HttpPort
-			for _, z := range r.RemoteElements {
-				// hget from remote addr (need http address)
-				url := fmt.Sprintf("http://%s:%s/pks/lookup?op=hget&search=%s",
-					host, httpPort, z)
-				resp, err := http.Get(url)
-				if err != nil {
-					log.Println(host, ": HGet request failed:", err)
-					continue
-				}
-				defer resp.Body.Close()
-				keytext, err := ioutil.ReadAll(resp.Body)
-				if err != nil {
-					log.Println("Error reading HGet response:", err)
-					continue
-				}
-				// Merge locally
-				rp.Hkp.AddRequests <- &Add{
-					Keytext: string(keytext),
-					Option:  NoOption}
+			if err = rp.requestRecovery(host, httpPort, r.RemoteElements); err != nil {
+				log.Println("Recovery request failed: ", err)
+			} else {
+				log.Println("Recovery complete")
 			}
 		case <-rp.stopRecovery:
 			return
 		}
 	}
+}
+
+func (rp *SksRecon) requestRecovery(host string, httpPort int, recoverList []*conflux.Zp) (err error) {
+	// Make an sks hashquery request
+	hqBuf := bytes.NewBuffer(nil)
+	err = recon.WriteInt(hqBuf, len(recoverList))
+	if err != nil {
+		return
+	}
+	for _, z := range recoverList {
+		zb := conflux.ReverseBytes(z.Bytes())
+		err = recon.WriteInt(hqBuf, len(zb))
+		if err != nil {
+			return
+		}
+		_, err = hqBuf.Write(zb)
+		if err != nil {
+			return
+		}
+	}
+	resp, err := http.Post(fmt.Sprintf("http://%s:%d/pks/hashquery", host, httpPort),
+		"sks/hashquery", bytes.NewReader(hqBuf.Bytes()))
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+	var nkeys, keyLen int
+	nkeys, err = recon.ReadInt(resp.Body)
+	if err != nil {
+		return
+	}
+	log.Println("Response from server:", nkeys, " keys found")
+	for i := 0; i < nkeys; i++ {
+		keyLen, err = recon.ReadInt(resp.Body)
+		if err != nil {
+			return
+		}
+		log.Println("Key#", i+1, ":", keyLen, "bytes")
+		armorBuf := bytes.NewBuffer(nil)
+		var armorOut io.WriteCloser
+		if armorOut, err = armor.Encode(armorBuf, openpgp.PublicKeyType, nil); err != nil {
+			return
+		}
+		if _, err = io.CopyN(armorOut, resp.Body, int64(keyLen)); err != nil {
+			return
+		}
+		if err = armorOut.Close(); err != nil {
+			return
+		}
+		respChan := make(ResponseChan)
+		go func() {
+			defer close(respChan)
+			resp := <-respChan
+			if resp.Error() != nil {
+				log.Println("Error adding key:", resp.Error())
+			} else {
+				log.Println("Key added")
+			}
+		}()
+		// Merge locally
+		rp.Hkp.AddRequests <- &Add{
+			responseChan: respChan,
+			Keytext:      armorBuf.String(),
+			Option:       NoOption}
+	}
+	// Read last two bytes (CRLF, why?), or SKS will complain.
+	resp.Body.Read(make([]byte, 2))
+	return
 }
 
 func (rp *SksRecon) Stop() {
