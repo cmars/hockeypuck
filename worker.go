@@ -30,7 +30,10 @@ const FIND_KEYS_LIMIT = 10
 const INDEX_LIMIT = 50
 
 // Number of workers to spawn
-var NumWorkers *int = flag.Int("workers", runtime.NumCPU(), "Number of workers")
+func init() { flag.Int("workers", runtime.NumCPU(), "Number of workers") }
+func (s *Settings) NumWorkers() int {
+	return s.GetInt("workers")
+}
 
 type Worker interface {
 	// Look up keys by search string. Prefix with 0x will look up key id,

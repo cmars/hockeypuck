@@ -17,9 +17,25 @@
 package mgo
 
 import (
+	"flag"
 	"labix.org/v2/mgo"
+	"launchpad.net/hockeypuck"
 	"log"
 )
+
+type MgoSettings struct {
+	*hockeypuck.Settings
+}
+
+func MgoConfig() *MgoSettings {
+	return &MgoSettings{hockeypuck.Config()}
+}
+
+// Mongo DB server connection
+func init() { flag.String("mgo.server", "localhost", "Mongo DB server") }
+func (s *MgoSettings) MgoServer() string {
+	return s.GetString("mgo.server")
+}
 
 type indexInfo struct {
 	name   string
@@ -44,6 +60,9 @@ type MgoClient struct {
 }
 
 func NewMgoClient(connect string) (mc *MgoClient, err error) {
+	if connect == "" {
+		connect = MgoConfig().MgoServer()
+	}
 	mc = &MgoClient{connect: connect}
 	log.Println("Connecting to mongodb:", mc.connect)
 	mc.session, err = mgo.Dial(mc.connect)

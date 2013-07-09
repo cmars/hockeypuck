@@ -18,6 +18,7 @@
 package main
 
 import (
+	"bytes"
 	"code.google.com/p/gorilla/mux"
 	"flag"
 	"fmt"
@@ -28,8 +29,8 @@ import (
 	"os"
 )
 
-var mgoServer *string = flag.String("server", "localhost", "mongo server")
 var showVersion *bool = flag.Bool("version", false, "Display version and exit")
+var configFile *string = flag.String("config", "", "Config file")
 
 func usage() {
 	flag.PrintDefaults()
@@ -44,33 +45,35 @@ func die(err error) {
 	os.Exit(0)
 }
 
-func ConnectString() string {
-	return *mgoServer
-}
-
 func main() {
 	var err error
 	// Create an HTTP request router
 	r := mux.NewRouter()
 	// Create a new Hockeypuck server, bound to this router
 	hkp := NewHkpServer(r)
-	ParseCfg()
-	flag.Parse()
+	if *configFile != "" {
+		if err = LoadConfigFile(*configFile); err != nil {
+			die(err)
+		}
+	} else {
+		if err = LoadConfig(bytes.NewBuffer(nil)); err != nil {
+			die(err)
+		}
+	}
 	if *showVersion {
 		fmt.Println(Version)
 		os.Exit(0)
 	}
 	InitLog()
 	// Connect to MongoDB
-	connect := ConnectString()
-	client, err := mgo.NewMgoClient(connect)
+	client, err := mgo.NewMgoClient(mgo.MgoConfig().MgoServer())
 	if err != nil {
 		die(err)
 	}
 	// Initialize web templates
-	InitTemplates(*WwwRoot)
+	InitTemplates(Config().Webroot())
 	// Launch the request workers
-	for i := 0; i < *NumWorkers; i++ {
+	for i := 0; i < Config().NumWorkers(); i++ {
 		worker := mgo.NewMgoWorker(client)
 		StartWorker(hkp, worker)
 	}
@@ -88,6 +91,6 @@ func main() {
 	// Bind the router to the built-in webserver root
 	http.Handle("/", r)
 	// Start the built-in webserver, run forever
-	err = http.ListenAndServe(*HttpBind, nil)
+	err = http.ListenAndServe(Config().HttpBind(), nil)
 	die(err)
 }

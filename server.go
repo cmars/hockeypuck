@@ -34,7 +34,10 @@ import (
 )
 
 // HTTP bind address option
-var HttpBind *string = flag.String("http", ":11371", "http bind address")
+func init() { flag.String("http", ":11371", "http bind address") }
+func (s *Settings) HttpBind() string {
+	return s.GetString("http")
+}
 
 // Create a new HKP server on the given Gorilla mux router.
 func NewHkpServer(r *mux.Router) *HkpServer {
@@ -52,7 +55,7 @@ func NewHkpServer(r *mux.Router) *HkpServer {
 	r.HandleFunc(`/css/{filename:.*\.css}`,
 		func(resp http.ResponseWriter, req *http.Request) {
 			filename := mux.Vars(req)["filename"]
-			path := filepath.Join(wwwRoot, "css", filename)
+			path := filepath.Join(Config().Webroot(), "css", filename)
 			if stat, err := os.Stat(path); err != nil || stat.IsDir() {
 				http.NotFound(resp, req)
 				return
@@ -62,7 +65,7 @@ func NewHkpServer(r *mux.Router) *HkpServer {
 	r.HandleFunc(`/fonts/{filename:.*\.ttf}`,
 		func(resp http.ResponseWriter, req *http.Request) {
 			filename := mux.Vars(req)["filename"]
-			path := filepath.Join(wwwRoot, "fonts", filename)
+			path := filepath.Join(Config().Webroot(), "fonts", filename)
 			if stat, err := os.Stat(path); err != nil || stat.IsDir() {
 				http.NotFound(resp, req)
 				return

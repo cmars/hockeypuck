@@ -17,72 +17,80 @@
 package hockeypuck
 
 import (
-	"bufio"
-	"bytes"
-	"errors"
-	"flag"
 	"fmt"
+	"bytes"
+	"flag"
+	"github.com/pelletier/go-toml"
+	"io"
 	"log"
-	"os"
-	"strings"
+	"strconv"
 )
 
-func LogCfg() {
-	flag.VisitAll(func(f *flag.Flag) {
-		log.Println(f.Name, "=", f.Value)
-	})
+var config *Settings
+
+func Config() *Settings {
+	return config
 }
 
-func ParseCfg() {
-	var err error
-	var f *os.File
-	var bf *bufio.Reader
-	var mkline *bytes.Buffer
-	var fi os.FileInfo
-	if fi, err = os.Stat(CONFIG_PATH); err != nil || fi.IsDir() {
-		// no config file or not found
-		goto CFGERR
+type Settings struct {
+	*toml.TomlTree
+}
+
+func (s *Settings) GetString(key string) string {
+	if s, is := s.Get(key).(string); is {
+		return s
 	}
-	f, err = os.Open(CONFIG_PATH)
-	if err != nil {
-		goto CFGERR
-	}
-	fmt.Fprintf(os.Stderr, "Reading configuration from %v\n", f.Name())
-	bf = bufio.NewReader(f)
-	mkline = bytes.NewBuffer([]byte{})
-	for {
-		part, prefix, err := bf.ReadLine()
+	return ""
+}
+
+func (s *Settings) GetInt(key string) int {
+	switch v := s.Get(key).(type) {
+	case int:
+		return v
+	case string:
+		i, err := strconv.Atoi(v)
 		if err != nil {
-			break
+			panic(err)
 		}
-		mkline.Write(part)
-		if !prefix {
-			err = ParseCfgLine(string(mkline.Bytes()))
-			if err != nil {
-				panic(fmt.Sprintf(
-					"Error in configuration file %v: %v\n",
-					CONFIG_PATH, err))
-			}
-			mkline.Reset()
-		}
+		s.Set(key, i)
+		return i
+	default:
+		panic(fmt.Sprintf("Invalid int value: %v", s.Get(key)))
 	}
-	return
-CFGERR:
-	fmt.Fprintf(os.Stderr, "%v\n", err)
-	return
 }
 
-func ParseCfgLine(line string) (err error) {
-	line = strings.TrimSpace(line)
-	if line[0] == '#' {
+func LoadConfig(r io.Reader) (err error) {
+	buf := bytes.NewBuffer(nil)
+	_, err = io.Copy(buf, r)
+	if err != nil {
 		return
 	}
-	parts := strings.Split(line, "=")
-	if len(parts) != 2 {
-		return errors.New(fmt.Sprintf(
-			"Expected line of form 'key = value', got: %v", line))
+	var tree *toml.TomlTree
+	if tree, err = toml.Load(buf.String()); err != nil {
+		return
 	}
-	key, value := strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
-	flag.Set(key, value)
+	config = &Settings{tree}
+	config.loadFlagOverrides()
 	return
+}
+
+func LoadConfigFile(path string) (err error) {
+	var tree *toml.TomlTree
+	if tree, err = toml.LoadFile(path); err != nil {
+		return
+	}
+	config = &Settings{tree}
+	config.loadFlagOverrides()
+	return
+}
+
+func (config *Settings) loadFlagOverrides() {
+	flag.Parse()
+	flag.VisitAll(func(f *flag.Flag) {
+		if config.Get(f.Name) == nil {
+			config.Set(f.Name, f.Value.String())
+		} else if f.Value.String() != f.DefValue {
+			log.Println("Warning: Config file taking precedence over command-line flag:", f.Name)
+		}
+	})
 }

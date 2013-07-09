@@ -29,16 +29,37 @@ import (
 const MAX_DELAY = 60
 
 // PKS mail from address
-var PksFrom *string = flag.String("pks-from", "", "PKS sync mail from: address")
+func init() { flag.String("pks.from", "", "PKS sync mail from: address") }
+func (s *Settings) PksFrom() string {
+	return s.GetString("pks.from")
+}
 
 // Downstream PKS servers
-var PksTo *string = flag.String("pks-to", "", "Send keys to these PKS servers")
+func init() { flag.String("pks.to", "", "Send keys to these PKS servers") }
+func (s *Settings) PksTo() string {
+	return s.GetString("pks.to")
+}
 
 // SMTP settings
-var SmtpHost *string = flag.String("smtp-host", "", "SMTP Hostname")
-var SmtpId *string = flag.String("smtp-id", "", "SMTP Account ID")
-var SmtpUser *string = flag.String("smtp-user", "", "SMTP Account Username")
-var SmtpPass *string = flag.String("smtp-pass", "", "SMTP Account Password")
+func init() { flag.String("smtp.host", "", "SMTP Hostname") }
+func (s *Settings) SmtpHost() string {
+	return s.GetString("smtp.host")
+}
+
+func init() { flag.String("smtp.id", "", "SMTP Account ID") }
+func (s *Settings) SmtpId() string {
+	return s.GetString("smtp.id")
+}
+
+func init() { flag.String("smtp.user", "", "SMTP Account Username") }
+func (s *Settings) SmtpUser() string {
+	return s.GetString("smtp.user")
+}
+
+func init() { flag.String("smtp.pass", "", "SMTP Account Password") }
+func (s *Settings) SmtpPass() string {
+	return s.GetString("smtp.pass")
+}
 
 // Status of PKS synchronization
 type PksStatus struct {
@@ -83,10 +104,10 @@ type PksSyncBase struct {
 // Initialize from command line switches if fields not set.
 func (ps *PksSyncBase) Init() {
 	if ps.MailFrom == "" {
-		ps.MailFrom = *PksFrom
+		ps.MailFrom = Config().PksFrom()
 	}
 	if ps.SmtpHost == "" {
-		ps.SmtpHost = *SmtpHost
+		ps.SmtpHost = Config().SmtpHost()
 	}
 	authHost := ps.SmtpHost
 	if parts := strings.Split(authHost, ":"); len(parts) >= 1 {
@@ -94,10 +115,10 @@ func (ps *PksSyncBase) Init() {
 		authHost = parts[0]
 	}
 	if ps.SmtpAuth == nil {
-		ps.SmtpAuth = smtp.PlainAuth(*SmtpId, *SmtpUser, *SmtpPass, authHost)
+		ps.SmtpAuth = smtp.PlainAuth(Config().SmtpId(), Config().SmtpUser(), Config().SmtpPass(), authHost)
 	}
-	if len(ps.PksAddrs) == 0 && len(*PksTo) > 0 {
-		ps.PksAddrs = strings.Split(*PksTo, ",")
+	if len(ps.PksAddrs) == 0 && len(Config().PksTo()) > 0 {
+		ps.PksAddrs = strings.Split(Config().PksTo(), ",")
 	}
 }
 

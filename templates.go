@@ -19,17 +19,37 @@ package hockeypuck
 
 import (
 	"flag"
+	"go/build"
 	"html/template"
+	"os"
 	"path/filepath"
 	"time"
 )
 
-// Path to Hockeypuck's installed www directory
-var WwwRoot *string = flag.String("www-root",
-	"/var/lib/hockeypuck/www",
-	"Location of static web server files and templates")
+const INSTALL_WEBROOT = "/var/lib/hockeypuck/www"
+const HOCKEYPUCK_PKG = "launchpad.net/hockeypuck" // Any way to introspect?
 
-var wwwRoot string
+// Path to Hockeypuck's installed www directory
+func init() {
+	flag.String("webroot", "",
+		"Location of static web server files and templates")
+}
+func (s *Settings) Webroot() string {
+	webroot := s.GetString("webroot")
+	if webroot != "" {
+		return webroot
+	}
+	if fi, err := os.Stat(INSTALL_WEBROOT); err == nil && fi.IsDir() {
+		webroot = INSTALL_WEBROOT
+	} else if p, err := build.Default.Import(HOCKEYPUCK_PKG, "", build.FindOnly); err == nil {
+		try_webroot := filepath.Join(p.Dir, "instroot", INSTALL_WEBROOT)
+		if fi, err := os.Stat(try_webroot); err == nil && fi.IsDir() {
+			webroot = try_webroot
+		}
+	}
+	s.Set("webroot", webroot)
+	return webroot
+}
 
 // SearchFormTemplate is used to render the default search form at '/'
 var SearchFormTemplate *template.Template
@@ -48,7 +68,6 @@ var PksIndexTemplate *template.Template
 var StatsTemplate *template.Template
 
 func InitTemplates(path string) {
-	wwwRoot, _ = filepath.Abs(path)
 	SearchFormTemplate = newSearchFormTemplate(path)
 	AddFormTemplate = newAddFormTemplate(path)
 	AddResultTemplate = newAddResultTemplate(path)
