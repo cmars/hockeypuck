@@ -54,6 +54,8 @@ hockeypuck (1.0~a1) precise; urgency=low
   * cmd/hockeypuck-mgo/main.go, config.go, mgo/client.go, pks.go,
     server.go, templates.go, worker.go:
     - Replace ad-hoc flag-based config file with toml. LP: #1184392
+    - Look for webroot in standard install location, Go package
+      location if not specified.
 
   [ Evan Broder ]
   * Makefile, mgo/client.go, mgo/worker.go:
