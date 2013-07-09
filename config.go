@@ -22,67 +22,41 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/pelletier/go-toml"
 	"log"
 	"os"
 	"strings"
 )
 
-func LogCfg() {
+var config *TomlTree
+
+func LoadConfig(r io.Reader) (err error) {
+	buf := bytes.NewBuffer(nil)
+	_, err = io.Copy(buf, r)
+	if err != nil {
+		return
+	}
+	if config, err = toml.Load(buf.String()); err != nil {
+		return
+	}
+	loadFlagOverrides()
+	return
+}
+
+func LoadConfigFile(path string) (err error) {
+	if config, err = toml.LoadFile(path); err != nil {
+		return
+	}
+	loadFlagOverrides()
+	return
+}
+
+func loadFlagOverrides() {
 	flag.VisitAll(func(f *flag.Flag) {
-		log.Println(f.Name, "=", f.Value)
+		config.Set(f.Name, f.Value)
 	})
 }
 
-func ParseCfg() {
-	var err error
-	var f *os.File
-	var bf *bufio.Reader
-	var mkline *bytes.Buffer
-	var fi os.FileInfo
-	if fi, err = os.Stat(CONFIG_PATH); err != nil || fi.IsDir() {
-		// no config file or not found
-		goto CFGERR
-	}
-	f, err = os.Open(CONFIG_PATH)
-	if err != nil {
-		goto CFGERR
-	}
-	fmt.Fprintf(os.Stderr, "Reading configuration from %v\n", f.Name())
-	bf = bufio.NewReader(f)
-	mkline = bytes.NewBuffer([]byte{})
-	for {
-		part, prefix, err := bf.ReadLine()
-		if err != nil {
-			break
-		}
-		mkline.Write(part)
-		if !prefix {
-			err = ParseCfgLine(string(mkline.Bytes()))
-			if err != nil {
-				panic(fmt.Sprintf(
-					"Error in configuration file %v: %v\n",
-					CONFIG_PATH, err))
-			}
-			mkline.Reset()
-		}
-	}
-	return
-CFGERR:
-	fmt.Fprintf(os.Stderr, "%v\n", err)
-	return
-}
-
-func ParseCfgLine(line string) (err error) {
-	line = strings.TrimSpace(line)
-	if line[0] == '#' {
-		return
-	}
-	parts := strings.Split(line, "=")
-	if len(parts) != 2 {
-		return errors.New(fmt.Sprintf(
-			"Expected line of form 'key = value', got: %v", line))
-	}
-	key, value := strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
-	flag.Set(key, value)
-	return
+func Config() map[string]interface{} {
+	return config
 }

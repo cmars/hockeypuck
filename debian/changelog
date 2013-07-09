@@ -51,13 +51,15 @@ hockeypuck (1.0~a1) precise; urgency=low
   * pgp_types.go, recon.go:
     - Recon recovery makes /pks/hashquery request instead of hget.
       LP: #1044767
+  * config.go:
+    - Replacing ad-hoc flag-based config file with toml. LP: #1184392
 
   [ Evan Broder ]
   * Makefile, mgo/client.go, mgo/worker.go:
     - Add support for subkey fingerprint query.
     - Use a symlink instead of rsync to satisfy build-deps.
 
- -- Casey Marshall <casey.marshall@gmail.com>  Sun, 26 May 2013 02:53:55 -0500
+ -- Casey Marshall <casey.marshall@gazzang.com>  Mon, 08 Jul 2013 22:37:23 -0500
 
 hockeypuck (0.9) precise; urgency=low
 
