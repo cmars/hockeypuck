@@ -61,13 +61,18 @@ hockeypuck (1.0~a1) precise; urgency=low
     - Better config integration with conflux.
     - Option to disable reconciliation.
     - Added test configuration example.
+  * === added directory sql, pq/schema.go, pq/worker.go, === renamed
+    directory pq => sql/pq, sql/openpgp.go, sql/pq/db.go,
+    sql/pq/openpgp_schema.go, sql/pq/worker.no:
+    - Re-engineered PostgreSQL schema.
+    - Generic database/sql integration.
 
   [ Evan Broder ]
   * Makefile, mgo/client.go, mgo/worker.go:
     - Add support for subkey fingerprint query.
     - Use a symlink instead of rsync to satisfy build-deps.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Mon, 08 Jul 2013 22:37:23 -0500
+ -- Casey Marshall <casey.marshall@gazzang.com>  Fri, 19 Jul 2013 18:27:16 -0500
 
 hockeypuck (0.9) precise; urgency=low
 
