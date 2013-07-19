@@ -57,6 +57,7 @@ func (s *Settings) GetInt(key string) int {
 		s.Set(key, i)
 		return i
 	}
+	panic("unreachable")
 }
 
 func (s *Settings) GetBool(key string) bool {
