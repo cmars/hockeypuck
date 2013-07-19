@@ -51,6 +51,10 @@ func main() {
 	r := mux.NewRouter()
 	// Create a new Hockeypuck server, bound to this router
 	hkp := NewHkpServer(r)
+	flag.Parse()
+	if err != nil {
+		die(err)
+	}
 	if *configFile != "" {
 		if err = LoadConfigFile(*configFile); err != nil {
 			die(err)

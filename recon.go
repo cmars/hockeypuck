@@ -34,9 +34,6 @@ import (
 	"net/http"
 )
 
-var reconDir *string = flag.String("recon-db", "/var/lib/hockeypuck/recon.db", "Recon database path")
-var reconCfg *string = flag.String("recon-conf", "/etc/hockeypuck/recon.conf", "Recon configuration file")
-
 type SksRecon struct {
 	*recon.Peer
 	Hkp          *HkpServer
@@ -45,19 +42,21 @@ type SksRecon struct {
 	stopRecovery chan interface{}
 }
 
+var ReconNotEnabled error = errors.New("Reconciliation peer not enabled.")
 var ReconNotConfigured error = errors.New("Reconciliation peer not configured.")
 
+// Enable SKS reconciliation protocol with conflux
+func init() { flag.Bool("recon.enabled", true, "Enable SKS reconciliation protocol") }
+func (s *Settings) ReconEnabled() bool {
+	return s.GetBool("recon.enabled")
+}
+
 func NewSksRecon(hkp *HkpServer) (*SksRecon, error) {
-	var settings *recon.Settings
-	if *reconCfg != "" {
-		settings = recon.LoadSettings(*reconCfg)
-	} else {
-		return nil, ReconNotConfigured
+	if !Config().ReconEnabled() {
+		return nil, ReconNotEnabled
 	}
-	if *reconDir == "" {
-		return nil, ReconNotConfigured
-	}
-	peer, err := leveldb.NewPeer(*reconDir, settings)
+	settings := leveldb.NewSettings(config.TomlTree)
+	peer, err := leveldb.NewPeer(settings)
 	if err != nil {
 		return nil, err
 	}

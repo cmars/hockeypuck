@@ -56,6 +56,11 @@ hockeypuck (1.0~a1) precise; urgency=low
     - Replace ad-hoc flag-based config file with toml. LP: #1184392
     - Look for webroot in standard install location, Go package
       location if not specified.
+  * cmd/hockeypuck-mgo/main.go, cmd/hockeypuck-mgo/test.conf, config.go,
+    instroot/etc/hockeypuck/hockeypuck.conf, log.go, recon.go:
+    - Better config integration with conflux.
+    - Option to disable reconciliation.
+    - Added test configuration example.
 
   [ Evan Broder ]
   * Makefile, mgo/client.go, mgo/worker.go:

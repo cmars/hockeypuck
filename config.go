@@ -17,9 +17,9 @@
 package hockeypuck
 
 import (
-	"fmt"
 	"bytes"
 	"flag"
+	"fmt"
 	"github.com/pelletier/go-toml"
 	"io"
 	"log"
@@ -47,16 +47,33 @@ func (s *Settings) GetInt(key string) int {
 	switch v := s.Get(key).(type) {
 	case int:
 		return v
-	case string:
-		i, err := strconv.Atoi(v)
+	case int64:
+		return int(v)
+	default:
+		i, err := strconv.Atoi(fmt.Sprintf("%v", v))
 		if err != nil {
 			panic(err)
 		}
 		s.Set(key, i)
 		return i
-	default:
-		panic(fmt.Sprintf("Invalid int value: %v", s.Get(key)))
 	}
+}
+
+func (s *Settings) GetBool(key string) bool {
+	var result bool
+	switch v := s.Get(key).(type) {
+	case bool:
+		return v
+	case int:
+		result = v != 0
+	case string:
+		b, err := strconv.ParseBool(v)
+		result = err == nil && b
+	default:
+		result = false
+	}
+	s.Set(key, result)
+	return result
 }
 
 func LoadConfig(r io.Reader) (err error) {

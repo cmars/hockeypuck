@@ -29,12 +29,15 @@ import (
 const CONFIG_PATH = "/etc/hockeypuck/hockeypuck.conf"
 
 // Logfile option
-var LogFile *string = flag.String("logfile", "", "Logfile (default stderr)")
+func init() { flag.String("logfile", "", "Logfile (default stderr)") }
+func (s *Settings) LogFile() string {
+	return s.GetString("logfile")
+}
 
 var logOut io.Writer = nil
 
 func InitLog() {
-	if *LogFile != "" {
+	if Config().LogFile() != "" {
 		// Handle signals for log rotation
 		sigChan := make(chan os.Signal)
 		signal.Notify(sigChan, syscall.SIGHUP, syscall.SIGUSR1, syscall.SIGUSR2)
@@ -57,9 +60,9 @@ func InitLog() {
 }
 
 func openLog() {
-	if *LogFile != "" {
+	if Config().LogFile() != "" {
 		var err error
-		logOut, err = os.OpenFile(*LogFile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+		logOut, err = os.OpenFile(Config().LogFile(), os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 		if err != nil {
 			logOut = os.Stderr
 		}
