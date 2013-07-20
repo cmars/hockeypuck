@@ -15,23 +15,12 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package mgo
+package sql
 
 import (
-	"bytes"
-	"code.google.com/p/go.crypto/openpgp/armor"
-	"crypto/md5"
 	"encoding/hex"
-	"fmt"
-	"io"
-	"labix.org/v2/mgo"
-	"labix.org/v2/mgo/bson"
 	. "launchpad.net/hockeypuck"
-	"log"
-	"regexp"
 	"strings"
-	"time"
-	"unicode"
 )
 
 type OpenpgpDb interface {
