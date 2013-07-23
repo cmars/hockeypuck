@@ -69,6 +69,8 @@ hockeypuck (1.0~a1) precise; urgency=low
   * === added directory cmd/pqtest, cmd/pqtest/main.go,
     sql/pq/openpgp_schema.go:
     - Fix SQL errors in schema creation. Add pq driver test.
+  * sql/pq/openpgp_queries.go:
+    - Some queries.
 
   [ Evan Broder ]
   * Makefile, mgo/client.go, mgo/worker.go:
