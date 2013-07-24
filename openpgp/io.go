@@ -1,6 +1,6 @@
 /*
    Hockeypuck - OpenPGP key server
-   Copyright (C) 2012  Casey Marshall
+   Copyright (C) 2012, 2013  Casey Marshall
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU Affero General Public License as published by
@@ -46,40 +46,128 @@ func Fingerprint(pubkey *packet.PublicKey) string {
 	return hex.EncodeToString(pubkey.Fingerprint[:])
 }
 
-// Calculate a strong cryptographic digest used for
-// fingerprinting key material and other user data.
-func Digest(data []byte) string {
-	h := sha512.New()
-	h.Write(data)
-	return hex.EncodeToString(h.Sum(nil))
+func (pubkey *Pubkey) Write(w io.Writer) error {
+	return w.Write(pubkey.Packet)
 }
 
-// Write a public key as ASCII armored text.
-func WriteKeys(out io.Writer, keys []*PubKey) error {
-	w, err := armor.Encode(out, openpgp.PublicKeyType, nil)
+func (sig *Signature) Write(w io.Writer) error {
+	return w.Write(sig.Packet)
+}
+
+func (uid *UserId) Write(w io.Writer) error {
+	return w.Write(uid.Packet)
+}
+
+func (uat *UserAttribute) Write(w io.Writer) error {
+	return w.Write(uat.Packet)
+}
+
+func (subkey *Subkey) Write(w io.Writer) error {
+	return w.Write(subkey.Packet)
+}
+
+func (pubkey *Pubkey) WriteAll(w io.Writer) (err error) {
+	err = pubkey.Write(w)
 	if err != nil {
-		return err
+		return
 	}
-	defer w.Close()
-	for _, key := range keys {
-		pktObjChan := make(chan PacketObject)
-		defer FinishTraversal(pktObjChan)
-		go func() {
-			key.Traverse(pktObjChan)
-			close(pktObjChan)
-		}()
-		for pktObj := range pktObjChan {
-			_, err = w.Write(pktObj.GetPacket())
+	for _, sig := range pubkey.Signatures {
+		err = sig.Write(c)
+		if err != nil {
+			return
+		}
+	}
+	for _, uid := range pubkey.UserIds {
+		err = uid.WriteAll(w)
+		if err != nil {
+			return
+		}
+	}
+	for _, uat := range pubkey.UserAttributes {
+		err = uat.WriteAll(w)
+		if err != nil {
+			return
+		}
+	}
+	for _, subkey := range pubkey.Subkeys {
+		err = subkey.WriteAll(w)
+		if err != nil {
+			return
+		}
+	}
+	return
+}
+
+func (uid *UserId) WriteAll(w io.Writer) (err error) {
+	err = uid.Write(w)
+	if uid.SelfSignature != nil {
+		err = uid.SelfSignature.Write(e)
+		if err != nil {
+			return
+		}
+	}
+	for _, sig := range uid.Signatures {
+		if sig != uid.SelfSignature {
+			err = sig.Write(w)
 			if err != nil {
-				return err
+				return
 			}
 		}
 	}
-	return nil
+	return
 }
 
-func WriteKey(out io.Writer, key *PubKey) error {
-	return WriteKeys(out, []*PubKey{key})
+func (uat *UserAttribute) WriteAll(w io.Writer) (err error) {
+	err = uat.Write(w)
+	if uat.SelfSignature != nil {
+		err = uat.SelfSignature.Write(w)
+		if err != nil {
+			return
+		}
+	}
+	for _, sig := range uat.Signatures {
+		if sig != uat.SelfSignature {
+			err = sig.Write(w)
+			if err != nil {
+				return
+			}
+		}
+	}
+	return
+}
+
+func (subkey *Subkey) WriteAll(w io.Writer) (err error) {
+	err = subkey.Write(w)
+	for _, sig := range subkey.Signatures {
+		err = sig.Write(w)
+		if err != nil {
+			return
+		}
+	}
+	return
+}
+
+// SksDigest calculates a cumulative message digest on all
+// OpenPGP packets for a given primary public key,
+// using the same ordering as SKS, the Synchronizing Key Server.
+// Use MD5 for matching digest values with SKS.
+func SksDigest(key *Pubkey, h crypto.Hash) string {
+	var packets packetSlice
+	for pktObj := GetAllPackets(key) {
+		buf := bytes.NewBuffer(pktObj.GetPacket())
+		opr := packet.NewOpaqueReader(buf)
+		opkt, err := opr.Next()
+		if err == nil {
+			packets = append(packets, opkt)
+		}
+	}
+	sort.Sort(sksPacketSorter{packets})
+	for _, opkt := range packets {
+		binary.Write(h, binary.BigEndian, int32(opkt.Tag))
+		binary.Write(h, binary.BigEndian, int32(len(opkt.Contents)))
+		h.Write(opkt.Contents)
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // Read one or more public keys from input.

@@ -1,6 +1,6 @@
 /*
    Hockeypuck - OpenPGP key server
-   Copyright (C) 2012  Casey Marshall
+   Copyright (C) 2012, 2013  Casey Marshall
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU Affero General Public License as published by
@@ -23,15 +23,15 @@ import (
 	"strings"
 )
 
-type OpenpgpDb interface {
+type SqlWorker interface {
 	// CreateTables creates the relational database tables if they do not already exist.
 	// The implementation must be idempotent enough to skip tables that already exist.
 	// Automatic schema migration is not expected.
-	CreateTables() error
+	CreateTables()
 	// CreateIndexes creates the relational database indexes if they do not already exist.
 	// The implementation must be idempotent enough to skip tables that already exist.
 	// Automatic schema migration is not expected.
-	CreateIndexes() error
+	CreateIndexes()
 	// LookupKeys finds keys matching a free-form search string, as defined in the HKP draft
 	// specification. Strings prefixed with 0x are treated as a key ID, all others are a full-text
 	// search on the User ID keytext.
@@ -48,6 +48,19 @@ type OpenpgpDb interface {
 	UpdateStats() error
 	// Stats provides the information used to report an op=stats request.
 	Stats() (stats *ServerStats, err error)
+}
+
+func NewUuid() (string, error) {
+	buf := bytes.NewBuffer([]byte{})
+	enc := base64.NewEncoder(base64.StdEncoding, buf)
+	n, err := io.CopyN(enc, rand.Reader, UUID_LEN)
+	if err != nil {
+		return "", err
+	}
+	if n < UUID_LEN {
+		return "", errors.New("Failed to generate UUID")
+	}
+	return string(buf.Bytes()), nil
 }
 
 func LookupKeyId(db OpenpgpDb, keyId string) (*PubKey, error) {

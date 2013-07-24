@@ -1,6 +1,6 @@
 /*
    Hockeypuck - OpenPGP key server
-   Copyright (C) 2012  Casey Marshall
+   Copyright (C) 2012, 2013  Casey Marshall
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU Affero General Public License as published by
@@ -28,14 +28,29 @@ package pq
 
    uuid
    ~~~~
-   The UUID is a randomly generated value with an almost certain probability of uniqueness.
-   It is the responsibility of the application to detect a UUID collision and roll again.
-   A randomly-generated base64 string representative of 256 bits should suffice.
+
+   For public key records, the full 160-bit fingerprint is used, in a
+   Base-16, "reversed" (LSB-to-MSB) form. The reversal is performance optimal for
+   prefixed-substring "LIKE abc%" matching when searching for a shorter key ID.
+
+   Other packets can lack inherent content uniqueness. While uncommon, it is not
+   impossible for a User ID to have identical fields. Such a packet could even be
+   specially crafted to attack the service's ability to correctly represent a key!
+
+   In order to rule this out, and still keep the benefits of content-addressability,
+   a special digest is calculated on each packet's content, scoped to the primary
+   public key. This is calculated as:
+
+	   base85 ( sha256 ( primary public key fingerprint || packet data ) )
+
+   For other records that do not directly represent an OpenPGP packet, the UUID
+   is a randomly generated value with an almost certain probability of uniqueness.
+   A randomly-generated Base-85 ascii string, representative of 256 bits should suffice.
 
    creation & expiration
    ~~~~~~~~~~~~~~~~~~~~~
-   Most tables represent an OpenPGP packet. These timestamps should match the
-   actual packet's content meaning as defined in RFC 4880.
+   Most tables represent an OpenPGP packet. These timestamps should copy the
+   actual packet's content meaning as defined in RFC 4880, for query purposes.
 
    state
    ~~~~~
@@ -55,16 +70,16 @@ package pq
    packet
    ~~~~~~
    The original OpenPGP binary packet data is stored verbatim in the database.
-   All other columns exist for the purpose of performance and convenience.
-   The Hockeypuck server should assert consistency between these on insert/update,
-   as well as in an integrity verification utility.
+   All other columns that copy the content contained in packets exist for the purpose
+   of query convenience and performance. The Hockeypuck server should assert consistency
+   between these on insert/update, as well as in an integrity verification utility.
 
 */
 
 const CreateTable_OpenpgpPubkey = `
 CREATE TABLE IF NOT EXISTS openpgp_pubkey (
 -----------------------------------------------------------------------
--- Universally-unique identifer
+-- Full public key fingerprint, LSB-to-MSB, lowercased hex
 uuid TEXT NOT NULL,
 -- Public key creation timestamp
 creation TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -86,8 +101,6 @@ sha256 TEXT NOT NULL,
 -- Reference to a revocation on this primary key
 revsig_uuid TEXT,
 -----------------------------------------------------------------------
--- Full public key fingerprint, LSB-to-MSB, lowercased hex
-rfingerprint TEXT NOT NULL,
 -- Public-key algorithm, RFC 4880, Section 9.1
 algorithm INTEGER NOT NULL,
 -- Public-key bit length
@@ -103,7 +116,7 @@ UNIQUE (rfingerprint)
 const CreateTable_OpenpgpSubkey = `
 CREATE TABLE IF NOT EXISTS openpgp_subkey (
 -----------------------------------------------------------------------
--- Universally-unique identifer
+-- Sub-key public key fingerprint, LSB-to-MSB, lowercased hex
 uuid TEXT NOT NULL,
 -- Public key creation timestamp
 creation TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -119,15 +132,12 @@ pubkey_uuid TEXT NOT NULL,
 -- Reference to a revocation signature on this sub key, if any
 revsig_uuid TEXT,
 -----------------------------------------------------------------------
--- Subkey fingerprint, LSB-to-MSB, lowercased hex
-rfingerprint TEXT NOT NULL,
 -- Public-key algorithm, RFC 4880, Section 9.1
 algorithm INTEGER NOT NULL,
 -- Public-key bit length
 bit_len INTEGER NOT NULL,
 -----------------------------------------------------------------------
 PRIMARY KEY (uuid),
-UNIQUE (rfingerprint),
 FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid)
 )
 `
@@ -135,7 +145,7 @@ FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid)
 const CreateTable_OpenpgpUid = `
 CREATE TABLE IF NOT EXISTS openpgp_uid (
 -----------------------------------------------------------------------
--- Universally-unique identifer
+-- Scope- and content-unique identifer
 uuid TEXT NOT NULL,
 -- User ID creation timestamp
 creation TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -148,6 +158,7 @@ packet bytea NOT NULL,
 -----------------------------------------------------------------------
 -- Public key to which this identity belongs
 pubkey_uuid TEXT NOT NULL,
+-----------------------------------------------------------------------
 -- Original text of the user identity string
 keywords TEXT NOT NULL,
 -- Tokenized, fulltext searchable index
@@ -161,7 +172,7 @@ FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid)
 const CreateTable_OpenpgpUat = `
 CREATE TABLE IF NOT EXISTS openpgp_uat (
 -----------------------------------------------------------------------
--- Universally-unique identifer
+-- Scope- and content-unique identifer
 uuid TEXT NOT NULL,
 -- User attribute creation timestamp
 creation TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -174,10 +185,6 @@ packet bytea,
 -----------------------------------------------------------------------
 -- Public key to which this identity belongs
 pubkey_uuid TEXT,
--- Byte offset in the packet data of the first image, if any
-img_offset INTEGER,
--- Byte length of the first image in the packet data, if any
-img_length INTEGER,
 -----------------------------------------------------------------------
 PRIMARY KEY (uuid),
 FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid)
@@ -186,7 +193,7 @@ FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid)
 const CreateTable_OpenpgpSig = `
 CREATE TABLE IF NOT EXISTS openpgp_sig (
 -----------------------------------------------------------------------
--- Universally-unique identifer
+-- Scope- and content-unique identifer
 uuid TEXT NOT NULL,
 -- Signature creation timestamp
 creation TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -233,12 +240,15 @@ CREATE TABLE IF NOT EXISTS openpgp_subkey_sig (
 -----------------------------------------------------------------------
 -- Universally-unique identifer
 uuid TEXT NOT NULL,
+-- Public key to which the subkey belongs
+pubkey_uuid TEXT NOT NULL,
 -- Sub key that is signed
 subkey_uuid TEXT NOT NULL,
 -- Signature
 sig_uuid TEXT NOT NULL,
 -----------------------------------------------------------------------
 PRIMARY KEY (uuid),
+FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid),
 FOREIGN KEY (subkey_uuid) REFERENCES openpgp_subkey(uuid),
 FOREIGN KEY (sig_uuid) REFERENCES openpgp_sig(uuid)
 )
@@ -249,12 +259,15 @@ CREATE TABLE IF NOT EXISTS openpgp_uid_sig (
 -----------------------------------------------------------------------
 -- Universally-unique identifer
 uuid TEXT NOT NULL,
+-- Public key to which the UID
+pubkey_uuid TEXT NOT NULL,
 -- User ID that is signed
 uid_uuid TEXT NOT NULL,
 -- Signature
 sig_uuid TEXT NOT NULL,
 -----------------------------------------------------------------------
 PRIMARY KEY (uuid),
+FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid),
 FOREIGN KEY (uid_uuid) REFERENCES openpgp_uid(uuid),
 FOREIGN KEY (sig_uuid) REFERENCES openpgp_sig(uuid)
 )
@@ -265,12 +278,15 @@ CREATE TABLE IF NOT EXISTS openpgp_uat_sig (
 -----------------------------------------------------------------------
 -- Universally-unique identifer
 uuid TEXT NOT NULL,
+-- Public key to which the UID
+pubkey_uuid TEXT NOT NULL,
 -- UID that is signed
 uat_uuid TEXT NOT NULL,
 -- Signature
 sig_uuid TEXT NOT NULL,
 -----------------------------------------------------------------------
 PRIMARY KEY (uuid),
+FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid),
 FOREIGN KEY (uat_uuid) REFERENCES openpgp_uat(uuid),
 FOREIGN KEY (sig_uuid) REFERENCES openpgp_sig(uuid)
 )
