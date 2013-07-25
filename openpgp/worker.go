@@ -305,3 +305,72 @@ func (w *Worker) LookupKey(keyid string) (pubkey *Pubkey, err error) {
 	}
 	return keys[0], nil
 }
+
+func (w *Worker) fetchKeys(uuids []string) (keys []*Pubkey, err error) {
+	for _, uuid := range uuids {
+		key, err := w.fetchKey(uuid)
+		if err != nil {
+			return
+		}
+		keys = append(keys, key)
+	}
+	return
+}
+
+func (w *Worker) fetchKey(uuid string) (pubkey *Pubkey, err error) {
+	pubkey = new(Pubkey)
+	err = w.db.Get(pubkey, `SELECT * FROM openpgp_pubkey WHERE uuid = $1`, uuid)
+	if err != nil {
+		return
+	}
+	err = db.Select(&(pubkey.Signatures), `
+SELECT sig.* FROM openpgp_sig sig
+	JOIN openpgp_pubkey_sig pksig ON (sig.uuid = pksig.sig_uuid)
+WHERE pksig.pubkey_uuid = $1`, uuid)
+	if err != nil {
+		return
+	}
+	err = db.Select(&(pubkey.UserIds),
+		`SELECT * FROM openpgp_uid WHERE pubkey_uuid = $1`, uuid)
+	if err != nil {
+		return
+	}
+	for _, uid := range pubkey.UserIds {
+		err = db.Select(&(uid.Signatures), `
+SELECT sig.* FROM openpgp_sig sig
+	JOIN openpgp_uid_sig usig ON (sig.uuid = usig.sig_uuid)
+WHERE usig.uid_uuid = $1`, uid.ScopedDigest)
+		if err != nil {
+			return
+		}
+	}
+	err = db.Select(&(pubkey.UserAttributes),
+		`SELECT * FROM openpgp_uat WHERE pubkey_uuid = $1`, uuid)
+	if err != nil {
+		return
+	}
+	for _, uat := range pubkey.UserAttributes {
+		err = db.Select(&(uid.Signatures), `
+SELECT sig.* FROM openpgp_sig sig
+	JOIN openpgp_uat_sig usig ON (sig.uuid = usig.sig_uuid)
+WHERE usig.uat_uuid = $1`, uat.ScopedDigest)
+		if err != nil {
+			return
+		}
+	}
+	err = db.Select(&(pubkey.Subkeys),
+		`SELECT * FROM openpgp_subkey WHERE pubkey_uuid = $1`, uuid)
+	if err != nil {
+		return
+	}
+	for _, subkey := range pubkey.Subkeys {
+		err = db.Select(&(subkey.Signatures), `
+SELECT sig.* FROM openpgp_sig sig
+	JOIN openpgp_subkey_sig sksig ON (sig.uuid = sksig.sig_uuid)
+WHERE sksig.subkey_uuid = $1`, subkey.RFingerprint)
+		if err != nil {
+			return
+		}
+	}
+	return ValidateKey(pubkey)
+}

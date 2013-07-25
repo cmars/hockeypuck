@@ -82,7 +82,7 @@ func IterOpaquePackets(root PacketRecord) OpaquePacketChan {
 // Use MD5 for matching digest values with SKS.
 func SksDigest(key *Pubkey, h crypto.Hash) string {
 	var packets packetSlice
-	for opkt := IterPackets(key) {
+	for opkt := IterOpaquePackets(key) {
 		packets = append(packets, opkt.OpaquePacket)
 	}
 	sort.Sort(sksPacketSorter{packets})
