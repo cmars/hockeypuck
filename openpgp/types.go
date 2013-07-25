@@ -26,6 +26,14 @@ import (
 	"sort"
 )
 
+type PacketVisitor func(PacketRecord) error
+
+type PacketRecord interface {
+	GetPacket() (packet.Packet, error)
+	SetPacket(packet.Packet), error
+	Visit(PacketVisitor) error
+}
+
 type Signable interface {
 	AddSignature(*Signature)
 }
@@ -69,13 +77,25 @@ func (pubkey *Pubkey) Serialize(w io.Writer) error {
 	return w.Write(pubkey.Packet)
 }
 
-func (pubkey *Pubkey) GetPacket() (packet.PublicKey, error) {
+func (pubkey *Pubkey) GetPacket() (packet.Packet, error) {
+	return pubkey.GetPublicKey()
+}
+
+func (pubkey *Pubkey) GetPublicKey() (*packet.PublicKey, error) {
 	buf := bytes.NewBuffer(pubkey.Packet)
 	pk, err := packet.Read(buf)
 	return pk.(*packet.PublicKey), err
 }
 
-func (pubkey *Pubkey) SetPacket(pk *packet.PublicKey) error {
+func (pubkey *Pubkey) SetPacket(p packet.Packet) error {
+	pk, is := p.(*packet.PublicKey)
+	if !is {
+		return ErrInvalidPacketType
+	}
+	return pubkey.SetPublicKey(pk)
+}
+
+func (pubkey *Pubkey) SetPublicKey(pk *packet.PublicKey) error {
 	buf := bytes.NewBuffer(nil)
 	err = pk.Serialize(buf)
 	if err != nil {
@@ -96,6 +116,38 @@ func (pubkey *Pubkey) SetPacket(pk *packet.PublicKey) error {
 	pubkey.Algorithm = int(pk.PubKeyAlgo)
 	pubkey.BitLen = bitLen
 	return nil
+}
+
+func (pubkey *Pubkey) Visit(visitor PacketVisitor) (err error) {
+	err = visitor(pubkey)
+	if err != nil {
+		return
+	}
+	for _, sig := range pubkey.Signatures {
+		err = sig.Visit(visitor)
+		if err != nil {
+			return
+		}
+	}
+	for _, uid := range pubkey.UserIds {
+		err = uid.Visit(visitor)
+		if err != nil {
+			return
+		}
+	}
+	for _, uat := range pubkey.UserAttributes {
+		err = uat.Visit(visitor)
+		if err != nil {
+			return
+		}
+	}
+	for _, subkey := range pubkey.Subkeys {
+		err = subkey.Visit(visitor)
+		if err != nil {
+			return
+		}
+	}
+	return
 }
 
 type Signature struct {
@@ -120,11 +172,19 @@ func (sig *Signature) IssuerFingerprint() string {
 }
 
 func (sig *Signature) GetPacket() (packet.Packet, error) {
+	return sig.GetSignature()
+}
+
+func (sig *Signature) GetSignature() (packet.Packet, error) {
 	buf := bytes.NewBuffer(sig.Packet)
 	return packet.Read(buf)
 }
 
 func (sig *Signature) SetPacket(p *packet.Packet) error {
+	return sig.SetSignature(p)
+}
+
+func (sig *Signature) SetSignature(p *packet.Packet) error {
 	switch s := p.(type) {
 	case *packet.Signature:
 		return sig.setPacketV4(s)
@@ -137,6 +197,9 @@ func (sig *Signature) setPacketV4(s *packet.Signature) error {
 	err = s.Serialize(buf)
 	if err != nil {
 		return err
+	}
+	if s.IssuerKeyId == nil {
+		return errors.New("Signature missing issuer key ID")
 	}
 	sig.Creation = s.CreationTime
 	sig.Packet = buf.Bytes()
@@ -154,6 +217,10 @@ func (sig *Signature) setPacketV4(s *packet.Signature) error {
 	return nil
 }
 
+func (sig *Signature) Visit(visitor PacketVisitor) (err error) {
+	return visitor(sig)
+}
+
 type UserId struct {
 	ScopedDigest  string    `db:"uuid"`
 	Creation      time.Time `db:"creation"`
@@ -166,21 +233,47 @@ type UserId struct {
 	Signatures    []*Signature
 }
 
-func (uid *UserId) GetPacket() (*packet.UserId, error) {
+func (uid *UserId) GetPacket() (packet.Packet, error) {
+	return uid.GetUserId()
+}
+
+func (uid *UserId) GetUserId() (*packet.UserId, error) {
 	buf := bytes.NewBuffer(pubkey.Packet)
 	u, err := packet.Read(buf)
 	return u.(*packet.UserId), err
 }
 
-func (uid *UserId) SetPacket(u *packet.UserId) error {
+func (uid *UserId) SetPacket(p packet.Packet) error {
+	u, is := p.(*packet.UserId)
+	if !is {
+		return ErrInvalidPacketType
+	}
+	return SetUserId(u)
+}
+
+func (uid *UserId) SetUserId(u *packet.UserId) error {
 	buf := bytes.NewBuffer(nil)
 	err = u.Serialize(buf)
 	if err != nil {
 		return err
 	}
 	uid.Packet = buf.Bytes()
-	uid.Keywords = u.Id
+	uid.Keywords = CleanUtf8(u.Id)
 	return nil
+}
+
+func (uid *UserId) Visit(visitor PacketVisitor) (err error) {
+	err = visitor(uid)
+	if err != nil {
+		return
+	}
+	for _, sig := range uid.Signatures {
+		err = sig.Visit(visitor)
+		if err != nil {
+			return
+		}
+	}
+	return
 }
 
 type UserAttribute struct {
@@ -194,13 +287,25 @@ type UserAttribute struct {
 	Signatures    []*Signature
 }
 
-func (uat *UserAttribute) GetPacket() (*packet.OpaquePacket, error) {
+func (uat *UserAttribute) GetPacket() (packet.Packet, error) {
+	return GetOpaquePacket()
+}
+
+func (uat *UserAttribute) GetOpaquePacket() (*packet.OpaquePacket, error) {
 	buf := bytes.NewBuffer(uat.Packet)
 	r := packet.NewOpaqueReader(buf)
 	return r.Next()
 }
 
-func (uat *UserAttribute) SetPacket(op *packet.OpaquePacket) error {
+func (uat *UserAttribute) SetPacket(p packet.Packet) error {
+	op, is := p.(*packet.OpaquePacket)
+	if !is {
+		return ErrInvalidPacketType
+	}
+	return uat.SetOpaquePacket(op)
+}
+
+func (uat *UserAttribute) SetOpaquePacket(op *packet.OpaquePacket) error {
 	buf := bytes.NewBuffer([]byte{})
 	err := op.Serialize(buf)
 	if err != nil {
@@ -234,6 +339,20 @@ func (uat *UserAttribute) GetJpegData() (result []*bytes.Buffer) {
 	return result
 }
 
+func (uat *UserAttribute) Visit(visitor PacketVisitor) (err error) {
+	err = visitor(uat)
+	if err != nil {
+		return
+	}
+	for _, sig := range uat.Signatures {
+		err = sig.Visit(visitor)
+		if err != nil {
+			return
+		}
+	}
+	return
+}
+
 type Subkey struct {
 	RFingerprint string    `db:"uuid"`
 	Creation     time.Time `db:"creation"`
@@ -259,13 +378,25 @@ func (subkey *Subkey) ShortId() string {
 	return Reverse(subkey.RFingerprint[:8])
 }
 
-func (subkey *Subkey) GetPacket() (packet.PublicKey, error) {
+func (subkey *Subkey) GetPacket() (packet.Packet, error) {
+	return subkey.GetPublicKey()
+}
+
+func (subkey *Subkey) GetPublicKey() (*packet.PublicKey, error) {
 	buf := bytes.NewBuffer(subkey.GetPacket())
 	pk, err := packet.Read(buf)
 	return pk.(*packet.PublicKey), err
 }
 
-func (subkey *Subkey) SetPacket(pk *packet.PublicKey) error {
+func (subkey *Subkey) SetPacket(p packet.Packet) error {
+	pk, is := p.(*packet.PublicKey)
+	if !is {
+		return ErrInvalidPacketType
+	}
+	return subkey.SetPublicKey(pk)
+}
+
+func (subkey *Subkey) SetPublicKey(pk *packet.PublicKey) error {
 	buf := bytes.NewBuffer(nil)
 	err := pk.Serialize(buf)
 	if err != nil {
@@ -286,6 +417,20 @@ func (subkey *Subkey) SetPacket(pk *packet.PublicKey) error {
 	subkey.Algorithm = int(pk.PubKeyAlgo)
 	subkey.BitLen = bitLen
 	return nil
+}
+
+func (subkey *Subkey) Visit(visitor PacketVisitor) (err error) {
+	err = visitor(subkey)
+	if err != nil {
+		return
+	}
+	for _, sig := range subkey.Signatures {
+		err = sig.Visit(visitor)
+		if err != nil {
+			return
+		}
+	}
+	return
 }
 
 func (uid *UserId) SelfSignature() *Signature {

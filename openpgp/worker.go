@@ -15,7 +15,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package pq
+package openpgp
 
 import (
 	"bytes"
@@ -29,23 +29,60 @@ import (
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	"io"
-	. "launchpad.net/hockeypuck"
+	"launchpad.net/hockeypuck/hkp"
 	"strings"
 )
 
 const UUID_LEN = 40 // log(2**256, 85) = 39.94...
 
 type Worker struct {
-	WorkerBase
-	db *sql.DB
+	Service    *hkp.Service
+	KeyChanges KeyChangeChan
+	db         *sql.DB
 }
 
-func (w *Worker) Init(connect string) (err error) {
-	var count int
-	w.WorkerBase.Init()
-	w.db = sqlx.Connect("postgres", connect)
+func (s *OpenpgpSettings) Driver() string {
+	return s.GetString("hockeypuck.openpgp.db.driver", "postgres")
+}
+
+func (s *OpenpgpSettings) DSN() string {
+	return s.GetString("hockeypuck.openpgp.db.driver",
+		"dbname=hkp host=/var/run/postgresql sslmode=disable")
+}
+
+func StartWorker(service *hkp.Service) error {
+	w := &Worker{Service: service}
+	err := w.initDb()
 	if err != nil {
-		log.Println("connect", connect, "failed:", err)
+		return err
+	}
+	go w.Run()
+}
+
+func (w *Worker) Run() {
+	for {
+		select {
+		case r, ok := <-w.Service.Requests:
+			switch req := r.(type) {
+			case hkp.Lookup:
+				w.Lookup(r)
+			case hkp.Add:
+				w.Add(r)
+			case hkp.HashQuery:
+				w.HashQuery(r)
+			default:
+				log.Println("Unsupported HKP service request:", req)
+			}
+			if !ok {
+				return
+			}
+		}
+	}
+}
+
+func (w *Worker) initDb(connect string) (err error) {
+	w.db, err = sqlx.Connect(OpenpgpConfig().Driver(), OpenpgpConfig().DSN())
+	if err != nil {
 		return
 	}
 	// Create tables and indexes (idempotent).
@@ -54,7 +91,61 @@ func (w *Worker) Init(connect string) (err error) {
 	return
 }
 
-func (w *Worker) LookupKeys(search string, limit int) (keys []*PubKey, err error) {
+func (w *Worker) Lookup(l *hkp.Lookup) {
+	// Dispatch the lookup operation to the correct query
+	if l.Op == hkp.Stats {
+		w.Stats(l)
+		return
+	} else if l.Op == hkp.UnknownOperation {
+		l.Response() <- &ErrorResponse{ErrUnknownOperation}
+		return
+	}
+	var keys []*Pubkey
+	var limit int = LOOKUP_RESULT_LIMIT
+	var err error
+	if l.Op == hkp.HashGet {
+		keys, err = w.LookupHash(l.Search)
+	} else {
+		keys, err = w.LookupKeys(l.Search, limit)
+	}
+	if err != nil {
+		l.Response() <- &ErrorResponse{err}
+		return
+	}
+	// Formulate a response
+	var resp hkp.Response
+	switch l.Op {
+	case Get:
+		resp = &KeyringResponse{keys}
+	case HashGet:
+		resp = &KeyringResponse{keys}
+	case Index:
+		resp = &IndexResponse{Lookup: l, Keys: keys, Verbose: false}
+	case VIndex:
+		resp = &IndexResponse{Lookup: l, Keys: keys, Verbose: true}
+	default:
+		l.Response() <- &ErrorResponse{ErrInvalidOperation}
+		return
+	}
+}
+
+func (w *Worker) HashQuery(hq *hkp.HashQuery) {
+	var uuids []string
+	for _, digest := range hq.Digests {
+		uuid, err := w.lookupMd5Uuid(digest)
+		if err != nil {
+			hq.Response() <- &ErrorResponse{err}
+		}
+		uuids = append(uuids, uuid)
+	}
+	keys, err := fetchKeys(uuids)
+	if err != nil {
+		hq.Response() <- &ErrorResponse{err}
+	}
+	hq.Response() <- &HashQueryResponse{keys}
+}
+
+func (w *Worker) LookupKeys(search string, limit int) (keys []*Pubkey, err error) {
 	uuids, err := w.lookupPubkeyUuids(search, limit)
 	return w.fetchKeys(uuids)
 }
@@ -115,26 +206,47 @@ func (w *Worker) lookupPubkeyUuids(search string, limit int) (uuids []string, er
 	return lookupKeyidUuids(search)
 }
 
+func (w *Worker) lookupMd5Uuid(hash string) (uuid string, err error) {
+	rows, err := w.db.Queryx(fmt.Sprintf(`
+SELECT uuid FROM openpgp_pubkey WHERE md5 = $1`, compareOp), rkeyId)
+	if err != nil {
+		return
+	}
+	var uuids []string
+	uuids, err = flattenUuidRows(rows)
+	if err != nil {
+		return
+	}
+	if len(uuids) < 1 {
+		return "", KeyNotFound
+	}
+	uuid = uuids[0]
+	if len(uuids) > 1 {
+		return uuid, KeyIdCollision
+	}
+	return
+}
+
 func (w *Worker) lookupKeyidUuids(keyId string) (uuids []string, err error) {
 	keyId = strings.ToLower(search)
 	raw, err := hex.DecodeString(keyId)
 	if err != nil {
 		return nil, InvalidKeyId
 	}
+	rkeyId := Reverse(keyId)
 	var compareOp string
 	switch len(raw) {
 	case 4:
-		compareOp = "LIKE '________________________________' ||"
+		compareOp = "LIKE $1 || '________________________________'"
 	case 8:
-		compareOp = "LIKE '________________________' ||"
+		compareOp = "LIKE $1 || '________________________'"
 	case 20:
-		compareOp = "="
+		return []string{rKeyId}, nil
 	default:
 		return nil, InvalidKeyId
 	}
-	rkeyId := Reverse(keyId)
 	rows, err := w.db.Queryx(fmt.Sprintf(`
-SELECT uuid FROM openpgp_pubkey WHERE rfingerprint %s $1
+SELECT uuid FROM openpgp_pubkey WHERE rfingerprint %s
 	AND expiration > now() AND revsig_uuid IS NULL`, compareOp), rkeyId)
 	if err != nil {
 		return
@@ -173,7 +285,7 @@ WHERE u.keywords_fulltext @@ to_tsquery($1)
 	return flattenUuidRows(rows)
 }
 
-func (w *Worker) LookupKey(keyid string) (pubkey *PubKey, err error) {
+func (w *Worker) LookupKey(keyid string) (pubkey *Pubkey, err error) {
 	uuids, err := w.lookupKeyidUuids(keyid)
 	if err != nil {
 		return nil, err
@@ -192,75 +304,4 @@ func (w *Worker) LookupKey(keyid string) (pubkey *PubKey, err error) {
 		return nil, InternalKeyInvalid
 	}
 	return keys[0], nil
-}
-
-func (w *Worker) AddKey(armoredKey string) ([]string, error) {
-	log.Print("AddKey(...)")
-	// Check and decode the armor
-	armorBlock, err := armor.Decode(bytes.NewBufferString(armoredKey))
-	if err != nil {
-		log.Println("AddKey: armor decode failed:", err)
-		return err
-	}
-	return w.LoadKeys(armorBlock.Body)
-}
-
-func (w *Worker) LoadKeys(r io.Reader) (fps []string, err error) {
-	keyChan, errChan := ReadKeys(r)
-	for {
-		select {
-		case key, moreKeys := <-keyChan:
-			if key != nil {
-				err = w.upsertKey(key)
-			}
-			if !moreKeys {
-				return
-			}
-		case readErr, moreErrs := <-errChan:
-			err = readErr
-			if !moreErrs {
-				return
-			}
-		}
-	}
-	panic("unreachable")
-}
-
-func (w *Worker) UpsertKey(key *PubKey) error {
-	lastKey, err := mw.LookupKey(key.Fingerprint())
-	var cuml string
-	var lastCuml string
-	if err == nil && lastKey != nil {
-		lastCuml = lastKey.Sha256()
-		MergeKey(lastKey, key)
-		cuml = lastKey.Sha256()
-		if cuml != lastCuml {
-			log.Println("Updated:", key.Fingerprint())
-			lastKey.SetMtime(time.Now().UnixNano())
-			err = w.UpdateKey(lastKey)
-			if err == nil {
-				w.modifiedKeys <- lastKey
-			}
-		} else {
-			log.Println("Update: skipped, no change in cumulative digest")
-		}
-	} else if err == KeyNotFound {
-		log.Println("Insert:", key.Fingerprint())
-		key.Ctime = time.Now().UnixNano()
-		key.Mtime = key.Ctime
-		key.SksDigest = SksDigest(key)
-		err = w.InsertKey(key)
-		if err == nil {
-			mw.createdKeys <- key
-		}
-	}
-	if err != nil {
-		log.Println("Error:", err)
-		return
-	}
-	log.Println(key.SksDigest)
-	statuses = append(statuses, &LoadKeyStatus{
-		Fingerprint: key.Fingerprint(),
-		Digest:      cuml,
-		LastDigest:  lastCuml})
 }

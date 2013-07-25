@@ -46,105 +46,34 @@ func Fingerprint(pubkey *packet.PublicKey) string {
 	return hex.EncodeToString(pubkey.Fingerprint[:])
 }
 
-func (pubkey *Pubkey) Write(w io.Writer) error {
-	return w.Write(pubkey.Packet)
-}
-
-func (sig *Signature) Write(w io.Writer) error {
-	return w.Write(sig.Packet)
-}
-
-func (uid *UserId) Write(w io.Writer) error {
-	return w.Write(uid.Packet)
-}
-
-func (uat *UserAttribute) Write(w io.Writer) error {
-	return w.Write(uat.Packet)
-}
-
-func (subkey *Subkey) Write(w io.Writer) error {
-	return w.Write(subkey.Packet)
-}
-
-func (pubkey *Pubkey) WriteAll(w io.Writer) (err error) {
-	err = pubkey.Write(w)
-	if err != nil {
-		return
-	}
-	for _, sig := range pubkey.Signatures {
-		err = sig.Write(c)
+func WriteTo(w io.Writer, root PacketRecord) error {
+	return root.Visit(func(rec PacketRecord) error {
+		op, err := rec.GetPacket()
 		if err != nil {
-			return
+			return err
 		}
-	}
-	for _, uid := range pubkey.UserIds {
-		err = uid.WriteAll(w)
-		if err != nil {
-			return
-		}
-	}
-	for _, uat := range pubkey.UserAttributes {
-		err = uat.WriteAll(w)
-		if err != nil {
-			return
-		}
-	}
-	for _, subkey := range pubkey.Subkeys {
-		err = subkey.WriteAll(w)
-		if err != nil {
-			return
-		}
-	}
-	return
+		return op.Serialize(w)
+	})
 }
 
-func (uid *UserId) WriteAll(w io.Writer) (err error) {
-	err = uid.Write(w)
-	if uid.SelfSignature != nil {
-		err = uid.SelfSignature.Write(e)
-		if err != nil {
-			return
-		}
-	}
-	for _, sig := range uid.Signatures {
-		if sig != uid.SelfSignature {
-			err = sig.Write(w)
+type OpaquePacketChan chan struct {
+	*packet.OpaquePacket
+	err error
+}
+
+func IterOpaquePackets(root PacketRecord) OpaquePacketChan {
+	c := make(OpaquePacketChan)
+	go func(){
+		defer close(c)
+		root.Visit(func(rec PacketRecord) error {
+			op, err := rec.GetPacket()
+			c <- make(struct{op, err})
 			if err != nil {
-				return
+				return err
 			}
-		}
-	}
-	return
-}
-
-func (uat *UserAttribute) WriteAll(w io.Writer) (err error) {
-	err = uat.Write(w)
-	if uat.SelfSignature != nil {
-		err = uat.SelfSignature.Write(w)
-		if err != nil {
-			return
-		}
-	}
-	for _, sig := range uat.Signatures {
-		if sig != uat.SelfSignature {
-			err = sig.Write(w)
-			if err != nil {
-				return
-			}
-		}
-	}
-	return
-}
-
-func (subkey *Subkey) WriteAll(w io.Writer) (err error) {
-	err = subkey.Write(w)
-	for _, sig := range subkey.Signatures {
-		err = sig.Write(w)
-		if err != nil {
-			return
-		}
-	}
-	return
+		})
+	}()
+	return c
 }
 
 // SksDigest calculates a cumulative message digest on all
@@ -153,13 +82,8 @@ func (subkey *Subkey) WriteAll(w io.Writer) (err error) {
 // Use MD5 for matching digest values with SKS.
 func SksDigest(key *Pubkey, h crypto.Hash) string {
 	var packets packetSlice
-	for pktObj := GetAllPackets(key) {
-		buf := bytes.NewBuffer(pktObj.GetPacket())
-		opr := packet.NewOpaqueReader(buf)
-		opkt, err := opr.Next()
-		if err == nil {
-			packets = append(packets, opkt)
-		}
+	for opkt := IterPackets(key) {
+		packets = append(packets, opkt.OpaquePacket)
 	}
 	sort.Sort(sksPacketSorter{packets})
 	for _, opkt := range packets {
@@ -170,150 +94,131 @@ func SksDigest(key *Pubkey, h crypto.Hash) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
+type ReadKeyResult struct {
+	*Pubkey
+	Error error
+}
+
+type PubkeyChan chan *ReadKeyResult
+
+func ErrReadKeys(msg string) *ReadKeyResult {
+	return &ReadKeyResult{Error:errors.New(msg)}
+}
+
 // Read one or more public keys from input.
-func ReadKeys(r io.Reader) (keyChan chan *PubKey, errorChan chan error) {
-	keyChan = make(chan *PubKey)
-	errorChan = make(chan error)
+func ReadKeys(r io.Reader) PubkeyChan {
+	c := make(PubkeyChan)
 	go func() {
-		defer close(keyChan)
-		defer close(errorChan)
+		defer close(c)
 		var err error
 		var parseErr error
+		var opkt *packet.OpaquePacket
+		var currentPubkey *Pubkey
 		var currentSignable Signable
-		var currentUserId *UserId
-		or := packet.NewOpaqueReader(r)
-		var p packet.Packet
-		var op *packet.OpaquePacket
-		var pubKey *PubKey
-		var fp string
-		for op, err = or.Next(); err != io.EOF; op, err = or.Next() {
+		var fingerprint string
+		opktReader := packet.NewOpaqueReader(r)
+		for opkt, err = opktReader.Next(); err != io.EOF; opkt, err = opktReader.Next() {
 			if err != nil {
-				errorChan <- err
+				c <- &ReadKeyResult{Error:err}
 				return
 			}
-			p, parseErr = op.Parse()
-			switch p.(type) {
-			case *packet.PublicKey:
-				pk := p.(*packet.PublicKey)
-				if !pk.IsSubkey && pubKey != nil {
-					// New public key found, send prior one
-					keyChan <- pubKey
-					pubKey = nil
-				}
-				fp = Fingerprint(pk)
-				keyLength, err := pk.BitLength()
-				if err != nil {
-					log.Println("Failed to read bit length, fingerprint:", fp)
-					errorChan <- err
-					continue
-				}
-				if !pk.IsSubkey {
-					// This is the primary public key
-					pubKey = &PubKey{
-						RFingerprint: Reverse(fp),
-						Algorithm:    int(pk.PubKeyAlgo),
-						KeyLength:    keyLength}
-					pubKey.SetPacket(op)
-					currentSignable = pubKey
-				} else {
-					if pubKey == nil {
+			pkt, parseErr = op.Parse()
+			if parseErr == nil {
+				switch p := pkt.(type) {
+				case *packet.PublicKey:
+					if !p.IsSubkey {
+						if currentPubkey != nil {
+							// New public key found, send prior one
+							c <- currentPubkey
+							currentPubkey = nil
+						}
+						pubkey := new(Pubkey)
+						if err = pubkey.SetPublicKey(p); err != nil {
+							currentPubkey = nil
+							c <- &ReadKeyResult{Error:err}
+							continue
+						}
+						currentPubkey = pubkey
+						currentSignable = currentPubkey
+					} else {
+						if currentPubkey == nil {
+							c <- ErrReadKeys(
+								"Subkey outside of primary public key scope in stream")
+							continue
+						}
+						// This is a sub key
+						subkey := new(Subkey)
+						if err = subkey.SetPublicKey(p); err != nil {
+							c <- &ReadKeyResult{Error:err}
+						}
+						currentPubkey.Subkeys = append(currentPubkey.Subkeys, subkey)
+						currentSignable = subkey
+					}
+				case *packet.Signature:
+					if currentSignable == nil {
+						c <- ErrReadKeys("Signature outside signable scope in stream")
 						continue
 					}
-					// This is a sub key
-					subKey := &SubKey{
-						RFingerprint: Reverse(fp),
-						Algorithm:    int(pk.PubKeyAlgo),
-						KeyLength:    keyLength}
-					subKey.SetPacket(op)
-					pubKey.SubKeys = append(pubKey.SubKeys, subKey)
-					currentSignable = subKey
-					currentUserId = nil
-				}
-			case *packet.Signature:
-				if currentSignable == nil {
-					continue
-				}
-				s := p.(*packet.Signature)
-				// Read issuer key id.
-				if s.IssuerKeyId == nil {
-					// Without an issuer, a signature doesn't mean much
-					log.Println("Signature missing IssuerKeyId!", "Public key fingerprint:",
-						pubKey.Fingerprint())
-					continue
-				}
-				var issuerKeyId [8]byte
-				binary.BigEndian.PutUint64(issuerKeyId[:], *s.IssuerKeyId)
-				sigExpirationTime := NeverExpires
-				keyExpirationTime := NeverExpires
-				// Expiration time
-				if s.SigLifetimeSecs != nil {
-					sigExpirationTime = s.CreationTime.Add(
-						time.Duration(*s.SigLifetimeSecs) * time.Second).Unix()
-				} else if s.KeyLifetimeSecs != nil {
-					keyExpirationTime = s.CreationTime.Add(
-						time.Duration(*s.KeyLifetimeSecs) * time.Second).Unix()
-				}
-				sigKeyId := hex.EncodeToString(issuerKeyId[:])
-				sig := &Signature{
-					SigType:           int(s.SigType),
-					RIssuerKeyId:      Reverse(sigKeyId),
-					CreationTime:      s.CreationTime.Unix(),
-					SigExpirationTime: sigExpirationTime,
-					KeyExpirationTime: keyExpirationTime}
-				sig.SetPacket(op)
-				currentSignable.AppendSig(sig)
-			case *packet.UserId:
-				if pubKey == nil {
-					continue
-				}
-				uid := p.(*packet.UserId)
-				id := CleanUtf8(uid.Id)
-				userId := &UserId{
-					Id:       id,
-					Keywords: SplitUserId(id)}
-				userId.SetPacket(op)
-				currentSignable = userId
-				currentUserId = userId
-				pubKey.Identities = append(pubKey.Identities, userId)
-			default:
-				_, isUnknown := parseErr.(errors.UnknownPacketTypeError)
-				if isUnknown {
-					// Packets not yet supported by go.crypto/openpgp
-					switch op.Tag {
-					case 17: // Process user attribute packet
-						userAttr := &UserAttribute{}
-						userAttr.SetPacket(op)
-						if currentUserId != nil {
-							currentUserId.Attributes = append(currentUserId.Attributes, userAttr)
-						}
-						currentSignable = userAttr
-					case 2: // Bad signature packet
-						// TODO: Check for signature version 3
-						log.Println(parseErr)
-					case 6: // Bad public key packet
-						// TODO: Check for unsupported PGP public key packet version
-						// For now, clear state, ignore to next key
-						if pubKey != nil {
-							// Send prior public key, if any
-							keyChan <- pubKey
-							pubKey = nil
-						}
-						log.Println(parseErr)
-						pubKey = nil
-						currentSignable = nil
-						currentUserId = nil
-					default:
-						log.Println(parseErr)
+					sig := new(Signature)
+					if err = sig.SetSignature(p); err != nil {
+						c <- &ReadKeyResult{Error:err}
+						continue
 					}
+					currentSignable.AddSignature(sig)
+				case *packet.UserId:
+					if currentPubkey == nil {
+						c <- ErrReadKeys("User ID outside primary public key scope in stream")
+						continue
+					}
+					uid := new(UserId)
+					if err = uid.SetUserId(p); err != nil {
+						c <- &ReadKeyResult{Error:err}
+						continue
+					}
+					currentSignable = uid
+					currentPubkey.UserIds = append(currentPubkey.UserIds, uid)
 				}
-				//case *packet.UserAttribute:
+			}
+			if _, isUnknown := parseErr.(errors.UnknownPacketTypeError); isUnknown {
+				// Packets not yet supported by go.crypto/openpgp
+				switch opkt.Tag {
+				case 17: // Process user attribute packet
+					if currentPubkey == nil {
+						c <- ErrReadKeys(
+							"User attribute outside primary public key scope in stream")
+						continue
+					}
+					uat := new(UserAttribute)
+					if err = uat.SetPacket(op); err != nil {
+						c <- &ReadKeyResult{Error:err}
+						continue
+					}
+					currentSignable = uat
+					currentPubkey.UserAttributes = append(currentPubkey.UserAttributes, uat)
+				case 2: // Bad signature packet
+					// TODO: Check for signature version 3
+					c <- &ReadKeyResult{Error:parseErr}
+				case 6: // Bad public key packet
+					// TODO: Check for unsupported PGP public key packet version
+					// For now, clear state, ignore to next key
+					if currentPubkey != nil {
+						// Send prior public key, if any
+						c <- &ReadKeyResult{currentPubkey}
+						currentPubkey = nil
+					}
+					c <- &ReadKeyResult{Error:parseErr}
+					currentPubkey = nil
+					currentSignable = nil
+				default:
+					c <- &ReadKeyResult{Error:parseErr}
+				}
 			}
 		}
-		if pubKey != nil {
-			keyChan <- pubKey
+		if currentPubkey != nil {
+			c <- &ReadKeyResult(currentPubkey)
 		}
 	}()
-	return keyChan, errorChan
+	return c
 }
 
 // Read only keys with valid self/cross-signatures from input.
