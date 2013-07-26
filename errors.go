@@ -22,26 +22,26 @@ import (
 )
 
 // Lookup key was not found in the database.
-var KeyNotFound = errors.New("Key not found.")
+var ErrKeyNotFound = errors.New("Key not found.")
 
 // An internal inconsistency between the stored key material and our indexing was detected.
-var InternalKeyInvalid = errors.New("Stored key ring is invalid.")
+var ErrInconsistentKey = errors.New("Stored key is internally inconsistent.")
 
 // Key ID is invalid.
-var InvalidKeyId = errors.New("Invalid key ID.")
+var ErrInvalidKeyId = errors.New("Invalid key ID.")
 
 // Key hash is invalid.
-var InvalidKeyHash = errors.New("Invalid key hash.")
+var ErrInvalidKeyHash = errors.New("Invalid key hash.")
 
 // A lookup with a short key ID found a collision.
 // This is quite possible with short key IDs, remotely possibly with long IDs.
-var KeyIdCollision = errors.New("Short key ID matches multiple public keys. Try again with a longer key ID.")
+var ErrKeyIdCollision = errors.New("Key ID matches multiple public keys. Try again with a longer key ID.")
 
 // A query resulted in more responses than we'd care to respond with.
-var TooManyResponses = errors.New("Too many responses.")
+var ErrTooManyResponses = errors.New("Too many responses.")
 
 // Something was attempted that isn't fully baked yet.
-var UnsupportedOperation = errors.New("Unsupported operation.")
+var ErrUnsupportedOperation = errors.New("Unsupported operation.")
 
 // Template path was not found. Installation or configuration problem.
-var TemplatePathNotFound = errors.New("Could not find Hockeypuck templates. Check your installation and configuration.")
+var ErrTemplatePathNotFound = errors.New("Could not find templates. Check your installation and configuration.")

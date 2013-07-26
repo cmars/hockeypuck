@@ -20,22 +20,28 @@ package openpgp
 import (
 	"bytes"
 	"code.google.com/p/go.crypto/openpgp/packet"
-	"crypto/md5"
 	"encoding/binary"
 	"encoding/hex"
-	"sort"
+	"io"
+	"time"
 )
 
 type PacketVisitor func(PacketRecord) error
 
 type PacketRecord interface {
+	GetOpaquePacket() (*packet.OpaquePacket, error)
 	GetPacket() (packet.Packet, error)
-	SetPacket(packet.Packet), error
+	SetPacket(packet.Packet) error
 	Visit(PacketVisitor) error
 }
 
 type Signable interface {
 	AddSignature(*Signature)
+}
+
+func toOpaquePacket(buf []byte) (*packet.OpaquePacket, error) {
+	r := NewOpaqueReader(bytes.NewBuffer(buf))
+	return r.Next()
 }
 
 // Model representing an OpenPGP public key packets.
@@ -51,14 +57,20 @@ type Pubkey struct {
 	Mtime          time.Time `db:"mtime"`
 	Md5            string    `db:"md5"`
 	Sha256         string    `db:"sha256"`
-	RevsigDigest   string    `db:"revsig_uuid"`
+	RevSigDigest   string    `db:"revsig_uuid"`
 	Algorithm      int       `db:"algorithm"`
 	BitLen         int       `db:"bit_len"`
-	Signatures     []*Signature
-	Subkeys        []*Subkey
-	UserIds        []*UserId
-	UserAttributes []*UserAttribute
-	Revsig         *Signature
+	PrimaryUid     string    `db:"primary_uid"`
+	PrimaryUat     string    `db:"primary_uat"`
+	signatures     []Signature
+	subkeys        []Subkey
+	userIds        []UserId
+	userAttributes []UserAttribute
+	revSig         *Signature
+	primaryUid     *UserId
+	primaryUidSig  *Signature
+	primaryUat     *UserAttribute
+	primaryUatSig  *Signature
 }
 
 func (pubkey *Pubkey) Fingerprint() string {
@@ -75,6 +87,10 @@ func (pubkey *Pubkey) ShortId() string {
 
 func (pubkey *Pubkey) Serialize(w io.Writer) error {
 	return w.Write(pubkey.Packet)
+}
+
+func (pubkey *Pubkey) GetOpaquePacket() (*packet.OpaquePacket, error) {
+	return toOpaquePacket(pubkey.Packet)
 }
 
 func (pubkey *Pubkey) GetPacket() (packet.Packet, error) {
@@ -123,25 +139,25 @@ func (pubkey *Pubkey) Visit(visitor PacketVisitor) (err error) {
 	if err != nil {
 		return
 	}
-	for _, sig := range pubkey.Signatures {
+	for _, sig := range pubkey.signatures {
 		err = sig.Visit(visitor)
 		if err != nil {
 			return
 		}
 	}
-	for _, uid := range pubkey.UserIds {
+	for _, uid := range pubkey.userIds {
 		err = uid.Visit(visitor)
 		if err != nil {
 			return
 		}
 	}
-	for _, uat := range pubkey.UserAttributes {
+	for _, uat := range pubkey.userAttributes {
 		err = uat.Visit(visitor)
 		if err != nil {
 			return
 		}
 	}
-	for _, subkey := range pubkey.Subkeys {
+	for _, subkey := range pubkey.subkeys {
 		err = subkey.Visit(visitor)
 		if err != nil {
 			return
@@ -159,8 +175,8 @@ type Signature struct {
 	SigType            int       `db:"sig_type"`
 	RIssuerKeyId       string    `db:"signer"`
 	RIssuerFingerprint string    `db:"signer_uuid"`
-	RevsigDigest       string    `db:"revsig_uuid"`
-	Revsig             *Signature
+	RevSigDigest       string    `db:"revsig_uuid"`
+	revSig             *Signature
 }
 
 func (sig *Signature) IssuerKeyId() string {
@@ -169,6 +185,18 @@ func (sig *Signature) IssuerKeyId() string {
 
 func (sig *Signature) IssuerFingerprint() string {
 	return Reverse(sig.RIssuerFingerprint)
+}
+
+func (sig *Signature) calcScopedDigest(pubkey *Pubkey, scope string) string {
+	h := sha256.New()
+	h.Write([]byte(pubkey.RFingerprint))
+	h.Write([]byte(scope))
+	h.Write(sig.Packet)
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+func (sig *Signature) GetOpaquePacket() (*packet.OpaquePacket, error) {
+	return toOpaquePacket(sig.Packet)
 }
 
 func (sig *Signature) GetPacket() (packet.Packet, error) {
@@ -180,11 +208,11 @@ func (sig *Signature) GetSignature() (packet.Packet, error) {
 	return packet.Read(buf)
 }
 
-func (sig *Signature) SetPacket(p *packet.Packet) error {
+func (sig *Signature) SetPacket(p packet.Packet) error {
 	return sig.SetSignature(p)
 }
 
-func (sig *Signature) SetSignature(p *packet.Packet) error {
+func (sig *Signature) SetSignature(p packet.Packet) error {
 	switch s := p.(type) {
 	case *packet.Signature:
 		return sig.setPacketV4(s)
@@ -229,8 +257,21 @@ type UserId struct {
 	Packet        []byte    `db:"packet"`
 	PubkeyRFP     string    `db:"pubkey_uuid"`
 	Keywords      string    `db:"keywords"`
-	SelfSignature *Signature
-	Signatures    []*Signature
+	RevSigDigest  string    `db:"revsig_uuid"`
+	revSig        *Signature
+	selfSignature *Signature
+	signatures    []Signature
+}
+
+func (uid *UserId) calcScopedDigest(pubkey *Pubkey) string {
+	h := sha256.New()
+	h.Write([]byte(pubkey.RFingerprint))
+	h.Write(uid.Packet)
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+func (uid *UserId) GetOpaquePacket() (*packet.OpaquePacket, error) {
+	return toOpaquePacket(uid.Packet)
 }
 
 func (uid *UserId) GetPacket() (packet.Packet, error) {
@@ -267,7 +308,7 @@ func (uid *UserId) Visit(visitor PacketVisitor) (err error) {
 	if err != nil {
 		return
 	}
-	for _, sig := range uid.Signatures {
+	for _, sig := range uid.signatures {
 		err = sig.Visit(visitor)
 		if err != nil {
 			return
@@ -283,18 +324,25 @@ type UserAttribute struct {
 	State         int       `db:"state"`
 	Packet        []byte    `db:"packet"`
 	PubkeyRFP     string    `db:"pubkey_uuid"`
-	SelfSignature *Signature
-	Signatures    []*Signature
+	RevSigDigest  string    `db:"revsig_uuid"`
+	revSig        *Signature
+	selfSignature *Signature
+	signatures    []Signature
+}
+
+func (uat *UserAttribute) calcScopedDigest(pubkey *Pubkey) string {
+	h := sha256.New()
+	h.Write([]byte(pubkey.RFingerprint))
+	h.Write(uat.Packet)
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+func (uat *UserAttribute) GetOpaquePacket() (*packet.OpaquePacket, error) {
+	return toOpaquePacket(uat.Packet)
 }
 
 func (uat *UserAttribute) GetPacket() (packet.Packet, error) {
 	return GetOpaquePacket()
-}
-
-func (uat *UserAttribute) GetOpaquePacket() (*packet.OpaquePacket, error) {
-	buf := bytes.NewBuffer(uat.Packet)
-	r := packet.NewOpaqueReader(buf)
-	return r.Next()
 }
 
 func (uat *UserAttribute) SetPacket(p packet.Packet) error {
@@ -344,7 +392,7 @@ func (uat *UserAttribute) Visit(visitor PacketVisitor) (err error) {
 	if err != nil {
 		return
 	}
-	for _, sig := range uat.Signatures {
+	for _, sig := range uat.signatures {
 		err = sig.Visit(visitor)
 		if err != nil {
 			return
@@ -363,7 +411,9 @@ type Subkey struct {
 	RevsigDigest string    `db:"revsig_uuid"`
 	Algorithm    int       `db:"algorithm"`
 	BitLen       int       `db:"bit_len"`
-	Signatures   []*Signatures
+	signatures   []Signature
+	revSig       *Signature
+	bindingSig   *Signature
 }
 
 func (subkey *Subkey) Fingerprint() string {
@@ -376,6 +426,10 @@ func (subkey *Subkey) KeyId() string {
 
 func (subkey *Subkey) ShortId() string {
 	return Reverse(subkey.RFingerprint[:8])
+}
+
+func (subkey *Subkey) GetOpaquePacket() (*packet.OpaquePacket, error) {
+	return toOpaquePacket(subkey.Packet)
 }
 
 func (subkey *Subkey) GetPacket() (packet.Packet, error) {
@@ -424,7 +478,7 @@ func (subkey *Subkey) Visit(visitor PacketVisitor) (err error) {
 	if err != nil {
 		return
 	}
-	for _, sig := range subkey.Signatures {
+	for _, sig := range subkey.signatures {
 		err = sig.Visit(visitor)
 		if err != nil {
 			return
@@ -434,7 +488,7 @@ func (subkey *Subkey) Visit(visitor PacketVisitor) (err error) {
 }
 
 func (uid *UserId) SelfSignature() *Signature {
-	for _, userSig := range uid.Signatures {
+	for _, userSig := range uid.signatures {
 		if packet.SignatureType(userSig.SigType) == packet.SigTypePositiveCert {
 			return userSig
 		}
@@ -443,7 +497,7 @@ func (uid *UserId) SelfSignature() *Signature {
 }
 
 func (pk *Pubkey) SelfSignature() *Signature {
-	for _, pkSig := range pk.Signatures {
+	for _, pkSig := range pk.signatures {
 		switch packet.SignatureType(pkSig.SigType) {
 		case packet.SigTypePositiveCert:
 			return pkSig
@@ -479,17 +533,17 @@ func (sps sksPacketSorter) Less(i, j int) bool {
 /* Appending signatures */
 
 func (pubkey *Pubkey) AddSignature(sig *Signature) {
-	pubkey.Signatures = append(pubkey.Signatures, sig)
+	pubkey.signatures = append(pubkey.signatures, sig)
 }
 
 func (uid *UserId) AddSignature(sig *Signature) {
-	uid.Signatures = append(uid.Signatures, sig)
+	uid.signatures = append(uid.signatures, sig)
 }
 
 func (uat *UserAttribute) AddSignature(sig *Signature) {
-	uat.Signatures = append(uat.Signatures, sig)
+	uat.signatures = append(uat.signatures, sig)
 }
 
 func (subkey *Subkey) AddSignature(sig *Signature) {
-	subkey.Signatures = append(subkey.Signatures, sig)
+	subkey.signatures = append(subkey.signatures, sig)
 }

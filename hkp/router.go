@@ -1,7 +1,26 @@
+/*
+   Hockeypuck - OpenPGP key server
+   Copyright (C) 2012, 2013  Casey Marshall
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU Affero General Public License as published by
+   the Free Software Foundation, version 3.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU Affero General Public License for more details.
+
+   You should have received a copy of the GNU Affero General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 package hkp
 
 import (
 	"code.google.com/p/gorilla/mux"
+	"log"
+	"net/http"
 )
 
 type Service struct {
@@ -17,49 +36,54 @@ type Router struct {
 	*Service
 }
 
-func NewRouter(r *mux.Router) *Handler {
-	return &Handler{Router: r, Service: NewService()}
+func NewRouter(r *mux.Router) *Router {
+	return &Router{Router: r, Service: NewService()}
 }
 
-func (h *Handler) HandleAll() {
-	h.HandlePksLookup()
-	h.HandlePksAdd()
-	h.HandlePksHashQuery()
+func (r *Router) HandleAll() {
+	r.HandlePksLookup()
+	r.HandlePksAdd()
+	r.HandlePksHashQuery()
 }
 
-func (h *Handler) Respond(req Request) {
+func (r *Router) Respond(w http.ResponseWriter, req Request) {
 	err := req.Parse()
 	if err != nil {
-		h.RespondError(w, err)
+		r.RespondError(w, err)
 		return
 	}
-	h.Requests <- req
-	return h.RespondWith(w, req)
+	r.Requests <- req
+	resp := <-req.Response()
+	err = resp.WriteTo(w)
+	if err != nil {
+		log.Println(err)
+	}
 }
 
-func (h *Handler) RespondError(w http.ResponseWriter, err error) error {
+func (r *Router) RespondError(w http.ResponseWriter, err error) error {
 	log.Println("Bad request:", err)
 	w.WriteHeader(http.StatusBadRequest)
-	return w.Write([]byte(err.Error()))
+	_, writeErr := w.Write([]byte(err.Error()))
+	return writeErr
 }
 
-func (h *Handler) HandlePksLookup() {
-	h.HandleFunc("/pks/lookup",
+func (r *Router) HandlePksLookup() {
+	r.HandleFunc("/pks/lookup",
 		func(w http.ResponseWriter, req *http.Request) {
-			h.Respond(&Lookup{Request: req})
+			r.Respond(w, &Lookup{Request: req})
 		})
 }
 
-func (h *Handler) HandlePksAdd() {
-	h.HandleFunc("/pks/add",
+func (r *Router) HandlePksAdd() {
+	r.HandleFunc("/pks/add",
 		func(w http.ResponseWriter, req *http.Request) {
-			h.Respond(&Add{Request: req})
+			r.Respond(w, &Add{Request: req})
 		})
 }
 
-func (h *Handler) HandlePksHashQuery() {
-	h.HandleFunc("/pks/hashquery",
+func (r *Router) HandlePksHashQuery() {
+	r.HandleFunc("/pks/hashquery",
 		func(w http.ResponseWriter, req *http.Request) {
-			h.Respond(&HashQuery{Request: req})
+			r.Respond(w, &HashQuery{Request: req})
 		})
 }

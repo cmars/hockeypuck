@@ -20,51 +20,54 @@ package openpgp
 import (
 	"bytes"
 	"code.google.com/p/go.crypto/openpgp/armor"
-	"crypto/rand"
-	"database/sql"
-	"encoding/ascii85"
-	"encoding/hex"
-	"errors"
 	"fmt"
-	"github.com/jmoiron/sqlx"
-	_ "github.com/lib/pq"
-	"io"
+	"launchpad.net/hockeypuck"
 	"launchpad.net/hockeypuck/hkp"
-	"strings"
+	"log"
+	"time"
 )
 
 type KeyChangeChan chan *KeyChange
 
 func (w *Worker) Add(a *hkp.Add) {
 	// Parse armored keytext
-	var keys []*Pubkey
 	var changes []*KeyChange
+	var errors []*ReadKeyResult
 	// Check and decode the armor
 	armorBlock, err := armor.Decode(bytes.NewBufferString(a.Keytext))
-	if err != nil {
-		return err
-	}
-	keys, err := ReadKeys(armorBlock.Body)
 	if err != nil {
 		a.Response() <- &ErrorResponse{err}
 		return
 	}
-	// Upsert keys
-	for _, key := range keys {
-		change := w.UpsertKey(key)
-		changes = append(changes, change)
+	var readErrors []*ReadKeyResult
+	for readKey := range ReadKeys(armorBlock.Body) {
+		if readKey.Error != nil {
+			readErrors = append(readErrors, readKey)
+		} else {
+			change := w.UpsertKey(readKey.Pubkey)
+			changes = append(changes, change)
+		}
 	}
-	a.Response() <- &AddResponse{Changes: changes}
+	a.Response() <- &AddResponse{Changes: changes, Errors: readErrors}
 }
+
+type KeyChangeType int
+
+const (
+	KeyChangeInvalid KeyChangeType = iota
+	KeyNotChanged    KeyChangeType = iota
+	KeyAdded         KeyChangeType = iota
+	KeyModified      KeyChangeType = iota
+)
 
 type KeyChange struct {
 	Fingerprint    string
-	Type           KeyChangeType
 	CurrentMd5     string
 	PreviousMd5    string
 	CurrentSha256  string
 	PreviousSha256 string
 	Error          error
+	Type           KeyChangeType
 }
 
 func (kc *KeyChange) String() string {
@@ -79,31 +82,22 @@ func (kc *KeyChange) String() string {
 	case KeyModified:
 		msg = fmt.Sprintf("Modify key %s, [%s.. -> %s..]", kc.Fingerprint,
 			kc.PreviousSha256[:8], kc.CurrentSha256[:8])
-	case KeyNotChange:
+	case KeyNotChanged:
 		msg = fmt.Sprintf("No change in key %s", kc.Fingerprint)
 	}
 	w.Write([]byte(msg))
 	if kc.Error != nil {
-		w.Write([]byte(": Error: %v", kc.Error))
+		w.Write([]byte(fmt.Sprintf(": Error: %v", kc.Error)))
 	}
 	return w.String()
 }
 
-type KeyChangeType int
-
-const (
-	KeyChangeInvalid KeyChangeType = iota
-	KeyNotChanged    KeyChangeType = iota
-	KeyAdded         KeyChangeType = iota
-	KeyModified      KeyChangeType = iota
-)
-
-func (change *KeyChange) Type() KeyChangeType {
-	if result.CurrentSha256 == "" {
+func (change *KeyChange) calcType() KeyChangeType {
+	if change.CurrentSha256 == "" {
 		return KeyChangeInvalid
-	} else if result.PreviousSha256 == "" {
+	} else if change.PreviousSha256 == "" {
 		return KeyAdded
-	} else if result.PreviousSha256 == result.CurrentSha256 {
+	} else if change.PreviousSha256 == change.CurrentSha256 {
 		return KeyNotChanged
 	}
 	return KeyModified
@@ -112,7 +106,7 @@ func (change *KeyChange) Type() KeyChangeType {
 func (w *Worker) UpsertKey(key *Pubkey) (change *KeyChange) {
 	change = &KeyChange{Fingerprint: key.Fingerprint(), Type: KeyChangeInvalid}
 	lastKey, err := w.LookupKey(key.Fingerprint())
-	if err == KeyNotFound {
+	if err == hockeypuck.ErrKeyNotFound {
 		change.PreviousMd5 = ""
 		change.PreviousSha256 = ""
 		change.CurrentMd5 = key.Md5
@@ -136,15 +130,23 @@ func (w *Worker) UpsertKey(key *Pubkey) (change *KeyChange) {
 	if change.CurrentSha256 == "" {
 		change.Type = KeyChangeInvalid
 	}
-	switch result.Action() {
-	case KeyAdded:
-		lastKey.SetMtime(time.Now().UnixNano())
+	switch change.Type {
+	case KeyModified:
+		lastKey.Mtime = time.Now()
 		change.Error = w.UpdateKey(lastKey)
-	case KeyChanged:
-		key.Ctime = time.Now().UnixNano()
+	case KeyAdded:
+		key.Ctime = time.Now()
 		key.Mtime = key.Ctime
 		change.Error = w.InsertKey(key)
 	}
 	log.Println(change)
 	return
+}
+
+func (w *Worker) UpdateKey(pubkey *Pubkey) error {
+	panic("not impl yet")
+}
+
+func (w *Worker) InsertKey(pubkey *Pubkey) error {
+	panic("not impl yet")
 }

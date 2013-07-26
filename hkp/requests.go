@@ -18,10 +18,12 @@
 package hkp
 
 import (
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"github.com/cmars/conflux/recon"
-	"log"
 	"net/http"
+	"strings"
 )
 
 func ErrorMissingParam(param string) error {
@@ -33,7 +35,7 @@ func ErrorUnknownOperation(op string) error {
 }
 
 func ErrorInvalidMethod(method string) error {
-	errors.New(fmt.Sprintf("Invalid HTTP method: %s", method))
+	return errors.New(fmt.Sprintf("Invalid HTTP method: %s", method))
 }
 
 type Request interface {
@@ -110,11 +112,11 @@ func (l *Lookup) Parse() (err error) {
 		return ErrorUnknownOperation(op)
 	}
 	// Parse the "search" variable (section 3.1.1)
-	if l.Search = l.Form.Get("search"); searchRequired && lookup.Search == "" {
+	if l.Search = l.Form.Get("search"); searchRequired && l.Search == "" {
 		return ErrorMissingParam("search")
 	}
 	// Parse the "options" variable (section 3.2.1)
-	l.Option = parseOptions(req.Form.Get("options"))
+	l.Option = parseOptions(l.Form.Get("options"))
 	// Parse the "fingerprint" variable (section 3.2.2)
 	l.Fingerprint = l.Form.Get("fingerprint") == "on"
 	// Parse the "exact" variable (section 3.2.3)
@@ -164,12 +166,12 @@ func (a *Add) Parse() (err error) {
 	}
 	a.responseChan = make(ResponseChan)
 	if keytext := a.Form.Get("keytext"); keytext == "" {
-		return nil, ErrorMissingParam("keytext")
+		return ErrorMissingParam("keytext")
 	} else {
-		add.Keytext = keytext
+		a.Keytext = keytext
 	}
-	add.Option = parseOptions(a.Form.Get("options"))
-	return add, nil
+	a.Option = parseOptions(a.Form.Get("options"))
+	return nil
 }
 
 type HashQuery struct {

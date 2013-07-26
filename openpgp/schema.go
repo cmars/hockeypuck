@@ -100,6 +100,10 @@ md5 TEXT NOT NULL,
 sha256 TEXT NOT NULL,
 -- Reference to a revocation on this primary key
 revsig_uuid TEXT,
+-- Reference to the primary User ID
+primary_uid TEXT,
+-- Reference to the primary User Attribute
+primary_uat TEXT,
 -----------------------------------------------------------------------
 -- Public-key algorithm, RFC 4880, Section 9.1
 algorithm INTEGER NOT NULL,
@@ -113,83 +117,18 @@ UNIQUE (rfingerprint)
 )
 `
 
-const CreateTable_OpenpgpSubkey = `
-CREATE TABLE IF NOT EXISTS openpgp_subkey (
------------------------------------------------------------------------
--- Sub-key public key fingerprint, LSB-to-MSB, lowercased hex
-uuid TEXT NOT NULL,
--- Public key creation timestamp
-creation TIMESTAMP WITH TIME ZONE NOT NULL,
--- Public key expiration timestamp (if any)
-expiration TIMESTAMP WITH TIME ZONE,
--- State flag for this record
-state INTEGER NOT NULL DEFAULT 0,
--- Binary contents of the OpenPGP packet
-packet bytea NOT NULL,
------------------------------------------------------------------------
--- Primary public key to which the subkey belongs
-pubkey_uuid TEXT NOT NULL,
--- Reference to a revocation signature on this sub key, if any
-revsig_uuid TEXT,
------------------------------------------------------------------------
--- Public-key algorithm, RFC 4880, Section 9.1
-algorithm INTEGER NOT NULL,
--- Public-key bit length
-bit_len INTEGER NOT NULL,
------------------------------------------------------------------------
-PRIMARY KEY (uuid),
-FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid)
-)
-`
+const AlterTable_PubkeyPrimaryUid = `
+ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_primary_uid_fk
+FOREIGN KEY (primary_uid) REFERENCES openpgp_uid(uuid)`
 
-const CreateTable_OpenpgpUid = `
-CREATE TABLE IF NOT EXISTS openpgp_uid (
------------------------------------------------------------------------
--- Scope- and content-unique identifer
-uuid TEXT NOT NULL,
--- User ID creation timestamp
-creation TIMESTAMP WITH TIME ZONE NOT NULL,
--- User ID expiration timestamp (if any)
-expiration TIMESTAMP WITH TIME ZONE,
--- State flag for this record
-state INTEGER NOT NULL DEFAULT 0,
--- Binary contents of the OpenPGP packet
-packet bytea NOT NULL,
------------------------------------------------------------------------
--- Public key to which this identity belongs
-pubkey_uuid TEXT NOT NULL,
------------------------------------------------------------------------
--- Original text of the user identity string
-keywords TEXT NOT NULL,
--- Tokenized, fulltext searchable index
-keywords_fulltext tsvector NOT NULL,
------------------------------------------------------------------------
-PRIMARY KEY (uuid),
-FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid)
-)
-`
+const AlterTable_PubkeyPrimaryUat = `
+ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_primary_uat_fk
+FOREIGN KEY (primary_uat) REFERENCES openpgp_uat(uuid)`
 
-const CreateTable_OpenpgpUat = `
-CREATE TABLE IF NOT EXISTS openpgp_uat (
------------------------------------------------------------------------
--- Scope- and content-unique identifer
-uuid TEXT NOT NULL,
--- User attribute creation timestamp
-creation TIMESTAMP WITH TIME ZONE NOT NULL,
--- User attribute expiration timestamp (if any)
-expiration TIMESTAMP WITH TIME ZONE,
--- State flag for this record
-state INTEGER NOT NULL DEFAULT 0,
--- Binary contents of the OpenPGP packet
-packet bytea,
------------------------------------------------------------------------
--- Public key to which this identity belongs
-pubkey_uuid TEXT,
------------------------------------------------------------------------
-PRIMARY KEY (uuid),
-FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid)
-)
-`
+const AlterTable_PubkeyRevSig = `
+ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_revsig_fk
+FOREIGN KEY (revsig_uuid) REFERENCES openpgp_sig(uuid)`
+
 const CreateTable_OpenpgpSig = `
 CREATE TABLE IF NOT EXISTS openpgp_sig (
 -----------------------------------------------------------------------
@@ -235,6 +174,90 @@ FOREIGN KEY (sig_uuid) REFERENCES openpgp_sig(uuid)
 )
 `
 
+const CreateTable_OpenpgpSubkey = `
+CREATE TABLE IF NOT EXISTS openpgp_subkey (
+-----------------------------------------------------------------------
+-- Sub-key public key fingerprint, LSB-to-MSB, lowercased hex
+uuid TEXT NOT NULL,
+-- Public key creation timestamp
+creation TIMESTAMP WITH TIME ZONE NOT NULL,
+-- Public key expiration timestamp (if any)
+expiration TIMESTAMP WITH TIME ZONE,
+-- State flag for this record
+state INTEGER NOT NULL DEFAULT 0,
+-- Binary contents of the OpenPGP packet
+packet bytea NOT NULL,
+-----------------------------------------------------------------------
+-- Primary public key to which the subkey belongs
+pubkey_uuid TEXT NOT NULL,
+-- Reference to a revocation signature on this sub key, if any
+revsig_uuid TEXT,
+-----------------------------------------------------------------------
+-- Public-key algorithm, RFC 4880, Section 9.1
+algorithm INTEGER NOT NULL,
+-- Public-key bit length
+bit_len INTEGER NOT NULL,
+-----------------------------------------------------------------------
+PRIMARY KEY (uuid),
+FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid),
+FOREIGN KEY (revsig_uuid) REFERENCES openpgp_sig(uuid)
+)
+`
+
+const CreateTable_OpenpgpUid = `
+CREATE TABLE IF NOT EXISTS openpgp_uid (
+-----------------------------------------------------------------------
+-- Scope- and content-unique identifer
+uuid TEXT NOT NULL,
+-- User ID creation timestamp
+creation TIMESTAMP WITH TIME ZONE NOT NULL,
+-- User ID expiration timestamp (if any)
+expiration TIMESTAMP WITH TIME ZONE,
+-- State flag for this record
+state INTEGER NOT NULL DEFAULT 0,
+-- Binary contents of the OpenPGP packet
+packet bytea NOT NULL,
+-----------------------------------------------------------------------
+-- Public key to which this identity belongs
+pubkey_uuid TEXT NOT NULL,
+-- Reference to a revocation signature on this identity, if any
+revsig_uuid TEXT,
+-----------------------------------------------------------------------
+-- Original text of the user identity string
+keywords TEXT NOT NULL,
+-- Tokenized, fulltext searchable index
+keywords_fulltext tsvector NOT NULL,
+-----------------------------------------------------------------------
+PRIMARY KEY (uuid),
+FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid),
+FOREIGN KEY (revsig_uuid) REFERENCES openpgp_sig(uuid)
+)
+`
+
+const CreateTable_OpenpgpUat = `
+CREATE TABLE IF NOT EXISTS openpgp_uat (
+-----------------------------------------------------------------------
+-- Scope- and content-unique identifer
+uuid TEXT NOT NULL,
+-- User attribute creation timestamp
+creation TIMESTAMP WITH TIME ZONE NOT NULL,
+-- User attribute expiration timestamp (if any)
+expiration TIMESTAMP WITH TIME ZONE,
+-- State flag for this record
+state INTEGER NOT NULL DEFAULT 0,
+-- Binary contents of the OpenPGP packet
+packet bytea,
+-----------------------------------------------------------------------
+-- Public key to which this identity belongs
+pubkey_uuid TEXT,
+-- Reference to a revocation signature on this identity, if any
+revsig_uuid TEXT,
+-----------------------------------------------------------------------
+PRIMARY KEY (uuid),
+FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid),
+FOREIGN KEY (revsig_uuid) REFERENCES openpgp_sig(uuid)
+)
+`
 const CreateTable_OpenpgpSubkeySig = `
 CREATE TABLE IF NOT EXISTS openpgp_subkey_sig (
 -----------------------------------------------------------------------
@@ -302,11 +325,16 @@ CREATE INDEX openpgp_uid_fulltext_idx ON openpgp_uid USING gin(keywords_fulltext
 
 var CreateTableStatements []string = []string{
 	CreateTable_OpenpgpPubkey,
+	CreateTable_OpenpgpSig,
 	CreateTable_OpenpgpSubkey,
 	CreateTable_OpenpgpUid,
 	CreateTable_OpenpgpUat,
-	CreateTable_OpenpgpSig,
 	CreateTable_OpenpgpPubkeySig,
 	CreateTable_OpenpgpSubkeySig,
 	CreateTable_OpenpgpUidSig,
 	CreateTable_OpenpgpUatSig}
+
+var AlterTableStatements []string = []string{
+	AlterTable_PubkeyPrimaryUid,
+	AlterTable_PubkeyPrimaryUat,
+	AlterTable_PubkeyRevSig}

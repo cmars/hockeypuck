@@ -18,13 +18,7 @@
 package openpgp
 
 import (
-	"bytes"
-	"code.google.com/p/go.crypto/openpgp/armor"
-	"crypto/rand"
-	"database/sql"
-	"encoding/ascii85"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
@@ -38,7 +32,7 @@ const UUID_LEN = 40 // log(2**256, 85) = 39.94...
 type Worker struct {
 	Service    *hkp.Service
 	KeyChanges KeyChangeChan
-	db         *sql.DB
+	db         *sqlx.DB
 }
 
 func (s *OpenpgpSettings) Driver() string {
@@ -150,7 +144,7 @@ func (w *Worker) LookupKeys(search string, limit int) (keys []*Pubkey, err error
 	return w.fetchKeys(uuids)
 }
 
-func (w *Worker) WriteKeys(w io.Writer, uuids []string) (err error) {
+func (w *Worker) WriteKeys(wr io.Writer, uuids []string) (err error) {
 	// Stream OpenPGP packets directly out of the database,
 	// in a fairly logical order.
 	stmt, err = sqlx.Preparex(`
@@ -191,7 +185,7 @@ SELECT bytea FROM (
 			if err != nil {
 				return
 			}
-			err = w.Write(packet.data)
+			err = wr.Write(packet.data)
 			if err != nil {
 				return
 			}
@@ -307,8 +301,9 @@ func (w *Worker) LookupKey(keyid string) (pubkey *Pubkey, err error) {
 }
 
 func (w *Worker) fetchKeys(uuids []string) (keys []*Pubkey, err error) {
+	var key *Pubkey
 	for _, uuid := range uuids {
-		key, err := w.fetchKey(uuid)
+		key, err = w.fetchKey(uuid)
 		if err != nil {
 			return
 		}

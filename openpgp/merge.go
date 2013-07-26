@@ -15,7 +15,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package hockeypuck
+package openpgp
 
 // Merge the contents of srcKey into dstKey, modifying in-place.
 // Packets in src not found in dst are appended to the matching parent.

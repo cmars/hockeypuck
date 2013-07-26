@@ -14,7 +14,8 @@
    You should have received a copy of the GNU Affero General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-package hockeypuck
+
+package openpgp
 
 import (
 	"bytes"
@@ -30,34 +31,34 @@ const MAX_DELAY = 60
 
 // PKS mail from address
 func init() { flag.String("pks.from", "", "PKS sync mail from: address") }
-func (s *Settings) PksFrom() string {
+func (s *OpenpgpSettings) PksFrom() string {
 	return s.GetString("pks.from")
 }
 
 // Downstream PKS servers
 func init() { flag.String("pks.to", "", "Send keys to these PKS servers") }
-func (s *Settings) PksTo() string {
+func (s *OpenpgpSettings) PksTo() string {
 	return s.GetString("pks.to")
 }
 
 // SMTP settings
 func init() { flag.String("smtp.host", "", "SMTP Hostname") }
-func (s *Settings) SmtpHost() string {
+func (s *OpenpgpSettings) SmtpHost() string {
 	return s.GetString("smtp.host")
 }
 
 func init() { flag.String("smtp.id", "", "SMTP Account ID") }
-func (s *Settings) SmtpId() string {
+func (s *OpenpgpSettings) SmtpId() string {
 	return s.GetString("smtp.id")
 }
 
 func init() { flag.String("smtp.user", "", "SMTP Account Username") }
-func (s *Settings) SmtpUser() string {
+func (s *OpenpgpSettings) SmtpUser() string {
 	return s.GetString("smtp.user")
 }
 
 func init() { flag.String("smtp.pass", "", "SMTP Account Password") }
-func (s *Settings) SmtpPass() string {
+func (s *OpenpgpSettings) SmtpPass() string {
 	return s.GetString("smtp.pass")
 }
 
@@ -123,7 +124,7 @@ func (ps *PksSyncBase) Init() {
 }
 
 // Email an updated public key to a PKS server.
-func (ps *PksSyncBase) SendKey(addr string, key *PubKey) (err error) {
+func (ps *PksSyncBase) SendKey(addr string, key *Pubkey) (err error) {
 	msg := bytes.NewBuffer([]byte{})
 	msg.WriteString("Subject: ADD\n\n")
 	WriteKey(msg, key)
