@@ -15,7 +15,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package hockeypuck
+package openpgp
 
 import (
 	"bytes"
@@ -27,6 +27,8 @@ import (
 	"github.com/qpliu/qrencode-go/qrencode"
 	"image/png"
 	"io"
+	. "launchpad.net/hockeypuck"
+	"launchpad.net/hockeypuck/hkp"
 	"net/http"
 	"net/url"
 	"os"
@@ -34,6 +36,20 @@ import (
 	"strings"
 	"time"
 )
+
+type ErrorResponse struct {
+	Err error
+}
+
+func (r *ErrorResponse) Error() error {
+	return r.Err
+}
+
+func (r *ErrorResponse) WriteTo(w http.ResponseWriter) error {
+	w.WriteHeader(400)
+	w.Write([]byte(r.Err.Error()))
+	return r.Err
+}
 
 type MessageResponse struct {
 	Content []byte
@@ -50,12 +66,15 @@ func (r *MessageResponse) WriteTo(w http.ResponseWriter) error {
 }
 
 type AddResponse struct {
-	Statuses []*LoadKeyStatus
-	Err      error
+	Changes []*KeyChange
+	Errors  []*ReadKeyResult
 }
 
 func (r *AddResponse) Error() error {
-	return r.Err
+	if len(r.Changes) > 0 || len(r.Errors) == 0 {
+		return nil
+	}
+	return errors.New("One or more keys had an error")
 }
 
 func (r *AddResponse) WriteTo(w http.ResponseWriter) (err error) {
@@ -72,8 +91,8 @@ func (r *AddResponse) WriteTo(w http.ResponseWriter) (err error) {
 }
 
 type IndexResponse struct {
-	Lookup *Lookup
-	Keys   []*PubKey
+	Lookup *hkp.Lookup
+	Keys   []*Pubkey
 	Err    error
 }
 
@@ -83,16 +102,16 @@ func (r *IndexResponse) Error() error {
 
 func (r *IndexResponse) WriteTo(w http.ResponseWriter) error {
 	err := r.Err
-	var writeFn func(io.Writer, *PubKey) error = nil
+	var writeFn func(io.Writer, *Pubkey) error = nil
 	switch {
-	case r.Lookup.Option&MachineReadable != 0:
+	case r.Lookup.Option&hkp.MachineReadable != 0:
 		writeFn = WriteMachineReadable
-	case r.Lookup.Op == Vindex:
+	case r.Lookup.Op == hkp.Vindex:
 		writeFn = WriteVindex
-	case r.Lookup.Op == Index:
+	case r.Lookup.Op == hkp.Index:
 		writeFn = WriteIndex
 	}
-	if r.Lookup.Option&MachineReadable != 0 {
+	if r.Lookup.Option&hkp.MachineReadable != 0 {
 		writeFn = WriteMachineReadable
 		w.Header().Add("Content-Type", "text/plain")
 		fmt.Fprintf(w, "info:1:%d\n", len(r.Keys))
@@ -101,10 +120,10 @@ func (r *IndexResponse) WriteTo(w http.ResponseWriter) error {
 		err = PksIndexTemplate.ExecuteTemplate(w, "index-top", r.Lookup.Search)
 	}
 	if writeFn == nil {
-		err = UnsupportedOperation
+		err = ErrUnsupportedOperation
 	}
 	if len(r.Keys) == 0 {
-		err = KeyNotFound
+		err = ErrKeyNotFound
 	}
 	if err == nil {
 		for _, key := range r.Keys {
@@ -113,14 +132,14 @@ func (r *IndexResponse) WriteTo(w http.ResponseWriter) error {
 	} else {
 		w.Write([]byte(err.Error()))
 	}
-	if r.Lookup.Option&MachineReadable == 0 {
+	if r.Lookup.Option&hkp.MachineReadable == 0 {
 		PksIndexTemplate.ExecuteTemplate(w, "index-bottom", nil)
 	}
 	return err
 }
 
 type StatsResponse struct {
-	Lookup *Lookup
+	Lookup *hkp.Lookup
 	Stats  *ServerStats
 	Err    error
 }
@@ -134,7 +153,7 @@ func (r *StatsResponse) WriteTo(w http.ResponseWriter) (err error) {
 	if err != nil {
 		return
 	}
-	if r.Lookup.Option&(JsonFormat|MachineReadable) != 0 {
+	if r.Lookup.Option&(hkp.JsonFormat|hkp.MachineReadable) != 0 {
 		// JSON is the only supported machine readable stats format.
 		w.Header().Add("Content-Type", "application/json")
 		msg := map[string]interface{}{
@@ -212,160 +231,112 @@ func encodeToDataUri(data []byte) string {
 	return url.QueryEscape(base64.StdEncoding.EncodeToString(data))
 }
 
-func WriteIndex(w io.Writer, key *PubKey) error {
-	pktObjChan := make(chan PacketObject)
-	go func() {
-		key.Traverse(pktObjChan)
-		close(pktObjChan)
-	}()
-	for pktObj := range pktObjChan {
-		switch pktObj.(type) {
-		case *PubKey:
-			pubKey := pktObj.(*PubKey)
-			pkt, err := pubKey.Parse()
-			if err != nil {
-				return err
-			}
-			pk := pkt.(*packet.PublicKey)
+func WriteIndex(w io.Writer, key *Pubkey) error {
+	key.Visit(func(rec PacketRecord) error {
+		switch r := rec.(type) {
+		case *Pubkey:
 			PksIndexTemplate.ExecuteTemplate(w, "pub-index-row", struct {
-				KeyLength    uint16
+				KeyLength    int
 				AlgoCode     string
 				Fingerprint  string
 				FpQrCode     string
 				ShortId      string
 				CreationTime string
 			}{
-				key.KeyLength,
-				AlgorithmCode(key.Algorithm),
-				key.Fingerprint(),
-				qrEncodeToDataUri(key.Fingerprint()),
-				strings.ToUpper(key.Fingerprint()[32:40]),
-				pk.CreationTime.Format("2006-01-02")})
+				r.BitLen,
+				AlgorithmCode(r.Algorithm),
+				r.Fingerprint(),
+				qrEncodeToDataUri(r.Fingerprint()),
+				strings.ToUpper(r.Fingerprint()[32:40]),
+				r.Creation.Format("2006-01-02")})
 		case *UserId:
-			uid := pktObj.(*UserId)
 			PksIndexTemplate.ExecuteTemplate(w, "uid-index-row", struct {
 				Fingerprint string
 				Id          string
 			}{
 				key.Fingerprint(),
-				uid.Id})
+				r.Keywords})
 		case *UserAttribute:
-			uattr := pktObj.(*UserAttribute)
-			for _, imageData := range uattr.GetJpegData() {
+			for _, imageData := range r.GetJpegData() {
 				PksIndexTemplate.ExecuteTemplate(w, "uattr-image-row", struct {
 					ImageData string
 				}{
 					encodeToDataUri(imageData.Bytes())})
 			}
 		}
-	}
+	})
 	return nil
 }
 
-func WriteVindex(w io.Writer, key *PubKey) error {
-	pktObjChan := make(chan PacketObject)
-	go func() {
-		key.Traverse(pktObjChan)
-		close(pktObjChan)
-	}()
-	for pktObj := range pktObjChan {
-		switch pktObj.(type) {
-		case *PubKey:
-			pubKey := pktObj.(*PubKey)
-			pkt, err := pubKey.Parse()
-			if err != nil {
-				return err
-			}
-			pk := pkt.(*packet.PublicKey)
+func WriteVindex(w io.Writer, key *Pubkey) error {
+	key.Visit(func(rec PacketRecord) error {
+		switch r := rec.(type) {
+		case *Pubkey:
 			PksIndexTemplate.ExecuteTemplate(w, "pub-index-row", struct {
-				KeyLength    uint16
+				KeyLength    int
 				AlgoCode     string
 				Fingerprint  string
 				FpQrCode     string
 				ShortId      string
 				CreationTime string
 			}{
-				key.KeyLength,
-				AlgorithmCode(key.Algorithm),
-				key.Fingerprint(),
-				qrEncodeToDataUri(key.Fingerprint()),
-				strings.ToUpper(key.Fingerprint()[32:40]),
-				pk.CreationTime.Format("2006-01-02")})
+				r.BitLen,
+				AlgorithmCode(r.Algorithm),
+				r.Fingerprint(),
+				qrEncodeToDataUri(r.Fingerprint()),
+				strings.ToUpper(r.Fingerprint()[32:40]),
+				r.Creation.Format("2006-01-02")})
 		case *UserId:
-			uid := pktObj.(*UserId)
 			PksIndexTemplate.ExecuteTemplate(w, "uid-index-row", struct {
 				Fingerprint string
 				Id          string
 			}{
 				key.Fingerprint(),
-				uid.Id})
+				r.Keywords})
 		case *Signature:
-			sig := pktObj.(*Signature)
-			longId := sig.IssuerKeyId()
-			pkt, err := sig.Parse()
-			if err != nil {
-				return err
-			}
-			sigv4, isa := pkt.(*packet.Signature)
-			var sigTime string
-			if isa {
-				sigTime = sigv4.CreationTime.Format("2006-01-02")
-			}
 			PksIndexTemplate.ExecuteTemplate(w, "sig-vindex-row", struct {
 				LongId  string
 				ShortId string
 				SigTime string
 				Uid     string
 			}{
-				longId,
-				longId[8:16],
-				sigTime, sig.IssuerUid})
+				r.IssuerKeyId(),
+				r.IssuerKeyId()[8:16],
+				r.Creation.Format("2006-01-02"), ""}) // TODO: use issuer primary UID
 		case *UserAttribute:
-			uattr := pktObj.(*UserAttribute)
-			for _, imageData := range uattr.GetJpegData() {
+			for _, imageData := range r.GetJpegData() {
 				PksIndexTemplate.ExecuteTemplate(w, "uattr-image-row", struct {
 					ImageData string
 				}{
 					encodeToDataUri(imageData.Bytes())})
 			}
 		}
-	}
+	})
 	return nil
 }
 
-func WriteMachineReadable(w io.Writer, key *PubKey) error {
-	pkt, err := key.Parse()
-	if err != nil {
-		return err
-	}
-	pk := pkt.(*packet.PublicKey)
-	var keyExpiration string
-	if keySelfSig := key.SelfSignature(); keySelfSig != nil && keySelfSig.KeyExpirationTime < NeverExpires {
-		keyExpiration = fmt.Sprintf("%d", keySelfSig.KeyExpirationTime)
-	}
-	fmt.Fprintf(w, "pub:%s:%d:%d:%d:%s:\n",
-		strings.ToUpper(key.Fingerprint()),
-		key.Algorithm, key.KeyLength,
-		pk.CreationTime.Unix(),
-		keyExpiration)
-	for _, uid := range key.Identities {
-		pkt, err = uid.Parse()
-		if err != nil {
-			return err
-		}
-		var sigCreation string
-		var sigExpiration string
-		if uidSelfSig := uid.SelfSignature(); uidSelfSig != nil {
-			sigCreation = fmt.Sprintf("%d", uidSelfSig.CreationTime)
-			if uidSelfSig.SigExpirationTime < NeverExpires {
-				sigExpiration = fmt.Sprintf("%d", uidSelfSig.SigExpirationTime)
-			}
-		}
-		fmt.Fprintf(w, "uid:%s:%s:%s:\n", uid.Id, sigCreation, sigExpiration)
-		for _, _ = range uid.Attributes {
+func WriteMachineReadable(w io.Writer, key *Pubkey) error {
+	key.Visit(func(rec PacketRecord) error {
+		switch r := rec.(type) {
+		case *Pubkey:
+			fmt.Fprintf(w, "pub:%s:%d:%d:%d:%s:\n",
+				strings.ToUpper(r.Fingerprint()),
+				r.Algorithm, r.BitLen,
+				r.Creation.Unix(),
+				r.Expiration.Unix())
+		case *UserId:
+			fmt.Fprintf(w, "uid:%s:%s:%s:\n",
+				r.Keywords, r.Creation.Unix(), r.Expiration.Unix())
+		case *UserAttribute:
 			fmt.Fprintf(w, "uat::::\n")
+		case *Subkey:
+			fmt.Fprintf(w, "sub:%s:%d:%d:%d:%s:\n",
+				strings.ToUpper(r.Fingerprint()),
+				r.Algorithm, r.BitLen,
+				r.Creation.Unix(),
+				r.Expiration.Unix())
 		}
-	}
+	})
 	return nil
 }
 

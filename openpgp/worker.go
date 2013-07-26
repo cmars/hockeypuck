@@ -23,7 +23,9 @@ import (
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	"io"
+	. "launchpad.net/hockeypuck"
 	"launchpad.net/hockeypuck/hkp"
+	"log"
 	"strings"
 )
 
@@ -51,18 +53,19 @@ func StartWorker(service *hkp.Service) error {
 		return err
 	}
 	go w.Run()
+	return nil
 }
 
 func (w *Worker) Run() {
 	for {
 		select {
-		case r, ok := <-w.Service.Requests:
-			switch req := r.(type) {
-			case hkp.Lookup:
+		case req, ok := <-w.Service.Requests:
+			switch r := req.(type) {
+			case *hkp.Lookup:
 				w.Lookup(r)
-			case hkp.Add:
+			case *hkp.Add:
 				w.Add(r)
-			case hkp.HashQuery:
+			case *hkp.HashQuery:
 				w.HashQuery(r)
 			default:
 				log.Println("Unsupported HKP service request:", req)
@@ -74,7 +77,7 @@ func (w *Worker) Run() {
 	}
 }
 
-func (w *Worker) initDb(connect string) (err error) {
+func (w *Worker) initDb() (err error) {
 	w.db, err = sqlx.Connect(OpenpgpConfig().Driver(), OpenpgpConfig().DSN())
 	if err != nil {
 		return
@@ -91,7 +94,7 @@ func (w *Worker) Lookup(l *hkp.Lookup) {
 		w.Stats(l)
 		return
 	} else if l.Op == hkp.UnknownOperation {
-		l.Response() <- &ErrorResponse{ErrUnknownOperation}
+		l.Response() <- &ErrorResponse{hkp.ErrorUnknownOperation("")}
 		return
 	}
 	var keys []*Pubkey
@@ -109,16 +112,16 @@ func (w *Worker) Lookup(l *hkp.Lookup) {
 	// Formulate a response
 	var resp hkp.Response
 	switch l.Op {
-	case Get:
+	case hkp.Get:
 		resp = &KeyringResponse{keys}
-	case HashGet:
+	case hkp.HashGet:
 		resp = &KeyringResponse{keys}
-	case Index:
+	case hkp.Index:
 		resp = &IndexResponse{Lookup: l, Keys: keys, Verbose: false}
-	case VIndex:
+	case hkp.VIndex:
 		resp = &IndexResponse{Lookup: l, Keys: keys, Verbose: true}
 	default:
-		l.Response() <- &ErrorResponse{ErrInvalidOperation}
+		l.Response() <- &ErrorResponse{ErrUnsupportedOperation}
 		return
 	}
 }
@@ -132,7 +135,7 @@ func (w *Worker) HashQuery(hq *hkp.HashQuery) {
 		}
 		uuids = append(uuids, uuid)
 	}
-	keys, err := fetchKeys(uuids)
+	keys, err := w.fetchKeys(uuids)
 	if err != nil {
 		hq.Response() <- &ErrorResponse{err}
 	}
@@ -142,6 +145,14 @@ func (w *Worker) HashQuery(hq *hkp.HashQuery) {
 func (w *Worker) LookupKeys(search string, limit int) (keys []*Pubkey, err error) {
 	uuids, err := w.lookupPubkeyUuids(search, limit)
 	return w.fetchKeys(uuids)
+}
+
+func (w *Worker) LookupHash(digest string) ([]*Pubkey, error) {
+	uuid, err := lookupMd5Uuid
+	if err != nil {
+		return nil, err
+	}
+	return w.fetchKeys([]string{uuid})
 }
 
 func (w *Worker) WriteKeys(wr io.Writer, uuids []string) (err error) {
