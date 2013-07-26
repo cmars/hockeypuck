@@ -18,6 +18,8 @@
 package openpgp
 
 import (
+	"code.google.com/p/go.crypto/openpgp"
+	"code.google.com/p/go.crypto/openpgp/armor"
 	packetErrors "code.google.com/p/go.crypto/openpgp/errors"
 	"code.google.com/p/go.crypto/openpgp/packet"
 	"encoding/binary"
@@ -44,6 +46,15 @@ func WriteTo(w io.Writer, root PacketRecord) error {
 		}
 		return op.Serialize(w)
 	})
+}
+
+func WriteArmoredTo(w io.Writer, root PacketRecord) error {
+	armw, err := armor.Encode(w, openpgp.PublicKeyType, nil)
+	defer armw.Close()
+	if err != nil {
+		return err
+	}
+	return WriteTo(armw, root)
 }
 
 type OpaquePacketResult struct {
@@ -207,7 +218,7 @@ func ReadKeys(r io.Reader) PubkeyChan {
 			}
 		}
 		if currentPubkey != nil {
-			c <- &ReadKeyResult{Pubkey:currentPubkey}
+			c <- &ReadKeyResult{Pubkey: currentPubkey}
 		}
 	}()
 	return c

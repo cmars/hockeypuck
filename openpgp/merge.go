@@ -17,93 +17,113 @@
 
 package openpgp
 
+import (
+	"errors"
+)
+
+type PacketRecordMap map[string]PacketRecord
+
+var ErrMissingUuid error = errors.New("Packet record missing content-unique identifier")
+
+func GetUuid(rec PacketRecord) string {
+	switch r := rec.(type) {
+	case *Pubkey:
+		return r.RFingerprint
+	case *Signature:
+		return r.ScopedDigest
+	case *UserId:
+		return r.ScopedDigest
+	case *UserAttribute:
+		return r.ScopedDigest
+	case *Subkey:
+		return r.RFingerprint
+	}
+	return ""
+}
+
+func (m PacketRecordMap) visit(rec PacketRecord) error {
+	uuid := GetUuid(rec)
+	if uuid == "" {
+		return ErrMissingUuid
+	} else if _, ok := m[uuid]; !ok {
+		m[uuid] = rec
+	}
+	return nil
+}
+
+// Map a tree of packet objects by strong hash.
+func MapKey(pubkey *Pubkey) PacketRecordMap {
+	m := make(PacketRecordMap)
+	m.visit(pubkey)
+	return m
+}
+
 // Merge the contents of srcKey into dstKey, modifying in-place.
 // Packets in src not found in dst are appended to the matching parent.
 // Conflicting packets and unmatched parents are ignored.
-func MergeKey(dstKey *PubKey, srcKey *PubKey) {
-	dstObjects := mapKey(dstKey)
-	pktObjChan := make(chan PacketObject)
-	defer FinishTraversal(pktObjChan)
-	go func() {
-		srcKey.Traverse(pktObjChan)
-		close(pktObjChan)
-	}()
+func MergeKey(dstKey *Pubkey, srcKey *Pubkey) {
+	dstObjects := MapKey(dstKey)
 	// Track src parent object in src traverse
-	var srcPubKey *PubKey
+	var srcPubkey *Pubkey
 	var srcUserId *UserId
-	var srcSignable PacketObject
-	var srcParent PacketObject
+	var srcSignable PacketRecord
+	var srcParent PacketRecord
 	var hasParent bool
-	for srcObj := range pktObjChan {
+	srcKey.Visit(func(srcObj PacketRecord) error {
 		switch srcObj.(type) {
-		case *PubKey:
-			srcPubKey = srcObj.(*PubKey)
+		case *Pubkey:
+			srcPubkey = srcObj.(*Pubkey)
 			srcSignable = srcObj
 			srcParent = nil
 			hasParent = false
 		case *UserId:
 			srcUserId = srcObj.(*UserId)
 			srcSignable = srcObj
-			srcParent = srcPubKey
+			srcParent = srcPubkey
 			hasParent = true
 		case *UserAttribute:
 			srcSignable = srcObj
 			srcParent = srcUserId
 			hasParent = true
-		case *SubKey:
+		case *Subkey:
 			srcSignable = srcObj
-			srcParent = srcPubKey
+			srcParent = srcPubkey
 			hasParent = true
 		case *Signature:
 			srcParent = srcSignable
 			hasParent = true
 		}
 		// match in dst tree
-		_, dstHas := dstObjects[srcObj.GetDigest()]
+		_, dstHas := dstObjects[GetUuid(srcObj)]
 		if dstHas {
 			continue // We already have it
 		}
 		if hasParent {
-			dstParentObj, dstHasParent := dstObjects[srcParent.GetDigest()]
+			dstParentObj, dstHasParent := dstObjects[GetUuid(srcParent)]
 			if dstHasParent {
-				appendPacketObject(dstParentObj, srcObj)
+				appendPacketRecord(dstParentObj, srcObj)
 			}
 		}
-	}
-}
-
-// Map a tree of packet objects by strong hash.
-func mapKey(root PacketObject) (objects map[string]PacketObject) {
-	objects = make(map[string]PacketObject)
-	pktObjChan := make(chan PacketObject)
-	defer FinishTraversal(pktObjChan)
-	go func() {
-		root.Traverse(pktObjChan)
-		close(pktObjChan)
-	}()
-	for pktObj := range pktObjChan {
-		objects[pktObj.GetDigest()] = pktObj
-	}
-	return
+	})
 }
 
 // Append a src packet under dst parent.
-func appendPacketObject(dstParent PacketObject, srcObj PacketObject) {
+func appendPacketRecord(dstParent PacketRecord, srcObj PacketRecord) {
 	if sig, isa := srcObj.(*Signature); isa {
 		if dst, isa := dstParent.(Signable); isa {
-			dst.AppendSig(sig)
-		}
-	} else if uattr, isa := srcObj.(*UserAttribute); isa {
-		if uid, isa := dstParent.(*UserId); isa {
-			uid.Attributes = append(uid.Attributes, uattr)
+			dst.AddSignature(sig)
 		}
 	} else if uid, isa := srcObj.(*UserId); isa {
-		if pubKey, isa := dstParent.(*PubKey); isa {
-			pubKey.Identities = append(pubKey.Identities, uid)
+		if pubkey, isa := dstParent.(*Pubkey); isa {
+			pubkey.userIds = append(pubkey.userIds, *uid)
 		}
-	} else if subKey, isa := srcObj.(*SubKey); isa {
-		if pubKey, isa := dstParent.(*PubKey); isa {
-			pubKey.SubKeys = append(pubKey.SubKeys, subKey)
+	} else if uattr, isa := srcObj.(*UserAttribute); isa {
+		if pubkey, isa := dstParent.(*Pubkey); isa {
+			pubkey.userAttributes = append(pubkey.userAttributes, *uattr)
+		}
+	} else if subkey, isa := srcObj.(*Subkey); isa {
+		if pubkey, isa := dstParent.(*Pubkey); isa {
+			pubkey.subkeys = append(pubkey.subkeys, *subkey)
 		}
 	}
 }

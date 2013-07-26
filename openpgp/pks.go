@@ -105,10 +105,10 @@ type PksSyncBase struct {
 // Initialize from command line switches if fields not set.
 func (ps *PksSyncBase) Init() {
 	if ps.MailFrom == "" {
-		ps.MailFrom = Config().PksFrom()
+		ps.MailFrom = OpenpgpConfig().PksFrom()
 	}
 	if ps.SmtpHost == "" {
-		ps.SmtpHost = Config().SmtpHost()
+		ps.SmtpHost = OpenpgpConfig().SmtpHost()
 	}
 	authHost := ps.SmtpHost
 	if parts := strings.Split(authHost, ":"); len(parts) >= 1 {
@@ -116,18 +116,19 @@ func (ps *PksSyncBase) Init() {
 		authHost = parts[0]
 	}
 	if ps.SmtpAuth == nil {
-		ps.SmtpAuth = smtp.PlainAuth(Config().SmtpId(), Config().SmtpUser(), Config().SmtpPass(), authHost)
+		ps.SmtpAuth = smtp.PlainAuth(OpenpgpConfig().SmtpId(),
+			OpenpgpConfig().SmtpUser(), OpenpgpConfig().SmtpPass(), authHost)
 	}
-	if len(ps.PksAddrs) == 0 && len(Config().PksTo()) > 0 {
-		ps.PksAddrs = strings.Split(Config().PksTo(), ",")
+	if len(ps.PksAddrs) == 0 && len(OpenpgpConfig().PksTo()) > 0 {
+		ps.PksAddrs = strings.Split(OpenpgpConfig().PksTo(), ",")
 	}
 }
 
 // Email an updated public key to a PKS server.
 func (ps *PksSyncBase) SendKey(addr string, key *Pubkey) (err error) {
-	msg := bytes.NewBuffer([]byte{})
+	msg := bytes.NewBuffer(nil)
 	msg.WriteString("Subject: ADD\n\n")
-	WriteKey(msg, key)
+	WriteArmoredTo(msg, key)
 	err = smtp.SendMail(ps.SmtpHost, ps.SmtpAuth, ps.MailFrom, []string{addr}, msg.Bytes())
 	return
 }

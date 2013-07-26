@@ -20,6 +20,7 @@ package openpgp
 import (
 	"bytes"
 	"code.google.com/p/go.crypto/openpgp/packet"
+	"encoding/binary"
 	"errors"
 )
 
@@ -44,7 +45,7 @@ type KeyValidation struct {
 // Validate checks the integrity of OpenPGP packets and signatures.
 // Unauthenticated and invalid content is removed where possible.
 func Validate(pubkey *Pubkey) *KeyValidation {
-	kv := &KeyValidation{pubkey, make(BadPacketMap)}
+	kv := &KeyValidation{Pubkey: pubkey, BadPackets: make(BadPacketMap)}
 	pubkey.Visit(kv.resolve)
 	pubkey.Visit(kv.validate)
 	kv.removeInvalid()
@@ -65,6 +66,10 @@ func (kv *KeyValidation) bad(rec PacketRecord, err error) {
 	case *Subkey:
 		kv.BadPackets[r.RFingerprint] = bp
 	}
+}
+
+func (kv *KeyValidation) removeInvalid() {
+	panic("not impl yet")
 }
 
 // validate checks the overall structure of the Hockeypuck
@@ -129,6 +134,7 @@ func (kv *KeyValidation) validate(rec PacketRecord) (err error) {
 			kv.changed = true
 		}
 	}
+	return
 }
 
 // resolve builds packet signature associations such as self-signatures,
@@ -149,6 +155,13 @@ func (kv *KeyValidation) resolve(rec PacketRecord) (err error) {
 	return
 }
 
+// HasKeyidSuffix returns true if the keyid matches the full fingerprint.
+func HasKeyidSuffix(fingerprint []byte, keyid uint64) bool {
+	keyidBuf := make([]byte, 8)
+	binary.BigEndian.PutUint64(keyidBuf, keyid)
+	return bytes.HasSuffix(fingerprint, keyidBuf)
+}
+
 func (kv *KeyValidation) resolvePubkey(pubkey *Pubkey) error {
 	var err error
 	kv.publicKey, err = pubkey.GetPublicKey()
@@ -159,20 +172,20 @@ func (kv *KeyValidation) resolvePubkey(pubkey *Pubkey) error {
 	}
 	// Check key revocations
 	for _, sig := range pubkey.signatures {
-		sigScope := kv.getFixedSigScope(sig, pubkey.RFingerprint)
-		s, err := sig.GetSignature()
+		sigScope := kv.getFixedSigScope(&sig, pubkey.RFingerprint)
+		s, err := sig.getSignatureV4()
 		if err != nil {
-			kv.bad(sig, err)
+			kv.bad(&sig, err)
 			continue
 		}
-		if bytes.HasPrefix(kv.publicKey.Fingerprint(), *s.IssuerKeyId) {
+		if HasKeyidSuffix(kv.publicKey.Fingerprint[:], *s.IssuerKeyId) {
 			// This is a self-signature.
 			switch s.SigType {
 			case 0x20: // SigTypeKeyRevocation
 				if err = kv.publicKey.VerifyKeySignature(kv.publicKey, s); err != nil {
-					kv.bad(sig, err)
+					kv.bad(&sig, err)
 				}
-				kv.Pubkey.revSig = sig
+				kv.Pubkey.revSig = &sig
 			}
 		}
 	}
@@ -181,33 +194,32 @@ func (kv *KeyValidation) resolvePubkey(pubkey *Pubkey) error {
 }
 
 func (kv *KeyValidation) resolveSubkey(subkey *Subkey) error {
-	var err error
-	publicKey, err = subkey.GetPublicKey()
+	subPublicKey, err := subkey.GetPublicKey()
 	if err != nil {
-		kv.bad(pubkey, err)
+		kv.bad(subkey, err)
 	}
 	// Check key revocations
 	for _, sig := range subkey.signatures {
-		sigScope := kv.getFixedSigScope(sig, subkey.RFingerprint)
-		s, err := sig.GetSignature()
+		sigScope := kv.getFixedSigScope(&sig, subkey.RFingerprint)
+		s, err := sig.getSignatureV4()
 		if err != nil {
-			kv.bad(sig, err)
+			kv.bad(&sig, err)
 			continue
 		}
-		if bytes.HasPrefix(kv.publicKey.Fingerprint(), *s.IssuerKeyId) {
+		if HasKeyidSuffix(kv.publicKey.Fingerprint[:], *s.IssuerKeyId) {
 			// This is a self-signature.
 			switch s.SigType {
 			case 0x18:
-				if err = kv.publicKey.VerifyKeySignature(kv.publicKey, s); err != nil {
-					kv.bad(sig, err)
+				if err = kv.publicKey.VerifyKeySignature(subPublicKey, s); err != nil {
+					kv.bad(&sig, err)
 				}
-				subkey.bindingSig = sig
+				subkey.bindingSig = &sig
 			// TODO: case 0x19: // Subkey cross-signature
 			case 0x20: // SigTypeKeyRevocation
-				if err = kv.publicKey.VerifyKeySignature(kv.publicKey, s); err != nil {
-					kv.bad(sig, err)
+				if err = kv.publicKey.VerifyKeySignature(subPublicKey, s); err != nil {
+					kv.bad(&sig, err)
 				}
-				subkey.revSig = sig
+				subkey.revSig = &sig
 			}
 		}
 	}
@@ -227,8 +239,8 @@ func (kv *KeyValidation) getFixedSigScope(sig *Signature, scope string) string {
 	return sigScope
 }
 
-func (kv *KeyValidation) getFixedUidScope(uid *UserId, scope string) string {
-	uidScope := uid.calcScopedDigest(kv.Pubkey, scope)
+func (kv *KeyValidation) getFixedUidScope(uid *UserId) string {
+	uidScope := uid.calcScopedDigest(kv.Pubkey)
 	if uidScope != uid.ScopedDigest {
 		uid.ScopedDigest = uidScope
 		kv.changed = true
@@ -236,8 +248,8 @@ func (kv *KeyValidation) getFixedUidScope(uid *UserId, scope string) string {
 	return uidScope
 }
 
-func (kv *KeyValidation) getFixedUatScope(uat *UserAttribute, scope string) string {
-	uatScope := uat.calcScopedDigest(kv.Pubkey, scope)
+func (kv *KeyValidation) getFixedUatScope(uat *UserAttribute) string {
+	uatScope := uat.calcScopedDigest(kv.Pubkey)
 	if uatScope != uat.ScopedDigest {
 		uat.ScopedDigest = uatScope
 		kv.changed = true
@@ -254,41 +266,41 @@ func (kv *KeyValidation) resolveUserId(uid *UserId) error {
 	uidScope := kv.getFixedUidScope(uid)
 	// TODO: Fix record fields from packet
 	for _, sig := range uid.signatures {
-		sigScope := kv.getFixedSigScope(sig, uidScope)
-		s, err := sig.GetSignature()
+		sigScope := kv.getFixedSigScope(&sig, uidScope)
+		s, err := sig.getSignatureV4()
 		if err != nil {
-			kv.bad(sig, err)
+			kv.bad(&sig, err)
 			continue
 		}
-		if bytes.HasPrefix(kv.publicKey.Fingerprint(), *s.IssuerKeyId) {
+		if HasKeyidSuffix(kv.publicKey.Fingerprint[:], *s.IssuerKeyId) {
 			// This is a self-signature.
 			// Expired and revoked is OK here. The purpose of this validation
 			// is to verify the user ID was signed by the public key -- to
 			// eliminate garbage, spoofing, etc.
 			switch s.SigType {
 			case packet.SigTypePositiveCert:
-				if err = s.VerifyUserIdSignature(u.Id, s); err != nil {
-					kv.bad(sig, err)
+				if err = kv.publicKey.VerifyUserIdSignature(u.Id, s); err != nil {
+					kv.bad(&sig, err)
 				}
 				// Updating selfSignature multiple times is ok. We just want to be
 				// sure this user ID was signed by the primary key at some point in time.
-				uid.selfSignature = sig
+				uid.selfSignature = &sig
 				// Track the primary user ID for the key
 				// TODO: need to reconcile and update the database FK after validation
 				// if changed.
 				if kv.Pubkey.primaryUid == nil || kv.Pubkey.primaryUidSig == nil {
 					kv.Pubkey.primaryUid = uid
-					kv.Pubkey.primaryUidSig = sig
-				} else if s.IsPrimaryId != nil && *s.IsPrimaryId && (kv.Pubkey.primaryUidSig.Creation < sig.Creation) {
+					kv.Pubkey.primaryUidSig = &sig
+				} else if s.IsPrimaryId != nil && *s.IsPrimaryId && (kv.Pubkey.primaryUidSig.Creation.Unix() < sig.Creation.Unix()) {
 					kv.Pubkey.primaryUid = uid
-					kv.Pubkey.primaryUidSig = sig
+					kv.Pubkey.primaryUidSig = &sig
 				}
 			case 0x30: // packet.SigTypeCertRevocation
 				// Detect and link user ID revocations
-				if err = s.VerifyUserIdSignature(u.Id, s); err != nil {
-					kv.bad(sig, err)
+				if err = kv.publicKey.VerifyUserIdSignature(u.Id, s); err != nil {
+					kv.bad(&sig, err)
 				} else {
-					uid.revSig = sig
+					uid.revSig = &sig
 				}
 			}
 		}
@@ -303,13 +315,13 @@ func (kv *KeyValidation) resolveUserAttribute(uat *UserAttribute) error {
 	uatScope := kv.getFixedUatScope(uat)
 	// TODO: Fix record fields from packet
 	for _, sig := range uat.signatures {
-		sigScope := kv.getFixedSigScope(sig, uatScope)
-		s, err := sig.GetSignature()
+		sigScope := kv.getFixedSigScope(&sig, uatScope)
+		s, err := sig.getSignatureV4()
 		if err != nil {
-			kv.bad(sig, err)
+			kv.bad(&sig, err)
 			continue
 		}
-		if bytes.HasPrefix(kv.publicKey.Fingerprint(), *s.IssuerKeyId) {
+		if HasKeyidSuffix(kv.publicKey.Fingerprint[:], *s.IssuerKeyId) {
 			// This is a self-signature.
 			// Expired and revoked is OK here. The purpose of this validation
 			// is to verify the user attr was signed by the public key -- to
@@ -317,27 +329,27 @@ func (kv *KeyValidation) resolveUserAttribute(uat *UserAttribute) error {
 			switch s.SigType {
 			case packet.SigTypePositiveCert:
 				if err = kv.verifyUatSig(uat, s); err != nil {
-					kv.bad(sig, err)
+					kv.bad(&sig, err)
 				}
 				// Updating selfSignature multiple times is ok. We just want to be
 				// sure this user attr was signed by the primary key at some point in time.
-				uat.selfSignature = sig
+				uat.selfSignature = &sig
 				// Track the primary user attr for the key
 				// TODO: need to reconcile and update the database FK after validation
 				// if changed.
-				if kv.Pubkey.primaryUat == nil || kv.Pubkey.primaryUserSig == nil {
+				if kv.Pubkey.primaryUat == nil || kv.Pubkey.primaryUatSig == nil {
 					kv.Pubkey.primaryUat = uat
-					kv.Pubkey.primaryUatSig = sig
-				} else if s.IsPrimaryId != nil && *s.IsPrimaryId && (kv.Pubkey.primaryUserSig.Creation < sig.Creation) {
+					kv.Pubkey.primaryUatSig = &sig
+				} else if s.IsPrimaryId != nil && *s.IsPrimaryId && (kv.Pubkey.primaryUatSig.Creation.Unix() < sig.Creation.Unix()) {
 					kv.Pubkey.primaryUat = uat
-					kv.Pubkey.primaryUatSig = sig
+					kv.Pubkey.primaryUatSig = &sig
 				}
 			case 0x30: // packet.SigTypeCertRevocation
 				// Detect and link user attr revocations
 				if err = kv.verifyUatSig(uat, s); err != nil {
-					kv.bad(sig, err)
+					kv.bad(&sig, err)
 				} else {
-					uat.revSig = sig
+					uat.revSig = &sig
 				}
 			}
 		} else {
@@ -353,18 +365,13 @@ func (kv *KeyValidation) resolveUserAttribute(uat *UserAttribute) error {
 
 func (kv *KeyValidation) verifyUatSig(uat *UserAttribute, s *packet.Signature) error {
 	// TODO: clean up & contribute this to go.crypto/openpgp
-	s, err := sig.GetSignature()
-	if err != nil {
-		return err
-	}
 	// Get user attribute opaque packet
 	uatOpaque, err := uat.GetOpaquePacket()
 	if err != nil {
 		return err
 	}
 	// Get public key opaque packet.
-	opr = packet.NewOpaqueReader(bytes.NewBuffer(kv.Pubkey.Packet))
-	pkOpaque, err := opr.Next()
+	pkOpaque, err := kv.Pubkey.GetOpaquePacket()
 	if err != nil {
 		return err
 	}
@@ -386,5 +393,5 @@ func (kv *KeyValidation) verifyUatSig(uat *UserAttribute, s *packet.Signature) e
 	h.Write(buf[:])
 	// User attribute contents
 	h.Write(uatOpaque.Contents)
-	return pk.VerifySignature(h, s)
+	return kv.publicKey.VerifySignature(h, s)
 }
