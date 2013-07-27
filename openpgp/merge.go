@@ -96,7 +96,7 @@ func MergeKey(dstKey *Pubkey, srcKey *Pubkey) {
 		// match in dst tree
 		_, dstHas := dstObjects[GetUuid(srcObj)]
 		if dstHas {
-			continue // We already have it
+			return nil // We already have it
 		}
 		if hasParent {
 			dstParentObj, dstHasParent := dstObjects[GetUuid(srcParent)]
@@ -104,6 +104,7 @@ func MergeKey(dstKey *Pubkey, srcKey *Pubkey) {
 				appendPacketRecord(dstParentObj, srcObj)
 			}
 		}
+		return nil
 	})
 }
 
@@ -115,15 +116,15 @@ func appendPacketRecord(dstParent PacketRecord, srcObj PacketRecord) {
 		}
 	} else if uid, isa := srcObj.(*UserId); isa {
 		if pubkey, isa := dstParent.(*Pubkey); isa {
-			pubkey.userIds = append(pubkey.userIds, *uid)
+			pubkey.userIds = append(pubkey.userIds, uid)
 		}
 	} else if uattr, isa := srcObj.(*UserAttribute); isa {
 		if pubkey, isa := dstParent.(*Pubkey); isa {
-			pubkey.userAttributes = append(pubkey.userAttributes, *uattr)
+			pubkey.userAttributes = append(pubkey.userAttributes, uattr)
 		}
 	} else if subkey, isa := srcObj.(*Subkey); isa {
 		if pubkey, isa := dstParent.(*Pubkey); isa {
-			pubkey.subkeys = append(pubkey.subkeys, *subkey)
+			pubkey.subkeys = append(pubkey.subkeys, subkey)
 		}
 	}
 }

@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/cmars/conflux/recon"
 	"github.com/qpliu/qrencode-go/qrencode"
 	"image/png"
 	"io"
@@ -91,9 +92,10 @@ func (r *AddResponse) WriteTo(w http.ResponseWriter) (err error) {
 }
 
 type IndexResponse struct {
-	Lookup *hkp.Lookup
-	Keys   []*Pubkey
-	Err    error
+	Lookup  *hkp.Lookup
+	Keys    []*Pubkey
+	Verbose bool
+	Err     error
 }
 
 func (r *IndexResponse) Error() error {
@@ -103,16 +105,13 @@ func (r *IndexResponse) Error() error {
 func (r *IndexResponse) WriteTo(w http.ResponseWriter) error {
 	err := r.Err
 	var writeFn func(io.Writer, *Pubkey) error = nil
-	switch {
-	case r.Lookup.Option&hkp.MachineReadable != 0:
-		writeFn = WriteMachineReadable
-	case r.Lookup.Op == hkp.Vindex:
-		writeFn = WriteVindex
-	case r.Lookup.Op == hkp.Index:
-		writeFn = WriteIndex
+	if r.Lookup.Option&hkp.MachineReadable != 0 {
+		writeFn = r.WriteMachineReadable
+	} else {
+		writeFn = r.WriteIndex
 	}
 	if r.Lookup.Option&hkp.MachineReadable != 0 {
-		writeFn = WriteMachineReadable
+		writeFn = r.WriteMachineReadable
 		w.Header().Add("Content-Type", "text/plain")
 		fmt.Fprintf(w, "info:1:%d\n", len(r.Keys))
 	} else {
@@ -231,44 +230,7 @@ func encodeToDataUri(data []byte) string {
 	return url.QueryEscape(base64.StdEncoding.EncodeToString(data))
 }
 
-func WriteIndex(w io.Writer, key *Pubkey) error {
-	key.Visit(func(rec PacketRecord) error {
-		switch r := rec.(type) {
-		case *Pubkey:
-			PksIndexTemplate.ExecuteTemplate(w, "pub-index-row", struct {
-				KeyLength    int
-				AlgoCode     string
-				Fingerprint  string
-				FpQrCode     string
-				ShortId      string
-				CreationTime string
-			}{
-				r.BitLen,
-				AlgorithmCode(r.Algorithm),
-				r.Fingerprint(),
-				qrEncodeToDataUri(r.Fingerprint()),
-				strings.ToUpper(r.Fingerprint()[32:40]),
-				r.Creation.Format("2006-01-02")})
-		case *UserId:
-			PksIndexTemplate.ExecuteTemplate(w, "uid-index-row", struct {
-				Fingerprint string
-				Id          string
-			}{
-				key.Fingerprint(),
-				r.Keywords})
-		case *UserAttribute:
-			for _, imageData := range r.GetJpegData() {
-				PksIndexTemplate.ExecuteTemplate(w, "uattr-image-row", struct {
-					ImageData string
-				}{
-					encodeToDataUri(imageData.Bytes())})
-			}
-		}
-	})
-	return nil
-}
-
-func WriteVindex(w io.Writer, key *Pubkey) error {
+func (i *IndexResponse) WriteIndex(w io.Writer, key *Pubkey) error {
 	key.Visit(func(rec PacketRecord) error {
 		switch r := rec.(type) {
 		case *Pubkey:
@@ -294,15 +256,17 @@ func WriteVindex(w io.Writer, key *Pubkey) error {
 				key.Fingerprint(),
 				r.Keywords})
 		case *Signature:
-			PksIndexTemplate.ExecuteTemplate(w, "sig-vindex-row", struct {
-				LongId  string
-				ShortId string
-				SigTime string
-				Uid     string
-			}{
-				r.IssuerKeyId(),
-				r.IssuerKeyId()[8:16],
-				r.Creation.Format("2006-01-02"), ""}) // TODO: use issuer primary UID
+			if i.Verbose {
+				PksIndexTemplate.ExecuteTemplate(w, "sig-vindex-row", struct {
+					LongId  string
+					ShortId string
+					SigTime string
+					Uid     string
+				}{
+					r.IssuerKeyId(),
+					r.IssuerKeyId()[8:16],
+					r.Creation.Format("2006-01-02"), ""}) // TODO: use issuer primary UID
+			}
 		case *UserAttribute:
 			for _, imageData := range r.GetJpegData() {
 				PksIndexTemplate.ExecuteTemplate(w, "uattr-image-row", struct {
@@ -311,11 +275,12 @@ func WriteVindex(w io.Writer, key *Pubkey) error {
 					encodeToDataUri(imageData.Bytes())})
 			}
 		}
+		return nil
 	})
 	return nil
 }
 
-func WriteMachineReadable(w io.Writer, key *Pubkey) error {
+func (i *IndexResponse) WriteMachineReadable(w io.Writer, key *Pubkey) error {
 	key.Visit(func(rec PacketRecord) error {
 		switch r := rec.(type) {
 		case *Pubkey:
@@ -327,6 +292,11 @@ func WriteMachineReadable(w io.Writer, key *Pubkey) error {
 		case *UserId:
 			fmt.Fprintf(w, "uid:%s:%s:%s:\n",
 				r.Keywords, r.Creation.Unix(), r.Expiration.Unix())
+		case *Signature:
+			if i.Verbose {
+				fmt.Fprintf(w, "sig:%s:%s:%s",
+					r.Creation.Unix(), r.Expiration.Unix(), r.IssuerKeyId())
+			}
 		case *UserAttribute:
 			fmt.Fprintf(w, "uat::::\n")
 		case *Subkey:
@@ -336,8 +306,60 @@ func WriteMachineReadable(w io.Writer, key *Pubkey) error {
 				r.Creation.Unix(),
 				r.Expiration.Unix())
 		}
+		return nil
 	})
 	return nil
+}
+
+type KeyringResponse struct {
+	Keys []*Pubkey
+}
+
+func (k *KeyringResponse) Error() error {
+	return nil
+}
+
+func (k *KeyringResponse) WriteTo(w http.ResponseWriter) error {
+	for _, key := range k.Keys {
+		err := WriteArmoredPackets(w, key)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type HashQueryResponse struct {
+	Keys []*Pubkey
+}
+
+func (hq *HashQueryResponse) Error() error {
+	return nil
+}
+
+func (hq *HashQueryResponse) WriteTo(w http.ResponseWriter) (err error) {
+	w.Header().Set("Content-Type", "pgp/keys")
+	// Write the number of keys
+	err = recon.WriteInt(w, len(hq.Keys))
+	for _, key := range hq.Keys {
+		// Write each key in binary packet format, prefixed with length
+		keybuf := bytes.NewBuffer(nil)
+		err = WritePackets(keybuf, key)
+		if err != nil {
+			return
+		}
+		err = recon.WriteInt(w, keybuf.Len())
+		if err != nil {
+			return
+		}
+		_, err = w.Write(keybuf.Bytes())
+		if err != nil {
+			return
+		}
+	}
+	// SKS expects hashquery response to terminate with a CRLF
+	_, err = w.Write([]byte{0x0d, 0x0a})
+	return
 }
 
 type NotImplementedResponse struct {

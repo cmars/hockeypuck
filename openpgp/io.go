@@ -22,6 +22,8 @@ import (
 	"code.google.com/p/go.crypto/openpgp/armor"
 	packetErrors "code.google.com/p/go.crypto/openpgp/errors"
 	"code.google.com/p/go.crypto/openpgp/packet"
+	"crypto/md5"
+	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
@@ -38,7 +40,7 @@ func Fingerprint(pubkey *packet.PublicKey) string {
 	return hex.EncodeToString(pubkey.Fingerprint[:])
 }
 
-func WriteTo(w io.Writer, root PacketRecord) error {
+func WritePackets(w io.Writer, root PacketRecord) error {
 	return root.Visit(func(rec PacketRecord) error {
 		op, err := rec.GetOpaquePacket()
 		if err != nil {
@@ -48,18 +50,18 @@ func WriteTo(w io.Writer, root PacketRecord) error {
 	})
 }
 
-func WriteArmoredTo(w io.Writer, root PacketRecord) error {
+func WriteArmoredPackets(w io.Writer, root PacketRecord) error {
 	armw, err := armor.Encode(w, openpgp.PublicKeyType, nil)
 	defer armw.Close()
 	if err != nil {
 		return err
 	}
-	return WriteTo(armw, root)
+	return WritePackets(armw, root)
 }
 
 type OpaquePacketResult struct {
 	*packet.OpaquePacket
-	err error
+	Error error
 }
 
 type OpaquePacketChan chan *OpaquePacketResult
@@ -74,6 +76,7 @@ func IterOpaquePackets(root PacketRecord) OpaquePacketChan {
 			if err != nil {
 				return err
 			}
+			return nil
 		})
 	}()
 	return c
@@ -108,17 +111,20 @@ func ErrReadKeys(msg string) *ReadKeyResult {
 	return &ReadKeyResult{Error: errors.New(msg)}
 }
 
+func (pubkey *Pubkey) updateDigests() {
+	pubkey.Md5 = SksDigest(pubkey, md5.New())
+	pubkey.Sha256 = SksDigest(pubkey, sha256.New())
+}
+
 // Read one or more public keys from input.
 func ReadKeys(r io.Reader) PubkeyChan {
 	c := make(PubkeyChan)
 	go func() {
 		defer close(c)
 		var err error
-		var parseErr error
 		var opkt *packet.OpaquePacket
 		var currentPubkey *Pubkey
 		var currentSignable Signable
-		var fingerprint string
 		opktReader := packet.NewOpaqueReader(r)
 		for opkt, err = opktReader.Next(); err != io.EOF; opkt, err = opktReader.Next() {
 			if err != nil {
@@ -132,6 +138,7 @@ func ReadKeys(r io.Reader) PubkeyChan {
 					if !p.IsSubkey {
 						if currentPubkey != nil {
 							// New public key found, send prior one
+							currentPubkey.updateDigests()
 							c <- &ReadKeyResult{Pubkey: currentPubkey}
 							currentPubkey = nil
 						}
@@ -154,7 +161,7 @@ func ReadKeys(r io.Reader) PubkeyChan {
 						if err = subkey.SetPublicKey(p); err != nil {
 							c <- &ReadKeyResult{Error: err}
 						}
-						currentPubkey.subkeys = append(currentPubkey.subkeys, *subkey)
+						currentPubkey.subkeys = append(currentPubkey.subkeys, subkey)
 						currentSignable = subkey
 					}
 				case *packet.Signature:
@@ -179,7 +186,7 @@ func ReadKeys(r io.Reader) PubkeyChan {
 						continue
 					}
 					currentSignable = uid
-					currentPubkey.userIds = append(currentPubkey.userIds, *uid)
+					currentPubkey.userIds = append(currentPubkey.userIds, uid)
 				}
 			}
 			if _, isUnknown := parseErr.(packetErrors.UnknownPacketTypeError); isUnknown {
@@ -197,7 +204,7 @@ func ReadKeys(r io.Reader) PubkeyChan {
 						continue
 					}
 					currentSignable = uat
-					currentPubkey.userAttributes = append(currentPubkey.userAttributes, *uat)
+					currentPubkey.userAttributes = append(currentPubkey.userAttributes, uat)
 				case 2: // Bad signature packet
 					// TODO: Check for signature version 3
 					c <- &ReadKeyResult{Error: parseErr}
@@ -206,6 +213,7 @@ func ReadKeys(r io.Reader) PubkeyChan {
 					// For now, clear state, ignore to next key
 					if currentPubkey != nil {
 						// Send prior public key, if any
+						currentPubkey.updateDigests()
 						c <- &ReadKeyResult{Pubkey: currentPubkey}
 						currentPubkey = nil
 					}
@@ -218,6 +226,7 @@ func ReadKeys(r io.Reader) PubkeyChan {
 			}
 		}
 		if currentPubkey != nil {
+			currentPubkey.updateDigests()
 			c <- &ReadKeyResult{Pubkey: currentPubkey}
 		}
 	}()

@@ -32,14 +32,13 @@ type KeyChangeChan chan *KeyChange
 func (w *Worker) Add(a *hkp.Add) {
 	// Parse armored keytext
 	var changes []*KeyChange
-	var errors []*ReadKeyResult
+	var readErrors []*ReadKeyResult
 	// Check and decode the armor
 	armorBlock, err := armor.Decode(bytes.NewBufferString(a.Keytext))
 	if err != nil {
 		a.Response() <- &ErrorResponse{err}
 		return
 	}
-	var readErrors []*ReadKeyResult
 	for readKey := range ReadKeys(armorBlock.Body) {
 		if readKey.Error != nil {
 			readErrors = append(readErrors, readKey)

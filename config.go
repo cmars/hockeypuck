@@ -37,10 +37,14 @@ type Settings struct {
 }
 
 func (s *Settings) GetString(key string) string {
+	return s.GetStringDefault(key, "")
+}
+
+func (s *Settings) GetStringDefault(key string, defaultValue string) string {
 	if s, is := s.Get(key).(string); is {
 		return s
 	}
-	return ""
+	return defaultValue
 }
 
 func (s *Settings) GetInt(key string) int {

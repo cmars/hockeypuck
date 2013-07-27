@@ -128,7 +128,7 @@ func (ps *PksSyncBase) Init() {
 func (ps *PksSyncBase) SendKey(addr string, key *Pubkey) (err error) {
 	msg := bytes.NewBuffer(nil)
 	msg.WriteString("Subject: ADD\n\n")
-	WriteArmoredTo(msg, key)
+	WriteArmoredPackets(msg, key)
 	err = smtp.SendMail(ps.SmtpHost, ps.SmtpAuth, ps.MailFrom, []string{addr}, msg.Bytes())
 	return
 }

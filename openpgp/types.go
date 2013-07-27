@@ -68,10 +68,10 @@ type Pubkey struct {
 	BitLen         int       `db:"bit_len"`
 	PrimaryUid     string    `db:"primary_uid"`
 	PrimaryUat     string    `db:"primary_uat"`
-	signatures     []Signature
-	subkeys        []Subkey
-	userIds        []UserId
-	userAttributes []UserAttribute
+	signatures     []*Signature
+	subkeys        []*Subkey
+	userIds        []*UserId
+	userAttributes []*UserAttribute
 	revSig         *Signature
 	primaryUid     *UserId
 	primaryUidSig  *Signature
@@ -279,7 +279,7 @@ type UserId struct {
 	RevSigDigest  string    `db:"revsig_uuid"`
 	revSig        *Signature
 	selfSignature *Signature
-	signatures    []Signature
+	signatures    []*Signature
 }
 
 func (uid *UserId) calcScopedDigest(pubkey *Pubkey) string {
@@ -346,7 +346,7 @@ type UserAttribute struct {
 	RevSigDigest  string    `db:"revsig_uuid"`
 	revSig        *Signature
 	selfSignature *Signature
-	signatures    []Signature
+	signatures    []*Signature
 }
 
 func (uat *UserAttribute) calcScopedDigest(pubkey *Pubkey) string {
@@ -431,7 +431,7 @@ type Subkey struct {
 	RevSigDigest string    `db:"revsig_uuid"`
 	Algorithm    int       `db:"algorithm"`
 	BitLen       int       `db:"bit_len"`
-	signatures   []Signature
+	signatures   []*Signature
 	revSig       *Signature
 	bindingSig   *Signature
 }
@@ -532,17 +532,17 @@ func (sps sksPacketSorter) Less(i, j int) bool {
 /* Appending signatures */
 
 func (pubkey *Pubkey) AddSignature(sig *Signature) {
-	pubkey.signatures = append(pubkey.signatures, *sig)
+	pubkey.signatures = append(pubkey.signatures, sig)
 }
 
 func (uid *UserId) AddSignature(sig *Signature) {
-	uid.signatures = append(uid.signatures, *sig)
+	uid.signatures = append(uid.signatures, sig)
 }
 
 func (uat *UserAttribute) AddSignature(sig *Signature) {
-	uat.signatures = append(uat.signatures, *sig)
+	uat.signatures = append(uat.signatures, sig)
 }
 
 func (subkey *Subkey) AddSignature(sig *Signature) {
-	subkey.signatures = append(subkey.signatures, *sig)
+	subkey.signatures = append(subkey.signatures, sig)
 }

@@ -19,6 +19,7 @@ package openpgp
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
@@ -29,7 +30,7 @@ import (
 	"strings"
 )
 
-const UUID_LEN = 40 // log(2**256, 85) = 39.94...
+const LOOKUP_RESULT_LIMIT = 100
 
 type Worker struct {
 	Service    *hkp.Service
@@ -38,11 +39,11 @@ type Worker struct {
 }
 
 func (s *OpenpgpSettings) Driver() string {
-	return s.GetString("hockeypuck.openpgp.db.driver", "postgres")
+	return s.GetStringDefault("hockeypuck.openpgp.db.driver", "postgres")
 }
 
 func (s *OpenpgpSettings) DSN() string {
-	return s.GetString("hockeypuck.openpgp.db.driver",
+	return s.GetStringDefault("hockeypuck.openpgp.db.driver",
 		"dbname=hkp host=/var/run/postgresql sslmode=disable")
 }
 
@@ -118,12 +119,13 @@ func (w *Worker) Lookup(l *hkp.Lookup) {
 		resp = &KeyringResponse{keys}
 	case hkp.Index:
 		resp = &IndexResponse{Lookup: l, Keys: keys, Verbose: false}
-	case hkp.VIndex:
+	case hkp.Vindex:
 		resp = &IndexResponse{Lookup: l, Keys: keys, Verbose: true}
 	default:
-		l.Response() <- &ErrorResponse{ErrUnsupportedOperation}
+		resp = &ErrorResponse{ErrUnsupportedOperation}
 		return
 	}
+	l.Response() <- resp
 }
 
 func (w *Worker) HashQuery(hq *hkp.HashQuery) {
@@ -148,17 +150,16 @@ func (w *Worker) LookupKeys(search string, limit int) (keys []*Pubkey, err error
 }
 
 func (w *Worker) LookupHash(digest string) ([]*Pubkey, error) {
-	uuid, err := lookupMd5Uuid
+	uuid, err := w.lookupMd5Uuid(digest)
 	if err != nil {
 		return nil, err
 	}
 	return w.fetchKeys([]string{uuid})
 }
 
-func (w *Worker) WriteKeys(wr io.Writer, uuids []string) (err error) {
-	// Stream OpenPGP packets directly out of the database,
-	// in a fairly logical order.
-	stmt, err = sqlx.Preparex(`
+func (w *Worker) WriteKeys(wr io.Writer, uuids []string) error {
+	// Stream OpenPGP binary packets directly out of the database.
+	stmt, err := w.db.Preparex(`
 SELECT bytea FROM openpgp_pubkey pk WHERE uuid = $1 UNION
 SELECT bytea FROM openpgp_sig s
 	JOIN openpgp_pubkey_sig pks ON (s.uuid = pks.sig_uuid)
@@ -182,38 +183,37 @@ SELECT bytea FROM (
 		JOIN openpgp_uat_sig uas ON (s.uuid = uas.sig_uuid)
 		WHERE uas.pubkey_uuid = $1) ORDER BY creation, uat_uuid, level`)
 	if err != nil {
-		return
+		return err
 	}
 	var packet struct{ data []byte }
-	var rows *sqlx.Rows
 	for _, uuid := range uuids {
-		rows, err = stmt.Query(uuid)
+		rows, err := stmt.Query(uuid)
 		if err != nil {
-			return
+			return err
 		}
 		for rows.Next() {
-			err = row.StructScan(&packet)
+			err = rows.Scan(&packet)
 			if err != nil {
-				return
+				return err
 			}
-			err = wr.Write(packet.data)
+			_, err = wr.Write(packet.data)
 			if err != nil {
-				return
+				return err
 			}
 		}
 	}
+	return nil
 }
 
 func (w *Worker) lookupPubkeyUuids(search string, limit int) (uuids []string, err error) {
 	if strings.HasPrefix(search, "0x") {
-		return lookupKeywordUuids(search, limit)
+		return w.lookupKeywordUuids(search, limit)
 	}
-	return lookupKeyidUuids(search)
+	return w.lookupKeyidUuids(search)
 }
 
 func (w *Worker) lookupMd5Uuid(hash string) (uuid string, err error) {
-	rows, err := w.db.Queryx(fmt.Sprintf(`
-SELECT uuid FROM openpgp_pubkey WHERE md5 = $1`, compareOp), rkeyId)
+	rows, err := w.db.Queryx(`SELECT uuid FROM openpgp_pubkey WHERE md5 = $1`, hash)
 	if err != nil {
 		return
 	}
@@ -223,22 +223,22 @@ SELECT uuid FROM openpgp_pubkey WHERE md5 = $1`, compareOp), rkeyId)
 		return
 	}
 	if len(uuids) < 1 {
-		return "", KeyNotFound
+		return "", ErrKeyNotFound
 	}
 	uuid = uuids[0]
 	if len(uuids) > 1 {
-		return uuid, KeyIdCollision
+		return uuid, ErrKeyIdCollision
 	}
 	return
 }
 
 func (w *Worker) lookupKeyidUuids(keyId string) (uuids []string, err error) {
-	keyId = strings.ToLower(search)
+	keyId = strings.ToLower(keyId)
 	raw, err := hex.DecodeString(keyId)
 	if err != nil {
-		return nil, InvalidKeyId
+		return nil, ErrInvalidKeyId
 	}
-	rkeyId := Reverse(keyId)
+	rKeyId := Reverse(keyId)
 	var compareOp string
 	switch len(raw) {
 	case 4:
@@ -248,11 +248,11 @@ func (w *Worker) lookupKeyidUuids(keyId string) (uuids []string, err error) {
 	case 20:
 		return []string{rKeyId}, nil
 	default:
-		return nil, InvalidKeyId
+		return nil, ErrInvalidKeyId
 	}
 	rows, err := w.db.Queryx(fmt.Sprintf(`
 SELECT uuid FROM openpgp_pubkey WHERE rfingerprint %s
-	AND expiration > now() AND revsig_uuid IS NULL`, compareOp), rkeyId)
+	AND expiration > now() AND revsig_uuid IS NULL`, compareOp), rKeyId)
 	if err != nil {
 		return
 	}
@@ -290,23 +290,25 @@ WHERE u.keywords_fulltext @@ to_tsquery($1)
 	return flattenUuidRows(rows)
 }
 
+var ErrInternalKeyInvalid error = errors.New("Internal integrity error matching key")
+
 func (w *Worker) LookupKey(keyid string) (pubkey *Pubkey, err error) {
 	uuids, err := w.lookupKeyidUuids(keyid)
 	if err != nil {
 		return nil, err
 	}
 	if len(uuids) < 1 {
-		return nil, KeyNotFound
+		return nil, ErrKeyNotFound
 	}
 	if len(uuids) > 1 {
-		return nil, KeyIdCollision
+		return nil, ErrKeyIdCollision
 	}
-	keys, err := fetchKeys(uuids)
+	keys, err := w.fetchKeys(uuids)
 	if err != nil {
 		return nil, err
 	}
 	if len(keys) != 1 {
-		return nil, InternalKeyInvalid
+		return nil, ErrInternalKeyInvalid
 	}
 	return keys[0], nil
 }
@@ -329,20 +331,20 @@ func (w *Worker) fetchKey(uuid string) (pubkey *Pubkey, err error) {
 	if err != nil {
 		return
 	}
-	err = db.Select(&(pubkey.Signatures), `
+	err = w.db.Select(&(pubkey.signatures), `
 SELECT sig.* FROM openpgp_sig sig
 	JOIN openpgp_pubkey_sig pksig ON (sig.uuid = pksig.sig_uuid)
 WHERE pksig.pubkey_uuid = $1`, uuid)
 	if err != nil {
 		return
 	}
-	err = db.Select(&(pubkey.UserIds),
+	err = w.db.Select(&(pubkey.userIds),
 		`SELECT * FROM openpgp_uid WHERE pubkey_uuid = $1`, uuid)
 	if err != nil {
 		return
 	}
-	for _, uid := range pubkey.UserIds {
-		err = db.Select(&(uid.Signatures), `
+	for _, uid := range pubkey.userIds {
+		err = w.db.Select(&(uid.signatures), `
 SELECT sig.* FROM openpgp_sig sig
 	JOIN openpgp_uid_sig usig ON (sig.uuid = usig.sig_uuid)
 WHERE usig.uid_uuid = $1`, uid.ScopedDigest)
@@ -350,13 +352,13 @@ WHERE usig.uid_uuid = $1`, uid.ScopedDigest)
 			return
 		}
 	}
-	err = db.Select(&(pubkey.UserAttributes),
+	err = w.db.Select(&(pubkey.userAttributes),
 		`SELECT * FROM openpgp_uat WHERE pubkey_uuid = $1`, uuid)
 	if err != nil {
 		return
 	}
-	for _, uat := range pubkey.UserAttributes {
-		err = db.Select(&(uid.Signatures), `
+	for _, uat := range pubkey.userAttributes {
+		err = w.db.Select(&(uat.signatures), `
 SELECT sig.* FROM openpgp_sig sig
 	JOIN openpgp_uat_sig usig ON (sig.uuid = usig.sig_uuid)
 WHERE usig.uat_uuid = $1`, uat.ScopedDigest)
@@ -364,13 +366,13 @@ WHERE usig.uat_uuid = $1`, uat.ScopedDigest)
 			return
 		}
 	}
-	err = db.Select(&(pubkey.Subkeys),
+	err = w.db.Select(&(pubkey.subkeys),
 		`SELECT * FROM openpgp_subkey WHERE pubkey_uuid = $1`, uuid)
 	if err != nil {
 		return
 	}
-	for _, subkey := range pubkey.Subkeys {
-		err = db.Select(&(subkey.Signatures), `
+	for _, subkey := range pubkey.subkeys {
+		err = w.db.Select(&(subkey.signatures), `
 SELECT sig.* FROM openpgp_sig sig
 	JOIN openpgp_subkey_sig sksig ON (sig.uuid = sksig.sig_uuid)
 WHERE sksig.subkey_uuid = $1`, subkey.RFingerprint)
@@ -378,5 +380,6 @@ WHERE sksig.subkey_uuid = $1`, subkey.RFingerprint)
 			return
 		}
 	}
-	return ValidateKey(pubkey)
+	kv := ValidateKey(pubkey)
+	return kv.Pubkey, kv.KeyError
 }
