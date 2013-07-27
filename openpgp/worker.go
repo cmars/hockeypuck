@@ -43,7 +43,7 @@ func (s *OpenpgpSettings) Driver() string {
 }
 
 func (s *OpenpgpSettings) DSN() string {
-	return s.GetStringDefault("hockeypuck.openpgp.db.driver",
+	return s.GetStringDefault("hockeypuck.openpgp.db.dsn",
 		"dbname=hkp host=/var/run/postgresql sslmode=disable")
 }
 

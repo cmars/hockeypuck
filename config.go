@@ -81,6 +81,15 @@ func (s *Settings) GetBool(key string) bool {
 	return result
 }
 
+func SetConfig(contents string) (err error) {
+	var tree *toml.TomlTree
+	if tree, err = toml.Load(contents); err != nil {
+		return
+	}
+	config = &Settings{tree}
+	return
+}
+
 func LoadConfig(r io.Reader) (err error) {
 	buf := bytes.NewBuffer(nil)
 	_, err = io.Copy(buf, r)

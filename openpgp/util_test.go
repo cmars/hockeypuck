@@ -23,6 +23,7 @@ func MustInput(t *testing.T, name string) *os.File {
 
 func MustInputAscKeys(t *testing.T, name string) (result []*Pubkey) {
 	f := MustInput(t, name)
+	defer f.Close()
 	block, err := armor.Decode(f)
 	if err != nil {
 		t.Fatal(err)

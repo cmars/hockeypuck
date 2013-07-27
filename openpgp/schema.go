@@ -112,8 +112,7 @@ bit_len INTEGER NOT NULL,
 -----------------------------------------------------------------------
 PRIMARY KEY (uuid),
 UNIQUE (md5),
-UNIQUE (sha256),
-UNIQUE (rfingerprint)
+UNIQUE (sha256)
 )
 `
 

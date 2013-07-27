@@ -19,7 +19,7 @@ package hkp
 
 import (
 	"bytes"
-	"github.com/bmizerany/assert"
+	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/url"
 	"testing"
@@ -37,7 +37,8 @@ func TestGetKeyword(t *testing.T) {
 	req := &http.Request{
 		Method: "GET",
 		URL:    testUrl}
-	lookup, err := parseLookup(req)
+	lookup := &Lookup{Request: req}
+	err = lookup.Parse()
 	assert.Equal(t, err, nil)
 	assert.Equal(t, Get, lookup.Op)
 	assert.Equal(t, "alice", lookup.Search)
@@ -53,7 +54,8 @@ func TestGetFp(t *testing.T) {
 	req := &http.Request{
 		Method: "GET",
 		URL:    testUrl}
-	lookup, err := parseLookup(req)
+	lookup := &Lookup{Request: req}
+	err = lookup.Parse()
 	assert.Equal(t, err, nil)
 	assert.Equal(t, Get, lookup.Op)
 	assert.Equal(t, "0xdecafbad", lookup.Search)
@@ -70,7 +72,8 @@ func TestIndex(t *testing.T) {
 	req := &http.Request{
 		Method: "GET",
 		URL:    testUrl}
-	lookup, err := parseLookup(req)
+	lookup := &Lookup{Request: req}
+	err = lookup.Parse()
 	assert.Equal(t, err, nil)
 	assert.Equal(t, Index, lookup.Op)
 }
@@ -82,7 +85,8 @@ func TestVindex(t *testing.T) {
 	req := &http.Request{
 		Method: "GET",
 		URL:    testUrl}
-	lookup, err := parseLookup(req)
+	lookup := &Lookup{Request: req}
+	lookup.Parse()
 	assert.Equal(t, err, nil)
 	assert.Equal(t, Vindex, lookup.Op)
 }
@@ -94,7 +98,8 @@ func TestMissingSearch(t *testing.T) {
 	req := &http.Request{
 		Method: "GET",
 		URL:    testUrl}
-	_, err = parseLookup(req)
+	lookup := &Lookup{Request: req}
+	err = lookup.Parse()
 	// error without search term
 	assert.NotEqual(t, err, nil)
 }
@@ -106,7 +111,8 @@ func TestNoSuchOp(t *testing.T) {
 	req := &http.Request{
 		Method: "GET",
 		URL:    testUrl}
-	_, err = parseLookup(req)
+	lookup := &Lookup{Request: req}
+	err = lookup.Parse()
 	// Unknown operation
 	assert.NotEqual(t, err, nil)
 }
@@ -119,7 +125,8 @@ func TestAdd(t *testing.T) {
 	postData["keytext"] = []string{"sus llaves aqui"}
 	req, err := http.NewRequest("POST", testUrl.String(), bytes.NewBuffer(nil))
 	req.PostForm = url.Values(postData)
-	add, err := parseAdd(req)
+	add := &Add{Request: req}
+	err = add.Parse()
 	assert.Equal(t, err, nil)
 	assert.Equal(t, "sus llaves aqui", add.Keytext)
 	assert.Equal(t, NoOption, add.Option)
@@ -134,7 +141,8 @@ func TestAddOptions(t *testing.T) {
 	postData["options"] = []string{"mr"}
 	req, err := http.NewRequest("POST", testUrl.String(), bytes.NewBuffer(nil))
 	req.PostForm = url.Values(postData)
-	add, err := parseAdd(req)
+	add := &Add{Request: req}
+	err = add.Parse()
 	assert.Equal(t, err, nil)
 	assert.Equal(t, "sus llaves estan aqui", add.Keytext)
 	assert.Equal(t, MachineReadable&add.Option, MachineReadable)
@@ -150,7 +158,8 @@ func TestAddMissingKey(t *testing.T) {
 		Method: "POST",
 		URL:    testUrl,
 		Form:   url.Values(postData)}
-	_, err = parseAdd(req)
+	add := &Add{Request: req}
+	err = add.Parse()
 	// error without keytext
 	assert.NotEqual(t, err, nil)
 }

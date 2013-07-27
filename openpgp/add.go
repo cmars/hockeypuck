@@ -147,5 +147,77 @@ func (w *Worker) UpdateKey(pubkey *Pubkey) error {
 }
 
 func (w *Worker) InsertKey(pubkey *Pubkey) error {
-	panic("not impl yet")
+	err := pubkey.Visit(func(rec PacketRecord) error {
+		switch r := rec.(type) {
+		case *Pubkey:
+			if _, err := w.db.Execv(`
+INSERT INTO openpgp_pubkey (
+	uuid, creation, expiration, state, packet,
+	ctime, mtime,
+    md5, sha256, algorithm, bit_len)
+VALUES (
+	$1, $2, $3, $4, $5,
+	now(), now(),
+    $6, $7, $8, $9)`,
+				r.RFingerprint, r.Creation, r.Expiration, r.State, r.Packet,
+				r.Md5, r.Sha256, r.Algorithm, r.BitLen); err != nil {
+				return err
+			}
+		case *Subkey:
+			if _, err := w.db.Execv(`
+INSERT INTO openpgp_subkey (
+	uuid, creation, expiration, state, packet,
+	pubkey_uuid, algorithm, bit_len)
+VALUES (
+	$1, $2, $3, $4, $5,
+	$6, $7, $8)`,
+				r.RFingerprint, r.Creation, r.Expiration, r.State, r.Packet,
+				pubkey.RFingerprint, r.Algorithm, r.BitLen); err != nil {
+				return err
+			}
+		case *UserId:
+			if _, err := w.db.Execv(`
+INSERT INTO openpgp_uid (
+	uuid, creation, expiration, state, packet,
+	pubkey_uuid, keywords, keywords_fulltext)
+VALUES (
+	$1, $2, $3, $4, $5,
+	$6, $7, to_tsvector($7))`,
+				r.ScopedDigest, r.Creation, r.Expiration, r.State, r.Packet,
+				pubkey.RFingerprint, r.Keywords); err != nil {
+				return err
+			}
+		case *UserAttribute:
+			if _, err := w.db.Execv(`
+INSERT INTO openpgp_uat (
+	uuid, creation, expiration, state, packet,
+	pubkey_uuid)
+VALUES (
+	$1, $2, $3, $4, $5,
+	$6)`,
+				r.ScopedDigest, r.Creation, r.Expiration, r.State, r.Packet,
+				pubkey.RFingerprint); err != nil {
+				return err
+			}
+		case *Signature:
+			if _, err := w.db.Execv(`
+INSERT INTO openpgp_sig (
+	uuid, creation, expiration, state, packet,
+	sig_type, signer, signer_uuid)
+VALUES (
+	$1, $2, $3, $4, $5,
+	$6, $7, (SELECT uuid FROM openpgp_pubkey WHERE uuid LIKE $7 || '________________________'))`,
+				r.ScopedDigest, r.Creation, r.Expiration, r.State, r.Packet,
+				r.SigType, r.RIssuerKeyId); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		w.db.Execv("ROLLBACK")
+	} else {
+		w.db.Execv("COMMIT")
+	}
+	return err
 }
