@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"code.google.com/p/go.crypto/openpgp/packet"
 	"crypto/sha256"
+	"encoding/ascii85"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
@@ -194,12 +195,20 @@ func (sig *Signature) IssuerFingerprint() string {
 	return hockeypuck.Reverse(sig.RIssuerFingerprint)
 }
 
+func toAscii85String(buf []byte) string {
+	out := bytes.NewBuffer(nil)
+	enc := ascii85.NewEncoder(out)
+	enc.Write(buf)
+	enc.Close()
+	return out.String()
+}
+
 func (sig *Signature) calcScopedDigest(pubkey *Pubkey, scope string) string {
 	h := sha256.New()
 	h.Write([]byte(pubkey.RFingerprint))
 	h.Write([]byte(scope))
 	h.Write(sig.Packet)
-	return hex.EncodeToString(h.Sum(nil))
+	return toAscii85String(h.Sum(nil))
 }
 
 func (sig *Signature) GetOpaquePacket() (*packet.OpaquePacket, error) {
@@ -286,7 +295,7 @@ func (uid *UserId) calcScopedDigest(pubkey *Pubkey) string {
 	h := sha256.New()
 	h.Write([]byte(pubkey.RFingerprint))
 	h.Write(uid.Packet)
-	return hex.EncodeToString(h.Sum(nil))
+	return toAscii85String(h.Sum(nil))
 }
 
 func (uid *UserId) GetOpaquePacket() (*packet.OpaquePacket, error) {
@@ -353,7 +362,7 @@ func (uat *UserAttribute) calcScopedDigest(pubkey *Pubkey) string {
 	h := sha256.New()
 	h.Write([]byte(pubkey.RFingerprint))
 	h.Write(uat.Packet)
-	return hex.EncodeToString(h.Sum(nil))
+	return toAscii85String(h.Sum(nil))
 }
 
 func (uat *UserAttribute) GetOpaquePacket() (*packet.OpaquePacket, error) {

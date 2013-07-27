@@ -168,6 +168,7 @@ pubkey_uuid TEXT NOT NULL,
 sig_uuid TEXT NOT NULL,
 -----------------------------------------------------------------------
 PRIMARY KEY (uuid),
+UNIQUE (pubkey_uuid, sig_uuid),
 FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid),
 FOREIGN KEY (sig_uuid) REFERENCES openpgp_sig(uuid)
 )

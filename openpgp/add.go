@@ -20,7 +20,11 @@ package openpgp
 import (
 	"bytes"
 	"code.google.com/p/go.crypto/openpgp/armor"
+	"crypto/rand"
+	"encoding/ascii85"
+	"errors"
 	"fmt"
+	"io"
 	"launchpad.net/hockeypuck"
 	"launchpad.net/hockeypuck/hkp"
 	"log"
@@ -146,7 +150,23 @@ func (w *Worker) UpdateKey(pubkey *Pubkey) error {
 	panic("not impl yet")
 }
 
+const UUID_LEN = 40 // log(2**256, 85) = 39.9413926456896
+
+func NewUuid() (string, error) {
+	buf := bytes.NewBuffer([]byte{})
+	enc := ascii85.NewEncoder(buf)
+	n, err := io.CopyN(enc, rand.Reader, UUID_LEN)
+	if err != nil {
+		return "", err
+	}
+	if n < UUID_LEN {
+		return "", errors.New("Failed to generate UUID")
+	}
+	return string(buf.Bytes()), nil
+}
+
 func (w *Worker) InsertKey(pubkey *Pubkey) error {
+	var signable PacketRecord
 	err := pubkey.Visit(func(rec PacketRecord) error {
 		switch r := rec.(type) {
 		case *Pubkey:
@@ -160,9 +180,11 @@ VALUES (
 	now(), now(),
     $6, $7, $8, $9)`,
 				r.RFingerprint, r.Creation, r.Expiration, r.State, r.Packet,
+				// TODO: use mtime and ctime from record, or use RETURNING to set it
 				r.Md5, r.Sha256, r.Algorithm, r.BitLen); err != nil {
 				return err
 			}
+			signable = r
 		case *Subkey:
 			if _, err := w.db.Execv(`
 INSERT INTO openpgp_subkey (
@@ -175,6 +197,7 @@ VALUES (
 				pubkey.RFingerprint, r.Algorithm, r.BitLen); err != nil {
 				return err
 			}
+			signable = r
 		case *UserId:
 			if _, err := w.db.Execv(`
 INSERT INTO openpgp_uid (
@@ -186,6 +209,14 @@ VALUES (
 				r.ScopedDigest, r.Creation, r.Expiration, r.State, r.Packet,
 				pubkey.RFingerprint, r.Keywords); err != nil {
 				return err
+			}
+			signable = r
+			if pubkey.PrimaryUid == r.ScopedDigest {
+				if _, err := w.db.Execv(`
+UPDATE openpgp_pubkey SET primary_uid = $1 WHERE uuid = $2`,
+					r.ScopedDigest, pubkey.RFingerprint); err != nil {
+					return err
+				}
 			}
 		case *UserAttribute:
 			if _, err := w.db.Execv(`
@@ -199,6 +230,14 @@ VALUES (
 				pubkey.RFingerprint); err != nil {
 				return err
 			}
+			signable = r
+			if pubkey.PrimaryUat == r.ScopedDigest {
+				if _, err := w.db.Execv(`
+UPDATE openpgp_pubkey SET primary_uat = $1 WHERE uuid = $2`,
+					r.ScopedDigest, pubkey.RFingerprint); err != nil {
+					return err
+				}
+			}
 		case *Signature:
 			if _, err := w.db.Execv(`
 INSERT INTO openpgp_sig (
@@ -210,6 +249,71 @@ VALUES (
 				r.ScopedDigest, r.Creation, r.Expiration, r.State, r.Packet,
 				r.SigType, r.RIssuerKeyId); err != nil {
 				return err
+			}
+			sigRelationUuid, err := NewUuid()
+			if err != nil {
+				return err
+			}
+			switch signed := signable.(type) {
+			case *Pubkey:
+				if _, err := w.db.Execv(`
+INSERT INTO openpgp_pubkey_sig (uuid, pubkey_uuid, sig_uuid)
+VALUES ($1, $2, $3)`,
+					sigRelationUuid, signed.RFingerprint, r.ScopedDigest); err != nil {
+					return err
+				}
+				if r.ScopedDigest == signed.RevSigDigest {
+					if _, err := w.db.Execv(`
+UPDATE openpgp_pubkey SET revsig_uuid = $1 WHERE uuid = $2`,
+						r.ScopedDigest, signed.RFingerprint); err != nil {
+						return err
+					}
+				}
+			case *UserId:
+				if _, err := w.db.Execv(`
+INSERT INTO openpgp_uid_sig (uuid, pubkey_uuid, uid_uuid, sig_uuid)
+VALUES ($1, $2, $3, $4)`,
+					sigRelationUuid, pubkey.RFingerprint,
+					signed.ScopedDigest, r.ScopedDigest); err != nil {
+					return err
+				}
+				if r.ScopedDigest == signed.RevSigDigest {
+					if _, err := w.db.Execv(`
+UPDATE openpgp_uid SET revsig_uuid = $1 WHERE uuid = $2`,
+						r.ScopedDigest, signed.ScopedDigest); err != nil {
+						return err
+					}
+				}
+			case *UserAttribute:
+				if _, err := w.db.Execv(`
+INSERT INTO openpgp_uat_sig (uuid, pubkey_uuid, uat_uuid, sig_uuid)
+VALUES ($1, $2, $3, $4)`,
+					sigRelationUuid, pubkey.RFingerprint,
+					signed.ScopedDigest, r.ScopedDigest); err != nil {
+					return err
+				}
+				if r.ScopedDigest == signed.RevSigDigest {
+					if _, err := w.db.Execv(`
+UPDATE openpgp_uat SET revsig_uuid = $1 WHERE uuid = $2`,
+						r.ScopedDigest, signed.ScopedDigest); err != nil {
+						return err
+					}
+				}
+			case *Subkey:
+				if _, err := w.db.Execv(`
+INSERT INTO openpgp_subkey_sig (uuid, pubkey_uuid, subkey_uuid, sig_uuid)
+VALUES ($1, $2, $3, $4)`,
+					sigRelationUuid, pubkey.RFingerprint,
+					signed.RFingerprint, r.ScopedDigest); err != nil {
+					return err
+				}
+				if r.ScopedDigest == signed.RevSigDigest {
+					if _, err := w.db.Execv(`
+UPDATE openpgp_subkey SET revsig_uuid = $1 WHERE uuid = $2`,
+						r.ScopedDigest, signed.RFingerprint); err != nil {
+						return err
+					}
+				}
 			}
 		}
 		return nil
