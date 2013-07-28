@@ -30,10 +30,19 @@ import (
 	"hash"
 	"io"
 	"sort"
+	"time"
 )
 
 // Comparable time flag for "never expires"
-const NeverExpires = int64((1 << 63) - 1)
+var NeverExpires time.Time
+
+func init() {
+	t, err := time.Parse("2006-01-02 15:04:05 -0700", "9999-12-31 23:59:59 +0000")
+	if err != nil {
+		panic(err)
+	}
+	NeverExpires = t
+}
 
 // Get the public key fingerprint as a hex string.
 func Fingerprint(pubkey *packet.PublicKey) string {

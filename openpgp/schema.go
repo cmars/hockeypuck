@@ -84,7 +84,7 @@ uuid TEXT NOT NULL,
 -- Public key creation timestamp
 creation TIMESTAMP WITH TIME ZONE NOT NULL,
 -- Public key expiration timestamp (if any)
-expiration TIMESTAMP WITH TIME ZONE,
+expiration TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT '9999-12-31 23:59:59+00',
 -- State flag for this record
 state INTEGER NOT NULL DEFAULT 0,
 -- Binary contents of the OpenPGP packet

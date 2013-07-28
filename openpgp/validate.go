@@ -20,6 +20,7 @@ package openpgp
 import (
 	"bytes"
 	"code.google.com/p/go.crypto/openpgp/packet"
+	"database/sql"
 	"encoding/binary"
 	"errors"
 )
@@ -174,24 +175,24 @@ func (kv *KeyValidation) validate(rec PacketRecord) (err error) {
 		if r.revSig != nil {
 			revsig = r.revSig.ScopedDigest
 		}
-		if revsig != r.RevSigDigest {
-			r.RevSigDigest = revsig
+		if revsig != r.RevSigDigest.String {
+			r.RevSigDigest = sql.NullString{revsig, true}
 			kv.Changed = true
 		}
 		var primaryUid string
 		if r.primaryUid != nil {
 			primaryUid = r.primaryUid.ScopedDigest
 		}
-		if primaryUid != r.PrimaryUid {
-			r.PrimaryUid = primaryUid
+		if primaryUid != r.PrimaryUid.String {
+			r.PrimaryUid.String = primaryUid
 			kv.Changed = true
 		}
 		var primaryUat string
 		if r.primaryUat != nil {
 			primaryUat = r.primaryUat.ScopedDigest
 		}
-		if primaryUat != r.PrimaryUat {
-			r.PrimaryUat = primaryUat
+		if primaryUat != r.PrimaryUat.String {
+			r.PrimaryUat.String = primaryUat
 			kv.Changed = true
 		}
 	case *UserId:
@@ -199,8 +200,8 @@ func (kv *KeyValidation) validate(rec PacketRecord) (err error) {
 		if r.revSig != nil {
 			revsig = r.revSig.ScopedDigest
 		}
-		if revsig != r.RevSigDigest {
-			r.RevSigDigest = revsig
+		if revsig != r.RevSigDigest.String {
+			r.RevSigDigest = sql.NullString{revsig, true}
 			kv.Changed = true
 		}
 	case *UserAttribute:
@@ -208,8 +209,8 @@ func (kv *KeyValidation) validate(rec PacketRecord) (err error) {
 		if r.revSig != nil {
 			revsig = r.revSig.ScopedDigest
 		}
-		if revsig != r.RevSigDigest {
-			r.RevSigDigest = revsig
+		if revsig != r.RevSigDigest.String {
+			r.RevSigDigest = sql.NullString{revsig, true}
 			kv.Changed = true
 		}
 	case *Subkey:
@@ -217,8 +218,8 @@ func (kv *KeyValidation) validate(rec PacketRecord) (err error) {
 		if r.revSig != nil {
 			revsig = r.revSig.ScopedDigest
 		}
-		if revsig != r.RevSigDigest {
-			r.RevSigDigest = revsig
+		if revsig != r.RevSigDigest.String {
+			r.RevSigDigest = sql.NullString{revsig, true}
 			kv.Changed = true
 		}
 	}
@@ -364,6 +365,12 @@ func (kv *KeyValidation) resolveUserId(uid *UserId) error {
 			continue
 		}
 		if HasKeyidSuffix(kv.publicKey.Fingerprint[:], *s.IssuerKeyId) {
+			if sig.Creation.Unix() < uid.Creation.Unix() {
+				uid.Creation = sig.Creation
+			}
+			if sig.Expiration.Unix() > uid.Expiration.Unix() {
+				uid.Expiration = sig.Expiration
+			}
 			// This is a self-signature.
 			// Expired and revoked is OK here. The purpose of this validation
 			// is to verify the user ID was signed by the public key -- to
@@ -413,6 +420,12 @@ func (kv *KeyValidation) resolveUserAttribute(uat *UserAttribute) error {
 			continue
 		}
 		if HasKeyidSuffix(kv.publicKey.Fingerprint[:], *s.IssuerKeyId) {
+			if sig.Creation.Unix() < uat.Creation.Unix() {
+				uat.Creation = sig.Creation
+			}
+			if sig.Expiration.Unix() > uat.Expiration.Unix() {
+				uat.Expiration = sig.Expiration
+			}
 			// This is a self-signature.
 			// Expired and revoked is OK here. The purpose of this validation
 			// is to verify the user attr was signed by the public key -- to

@@ -18,10 +18,11 @@
 package openpgp
 
 import (
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/jmoiron/sqlx"
+	"github.com/cmars/sqlx"
 	_ "github.com/lib/pq"
 	"io"
 	. "launchpad.net/hockeypuck"
@@ -331,55 +332,104 @@ func (w *Worker) fetchKey(uuid string) (pubkey *Pubkey, err error) {
 	if err != nil {
 		return
 	}
-	err = w.db.Select(&(pubkey.signatures), `
+	// Retrieve all signatures made directly on the primary public key
+	sigs := []Signature{}
+	err = w.db.Select(&sigs, `
 SELECT sig.* FROM openpgp_sig sig
 	JOIN openpgp_pubkey_sig pksig ON (sig.uuid = pksig.sig_uuid)
 WHERE pksig.pubkey_uuid = $1`, uuid)
-	if err != nil {
+	if err != nil && err != sql.ErrNoRows {
 		return
 	}
-	err = w.db.Select(&(pubkey.userIds),
-		`SELECT * FROM openpgp_uid WHERE pubkey_uuid = $1`, uuid)
-	if err != nil {
+	pubkey.signatures = toSigPtrSlice(sigs)
+	// Retrieve all uid records
+	uids := []UserId{}
+	err = w.db.Select(&uids, `
+SELECT uuid, creation, expiration, state, packet,
+	pubkey_uuid, revsig_uuid, keywords
+FROM openpgp_uid WHERE pubkey_uuid = $1`, uuid)
+	log.Println("uid select:", uids, err)
+	if err != nil && err != sql.ErrNoRows {
 		return
 	}
+	pubkey.userIds = toUidPtrSlice(uids)
 	for _, uid := range pubkey.userIds {
-		err = w.db.Select(&(uid.signatures), `
+		sigs = []Signature{}
+		err = w.db.Select(&sigs, `
 SELECT sig.* FROM openpgp_sig sig
 	JOIN openpgp_uid_sig usig ON (sig.uuid = usig.sig_uuid)
 WHERE usig.uid_uuid = $1`, uid.ScopedDigest)
-		if err != nil {
+		if err != nil && err != sql.ErrNoRows {
 			return
 		}
+		uid.signatures = toSigPtrSlice(sigs)
 	}
-	err = w.db.Select(&(pubkey.userAttributes),
+	// Retrieve all user attribute records
+	uats := []UserAttribute{}
+	err = w.db.Select(&uats,
 		`SELECT * FROM openpgp_uat WHERE pubkey_uuid = $1`, uuid)
-	if err != nil {
+	if err != nil && err != sql.ErrNoRows {
 		return
 	}
+	pubkey.userAttributes = toUatPtrSlice(uats)
 	for _, uat := range pubkey.userAttributes {
-		err = w.db.Select(&(uat.signatures), `
+		sigs = []Signature{}
+		err = w.db.Select(&sigs, `
 SELECT sig.* FROM openpgp_sig sig
 	JOIN openpgp_uat_sig usig ON (sig.uuid = usig.sig_uuid)
 WHERE usig.uat_uuid = $1`, uat.ScopedDigest)
-		if err != nil {
+		if err != nil && err != sql.ErrNoRows {
 			return
 		}
+		uat.signatures = toSigPtrSlice(sigs)
 	}
-	err = w.db.Select(&(pubkey.subkeys),
+	// Retrieve all subkey records
+	subkeys := []Subkey{}
+	err = w.db.Select(&subkeys,
 		`SELECT * FROM openpgp_subkey WHERE pubkey_uuid = $1`, uuid)
-	if err != nil {
+	if err != nil && err != sql.ErrNoRows {
 		return
 	}
+	pubkey.subkeys = toSubkeyPtrSlice(subkeys)
 	for _, subkey := range pubkey.subkeys {
-		err = w.db.Select(&(subkey.signatures), `
+		sigs = []Signature{}
+		err = w.db.Select(&sigs, `
 SELECT sig.* FROM openpgp_sig sig
 	JOIN openpgp_subkey_sig sksig ON (sig.uuid = sksig.sig_uuid)
 WHERE sksig.subkey_uuid = $1`, subkey.RFingerprint)
-		if err != nil {
+		if err != nil && err != sql.ErrNoRows {
 			return
 		}
+		subkey.signatures = toSigPtrSlice(sigs)
 	}
 	kv := ValidateKey(pubkey)
 	return kv.Pubkey, kv.KeyError
+}
+
+func toSigPtrSlice(recs []Signature) (result []*Signature) {
+	for i := 0; i < len(recs); i++ {
+		result = append(result, &(recs[i]))
+	}
+	return
+}
+
+func toUidPtrSlice(recs []UserId) (result []*UserId) {
+	for i := 0; i < len(recs); i++ {
+		result = append(result, &(recs[i]))
+	}
+	return
+}
+
+func toUatPtrSlice(recs []UserAttribute) (result []*UserAttribute) {
+	for i := 0; i < len(recs); i++ {
+		result = append(result, &(recs[i]))
+	}
+	return
+}
+
+func toSubkeyPtrSlice(recs []Subkey) (result []*Subkey) {
+	for i := 0; i < len(recs); i++ {
+		result = append(result, &(recs[i]))
+	}
+	return
 }

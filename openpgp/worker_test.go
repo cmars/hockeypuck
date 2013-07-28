@@ -44,6 +44,8 @@ func TestRoundTripKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	assert.Equal(t, key1.userIds[0].Keywords, "Jenny Ondioline <jennyo@transient.net>")
+	assert.Equal(t, key1.userIds[0].Keywords, key2.userIds[0].Keywords)
 	h1 := SksDigest(key1, sha256.New())
 	h2 := SksDigest(key2, sha256.New())
 	assert.Equal(t, h1, h2)

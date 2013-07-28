@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"code.google.com/p/go.crypto/openpgp/packet"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/ascii85"
 	"encoding/binary"
 	"encoding/hex"
@@ -55,29 +56,29 @@ func toOpaquePacket(buf []byte) (*packet.OpaquePacket, error) {
 // Searchable fields are extracted from the packet key material
 // stored in Packet, for database indexing.
 type Pubkey struct {
-	RFingerprint   string    `db:"uuid"`
-	Creation       time.Time `db:"creation"`
-	Expiration     time.Time `db:"expiration"`
-	State          int       `db:"state"`
-	Packet         []byte    `db:"packet"`
-	Ctime          time.Time `db:"ctime"`
-	Mtime          time.Time `db:"mtime"`
-	Md5            string    `db:"md5"`
-	Sha256         string    `db:"sha256"`
-	RevSigDigest   string    `db:"revsig_uuid"`
-	Algorithm      int       `db:"algorithm"`
-	BitLen         int       `db:"bit_len"`
-	PrimaryUid     string    `db:"primary_uid"`
-	PrimaryUat     string    `db:"primary_uat"`
-	signatures     []*Signature
-	subkeys        []*Subkey
-	userIds        []*UserId
-	userAttributes []*UserAttribute
-	revSig         *Signature
-	primaryUid     *UserId
-	primaryUidSig  *Signature
-	primaryUat     *UserAttribute
-	primaryUatSig  *Signature
+	RFingerprint   string           `db:"uuid"`
+	Creation       time.Time        `db:"creation"`
+	Expiration     time.Time        `db:"expiration"`
+	State          int              `db:"state"`
+	Packet         []byte           `db:"packet"`
+	Ctime          time.Time        `db:"ctime"`
+	Mtime          time.Time        `db:"mtime"`
+	Md5            string           `db:"md5"`
+	Sha256         string           `db:"sha256"`
+	RevSigDigest   sql.NullString   `db:"revsig_uuid"`
+	PrimaryUid     sql.NullString   `db:"primary_uid"`
+	PrimaryUat     sql.NullString   `db:"primary_uat"`
+	Algorithm      int              `db:"algorithm"`
+	BitLen         int              `db:"bit_len"`
+	signatures     []*Signature     `db:"-"`
+	subkeys        []*Subkey        `db:"-"`
+	userIds        []*UserId        `db:"-"`
+	userAttributes []*UserAttribute `db:"-"`
+	revSig         *Signature       `db:"-"`
+	primaryUid     *UserId          `db:"-"`
+	primaryUidSig  *Signature       `db:"-"`
+	primaryUat     *UserAttribute   `db:"-"`
+	primaryUatSig  *Signature       `db:"-"`
 }
 
 func (pubkey *Pubkey) Fingerprint() string {
@@ -137,6 +138,7 @@ func (pubkey *Pubkey) SetPublicKey(pk *packet.PublicKey) error {
 	pubkey.Packet = buf.Bytes()
 	pubkey.RFingerprint = hockeypuck.Reverse(fingerprint)
 	pubkey.Creation = pk.CreationTime
+	pubkey.Expiration = NeverExpires
 	pubkey.Algorithm = int(pk.PubKeyAlgo)
 	pubkey.BitLen = int(bitLen)
 	return nil
@@ -175,16 +177,16 @@ func (pubkey *Pubkey) Visit(visitor PacketVisitor) (err error) {
 }
 
 type Signature struct {
-	ScopedDigest       string    `db:"uuid"`
-	Creation           time.Time `db:"creation"`
-	Expiration         time.Time `db:"expiration"`
-	State              int       `db:"state"`
-	Packet             []byte    `db:"packet"`
-	SigType            int       `db:"sig_type"`
-	RIssuerKeyId       string    `db:"signer"`
-	RIssuerFingerprint string    `db:"signer_uuid"`
-	RevSigDigest       string    `db:"revsig_uuid"`
-	revSig             *Signature
+	ScopedDigest       string         `db:"uuid"`
+	Creation           time.Time      `db:"creation"`
+	Expiration         time.Time      `db:"expiration"`
+	State              int            `db:"state"`
+	Packet             []byte         `db:"packet"`
+	SigType            int            `db:"sig_type"`
+	RIssuerKeyId       string         `db:"signer"`
+	RIssuerFingerprint sql.NullString `db:"signer_uuid"`
+	RevSigDigest       sql.NullString `db:"revsig_uuid"`
+	revSig             *Signature     `db:"-"`
 }
 
 func (sig *Signature) IssuerKeyId() string {
@@ -192,7 +194,7 @@ func (sig *Signature) IssuerKeyId() string {
 }
 
 func (sig *Signature) IssuerFingerprint() string {
-	return hockeypuck.Reverse(sig.RIssuerFingerprint)
+	return hockeypuck.Reverse(sig.RIssuerFingerprint.String)
 }
 
 func toAscii85String(buf []byte) string {
@@ -258,6 +260,7 @@ func (sig *Signature) setPacketV4(s *packet.Signature) error {
 		return errors.New("Signature missing issuer key ID")
 	}
 	sig.Creation = s.CreationTime
+	sig.Expiration = NeverExpires
 	sig.Packet = buf.Bytes()
 	sig.SigType = int(s.SigType)
 	// Extract the issuer key id
@@ -278,17 +281,17 @@ func (sig *Signature) Visit(visitor PacketVisitor) (err error) {
 }
 
 type UserId struct {
-	ScopedDigest  string    `db:"uuid"`
-	Creation      time.Time `db:"creation"`
-	Expiration    time.Time `db:"expiration"`
-	State         int       `db:"state"`
-	Packet        []byte    `db:"packet"`
-	PubkeyRFP     string    `db:"pubkey_uuid"`
-	Keywords      string    `db:"keywords"`
-	RevSigDigest  string    `db:"revsig_uuid"`
-	revSig        *Signature
-	selfSignature *Signature
-	signatures    []*Signature
+	ScopedDigest  string         `db:"uuid"`
+	Creation      time.Time      `db:"creation"`
+	Expiration    time.Time      `db:"expiration"`
+	State         int            `db:"state"`
+	Packet        []byte         `db:"packet"`
+	PubkeyRFP     string         `db:"pubkey_uuid"`
+	RevSigDigest  sql.NullString `db:"revsig_uuid"`
+	Keywords      string         `db:"keywords"`
+	revSig        *Signature     `db:"-"`
+	selfSignature *Signature     `db:"-"`
+	signatures    []*Signature   `db:"-"`
 }
 
 func (uid *UserId) calcScopedDigest(pubkey *Pubkey) string {
@@ -327,6 +330,8 @@ func (uid *UserId) SetUserId(u *packet.UserId) error {
 		return err
 	}
 	uid.Packet = buf.Bytes()
+	uid.Creation = NeverExpires
+	uid.Expiration = time.Unix(0, 0)
 	uid.Keywords = hockeypuck.CleanUtf8(u.Id)
 	return nil
 }
@@ -346,16 +351,16 @@ func (uid *UserId) Visit(visitor PacketVisitor) (err error) {
 }
 
 type UserAttribute struct {
-	ScopedDigest  string    `db:"uuid"`
-	Creation      time.Time `db:"creation"`
-	Expiration    time.Time `db:"expiration"`
-	State         int       `db:"state"`
-	Packet        []byte    `db:"packet"`
-	PubkeyRFP     string    `db:"pubkey_uuid"`
-	RevSigDigest  string    `db:"revsig_uuid"`
-	revSig        *Signature
-	selfSignature *Signature
-	signatures    []*Signature
+	ScopedDigest  string         `db:"uuid"`
+	Creation      time.Time      `db:"creation"`
+	Expiration    time.Time      `db:"expiration"`
+	State         int            `db:"state"`
+	Packet        []byte         `db:"packet"`
+	PubkeyRFP     string         `db:"pubkey_uuid"`
+	RevSigDigest  sql.NullString `db:"revsig_uuid"`
+	revSig        *Signature     `db:"-"`
+	selfSignature *Signature     `db:"-"`
+	signatures    []*Signature   `db:"-"`
 }
 
 func (uat *UserAttribute) calcScopedDigest(pubkey *Pubkey) string {
@@ -388,6 +393,8 @@ func (uat *UserAttribute) SetOpaquePacket(op *packet.OpaquePacket) error {
 		return err
 	}
 	uat.Packet = buf.Bytes()
+	uat.Creation = NeverExpires
+	uat.Expiration = time.Unix(0, 0)
 	return nil
 }
 
@@ -431,18 +438,18 @@ func (uat *UserAttribute) Visit(visitor PacketVisitor) (err error) {
 }
 
 type Subkey struct {
-	RFingerprint string    `db:"uuid"`
-	Creation     time.Time `db:"creation"`
-	Expiration   time.Time `db:"expiration"`
-	State        int       `db:"state"`
-	Packet       []byte    `db:"packet"`
-	PubkeyRFP    string    `db:"pubkey_uuid"`
-	RevSigDigest string    `db:"revsig_uuid"`
-	Algorithm    int       `db:"algorithm"`
-	BitLen       int       `db:"bit_len"`
-	signatures   []*Signature
-	revSig       *Signature
-	bindingSig   *Signature
+	RFingerprint string         `db:"uuid"`
+	Creation     time.Time      `db:"creation"`
+	Expiration   time.Time      `db:"expiration"`
+	State        int            `db:"state"`
+	Packet       []byte         `db:"packet"`
+	PubkeyRFP    string         `db:"pubkey_uuid"`
+	RevSigDigest sql.NullString `db:"revsig_uuid"`
+	Algorithm    int            `db:"algorithm"`
+	BitLen       int            `db:"bit_len"`
+	signatures   []*Signature   `db:"-"`
+	revSig       *Signature     `db:"-"`
+	bindingSig   *Signature     `db:"-"`
 }
 
 func (subkey *Subkey) Fingerprint() string {
@@ -497,6 +504,7 @@ func (subkey *Subkey) SetPublicKey(pk *packet.PublicKey) error {
 	subkey.Packet = buf.Bytes()
 	subkey.RFingerprint = hockeypuck.Reverse(fingerprint)
 	subkey.Creation = pk.CreationTime
+	subkey.Expiration = NeverExpires
 	subkey.Algorithm = int(pk.PubKeyAlgo)
 	subkey.BitLen = int(bitLen)
 	return nil
