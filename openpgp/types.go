@@ -56,20 +56,20 @@ func toOpaquePacket(buf []byte) (*packet.OpaquePacket, error) {
 // Searchable fields are extracted from the packet key material
 // stored in Packet, for database indexing.
 type Pubkey struct {
-	RFingerprint   string           `db:"uuid"`
-	Creation       time.Time        `db:"creation"`
-	Expiration     time.Time        `db:"expiration"`
-	State          int              `db:"state"`
-	Packet         []byte           `db:"packet"`
-	Ctime          time.Time        `db:"ctime"`
-	Mtime          time.Time        `db:"mtime"`
-	Md5            string           `db:"md5"`
-	Sha256         string           `db:"sha256"`
-	RevSigDigest   sql.NullString   `db:"revsig_uuid"`
-	PrimaryUid     sql.NullString   `db:"primary_uid"`
-	PrimaryUat     sql.NullString   `db:"primary_uat"`
-	Algorithm      int              `db:"algorithm"`
-	BitLen         int              `db:"bit_len"`
+	RFingerprint   string           `db:"uuid"`        // immutable
+	Creation       time.Time        `db:"creation"`    // immutable
+	Expiration     time.Time        `db:"expiration"`  // mutable
+	State          int              `db:"state"`       // mutable
+	Packet         []byte           `db:"packet"`      // immutable
+	Ctime          time.Time        `db:"ctime"`       // immutable
+	Mtime          time.Time        `db:"mtime"`       // mutable
+	Md5            string           `db:"md5"`         // mutable
+	Sha256         string           `db:"sha256"`      // mutable
+	RevSigDigest   sql.NullString   `db:"revsig_uuid"` // mutable
+	PrimaryUid     sql.NullString   `db:"primary_uid"` // mutable
+	PrimaryUat     sql.NullString   `db:"primary_uat"` // mutable
+	Algorithm      int              `db:"algorithm"`   // immutable
+	BitLen         int              `db:"bit_len"`     // immutable
 	signatures     []*Signature     `db:"-"`
 	subkeys        []*Subkey        `db:"-"`
 	userIds        []*UserId        `db:"-"`
@@ -177,15 +177,15 @@ func (pubkey *Pubkey) Visit(visitor PacketVisitor) (err error) {
 }
 
 type Signature struct {
-	ScopedDigest       string         `db:"uuid"`
-	Creation           time.Time      `db:"creation"`
-	Expiration         time.Time      `db:"expiration"`
-	State              int            `db:"state"`
-	Packet             []byte         `db:"packet"`
-	SigType            int            `db:"sig_type"`
-	RIssuerKeyId       string         `db:"signer"`
-	RIssuerFingerprint sql.NullString `db:"signer_uuid"`
-	RevSigDigest       sql.NullString `db:"revsig_uuid"`
+	ScopedDigest       string         `db:"uuid"`        // immutable
+	Creation           time.Time      `db:"creation"`    // immutable
+	Expiration         time.Time      `db:"expiration"`  // mutable
+	State              int            `db:"state"`       // mutable
+	Packet             []byte         `db:"packet"`      // immutable
+	SigType            int            `db:"sig_type"`    // immutable
+	RIssuerKeyId       string         `db:"signer"`      // immutable
+	RIssuerFingerprint sql.NullString `db:"signer_uuid"` // mutable
+	RevSigDigest       sql.NullString `db:"revsig_uuid"` // mutable
 	revSig             *Signature     `db:"-"`
 }
 
@@ -281,14 +281,14 @@ func (sig *Signature) Visit(visitor PacketVisitor) (err error) {
 }
 
 type UserId struct {
-	ScopedDigest  string         `db:"uuid"`
-	Creation      time.Time      `db:"creation"`
-	Expiration    time.Time      `db:"expiration"`
-	State         int            `db:"state"`
-	Packet        []byte         `db:"packet"`
-	PubkeyRFP     string         `db:"pubkey_uuid"`
-	RevSigDigest  sql.NullString `db:"revsig_uuid"`
-	Keywords      string         `db:"keywords"`
+	ScopedDigest  string         `db:"uuid"`        // immutable
+	Creation      time.Time      `db:"creation"`    // immutable
+	Expiration    time.Time      `db:"expiration"`  // mutable
+	State         int            `db:"state"`       // mutable
+	Packet        []byte         `db:"packet"`      // immutable
+	PubkeyRFP     string         `db:"pubkey_uuid"` // immutable
+	RevSigDigest  sql.NullString `db:"revsig_uuid"` // mutable
+	Keywords      string         `db:"keywords"`    // immutable
 	revSig        *Signature     `db:"-"`
 	selfSignature *Signature     `db:"-"`
 	signatures    []*Signature   `db:"-"`
@@ -351,13 +351,13 @@ func (uid *UserId) Visit(visitor PacketVisitor) (err error) {
 }
 
 type UserAttribute struct {
-	ScopedDigest  string         `db:"uuid"`
-	Creation      time.Time      `db:"creation"`
-	Expiration    time.Time      `db:"expiration"`
-	State         int            `db:"state"`
-	Packet        []byte         `db:"packet"`
-	PubkeyRFP     string         `db:"pubkey_uuid"`
-	RevSigDigest  sql.NullString `db:"revsig_uuid"`
+	ScopedDigest  string         `db:"uuid"`        // immutable
+	Creation      time.Time      `db:"creation"`    // immutable
+	Expiration    time.Time      `db:"expiration"`  // mutable
+	State         int            `db:"state"`       // mutable
+	Packet        []byte         `db:"packet"`      // immutable
+	PubkeyRFP     string         `db:"pubkey_uuid"` // immutable
+	RevSigDigest  sql.NullString `db:"revsig_uuid"` // mutable
 	revSig        *Signature     `db:"-"`
 	selfSignature *Signature     `db:"-"`
 	signatures    []*Signature   `db:"-"`
@@ -438,15 +438,15 @@ func (uat *UserAttribute) Visit(visitor PacketVisitor) (err error) {
 }
 
 type Subkey struct {
-	RFingerprint string         `db:"uuid"`
-	Creation     time.Time      `db:"creation"`
-	Expiration   time.Time      `db:"expiration"`
-	State        int            `db:"state"`
-	Packet       []byte         `db:"packet"`
-	PubkeyRFP    string         `db:"pubkey_uuid"`
-	RevSigDigest sql.NullString `db:"revsig_uuid"`
-	Algorithm    int            `db:"algorithm"`
-	BitLen       int            `db:"bit_len"`
+	RFingerprint string         `db:"uuid"`        // immutable
+	Creation     time.Time      `db:"creation"`    // immutable
+	Expiration   time.Time      `db:"expiration"`  // mutable
+	State        int            `db:"state"`       // mutable
+	Packet       []byte         `db:"packet"`      // immutable
+	PubkeyRFP    string         `db:"pubkey_uuid"` // immutable
+	RevSigDigest sql.NullString `db:"revsig_uuid"` // mutable
+	Algorithm    int            `db:"algorithm"`   // immutable
+	BitLen       int            `db:"bit_len"`     // immutable
 	signatures   []*Signature   `db:"-"`
 	revSig       *Signature     `db:"-"`
 	bindingSig   *Signature     `db:"-"`
