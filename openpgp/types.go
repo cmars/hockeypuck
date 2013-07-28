@@ -179,7 +179,7 @@ func (pubkey *Pubkey) Visit(visitor PacketVisitor) (err error) {
 type Signature struct {
 	ScopedDigest       string         `db:"uuid"`        // immutable
 	Creation           time.Time      `db:"creation"`    // immutable
-	Expiration         time.Time      `db:"expiration"`  // mutable
+	Expiration         time.Time      `db:"expiration"`  // immutable
 	State              int            `db:"state"`       // mutable
 	Packet             []byte         `db:"packet"`      // immutable
 	SigType            int            `db:"sig_type"`    // immutable
@@ -282,7 +282,7 @@ func (sig *Signature) Visit(visitor PacketVisitor) (err error) {
 
 type UserId struct {
 	ScopedDigest  string         `db:"uuid"`        // immutable
-	Creation      time.Time      `db:"creation"`    // immutable
+	Creation      time.Time      `db:"creation"`    // mutable (derived from latest sigs)
 	Expiration    time.Time      `db:"expiration"`  // mutable
 	State         int            `db:"state"`       // mutable
 	Packet        []byte         `db:"packet"`      // immutable
@@ -352,7 +352,7 @@ func (uid *UserId) Visit(visitor PacketVisitor) (err error) {
 
 type UserAttribute struct {
 	ScopedDigest  string         `db:"uuid"`        // immutable
-	Creation      time.Time      `db:"creation"`    // immutable
+	Creation      time.Time      `db:"creation"`    // mutable (derived from latest sigs)
 	Expiration    time.Time      `db:"expiration"`  // mutable
 	State         int            `db:"state"`       // mutable
 	Packet        []byte         `db:"packet"`      // immutable

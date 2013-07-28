@@ -22,7 +22,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/cmars/sqlx"
+	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	"io"
 	. "launchpad.net/hockeypuck"
@@ -348,7 +348,6 @@ WHERE pksig.pubkey_uuid = $1`, uuid)
 SELECT uuid, creation, expiration, state, packet,
 	pubkey_uuid, revsig_uuid, keywords
 FROM openpgp_uid WHERE pubkey_uuid = $1`, uuid)
-	log.Println("uid select:", uids, err)
 	if err != nil && err != sql.ErrNoRows {
 		return
 	}

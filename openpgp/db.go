@@ -26,9 +26,10 @@ func (w *Worker) CreateTables() (err error) {
 		w.db.Execf(crSql)
 	}
 	for _, alSql := range AlterTableStatements {
-		_, err := w.db.Exec(alSql)
-		// TODO: Ignore duplicate error or check for this ahead of time
-		log.Println(err)
+		if _, err := w.db.Exec(alSql); err != nil {
+			// TODO: Ignore duplicate error or check for this ahead of time
+			log.Println(err)
+		}
 	}
 	return
 }

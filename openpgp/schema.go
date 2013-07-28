@@ -271,6 +271,7 @@ subkey_uuid TEXT NOT NULL,
 sig_uuid TEXT NOT NULL,
 -----------------------------------------------------------------------
 PRIMARY KEY (uuid),
+UNIQUE (subkey_uuid, sig_uuid),
 FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid),
 FOREIGN KEY (subkey_uuid) REFERENCES openpgp_subkey(uuid),
 FOREIGN KEY (sig_uuid) REFERENCES openpgp_sig(uuid)
@@ -290,6 +291,7 @@ uid_uuid TEXT NOT NULL,
 sig_uuid TEXT NOT NULL,
 -----------------------------------------------------------------------
 PRIMARY KEY (uuid),
+UNIQUE (uid_uuid, sig_uuid),
 FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid),
 FOREIGN KEY (uid_uuid) REFERENCES openpgp_uid(uuid),
 FOREIGN KEY (sig_uuid) REFERENCES openpgp_sig(uuid)
@@ -309,6 +311,7 @@ uat_uuid TEXT NOT NULL,
 sig_uuid TEXT NOT NULL,
 -----------------------------------------------------------------------
 PRIMARY KEY (uuid),
+UNIQUE (uat_uuid, sig_uuid),
 FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid),
 FOREIGN KEY (uat_uuid) REFERENCES openpgp_uat(uuid),
 FOREIGN KEY (sig_uuid) REFERENCES openpgp_sig(uuid)
