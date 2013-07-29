@@ -19,7 +19,7 @@ package main
 
 import (
 	"bytes"
-	"code.google.com/p/go.crypto/openpgp/armor"
+	Armor "code.google.com/p/go.crypto/openpgp/armor"
 	"errors"
 	"flag"
 	"fmt"
@@ -42,6 +42,7 @@ const INCREMENTAL_CMD = "incremental"
 var hkpServer *string = flag.String("hkp", "localhost:11371", "HKP server hostname:port")
 var path *string = flag.String("path", "", "PGP keyrings to be loaded")
 var mailAdd *bool = flag.Bool("mail-add", false, "Load key(s) from mailsync message on stdin")
+var armor *bool = flag.Bool("armor", false, "Input is ascii-armored")
 
 func usage() {
 	flag.PrintDefaults()
@@ -103,12 +104,18 @@ func loadAll(path string, hkpserver string) (err error) {
 		} else {
 			log.Println("Loading keys from", keyfile)
 		}
-		block, err := armor.Decode(f)
-		if err != nil {
-			log.Println("Error reading ASCII-armored block from", keyfile, ":", err)
-			continue
+		var r io.Reader
+		if *armor {
+			block, err := Armor.Decode(f)
+			if err != nil {
+				log.Println("Error reading ASCII-armored block from", keyfile, ":", err)
+				continue
+			}
+			r = block.Body
+		} else {
+			r = f
 		}
-		armorChan := parse(block.Body)
+		armorChan := parse(r)
 		for armor := range armorChan {
 			log.Println("got key")
 			loadArmor(hkpserver, string(armor))
