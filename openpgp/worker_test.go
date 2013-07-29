@@ -1,8 +1,9 @@
 package openpgp
 
 import (
+	"code.google.com/p/go.crypto/openpgp/armor"
 	"crypto/sha256"
-	"github.com/jmoiron/sqlx"
+	"github.com/cmars/sqlx"
 	"github.com/stretchr/testify/assert"
 	"launchpad.net/hockeypuck"
 	"testing"
@@ -33,9 +34,37 @@ func MustDestroyWorker(t *testing.T, w *Worker) {
 	db.Close()
 }
 
-func TestRoundTripKey(t *testing.T) {
+func TestValidateKey(t *testing.T) {
+	f := MustInput(t, "tails.asc")
+	defer f.Close()
+	block, err := armor.Decode(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var keys []*Pubkey
+	for keyRead := range ReadValidKeys(block.Body) {
+		keys = append(keys, keyRead.Pubkey)
+	}
+	assert.Equal(t, 1, len(keys))
+	assert.Equal(t, 2, len(keys[0].userIds))
+	for i := 0; i < 2; i++ {
+		assert.NotEmpty(t, keys[0].userIds[i].ScopedDigest)
+	}
+}
+
+func TestRoundTripKeys(t *testing.T) {
+	for _, testfile := range []string{
+		"sksdigest.asc", "alice_signed.asc", "alice_unsigned.asc",
+		"uat.asc", "tails.asc"} {
+		t.Log(testfile)
+		testRoundTripKey(t, testfile)
+	}
+}
+
+func testRoundTripKey(t *testing.T, testfile string) {
 	w := MustCreateWorker(t)
-	key1 := MustInputAscKey(t, "sksdigest.asc")
+	defer MustDestroyWorker(t, w)
+	key1 := MustInputAscKey(t, testfile)
 	kv := ValidateKey(key1)
 	assert.Nil(t, kv.KeyError)
 	err := w.InsertKey(key1)
@@ -44,8 +73,8 @@ func TestRoundTripKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assert.Equal(t, key1.userIds[0].Keywords, "Jenny Ondioline <jennyo@transient.net>")
-	assert.Equal(t, key1.userIds[0].Keywords, key2.userIds[0].Keywords)
+	//assert.Equal(t, key1.userIds[0].Keywords, "Jenny Ondioline <jennyo@transient.net>")
+	//assert.Equal(t, key1.userIds[0].Keywords, key2.userIds[0].Keywords)
 	h1 := SksDigest(key1, sha256.New())
 	h2 := SksDigest(key2, sha256.New())
 	assert.Equal(t, h1, h2)

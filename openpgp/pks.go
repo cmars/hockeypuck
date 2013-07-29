@@ -19,7 +19,7 @@ package openpgp
 
 import (
 	"bytes"
-	"flag"
+	//"flag"
 	"log"
 	"net/smtp"
 	"strings"
@@ -30,35 +30,35 @@ import (
 const MAX_DELAY = 60
 
 // PKS mail from address
-func init() { flag.String("pks.from", "", "PKS sync mail from: address") }
-func (s *OpenpgpSettings) PksFrom() string {
+//func init() { flag.String("pks.from", "", "PKS sync mail from: address") }
+func (s *Settings) PksFrom() string {
 	return s.GetString("pks.from")
 }
 
 // Downstream PKS servers
-func init() { flag.String("pks.to", "", "Send keys to these PKS servers") }
-func (s *OpenpgpSettings) PksTo() string {
+//func init() { flag.String("pks.to", "", "Send keys to these PKS servers") }
+func (s *Settings) PksTo() string {
 	return s.GetString("pks.to")
 }
 
 // SMTP settings
-func init() { flag.String("smtp.host", "", "SMTP Hostname") }
-func (s *OpenpgpSettings) SmtpHost() string {
+//func init() { flag.String("smtp.host", "", "SMTP Hostname") }
+func (s *Settings) SmtpHost() string {
 	return s.GetString("smtp.host")
 }
 
-func init() { flag.String("smtp.id", "", "SMTP Account ID") }
-func (s *OpenpgpSettings) SmtpId() string {
+//func init() { flag.String("smtp.id", "", "SMTP Account ID") }
+func (s *Settings) SmtpId() string {
 	return s.GetString("smtp.id")
 }
 
-func init() { flag.String("smtp.user", "", "SMTP Account Username") }
-func (s *OpenpgpSettings) SmtpUser() string {
+//func init() { flag.String("smtp.user", "", "SMTP Account Username") }
+func (s *Settings) SmtpUser() string {
 	return s.GetString("smtp.user")
 }
 
-func init() { flag.String("smtp.pass", "", "SMTP Account Password") }
-func (s *OpenpgpSettings) SmtpPass() string {
+//func init() { flag.String("smtp.pass", "", "SMTP Account Password") }
+func (s *Settings) SmtpPass() string {
 	return s.GetString("smtp.pass")
 }
 
@@ -105,10 +105,10 @@ type PksSyncBase struct {
 // Initialize from command line switches if fields not set.
 func (ps *PksSyncBase) Init() {
 	if ps.MailFrom == "" {
-		ps.MailFrom = OpenpgpConfig().PksFrom()
+		ps.MailFrom = Config().PksFrom()
 	}
 	if ps.SmtpHost == "" {
-		ps.SmtpHost = OpenpgpConfig().SmtpHost()
+		ps.SmtpHost = Config().SmtpHost()
 	}
 	authHost := ps.SmtpHost
 	if parts := strings.Split(authHost, ":"); len(parts) >= 1 {
@@ -116,11 +116,11 @@ func (ps *PksSyncBase) Init() {
 		authHost = parts[0]
 	}
 	if ps.SmtpAuth == nil {
-		ps.SmtpAuth = smtp.PlainAuth(OpenpgpConfig().SmtpId(),
-			OpenpgpConfig().SmtpUser(), OpenpgpConfig().SmtpPass(), authHost)
+		ps.SmtpAuth = smtp.PlainAuth(Config().SmtpId(),
+			Config().SmtpUser(), Config().SmtpPass(), authHost)
 	}
-	if len(ps.PksAddrs) == 0 && len(OpenpgpConfig().PksTo()) > 0 {
-		ps.PksAddrs = strings.Split(OpenpgpConfig().PksTo(), ",")
+	if len(ps.PksAddrs) == 0 && len(Config().PksTo()) > 0 {
+		ps.PksAddrs = strings.Split(Config().PksTo(), ",")
 	}
 }
 

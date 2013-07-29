@@ -47,19 +47,35 @@ func (s *Settings) GetStringDefault(key string, defaultValue string) string {
 	return defaultValue
 }
 
-func (s *Settings) GetInt(key string) int {
+func (s *Settings) MustGetInt(key string) int {
+	if v, err := s.getInt(key); err == nil {
+		return v
+	} else {
+		panic(err)
+	}
+}
+
+func (s *Settings) GetIntDefault(key string, defaultValue int) int {
+	if v, err := s.getInt(key); err == nil {
+		return v
+	} else {
+		return defaultValue
+	}
+}
+
+func (s *Settings) getInt(key string) (int, error) {
 	switch v := s.Get(key).(type) {
 	case int:
-		return v
+		return v, nil
 	case int64:
-		return int(v)
+		return int(v), nil
 	default:
-		i, err := strconv.Atoi(fmt.Sprintf("%v", v))
-		if err != nil {
-			panic(err)
+		if i, err := strconv.Atoi(fmt.Sprintf("%v", v)); err != nil {
+			return 0, err
+		} else {
+			s.Set(key, i)
+			return i, nil
 		}
-		s.Set(key, i)
-		return i
 	}
 	panic("unreachable")
 }
@@ -119,7 +135,7 @@ func (config *Settings) loadFlagOverrides() {
 	flag.Parse()
 	flag.VisitAll(func(f *flag.Flag) {
 		if config.Get(f.Name) == nil {
-			config.Set(f.Name, f.Value.String())
+			config.Set("hockeypuck." + f.Name, f.Value.String())
 		} else if f.Value.String() != f.DefValue {
 			log.Println("Warning: Config file taking precedence over command-line flag:", f.Name)
 		}

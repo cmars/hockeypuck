@@ -25,9 +25,9 @@ import (
 	"encoding/ascii85"
 	"errors"
 	"fmt"
-	"github.com/jmoiron/sqlx"
+	"github.com/cmars/sqlx"
 	"io"
-	"launchpad.net/hockeypuck"
+	. "launchpad.net/hockeypuck/errors"
 	"launchpad.net/hockeypuck/hkp"
 	"log"
 	"time"
@@ -45,7 +45,7 @@ func (w *Worker) Add(a *hkp.Add) {
 		a.Response() <- &ErrorResponse{err}
 		return
 	}
-	for readKey := range ReadKeys(armorBlock.Body) {
+	for readKey := range ReadValidKeys(armorBlock.Body) {
 		if readKey.Error != nil {
 			readErrors = append(readErrors, readKey)
 		} else {
@@ -111,7 +111,7 @@ func (change *KeyChange) calcType() KeyChangeType {
 func (w *Worker) UpsertKey(key *Pubkey) (change *KeyChange) {
 	change = &KeyChange{Fingerprint: key.Fingerprint(), Type: KeyChangeInvalid}
 	lastKey, err := w.LookupKey(key.Fingerprint())
-	if err == hockeypuck.ErrKeyNotFound {
+	if err == ErrKeyNotFound {
 		change.PreviousMd5 = ""
 		change.PreviousSha256 = ""
 		change.CurrentMd5 = key.Md5
@@ -420,7 +420,7 @@ SELECT $1, $2, $3, $4 WHERE NOT EXISTS (
 		_, err = tx.Execv(`
 INSERT INTO openpgp_uat_sig (uuid, pubkey_uuid, uat_uuid, sig_uuid)
 SELECT $1, $2, $3, $4 WHERE NOT EXISTS (
-	SELECT 1 FROM openpgp_uid_sig
+	SELECT 1 FROM openpgp_uat_sig
 		WHERE pubkey_uuid = $2 AND uat_uuid = $3 AND sig_uuid = $4)`,
 			sigRelationUuid, pubkey.RFingerprint, signed.ScopedDigest,
 			r.ScopedDigest)

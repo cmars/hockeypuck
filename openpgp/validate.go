@@ -20,6 +20,12 @@ package openpgp
 import (
 	"bytes"
 	"code.google.com/p/go.crypto/openpgp/packet"
+	_ "code.google.com/p/go.crypto/ripemd160"
+_ "code.google.com/p/go.crypto/md4"
+	_ "crypto/md5"
+	_ "crypto/sha1"
+	_ "crypto/sha256"
+	_ "crypto/sha512"
 	"database/sql"
 	"encoding/binary"
 	"errors"

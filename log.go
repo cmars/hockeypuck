@@ -37,6 +37,9 @@ func (s *Settings) LogFile() string {
 var logOut io.Writer = nil
 
 func InitLog() {
+	if Config() == nil {
+		SetConfig("")
+	}
 	if Config().LogFile() != "" {
 		// Handle signals for log rotation
 		sigChan := make(chan os.Signal)

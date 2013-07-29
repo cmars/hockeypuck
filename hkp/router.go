@@ -23,6 +23,10 @@ import (
 	"net/http"
 )
 
+func (s *Settings) HttpBind() string {
+	return s.GetStringDefault("hockeypuck.hkp.bind", ":11371")
+}
+
 type Service struct {
 	Requests RequestChan
 }
@@ -37,7 +41,9 @@ type Router struct {
 }
 
 func NewRouter(r *mux.Router) *Router {
-	return &Router{Router: r, Service: NewService()}
+	hkpr := &Router{Router: r, Service: NewService()}
+	hkpr.HandleAll()
+	return hkpr
 }
 
 func (r *Router) HandleAll() {

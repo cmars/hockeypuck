@@ -125,6 +125,22 @@ func (pubkey *Pubkey) updateDigests() {
 	pubkey.Sha256 = SksDigest(pubkey, sha256.New())
 }
 
+func ReadValidKeys(r io.Reader) PubkeyChan {
+	c := make(PubkeyChan)
+	go func() {
+		defer close(c)
+		for keyRead := range ReadKeys(r) {
+			if keyRead.Error == nil {
+				kv := ValidateKey(keyRead.Pubkey)
+				keyRead.Pubkey = kv.Pubkey
+				keyRead.Error = kv.KeyError
+			}
+			c <- keyRead
+		}
+	}()
+	return c
+}
+
 // Read one or more public keys from input.
 func ReadKeys(r io.Reader) PubkeyChan {
 	c := make(PubkeyChan)

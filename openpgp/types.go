@@ -27,7 +27,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
-	"launchpad.net/hockeypuck"
+	"launchpad.net/hockeypuck/util"
 	"log"
 	"time"
 )
@@ -82,15 +82,15 @@ type Pubkey struct {
 }
 
 func (pubkey *Pubkey) Fingerprint() string {
-	return hockeypuck.Reverse(pubkey.RFingerprint)
+	return util.Reverse(pubkey.RFingerprint)
 }
 
 func (pubkey *Pubkey) KeyId() string {
-	return hockeypuck.Reverse(pubkey.RFingerprint[:16])
+	return util.Reverse(pubkey.RFingerprint[:16])
 }
 
 func (pubkey *Pubkey) ShortId() string {
-	return hockeypuck.Reverse(pubkey.RFingerprint[:8])
+	return util.Reverse(pubkey.RFingerprint[:8])
 }
 
 func (pubkey *Pubkey) Serialize(w io.Writer) error {
@@ -136,7 +136,7 @@ func (pubkey *Pubkey) SetPublicKey(pk *packet.PublicKey) error {
 		return ErrInvalidPacketType
 	}
 	pubkey.Packet = buf.Bytes()
-	pubkey.RFingerprint = hockeypuck.Reverse(fingerprint)
+	pubkey.RFingerprint = util.Reverse(fingerprint)
 	pubkey.Creation = pk.CreationTime
 	pubkey.Expiration = NeverExpires
 	pubkey.Algorithm = int(pk.PubKeyAlgo)
@@ -190,11 +190,11 @@ type Signature struct {
 }
 
 func (sig *Signature) IssuerKeyId() string {
-	return hockeypuck.Reverse(sig.RIssuerKeyId)
+	return util.Reverse(sig.RIssuerKeyId)
 }
 
 func (sig *Signature) IssuerFingerprint() string {
-	return hockeypuck.Reverse(sig.RIssuerFingerprint.String)
+	return util.Reverse(sig.RIssuerFingerprint.String)
 }
 
 func toAscii85String(buf []byte) string {
@@ -267,7 +267,7 @@ func (sig *Signature) setPacketV4(s *packet.Signature) error {
 	var issuerKeyId [8]byte
 	binary.BigEndian.PutUint64(issuerKeyId[:], *s.IssuerKeyId)
 	sigKeyId := hex.EncodeToString(issuerKeyId[:])
-	sig.RIssuerKeyId = hockeypuck.Reverse(sigKeyId)
+	sig.RIssuerKeyId = util.Reverse(sigKeyId)
 	// Expiration time
 	if s.SigLifetimeSecs != nil {
 		sig.Expiration = s.CreationTime.Add(
@@ -332,7 +332,7 @@ func (uid *UserId) SetUserId(u *packet.UserId) error {
 	uid.Packet = buf.Bytes()
 	uid.Creation = NeverExpires
 	uid.Expiration = time.Unix(0, 0)
-	uid.Keywords = hockeypuck.CleanUtf8(u.Id)
+	uid.Keywords = util.CleanUtf8(u.Id)
 	return nil
 }
 
@@ -453,15 +453,15 @@ type Subkey struct {
 }
 
 func (subkey *Subkey) Fingerprint() string {
-	return hockeypuck.Reverse(subkey.RFingerprint)
+	return util.Reverse(subkey.RFingerprint)
 }
 
 func (subkey *Subkey) KeyId() string {
-	return hockeypuck.Reverse(subkey.RFingerprint[:16])
+	return util.Reverse(subkey.RFingerprint[:16])
 }
 
 func (subkey *Subkey) ShortId() string {
-	return hockeypuck.Reverse(subkey.RFingerprint[:8])
+	return util.Reverse(subkey.RFingerprint[:8])
 }
 
 func (subkey *Subkey) GetOpaquePacket() (*packet.OpaquePacket, error) {
@@ -502,7 +502,7 @@ func (subkey *Subkey) SetPublicKey(pk *packet.PublicKey) error {
 		return ErrInvalidPacketType
 	}
 	subkey.Packet = buf.Bytes()
-	subkey.RFingerprint = hockeypuck.Reverse(fingerprint)
+	subkey.RFingerprint = util.Reverse(fingerprint)
 	subkey.Creation = pk.CreationTime
 	subkey.Expiration = NeverExpires
 	subkey.Algorithm = int(pk.PubKeyAlgo)
