@@ -1,6 +1,6 @@
 /*
    Hockeypuck - OpenPGP key server
-   Copyright (C) 2012  Casey Marshall
+   Copyright (C) 2012, 2013  Casey Marshall
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU Affero General Public License as published by
@@ -37,25 +37,45 @@ type Settings struct {
 }
 
 func (s *Settings) GetString(key string) string {
+	return s.GetStringDefault(key, "")
+}
+
+func (s *Settings) GetStringDefault(key string, defaultValue string) string {
 	if s, is := s.Get(key).(string); is {
 		return s
 	}
-	return ""
+	return defaultValue
 }
 
-func (s *Settings) GetInt(key string) int {
+func (s *Settings) MustGetInt(key string) int {
+	if v, err := s.getInt(key); err == nil {
+		return v
+	} else {
+		panic(err)
+	}
+}
+
+func (s *Settings) GetIntDefault(key string, defaultValue int) int {
+	if v, err := s.getInt(key); err == nil {
+		return v
+	} else {
+		return defaultValue
+	}
+}
+
+func (s *Settings) getInt(key string) (int, error) {
 	switch v := s.Get(key).(type) {
 	case int:
-		return v
+		return v, nil
 	case int64:
-		return int(v)
+		return int(v), nil
 	default:
-		i, err := strconv.Atoi(fmt.Sprintf("%v", v))
-		if err != nil {
-			panic(err)
+		if i, err := strconv.Atoi(fmt.Sprintf("%v", v)); err != nil {
+			return 0, err
+		} else {
+			s.Set(key, i)
+			return i, nil
 		}
-		s.Set(key, i)
-		return i
 	}
 	panic("unreachable")
 }
@@ -75,6 +95,26 @@ func (s *Settings) GetBool(key string) bool {
 	}
 	s.Set(key, result)
 	return result
+}
+
+func (s *Settings) GetStrings(key string) (value []string) {
+        if strs, is := s.Get(key).([]interface{}); is {
+                for _, v := range strs {
+                        if str, is := v.(string); is {
+                                value = append(value, str)
+                        }
+                }
+        }
+        return
+}
+
+func SetConfig(contents string) (err error) {
+	var tree *toml.TomlTree
+	if tree, err = toml.Load(contents); err != nil {
+		return
+	}
+	config = &Settings{tree}
+	return
 }
 
 func LoadConfig(r io.Reader) (err error) {
@@ -106,7 +146,7 @@ func (config *Settings) loadFlagOverrides() {
 	flag.Parse()
 	flag.VisitAll(func(f *flag.Flag) {
 		if config.Get(f.Name) == nil {
-			config.Set(f.Name, f.Value.String())
+			config.Set("hockeypuck." + f.Name, f.Value.String())
 		} else if f.Value.String() != f.DefValue {
 			log.Println("Warning: Config file taking precedence over command-line flag:", f.Name)
 		}

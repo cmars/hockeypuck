@@ -1,6 +1,6 @@
 /*
    Hockeypuck - OpenPGP key server
-   Copyright (C) 2012  Casey Marshall
+   Copyright (C) 2012, 2013  Casey Marshall
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU Affero General Public License as published by
@@ -19,11 +19,14 @@ package main
 
 import (
 	"bytes"
+	Armor "code.google.com/p/go.crypto/openpgp/armor"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"launchpad.net/hockeypuck"
+	"launchpad.net/hockeypuck/openpgp"
 	"log"
 	"net/http"
 	"net/mail"
@@ -39,6 +42,7 @@ const INCREMENTAL_CMD = "incremental"
 var hkpServer *string = flag.String("hkp", "localhost:11371", "HKP server hostname:port")
 var path *string = flag.String("path", "", "PGP keyrings to be loaded")
 var mailAdd *bool = flag.Bool("mail-add", false, "Load key(s) from mailsync message on stdin")
+var armor *bool = flag.Bool("armor", false, "Input is ascii-armored")
 
 func usage() {
 	flag.PrintDefaults()
@@ -100,7 +104,18 @@ func loadAll(path string, hkpserver string) (err error) {
 		} else {
 			log.Println("Loading keys from", keyfile)
 		}
-		armorChan := parse(f)
+		var r io.Reader
+		if *armor {
+			block, err := Armor.Decode(f)
+			if err != nil {
+				log.Println("Error reading ASCII-armored block from", keyfile, ":", err)
+				continue
+			}
+			r = block.Body
+		} else {
+			r = f
+		}
+		armorChan := parse(r)
 		for armor := range armorChan {
 			log.Println("got key")
 			loadArmor(hkpserver, string(armor))
@@ -119,38 +134,35 @@ func loadArmor(hkpserver string, armor string) (err error) {
 		log.Println("Error posting key:", err)
 	}
 	if resp != nil {
-		resp.Body.Close()
+		defer resp.Body.Close()
+		content, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			log.Println("Error reading response:", err)
+		} else {
+			log.Println(string(content))
+		}
 	}
 	return
 }
 
 func parse(f io.Reader) (armorChan chan []byte) {
 	armorChan = make(chan []byte)
-	keyChan, errChan := hockeypuck.ReadKeys(f)
 	go func() {
-		defer close(armorChan)
-		for {
-			select {
-			case key, moreKeys := <-keyChan:
-				if !moreKeys {
-					return
-				}
-				out := bytes.NewBuffer([]byte{})
-				err := hockeypuck.WriteKey(out, key)
-				if err == nil {
-					armorChan <- out.Bytes()
-				} else {
-					log.Println("Error writing key:", err)
-				}
-			case err, hasErr := <-errChan:
-				if err != nil {
-					log.Println("Error loading key:", err)
-				}
-				if !hasErr {
-					return
-				}
+		for keyRead := range openpgp.ReadKeys(f) {
+			if keyRead.Error != nil {
+				log.Println("Error reading key:", keyRead.Error)
+				continue
 			}
+			kv := openpgp.ValidateKey(keyRead.Pubkey)
+			if kv.KeyError != nil {
+				log.Println("Invalid key fp=", keyRead.Pubkey.RFingerprint, ":", kv.KeyError)
+				continue
+			}
+			out := bytes.NewBuffer(nil)
+			openpgp.WriteArmoredPackets(out, kv.Pubkey)
+			armorChan <- out.Bytes()
 		}
+		close(armorChan)
 	}()
 	return armorChan
 }

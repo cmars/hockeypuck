@@ -1,8 +1,0 @@
-{{define "title"}}Hockeypuck | Updated Public Keys{{end}}
-
-{{define "page_content"}}
-<h2>Updated Public Keys</h2>
-{{range .Fingerprints}}
-<p><a href="/pks/lookup?op=index&search=0x{{.}}">{{.}}</a></p>
-{{end}}
-{{end}}
