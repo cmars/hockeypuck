@@ -67,6 +67,9 @@ func InitTemplates() {
 func newMainTemplate() (*template.Template, error) {
 	files, err := filepath.Glob(
 		filepath.Join(Config().Webroot(), "templates", "*.tmpl"))
+	// For now, default to OpenPGP search page.
+	files = append(files, filepath.Join(
+		Config().Webroot(), "templates", "hkp", "index", "search_form.tmpl"))
 	if err != nil {
 		return nil, err
 	}
