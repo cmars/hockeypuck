@@ -6,7 +6,7 @@ hockeypuck (1.0~a2) precise; urgency=low
   * Makefile:
     - Update binary name.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 31 Jul 2013 00:44:44 -0500
+ -- Casey Marshall <casey.marshall@gmail.com>  Wed, 31 Jul 2013 00:44:44 -0500
 
 hockeypuck (1.0~a1) precise; urgency=low
 
@@ -87,7 +87,7 @@ hockeypuck (1.0~a1) precise; urgency=low
     - Add support for subkey fingerprint query.
     - Use a symlink instead of rsync to satisfy build-deps.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 31 Jul 2013 00:38:10 -0500
+ -- Casey Marshall <casey.marshall@gmail.com>  Wed, 31 Jul 2013 00:38:10 -0500
 
 hockeypuck (0.9) precise; urgency=low
 
