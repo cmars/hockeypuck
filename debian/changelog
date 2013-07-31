@@ -5,8 +5,14 @@ hockeypuck (1.0~a2) precise; urgency=low
   * Replace MongoDB backend with PostgreSQL.
   * Makefile:
     - Update binary name.
+  * debian/install, debian/manpages, instroot/usr/share/hockeypuck-
+    mgo/scripts/fix-keywords.js, instroot/usr/share/man/man1/hockeypuck-
+    mgo.1 => instroot/usr/share/man/man1/hockeypuck.1, === removed
+    directory instroot/usr/share/hockeypuck-mgo, === removed directory
+    instroot/usr/share/hockeypuck-mgo/scripts:
+    - Updating packaging.
 
- -- Casey Marshall <casey.marshall@gmail.com>  Wed, 31 Jul 2013 00:44:44 -0500
+ -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 31 Jul 2013 01:11:17 -0500
 
 hockeypuck (1.0~a1) precise; urgency=low
 
