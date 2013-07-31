@@ -19,6 +19,7 @@ package hkp
 
 import (
 	"code.google.com/p/gorilla/mux"
+	Errors "launchpad.net/hockeypuck/errors"
 	"log"
 	"net/http"
 )
@@ -47,6 +48,7 @@ func NewRouter(r *mux.Router) *Router {
 }
 
 func (r *Router) HandleAll() {
+	r.HandleWebUI()
 	r.HandlePksLookup()
 	r.HandlePksAdd()
 	r.HandlePksHashQuery()
@@ -62,7 +64,9 @@ func (r *Router) Respond(w http.ResponseWriter, req Request) {
 	resp := <-req.Response()
 	err = resp.WriteTo(w)
 	if err != nil {
-		log.Println(err)
+		log.Println(resp, err)
+		// Try to respond with an error
+		http.Error(w, err.Error(), 500)
 	}
 }
 
@@ -91,5 +95,32 @@ func (r *Router) HandlePksHashQuery() {
 	r.HandleFunc("/pks/hashquery",
 		func(w http.ResponseWriter, req *http.Request) {
 			r.Respond(w, &HashQuery{Request: req})
+		})
+}
+
+func (r *Router) HandleWebUI() {
+	r.HandleFunc("/openpgp/add",
+		func(w http.ResponseWriter, req *http.Request) {
+			var err error
+			if SearchFormTemplate == nil {
+				err = Errors.ErrTemplatePathNotFound
+			} else {
+				err = AddFormTemplate.ExecuteTemplate(w, "layout", nil)
+			}
+			if err != nil {
+				http.Error(w, err.Error(), 500)
+			}
+		})
+	r.HandleFunc("/openpgp/lookup",
+		func(w http.ResponseWriter, req *http.Request) {
+			var err error
+			if SearchFormTemplate == nil {
+				err = Errors.ErrTemplatePathNotFound
+			} else {
+				err = SearchFormTemplate.ExecuteTemplate(w, "layout", nil)
+			}
+			if err != nil {
+				http.Error(w, err.Error(), 500)
+			}
 		})
 }

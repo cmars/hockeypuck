@@ -35,7 +35,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 type ErrorResponse struct {
@@ -79,15 +78,18 @@ func (r *AddResponse) Error() error {
 }
 
 func (r *AddResponse) WriteTo(w http.ResponseWriter) (err error) {
-	err = AddResultTemplate.ExecuteTemplate(w, "top", r)
+	if hkp.AddResultTemplate == nil {
+		return ErrTemplatePathNotFound
+	}
+	err = hkp.AddResultTemplate.ExecuteTemplate(w, "top", r)
 	if err != nil {
 		return
 	}
-	err = AddResultTemplate.ExecuteTemplate(w, "page_content", r)
+	err = hkp.AddResultTemplate.ExecuteTemplate(w, "page_content", r)
 	if err != nil {
 		return
 	}
-	err = AddResultTemplate.ExecuteTemplate(w, "bottom", r)
+	err = hkp.AddResultTemplate.ExecuteTemplate(w, "bottom", r)
 	return
 }
 
@@ -115,8 +117,11 @@ func (r *IndexResponse) WriteTo(w http.ResponseWriter) error {
 		w.Header().Add("Content-Type", "text/plain")
 		fmt.Fprintf(w, "info:1:%d\n", len(r.Keys))
 	} else {
+		if hkp.PksIndexTemplate == nil {
+			return ErrTemplatePathNotFound
+		}
 		w.Header().Add("Content-Type", "text/html")
-		err = PksIndexTemplate.ExecuteTemplate(w, "index-top", r.Lookup.Search)
+		err = hkp.PksIndexTemplate.ExecuteTemplate(w, "index-top", r.Lookup.Search)
 	}
 	if writeFn == nil {
 		err = ErrUnsupportedOperation
@@ -132,14 +137,14 @@ func (r *IndexResponse) WriteTo(w http.ResponseWriter) error {
 		w.Write([]byte(err.Error()))
 	}
 	if r.Lookup.Option&hkp.MachineReadable == 0 {
-		PksIndexTemplate.ExecuteTemplate(w, "index-bottom", nil)
+		hkp.PksIndexTemplate.ExecuteTemplate(w, "index-bottom", nil)
 	}
 	return err
 }
 
 type StatsResponse struct {
 	Lookup *hkp.Lookup
-	Stats  *ServerStats
+	Stats  *HkpStats
 	Err    error
 }
 
@@ -156,7 +161,7 @@ func (r *StatsResponse) WriteTo(w http.ResponseWriter) (err error) {
 		// JSON is the only supported machine readable stats format.
 		w.Header().Add("Content-Type", "application/json")
 		msg := map[string]interface{}{
-			"timestamp": time.Unix(0, r.Stats.Timestamp).Unix(),
+			"timestamp": r.Stats.Timestamp,
 			"hostname":  r.Stats.Hostname,
 			"http_port": r.Stats.Port,
 			"numkeys":   r.Stats.TotalKeys,
@@ -166,7 +171,7 @@ func (r *StatsResponse) WriteTo(w http.ResponseWriter) (err error) {
 		hours := []interface{}{}
 		for _, hour := range r.Stats.KeyStatsHourly {
 			hours = append(hours, map[string]interface{}{
-				"time":         time.Unix(0, hour.Timestamp).Unix(),
+				"time":         hour.Timestamp.Unix(),
 				"new_keys":     hour.Created,
 				"updated_keys": hour.Modified})
 		}
@@ -175,7 +180,7 @@ func (r *StatsResponse) WriteTo(w http.ResponseWriter) (err error) {
 		days := []interface{}{}
 		for _, day := range r.Stats.KeyStatsDaily {
 			days = append(days, map[string]interface{}{
-				"time":         time.Unix(0, day.Timestamp).Unix(),
+				"time":         day.Timestamp.Unix(),
 				"new_keys":     day.Created,
 				"updated_keys": day.Modified})
 		}
@@ -194,7 +199,10 @@ func (r *StatsResponse) WriteTo(w http.ResponseWriter) (err error) {
 		}
 	} else {
 		w.Header().Add("Content-Type", "text/html")
-		err = StatsTemplate.ExecuteTemplate(w, "layout", r.Stats)
+		if hkp.StatsTemplate == nil {
+			return ErrTemplatePathNotFound
+		}
+		err = hkp.StatsTemplate.ExecuteTemplate(w, "layout", r.Stats)
 	}
 	return
 }
@@ -231,10 +239,13 @@ func encodeToDataUri(data []byte) string {
 }
 
 func (i *IndexResponse) WriteIndex(w io.Writer, key *Pubkey) error {
+	if hkp.PksIndexTemplate == nil {
+		return ErrTemplatePathNotFound
+	}
 	key.Visit(func(rec PacketRecord) error {
 		switch r := rec.(type) {
 		case *Pubkey:
-			PksIndexTemplate.ExecuteTemplate(w, "pub-index-row", struct {
+			hkp.PksIndexTemplate.ExecuteTemplate(w, "pub-index-row", struct {
 				KeyLength    int
 				AlgoCode     string
 				Fingerprint  string
@@ -249,7 +260,7 @@ func (i *IndexResponse) WriteIndex(w io.Writer, key *Pubkey) error {
 				strings.ToUpper(r.Fingerprint()[32:40]),
 				r.Creation.Format("2006-01-02")})
 		case *UserId:
-			PksIndexTemplate.ExecuteTemplate(w, "uid-index-row", struct {
+			hkp.PksIndexTemplate.ExecuteTemplate(w, "uid-index-row", struct {
 				Fingerprint string
 				Id          string
 			}{
@@ -257,7 +268,7 @@ func (i *IndexResponse) WriteIndex(w io.Writer, key *Pubkey) error {
 				r.Keywords})
 		case *Signature:
 			if i.Verbose {
-				PksIndexTemplate.ExecuteTemplate(w, "sig-vindex-row", struct {
+				hkp.PksIndexTemplate.ExecuteTemplate(w, "sig-vindex-row", struct {
 					LongId  string
 					ShortId string
 					SigTime string
@@ -269,7 +280,7 @@ func (i *IndexResponse) WriteIndex(w io.Writer, key *Pubkey) error {
 			}
 		case *UserAttribute:
 			for _, imageData := range r.GetJpegData() {
-				PksIndexTemplate.ExecuteTemplate(w, "uattr-image-row", struct {
+				hkp.PksIndexTemplate.ExecuteTemplate(w, "uattr-image-row", struct {
 					ImageData string
 				}{
 					encodeToDataUri(imageData.Bytes())})

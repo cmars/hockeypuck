@@ -118,15 +118,18 @@ UNIQUE (sha256)
 
 const AlterTable_PubkeyPrimaryUid = `
 ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_primary_uid_fk
-FOREIGN KEY (primary_uid) REFERENCES openpgp_uid(uuid)`
+FOREIGN KEY (primary_uid) REFERENCES openpgp_uid(uuid)
+DEFERRABLE INITIALLY DEFERRED`
 
 const AlterTable_PubkeyPrimaryUat = `
 ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_primary_uat_fk
-FOREIGN KEY (primary_uat) REFERENCES openpgp_uat(uuid)`
+FOREIGN KEY (primary_uat) REFERENCES openpgp_uat(uuid)
+DEFERRABLE INITIALLY DEFERRED`
 
 const AlterTable_PubkeyRevSig = `
 ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_revsig_fk
-FOREIGN KEY (revsig_uuid) REFERENCES openpgp_sig(uuid)`
+FOREIGN KEY (revsig_uuid) REFERENCES openpgp_sig(uuid)
+DEFERRABLE INITIALLY DEFERRED`
 
 const CreateTable_OpenpgpSig = `
 CREATE TABLE IF NOT EXISTS openpgp_sig (
@@ -136,7 +139,7 @@ uuid TEXT NOT NULL,
 -- Signature creation timestamp
 creation TIMESTAMP WITH TIME ZONE NOT NULL,
 -- Signature expiration timestamp (if any)
-expiration TIMESTAMP WITH TIME ZONE,
+expiration TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT '9999-12-31 23:59:59+00',
 -- State flag for this record
 state INTEGER NOT NULL DEFAULT 0,
 -- Binary contents of the OpenPGP packet
@@ -152,8 +155,10 @@ signer_uuid TEXT,
 revsig_uuid TEXT,
 -----------------------------------------------------------------------
 PRIMARY KEY (uuid),
-FOREIGN KEY (signer_uuid) REFERENCES openpgp_pubkey(uuid),
+FOREIGN KEY (signer_uuid) REFERENCES openpgp_pubkey(uuid)
+	DEFERRABLE INITIALLY DEFERRED,
 FOREIGN KEY (revsig_uuid) REFERENCES openpgp_sig(uuid)
+	DEFERRABLE INITIALLY DEFERRED
 )
 `
 
@@ -169,8 +174,10 @@ sig_uuid TEXT NOT NULL,
 -----------------------------------------------------------------------
 PRIMARY KEY (uuid),
 UNIQUE (pubkey_uuid, sig_uuid),
-FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid),
+FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid)
+	DEFERRABLE INITIALLY DEFERRED,
 FOREIGN KEY (sig_uuid) REFERENCES openpgp_sig(uuid)
+	DEFERRABLE INITIALLY DEFERRED
 )
 `
 
@@ -182,7 +189,7 @@ uuid TEXT NOT NULL,
 -- Public key creation timestamp
 creation TIMESTAMP WITH TIME ZONE NOT NULL,
 -- Public key expiration timestamp (if any)
-expiration TIMESTAMP WITH TIME ZONE,
+expiration TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT '9999-12-31 23:59:59+00',
 -- State flag for this record
 state INTEGER NOT NULL DEFAULT 0,
 -- Binary contents of the OpenPGP packet
@@ -199,8 +206,10 @@ algorithm INTEGER NOT NULL,
 bit_len INTEGER NOT NULL,
 -----------------------------------------------------------------------
 PRIMARY KEY (uuid),
-FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid),
+FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid)
+	DEFERRABLE INITIALLY DEFERRED,
 FOREIGN KEY (revsig_uuid) REFERENCES openpgp_sig(uuid)
+	DEFERRABLE INITIALLY DEFERRED
 )
 `
 
@@ -212,7 +221,7 @@ uuid TEXT NOT NULL,
 -- User ID creation timestamp
 creation TIMESTAMP WITH TIME ZONE NOT NULL,
 -- User ID expiration timestamp (if any)
-expiration TIMESTAMP WITH TIME ZONE,
+expiration TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT '9999-12-31 23:59:59+00',
 -- State flag for this record
 state INTEGER NOT NULL DEFAULT 0,
 -- Binary contents of the OpenPGP packet
@@ -229,8 +238,10 @@ keywords TEXT NOT NULL,
 keywords_fulltext tsvector NOT NULL,
 -----------------------------------------------------------------------
 PRIMARY KEY (uuid),
-FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid),
+FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid)
+	DEFERRABLE INITIALLY DEFERRED,
 FOREIGN KEY (revsig_uuid) REFERENCES openpgp_sig(uuid)
+	DEFERRABLE INITIALLY DEFERRED
 )
 `
 
@@ -242,7 +253,7 @@ uuid TEXT NOT NULL,
 -- User attribute creation timestamp
 creation TIMESTAMP WITH TIME ZONE NOT NULL,
 -- User attribute expiration timestamp (if any)
-expiration TIMESTAMP WITH TIME ZONE,
+expiration TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT '9999-12-31 23:59:59+00',
 -- State flag for this record
 state INTEGER NOT NULL DEFAULT 0,
 -- Binary contents of the OpenPGP packet
@@ -254,8 +265,10 @@ pubkey_uuid TEXT,
 revsig_uuid TEXT,
 -----------------------------------------------------------------------
 PRIMARY KEY (uuid),
-FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid),
+FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid)
+	DEFERRABLE INITIALLY DEFERRED,
 FOREIGN KEY (revsig_uuid) REFERENCES openpgp_sig(uuid)
+	DEFERRABLE INITIALLY DEFERRED
 )
 `
 const CreateTable_OpenpgpSubkeySig = `
@@ -272,9 +285,12 @@ sig_uuid TEXT NOT NULL,
 -----------------------------------------------------------------------
 PRIMARY KEY (uuid),
 UNIQUE (subkey_uuid, sig_uuid),
-FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid),
-FOREIGN KEY (subkey_uuid) REFERENCES openpgp_subkey(uuid),
+FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid)
+	DEFERRABLE INITIALLY DEFERRED,
+FOREIGN KEY (subkey_uuid) REFERENCES openpgp_subkey(uuid)
+	DEFERRABLE INITIALLY DEFERRED,
 FOREIGN KEY (sig_uuid) REFERENCES openpgp_sig(uuid)
+	DEFERRABLE INITIALLY DEFERRED
 )
 `
 
@@ -292,9 +308,12 @@ sig_uuid TEXT NOT NULL,
 -----------------------------------------------------------------------
 PRIMARY KEY (uuid),
 UNIQUE (uid_uuid, sig_uuid),
-FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid),
-FOREIGN KEY (uid_uuid) REFERENCES openpgp_uid(uuid),
+FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid)
+	DEFERRABLE INITIALLY DEFERRED,
+FOREIGN KEY (uid_uuid) REFERENCES openpgp_uid(uuid)
+	DEFERRABLE INITIALLY DEFERRED,
 FOREIGN KEY (sig_uuid) REFERENCES openpgp_sig(uuid)
+	DEFERRABLE INITIALLY DEFERRED
 )
 `
 
@@ -312,9 +331,12 @@ sig_uuid TEXT NOT NULL,
 -----------------------------------------------------------------------
 PRIMARY KEY (uuid),
 UNIQUE (uat_uuid, sig_uuid),
-FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid),
-FOREIGN KEY (uat_uuid) REFERENCES openpgp_uat(uuid),
+FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid)
+	DEFERRABLE INITIALLY DEFERRED,
+FOREIGN KEY (uat_uuid) REFERENCES openpgp_uat(uuid)
+	DEFERRABLE INITIALLY DEFERRED,
 FOREIGN KEY (sig_uuid) REFERENCES openpgp_sig(uuid)
+	DEFERRABLE INITIALLY DEFERRED
 )
 `
 
@@ -324,6 +346,28 @@ SELECT COUNT (relname) as n FROM pg_class WHERE relname = 'openpgp_uid_fulltext_
 
 const CreateIndex_OpenpgpUidFulltext = `
 CREATE INDEX openpgp_uid_fulltext_idx ON openpgp_uid USING gin(keywords_fulltext)
+`
+
+const CreateTable_PksStat = `
+CREATE TABLE IF NOT EXISTS pks_status (
+-----------------------------------------------------------------------
+-- Scope- and content-unique identifer
+uuid TEXT NOT NULL,
+-- User ID creation timestamp
+creation TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+-- User ID expiration timestamp (if any)
+expiration TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT '9999-12-31 23:59:59+00',
+-- State flag for this record. Nonzero disables.
+state INTEGER NOT NULL DEFAULT 0,
+-----------------------------------------------------------------------
+-- Email address receiving PKS mail from this host
+email_addr TEXT NOT NULL,
+-- Last sync timestamp for this address
+last_sync TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+-----------------------------------------------------------------------
+PRIMARY KEY (uuid),
+UNIQUE (email_addr)
+)
 `
 
 var CreateTableStatements []string = []string{

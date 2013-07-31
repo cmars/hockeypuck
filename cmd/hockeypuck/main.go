@@ -61,9 +61,12 @@ func main() {
 		os.Exit(0)
 	}
 	InitLog()
-	openpgp.InitTemplates(openpgp.Config().Webroot())
+	InitTemplates()
+	hkp.InitTemplates()
 	// Create an HTTP request router
 	r := mux.NewRouter()
+	// Add common static routes
+	NewStaticRouter(r)
 	// Create HKP router
 	hkpRouter := hkp.NewRouter(r)
 	// Launch the OpenPGP workers

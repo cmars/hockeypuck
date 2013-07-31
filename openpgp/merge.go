@@ -63,68 +63,39 @@ func MapKey(pubkey *Pubkey) PacketRecordMap {
 // Conflicting packets and unmatched parents are ignored.
 func MergeKey(dstKey *Pubkey, srcKey *Pubkey) {
 	dstObjects := MapKey(dstKey)
-	// Track src parent object in src traverse
-	var srcPubkey *Pubkey
-	var srcUserId *UserId
+	// Track source signable object in source traversal
 	var srcSignable PacketRecord
-	var srcParent PacketRecord
-	var hasParent bool
 	srcKey.Visit(func(srcObj PacketRecord) error {
-		switch srcObj.(type) {
-		case *Pubkey:
-			srcPubkey = srcObj.(*Pubkey)
-			srcSignable = srcObj
-			srcParent = nil
-			hasParent = false
-		case *UserId:
-			srcUserId = srcObj.(*UserId)
-			srcSignable = srcObj
-			srcParent = srcPubkey
-			hasParent = true
-		case *UserAttribute:
-			srcSignable = srcObj
-			srcParent = srcUserId
-			hasParent = true
-		case *Subkey:
-			srcSignable = srcObj
-			srcParent = srcPubkey
-			hasParent = true
-		case *Signature:
-			srcParent = srcSignable
-			hasParent = true
-		}
-		// match in dst tree
+		// Match in destination tree
 		_, dstHas := dstObjects[GetUuid(srcObj)]
 		if dstHas {
 			return nil // We already have it
 		}
-		if hasParent {
-			dstParentObj, dstHasParent := dstObjects[GetUuid(srcParent)]
-			if dstHasParent {
-				appendPacketRecord(dstParentObj, srcObj)
+		switch so := srcObj.(type) {
+		case *Pubkey:
+			srcSignable = so
+		case *Subkey:
+			srcSignable = so
+			if !dstHas {
+				dstKey.subkeys = append(dstKey.subkeys, so)
+			}
+		case *UserId:
+			srcSignable = so
+			if !dstHas {
+				dstKey.userIds = append(dstKey.userIds, so)
+			}
+		case *UserAttribute:
+			srcSignable = so
+			if !dstHas {
+				dstKey.userAttributes = append(dstKey.userAttributes, so)
+			}
+		case *Signature:
+			dstParent, dstHasParent := dstObjects[GetUuid(srcSignable)]
+			dstSignable, isSignable := dstParent.(Signable)
+			if !dstHas && dstHasParent && isSignable {
+				dstSignable.AddSignature(so)
 			}
 		}
 		return nil
 	})
-}
-
-// Append a src packet under dst parent.
-func appendPacketRecord(dstParent PacketRecord, srcObj PacketRecord) {
-	if sig, isa := srcObj.(*Signature); isa {
-		if dst, isa := dstParent.(Signable); isa {
-			dst.AddSignature(sig)
-		}
-	} else if uid, isa := srcObj.(*UserId); isa {
-		if pubkey, isa := dstParent.(*Pubkey); isa {
-			pubkey.userIds = append(pubkey.userIds, uid)
-		}
-	} else if uattr, isa := srcObj.(*UserAttribute); isa {
-		if pubkey, isa := dstParent.(*Pubkey); isa {
-			pubkey.userAttributes = append(pubkey.userAttributes, uattr)
-		}
-	} else if subkey, isa := srcObj.(*Subkey); isa {
-		if pubkey, isa := dstParent.(*Pubkey); isa {
-			pubkey.subkeys = append(pubkey.subkeys, subkey)
-		}
-	}
 }
