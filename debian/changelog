@@ -11,8 +11,11 @@ hockeypuck (1.0~a2) precise; urgency=low
     directory instroot/usr/share/hockeypuck-mgo, === removed directory
     instroot/usr/share/hockeypuck-mgo/scripts:
     - Updating packaging.
+  * debian/control, scripts/crossbuild.sh:
+    - Update golang build dependency version (1.1).
+    - Fix crossbuild script target binary.
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 31 Jul 2013 01:11:17 -0500
+ -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 31 Jul 2013 18:07:03 -0500
 
 hockeypuck (1.0~a1) precise; urgency=low
 
