@@ -37,8 +37,8 @@ func (s *Settings) PksFrom() string {
 
 // Downstream PKS servers
 //func init() { flag.String("pks.to", "", "Send keys to these PKS servers") }
-func (s *Settings) PksTo() string {
-	return s.GetString("pks.to")
+func (s *Settings) PksTo() []string {
+	return s.GetStrings("pks.to")
 }
 
 // SMTP settings
@@ -90,24 +90,16 @@ type PksSync struct {
 // Initialize from command line switches if fields not set.
 func NewPksSync(w *Worker) (*PksSync, error) {
 	ps := &PksSync{Worker: w, stop: make(chan interface{})}
-	if ps.MailFrom == "" {
-		ps.MailFrom = Config().PksFrom()
-	}
-	if ps.SmtpHost == "" {
-		ps.SmtpHost = Config().SmtpHost()
-	}
+	ps.MailFrom = Config().PksFrom()
+	ps.SmtpHost = Config().SmtpHost()
 	authHost := ps.SmtpHost
 	if parts := strings.Split(authHost, ":"); len(parts) >= 1 {
 		// Strip off the port, use only the hostname for auth
 		authHost = parts[0]
 	}
-	if ps.SmtpAuth == nil {
-		ps.SmtpAuth = smtp.PlainAuth(Config().SmtpId(),
-			Config().SmtpUser(), Config().SmtpPass(), authHost)
-	}
-	if len(ps.PksAddrs) == 0 && len(Config().PksTo()) > 0 {
-		ps.PksAddrs = strings.Split(Config().PksTo(), ",")
-	}
+	ps.SmtpAuth = smtp.PlainAuth(Config().SmtpId(),
+		Config().SmtpUser(), Config().SmtpPass(), authHost)
+	ps.PksAddrs = Config().PksTo()
 	err := ps.initStatus()
 	return ps, err
 }
