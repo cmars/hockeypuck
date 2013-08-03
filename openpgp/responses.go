@@ -28,6 +28,8 @@ import (
 	"github.com/qpliu/qrencode-go/qrencode"
 	"image/png"
 	"io"
+	"log"
+	"launchpad.net/hockeypuck"
 	. "launchpad.net/hockeypuck/errors"
 	"launchpad.net/hockeypuck/hkp"
 	"net/http"

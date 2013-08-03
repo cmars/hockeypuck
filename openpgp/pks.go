@@ -44,7 +44,7 @@ func (s *Settings) PksTo() []string {
 // SMTP settings
 //func init() { flag.String("smtp.host", "", "SMTP Hostname") }
 func (s *Settings) SmtpHost() string {
-	return s.GetDefaultString("hockeypuck.openpgp.pks.smtp.host", "localhost:25")
+	return s.GetStringDefault("hockeypuck.openpgp.pks.smtp.host", "localhost:25")
 }
 
 //func init() { flag.String("smtp.id", "", "SMTP Account ID") }

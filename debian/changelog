@@ -31,6 +31,8 @@ hockeypuck (1.0~a2) precise; urgency=low
     - Better explanation of UID/UAT creation timestamp.
     - Reorder alter table statements to allow for easier copy/paste into
       psql.
+  * openpgp/pks.go, openpgp/responses.go:
+    - Fix compile errors.
 
  -- Casey Marshall <casey.marshall@gmail.com>  Sat, 03 Aug 2013 10:15:11 -0500
 
