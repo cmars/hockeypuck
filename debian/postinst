@@ -46,8 +46,11 @@ if [ "$2" = "" ]; then
 fi
 
 # Create hockeypuck postgres user & database
-su - postgres -c "createuser -d hockeypuck" || true
-su - hockeypuck -c "createdb hkp" || true
+uid=`getent passwd postgres | cut -d ":" -f 3`
+if test "$uid" && test -x "/usr/bin/createdb" && test -x "/usr/bin/createuser"; then
+	su - postgres -c "createuser --no-superuser --no-createrole -d hockeypuck" || true
+	su - hockeypuck -c "createdb hkp" || true
+fi
 
 # Update the version file
 VERSION=$(gzip -dc /usr/share/doc/hockeypuck/changelog.gz | head -1 | sed 's/.*(//;s/).*//;')

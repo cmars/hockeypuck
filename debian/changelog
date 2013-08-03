@@ -33,6 +33,10 @@ hockeypuck (1.0~a2) precise; urgency=low
       psql.
   * openpgp/pks.go, openpgp/responses.go:
     - Fix compile errors.
+  * debian/postinst:
+    - Check for existing of postgresql before attempting to create
+      role and database. Create role without superuser or role-creating
+      privs.
 
  -- Casey Marshall <casey.marshall@gmail.com>  Sat, 03 Aug 2013 10:15:11 -0500
 
