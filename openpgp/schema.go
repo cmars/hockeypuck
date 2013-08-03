@@ -116,21 +116,6 @@ UNIQUE (sha256)
 )
 `
 
-const AlterTable_PubkeyPrimaryUid = `
-ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_primary_uid_fk
-FOREIGN KEY (primary_uid) REFERENCES openpgp_uid(uuid)
-DEFERRABLE INITIALLY DEFERRED`
-
-const AlterTable_PubkeyPrimaryUat = `
-ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_primary_uat_fk
-FOREIGN KEY (primary_uat) REFERENCES openpgp_uat(uuid)
-DEFERRABLE INITIALLY DEFERRED`
-
-const AlterTable_PubkeyRevSig = `
-ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_revsig_fk
-FOREIGN KEY (revsig_uuid) REFERENCES openpgp_sig(uuid)
-DEFERRABLE INITIALLY DEFERRED`
-
 const CreateTable_OpenpgpSig = `
 CREATE TABLE IF NOT EXISTS openpgp_sig (
 -----------------------------------------------------------------------
@@ -218,7 +203,8 @@ CREATE TABLE IF NOT EXISTS openpgp_uid (
 -----------------------------------------------------------------------
 -- Scope- and content-unique identifer
 uuid TEXT NOT NULL,
--- User ID creation timestamp
+-- User ID creation timestamp. Since this packet lacks a field
+-- for creation time, the earliest self-signature timestamp is used here.
 creation TIMESTAMP WITH TIME ZONE NOT NULL,
 -- User ID expiration timestamp (if any)
 expiration TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT '9999-12-31 23:59:59+00',
@@ -250,7 +236,8 @@ CREATE TABLE IF NOT EXISTS openpgp_uat (
 -----------------------------------------------------------------------
 -- Scope- and content-unique identifer
 uuid TEXT NOT NULL,
--- User attribute creation timestamp
+-- User attribute creation timestamp. Since this packet lacks a field
+-- for creation time, the earliest self-signature timestamp is used here.
 creation TIMESTAMP WITH TIME ZONE NOT NULL,
 -- User attribute expiration timestamp (if any)
 expiration TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT '9999-12-31 23:59:59+00',
@@ -340,14 +327,6 @@ FOREIGN KEY (sig_uuid) REFERENCES openpgp_sig(uuid)
 )
 `
 
-const IndexExists_OpenpgpUidFulltext = `
-SELECT COUNT (relname) as n FROM pg_class WHERE relname = 'openpgp_uid_fulltext_idx'
-`
-
-const CreateIndex_OpenpgpUidFulltext = `
-CREATE INDEX openpgp_uid_fulltext_idx ON openpgp_uid USING gin(keywords_fulltext)
-`
-
 const CreateTable_PksStat = `
 CREATE TABLE IF NOT EXISTS pks_status (
 -----------------------------------------------------------------------
@@ -368,6 +347,29 @@ last_sync TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
 PRIMARY KEY (uuid),
 UNIQUE (email_addr)
 )
+`
+
+const AlterTable_PubkeyPrimaryUid = `
+ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_primary_uid_fk
+FOREIGN KEY (primary_uid) REFERENCES openpgp_uid(uuid)
+DEFERRABLE INITIALLY DEFERRED`
+
+const AlterTable_PubkeyPrimaryUat = `
+ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_primary_uat_fk
+FOREIGN KEY (primary_uat) REFERENCES openpgp_uat(uuid)
+DEFERRABLE INITIALLY DEFERRED`
+
+const AlterTable_PubkeyRevSig = `
+ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_revsig_fk
+FOREIGN KEY (revsig_uuid) REFERENCES openpgp_sig(uuid)
+DEFERRABLE INITIALLY DEFERRED`
+
+const IndexExists_OpenpgpUidFulltext = `
+SELECT COUNT (relname) as n FROM pg_class WHERE relname = 'openpgp_uid_fulltext_idx'
+`
+
+const CreateIndex_OpenpgpUidFulltext = `
+CREATE INDEX openpgp_uid_fulltext_idx ON openpgp_uid USING gin(keywords_fulltext)
 `
 
 var CreateTableStatements []string = []string{

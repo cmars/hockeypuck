@@ -27,6 +27,10 @@ hockeypuck (1.0~a2) precise; urgency=low
     - Update example configuration to new TOML format.
     - Fix go-toml keys in some settings.
     - go fmt
+  * openpgp/schema.go:
+    - Better explanation of UID/UAT creation timestamp.
+    - Reorder alter table statements to allow for easier copy/paste into
+      psql.
 
  -- Casey Marshall <casey.marshall@gmail.com>  Sat, 03 Aug 2013 10:15:11 -0500
 
