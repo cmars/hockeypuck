@@ -14,8 +14,21 @@ hockeypuck (1.0~a2) precise; urgency=low
   * debian/control, scripts/crossbuild.sh:
     - Update golang build dependency version (1.1).
     - Fix crossbuild script target binary.
+  * config.go, debian/copyright, debian/postinst, debian/upstart,
+    hkp/router.go, instroot/etc/hockeypuck/hockeypuck.conf,
+    instroot/usr/share/man/man1/hockeypuck.1, log.go, openpgp/pks.go,
+    openpgp/responses.go, README, router.go:
+    - Update installation, summary doc.
+    - Some manpage fixes.
+    - Update debian copyright attribution for third-party Go packages.
+    - Create postgres user and database in debian postinst.
+    - Update upstart to trigger off postgresql, fix binary name.
+    - Do not leak error messages on HTTP error status codes. Be terse.
+    - Update example configuration to new TOML format.
+    - Fix go-toml keys in some settings.
+    - go fmt
 
- -- Casey Marshall <casey.marshall@gazzang.com>  Wed, 31 Jul 2013 18:07:03 -0500
+ -- Casey Marshall <casey.marshall@gmail.com>  Sat, 03 Aug 2013 10:15:11 -0500
 
 hockeypuck (1.0~a1) precise; urgency=low
 

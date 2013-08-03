@@ -1,15 +1,17 @@
-.TH hockeypuck-mgo 1 "07 Sep 2012" hockeypuck "hockeypuck"
+.TH hockeypuck 1 "07 Sep 2012" hockeypuck "hockeypuck"
 .SH NAME
-\fBhockeypuck-mgo\fP \- OpenPGP Key Server with MongoDB storage
+\fBhockeypuck\fP \- OpenPGP Key Server
 
 .SH SYNOPSIS
-\fBhockeypuck-mgo\fP [-http=<IP>:PORT] [-workers=NUM_WORKERS]
+\fBhockeypuck\fP [-http=<IP>:PORT] [-workers=NUM_WORKERS]
                [-www-root=WWW_PATH] [-logfile=LOG_PATH]
                [-server=MONGODB_IP:PORT]
 
 .SH DESCRIPTION
 
-\fBhockeypuck-mgo\fP is an OpenPGP keyserver that stores its public key information in MongoDB.
+\fBhockeypuck\fP is an public keyserver that implements HKP
+(HTTP Keyserver Protocol) for serving OpenPGP public keys. Other
+PKIs may be supported in upcoming releases.
 
 Options and modes for running hockeypuck are described below:
 
@@ -48,7 +50,7 @@ Bugs, known issues and features in development are tracked at \fBhttps://bugs.la
 The OpenPGP HTTP Keyserver Protocol (HKP)
 http://ietfreport.isoc.org/all-ids/draft-shaw-openpgp-hkp-00.txt
 .TP
-\fBgpg\fP(1), \fBmongo\fP(1), \fIhttps://launchpad.net/hockeypuck\fP
+\fBgpg\fP(1), \fIhttps://launchpad.net/hockeypuck\fP
 .PD
 
 .SH AUTHOR

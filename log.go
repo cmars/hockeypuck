@@ -31,7 +31,7 @@ const CONFIG_PATH = "/etc/hockeypuck/hockeypuck.conf"
 // Logfile option
 func init() { flag.String("logfile", "", "Logfile (default stderr)") }
 func (s *Settings) LogFile() string {
-	return s.GetString("logfile")
+	return s.GetString("hockeypuck.logfile")
 }
 
 var logOut io.Writer = nil

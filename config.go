@@ -98,14 +98,14 @@ func (s *Settings) GetBool(key string) bool {
 }
 
 func (s *Settings) GetStrings(key string) (value []string) {
-        if strs, is := s.Get(key).([]interface{}); is {
-                for _, v := range strs {
-                        if str, is := v.(string); is {
-                                value = append(value, str)
-                        }
-                }
-        }
-        return
+	if strs, is := s.Get(key).([]interface{}); is {
+		for _, v := range strs {
+			if str, is := v.(string); is {
+				value = append(value, str)
+			}
+		}
+	}
+	return
 }
 
 func SetConfig(contents string) (err error) {
@@ -146,7 +146,7 @@ func (config *Settings) loadFlagOverrides() {
 	flag.Parse()
 	flag.VisitAll(func(f *flag.Flag) {
 		if config.Get(f.Name) == nil {
-			config.Set("hockeypuck." + f.Name, f.Value.String())
+			config.Set("hockeypuck."+f.Name, f.Value.String())
 		} else if f.Value.String() != f.DefValue {
 			log.Println("Warning: Config file taking precedence over command-line flag:", f.Name)
 		}

@@ -32,34 +32,34 @@ const MAX_DELAY = 60
 // PKS mail from address
 //func init() { flag.String("pks.from", "", "PKS sync mail from: address") }
 func (s *Settings) PksFrom() string {
-	return s.GetString("pks.from")
+	return s.GetString("hockeypuck.openpgp.pks.from")
 }
 
 // Downstream PKS servers
 //func init() { flag.String("pks.to", "", "Send keys to these PKS servers") }
 func (s *Settings) PksTo() []string {
-	return s.GetStrings("pks.to")
+	return s.GetStrings("hockeypuck.openpgp.pks.to")
 }
 
 // SMTP settings
 //func init() { flag.String("smtp.host", "", "SMTP Hostname") }
 func (s *Settings) SmtpHost() string {
-	return s.GetString("smtp.host")
+	return s.GetDefaultString("hockeypuck.openpgp.pks.smtp.host", "localhost:25")
 }
 
 //func init() { flag.String("smtp.id", "", "SMTP Account ID") }
 func (s *Settings) SmtpId() string {
-	return s.GetString("smtp.id")
+	return s.GetString("hockeypuck.openpgp.pks.smtp.id")
 }
 
 //func init() { flag.String("smtp.user", "", "SMTP Account Username") }
 func (s *Settings) SmtpUser() string {
-	return s.GetString("smtp.user")
+	return s.GetString("hockeypuck.openpgp.pks.smtp.user")
 }
 
 //func init() { flag.String("smtp.pass", "", "SMTP Account Password") }
 func (s *Settings) SmtpPass() string {
-	return s.GetString("smtp.pass")
+	return s.GetString("hockeypuck.openpgp.pks.smtp.pass")
 }
 
 // Status of PKS synchronization

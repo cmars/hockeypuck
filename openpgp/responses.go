@@ -47,7 +47,8 @@ func (r *ErrorResponse) Error() error {
 
 func (r *ErrorResponse) WriteTo(w http.ResponseWriter) error {
 	w.WriteHeader(400)
-	w.Write([]byte(r.Err.Error()))
+	fmt.Fprintf(w, hockeypuck.BAD_REQUEST)
+	log.Println(r.Err)
 	return r.Err
 }
 
@@ -134,7 +135,7 @@ func (r *IndexResponse) WriteTo(w http.ResponseWriter) error {
 			err = writeFn(w, key)
 		}
 	} else {
-		w.Write([]byte(err.Error()))
+		return err
 	}
 	if r.Lookup.Option&hkp.MachineReadable == 0 {
 		hkp.PksIndexTemplate.ExecuteTemplate(w, "index-bottom", nil)
@@ -380,6 +381,7 @@ func (e *NotImplementedResponse) Error() error {
 	return errors.New("Not implemented")
 }
 
-func (e *NotImplementedResponse) WriteTo(_ http.ResponseWriter) error {
+func (e *NotImplementedResponse) WriteTo(w http.ResponseWriter) error {
+	w.WriteHeader(400)
 	return e.Error()
 }

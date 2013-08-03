@@ -31,6 +31,9 @@ import (
 const INSTALL_WEBROOT = "/var/lib/hockeypuck/www"
 const HOCKEYPUCK_PKG = "launchpad.net/hockeypuck" // Any way to introspect?
 
+const APPLICATION_ERROR = "APPLICATION ERROR"
+const BAD_REQUEST = "BAD REQUEST"
+
 // Path to Hockeypuck's installed www directory
 func init() {
 	flag.String("webroot", "",
@@ -102,7 +105,8 @@ func (sr *StaticRouter) HandleMainPage() {
 				err = MainTemplate.ExecuteTemplate(resp, "layout", nil)
 			}
 			if err != nil {
-				http.Error(resp, err.Error(), 500)
+				log.Println(err)
+				http.Error(resp, APPLICATION_ERROR, 500)
 			}
 		})
 }

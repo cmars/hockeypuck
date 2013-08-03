@@ -19,6 +19,7 @@ package hkp
 
 import (
 	"code.google.com/p/gorilla/mux"
+	"launchpad.net/hockeypuck"
 	Errors "launchpad.net/hockeypuck/errors"
 	"log"
 	"net/http"
@@ -66,7 +67,7 @@ func (r *Router) Respond(w http.ResponseWriter, req Request) {
 	if err != nil {
 		log.Println(resp, err)
 		// Try to respond with an error
-		http.Error(w, err.Error(), 500)
+		http.Error(w, hockeypuck.APPLICATION_ERROR, 500)
 	}
 }
 
@@ -108,7 +109,7 @@ func (r *Router) HandleWebUI() {
 				err = AddFormTemplate.ExecuteTemplate(w, "layout", nil)
 			}
 			if err != nil {
-				http.Error(w, err.Error(), 500)
+				http.Error(w, hockeypuck.APPLICATION_ERROR, 500)
 			}
 		})
 	r.HandleFunc("/openpgp/lookup",
@@ -120,7 +121,7 @@ func (r *Router) HandleWebUI() {
 				err = SearchFormTemplate.ExecuteTemplate(w, "layout", nil)
 			}
 			if err != nil {
-				http.Error(w, err.Error(), 500)
+				http.Error(w, hockeypuck.APPLICATION_ERROR, 500)
 			}
 		})
 }

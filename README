@@ -25,45 +25,44 @@ Ubuntu Package
 
 $ apt-add-repository ppa:hockeypuck/ppa
 $ apt-get update
-$ apt-get install hockeypuck-mgo
+$ apt-get install hockeypuck
 
 The Ubuntu package features nice perks like an Upstart job,
 static media file installation and man pages.
 
 Developers
 ==========
-Install Go.
-
-$ apt-get install golang
-
-or follow instructions at http://golang.org to set up a development environment.
+Go 1.1 required. Follow instructions at http://golang.org to set up a development environment.
 
 Libraries
 ---------
 
-$ go get launchpad.net/hockeypuck
-$ go get launchpad.net/hockeypuck/mgo  # For the MongoDB worker
-$ go get launchpad.net/hockeypuck/pq   # For the Postgres worker
+$ go get launchpad.net/hockeypuck           # Common routes & configuration
+$ go get launchpad.net/hockeypuck/hkp       # HKP protocol & endpoints
+$ go get launchpad.net/hockeypuck/openpgp   # OpenPGP key processing & services
 
 Programs
 --------
 
-# Install the MongoDB Hockeypuck server binary to $GOPATH/bin
-$ go install launchpad.net/hockeypuck/cmd/hockeypuck-mgo
+# Install the Hockeypuck keyserver to $GOPATH/bin
+$ go get launchpad.net/hockeypuck/cmd/hockeypuck
+$ go install launchpad.net/hockeypuck/cmd/hockeypuck
 
-# Install the loader
+# Install the HKP loader
+$ go get launchpad.net/hockeypuck/cmd/hockeypuck-load
 $ go install launchpad.net/hockeypuck/cmd/hockeypuck-load
 
 Building Debian Packages
 ========================
 
-The Debian build creates a $GOPATH in this top-level directory, gopath/,
+Debian package build creates a $GOPATH in this top-level directory, gopath/,
 which will freeze all the third-party sources used by Hockeypuck.
 
 This enables the creation of a standalone source package.
 
-Perhaps someday if Go libraries are Debian-packaged, we can migrate this
-to depend on system-installed libraries?
+Build dependencies require Ubuntu 13.10 (which provides Go 1.1). Ubuntu 12.04
+and later distributations can build with Go 1.1 backports installed from
+ppa:james-page/golang-backports.
 
 Binary Build
 ------------
@@ -78,3 +77,11 @@ Source Build
 2. make debsrc
 3. dput <wherever>/ppa ../hockeypuck_x.y.z_source.changes
 
+Cross-compile Build
+-------------------
+
+1. Set up a Go 1.1 cross-compilation environment. See
+   http://dave.cheney.net/2013/07/09/an-introduction-to-cross-compilation-with-go-1-1.
+2. $ scripts/crossbuild.sh
+
+This will create distribution tarballs in dist/.
