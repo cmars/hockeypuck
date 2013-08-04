@@ -40,6 +40,12 @@ hockeypuck (1.0~a2) precise; urgency=low
   * cmd/hockeypuck/main.go, cmd/hockeypuck/test.conf, hkp/requests.go,
     openpgp/add.go, openpgp/recon.go, openpgp/worker.go:
     - Add SKS peer.
+  * hkp/requests.go, openpgp/io.go, openpgp/pks.go, openpgp/recon.go,
+    openpgp/worker.go:
+    - Fix HashQuery request, create response chan.
+    - Fix SKS recon peer to handle new/updated keys appropriately.
+    - Do not error out on fetchKeys for invalid keys. Instead return
+      ReadKeyResult and let the caller decide how to deal.
 
  -- Casey Marshall <casey.marshall@gmail.com>  Sat, 03 Aug 2013 10:15:11 -0500
 

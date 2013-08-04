@@ -143,24 +143,18 @@ func (w *Worker) HashQuery(hq *hkp.HashQuery) {
 		}
 		uuids = append(uuids, uuid)
 	}
-	keys, err := w.fetchKeys(uuids)
-	if err != nil {
-		hq.Response() <- &ErrorResponse{err}
-	}
-	hq.Response() <- &HashQueryResponse{keys}
+	keys := w.fetchKeys(uuids)
+	hq.Response() <- &HashQueryResponse{keys.GoodKeys()}
 }
 
 func (w *Worker) LookupKeys(search string, limit int) (keys []*Pubkey, err error) {
 	uuids, err := w.lookupPubkeyUuids(search, limit)
-	return w.fetchKeys(uuids)
+	return w.fetchKeys(uuids).GoodKeys(), err
 }
 
 func (w *Worker) LookupHash(digest string) ([]*Pubkey, error) {
 	uuid, err := w.lookupMd5Uuid(digest)
-	if err != nil {
-		return nil, err
-	}
-	return w.fetchKeys([]string{uuid})
+	return w.fetchKeys([]string{uuid}).GoodKeys(), err
 }
 
 func (w *Worker) WriteKeys(wr io.Writer, uuids []string) error {
@@ -308,24 +302,20 @@ func (w *Worker) LookupKey(keyid string) (pubkey *Pubkey, err error) {
 	if len(uuids) > 1 {
 		return nil, ErrKeyIdCollision
 	}
-	keys, err := w.fetchKeys(uuids)
-	if err != nil {
-		return nil, err
-	}
+	keys := w.fetchKeys(uuids).GoodKeys()
 	if len(keys) != 1 {
 		return nil, ErrInternalKeyInvalid
 	}
 	return keys[0], nil
 }
 
-func (w *Worker) fetchKeys(uuids []string) (keys []*Pubkey, err error) {
-	var key *Pubkey
+func (w *Worker) fetchKeys(uuids []string) (results ReadKeyResults) {
 	for _, uuid := range uuids {
-		key, err = w.fetchKey(uuid)
+		key, err := w.fetchKey(uuid)
+		results = append(results, &ReadKeyResult{Pubkey: key, Error: err})
 		if err != nil {
-			return
+			log.Println("Fetch key:", err)
 		}
-		keys = append(keys, key)
 	}
 	return
 }

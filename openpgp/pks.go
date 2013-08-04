@@ -141,7 +141,7 @@ func (ps *PksSync) SendKeys(status *PksStatus) (err error) {
 		return
 	}
 	var keys []*Pubkey
-	keys, err = ps.fetchKeys(uuids)
+	keys = ps.fetchKeys(uuids).GoodKeys()
 	if err != nil {
 		return
 	}

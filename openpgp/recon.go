@@ -71,19 +71,20 @@ func (r *SksPeer) HandleKeyUpdates() {
 				log.Println("bad digest:", keyChange.CurrentMd5)
 				continue
 			}
-			digestZp := conflux.Zb(conflux.P_SKS, conflux.ReverseBytes(digest))
-			if keyChange.PreviousMd5 == "" {
+			if keyChange.PreviousMd5 != keyChange.CurrentMd5 {
+				digestZp := conflux.Zb(conflux.P_SKS, conflux.ReverseBytes(digest))
 				log.Println("Prefix tree: Insert:", digestZp)
 				r.Peer.Insert(digestZp)
-			} else if keyChange.PreviousMd5 != "" && keyChange.PreviousMd5 != keyChange.CurrentMd5 {
-				prevDigest, err := hex.DecodeString(keyChange.PreviousMd5)
-				if err != nil {
-					log.Println("bad digest:", keyChange.PreviousMd5)
-					continue
+				if keyChange.PreviousMd5 != "" {
+					prevDigest, err := hex.DecodeString(keyChange.PreviousMd5)
+					if err != nil {
+						log.Println("bad digest:", keyChange.PreviousMd5)
+						continue
+					}
+					prevDigestZp := conflux.Zb(conflux.P_SKS, conflux.ReverseBytes(prevDigest))
+					log.Println("Prefix Tree: Remove:", prevDigestZp)
+					r.Peer.Remove(prevDigestZp)
 				}
-				prevDigestZp := conflux.Zb(conflux.P_SKS, conflux.ReverseBytes(prevDigest))
-				log.Println("Prefix Tree: Remove:", prevDigestZp)
-				r.Peer.Remove(prevDigestZp)
 			}
 		}
 	}

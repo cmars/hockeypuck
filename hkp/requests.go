@@ -201,6 +201,7 @@ func (hq *HashQuery) Parse() error {
 	if hq.Method != "POST" {
 		return ErrorInvalidMethod(hq.Method)
 	}
+	hq.responseChan = make(ResponseChan)
 	// Parse hashquery POST data
 	defer hq.Body.Close()
 	n, err := recon.ReadInt(hq.Body)

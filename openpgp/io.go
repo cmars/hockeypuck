@@ -114,6 +114,17 @@ type ReadKeyResult struct {
 	Error error
 }
 
+type ReadKeyResults []*ReadKeyResult
+
+func (r ReadKeyResults) GoodKeys() (result []*Pubkey) {
+	for _, rkr := range r {
+		if rkr.Error == nil {
+			result = append(result, rkr.Pubkey)
+		}
+	}
+	return
+}
+
 type PubkeyChan chan *ReadKeyResult
 
 func ErrReadKeys(msg string) *ReadKeyResult {
