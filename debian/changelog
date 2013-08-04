@@ -1,3 +1,12 @@
+hockeypuck (1.0~b1) UNRELEASED; urgency=low
+
+  [ Casey Marshall ]
+  * Opening 1.0~b1 development and a bottle of
+    Maker's. SKS reconciliation now working in
+    the small. Cheers!
+
+ -- Casey Marshall <casey.marshall@gmail.com>  Sat, 03 Aug 2013 10:15:11 -0500
+
 hockeypuck (1.0~a2) precise; urgency=low
 
   [ Casey Marshall ]
