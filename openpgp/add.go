@@ -25,7 +25,7 @@ import (
 	"encoding/ascii85"
 	"errors"
 	"fmt"
-	"github.com/cmars/sqlx"
+	"github.com/jmoiron/sqlx"
 	"io"
 	. "launchpad.net/hockeypuck/errors"
 	"launchpad.net/hockeypuck/hkp"
@@ -50,10 +50,27 @@ func (w *Worker) Add(a *hkp.Add) {
 			readErrors = append(readErrors, readKey)
 		} else {
 			change := w.UpsertKey(readKey.Pubkey)
+			w.notifyChange(change)
 			changes = append(changes, change)
 		}
 	}
 	a.Response() <- &AddResponse{Changes: changes, Errors: readErrors}
+}
+
+var ErrSubKeyChanges error = errors.New("Worker already has a key change subscriber")
+
+func (w *Worker) SubKeyChanges(keyChanges KeyChangeChan) error {
+	if w.keyChanges != nil {
+		return ErrSubKeyChanges
+	}
+	w.keyChanges = keyChanges
+	return nil
+}
+
+func (w *Worker) notifyChange(keyChange *KeyChange) {
+	if w.keyChanges != nil {
+		w.keyChanges <- keyChange
+	}
 }
 
 type KeyChangeType int

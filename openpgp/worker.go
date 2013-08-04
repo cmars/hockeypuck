@@ -23,7 +23,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/cmars/sqlx"
+	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	"io"
 	. "launchpad.net/hockeypuck/errors"
@@ -38,7 +38,7 @@ const LOOKUP_RESULT_LIMIT = 100
 
 type Worker struct {
 	Service    *hkp.Service
-	KeyChanges KeyChangeChan
+	keyChanges KeyChangeChan
 	db         *sqlx.DB
 }
 
@@ -57,14 +57,10 @@ func (s *Settings) DSN() string {
 		"dbname=hkp host=/var/run/postgresql sslmode=disable")
 }
 
-func StartWorker(service *hkp.Service) error {
-	w := &Worker{Service: service}
-	err := w.initDb()
-	if err != nil {
-		return err
-	}
-	go w.Run()
-	return nil
+func NewWorker(service *hkp.Service) (w *Worker, err error) {
+	w = &Worker{Service: service}
+	err = w.initDb()
+	return
 }
 
 func (w *Worker) Run() {

@@ -69,13 +69,19 @@ func main() {
 	NewStaticRouter(r)
 	// Create HKP router
 	hkpRouter := hkp.NewRouter(r)
+	// Create SKS peer
+	sksPeer, err := openpgp.NewSksPeer(hkpRouter.Service)
 	// Launch the OpenPGP workers
 	for i := 0; i < openpgp.Config().NumWorkers(); i++ {
-		err = openpgp.StartWorker(hkpRouter.Service)
+		w, err := openpgp.NewWorker(hkpRouter.Service)
 		if err != nil {
 			die(err)
 		}
+		// Subscribe SKS to worker's key changes
+		w.SubKeyChanges(sksPeer.KeyChanges)
+		go w.Run()
 	}
+	sksPeer.Start()
 	// Bind the router to the built-in webserver root
 	http.Handle("/", r)
 	// Start the built-in webserver, run forever

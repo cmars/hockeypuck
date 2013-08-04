@@ -78,6 +78,10 @@ type Lookup struct {
 	responseChan ResponseChan
 }
 
+func NewLookup() *Lookup {
+	return &Lookup{responseChan: make(ResponseChan)}
+}
+
 // Get the response channel that a worker processing
 // a lookup request will use to send the response back to the
 // web server.
@@ -149,6 +153,10 @@ type Add struct {
 	responseChan ResponseChan
 }
 
+func NewAdd() *Add {
+	return &Add{responseChan: make(ResponseChan)}
+}
+
 // Get the response channel for sending a response to an add request.
 func (a *Add) Response() ResponseChan {
 	return a.responseChan
@@ -178,6 +186,10 @@ type HashQuery struct {
 	*http.Request
 	Digests      []string
 	responseChan ResponseChan
+}
+
+func NewHashQuery() *HashQuery {
+	return &HashQuery{responseChan: make(ResponseChan)}
 }
 
 func (hq *HashQuery) Response() ResponseChan {
