@@ -74,7 +74,11 @@ func (r *SksPeer) HandleKeyUpdates() {
 			if keyChange.PreviousMd5 != keyChange.CurrentMd5 {
 				digestZp := conflux.Zb(conflux.P_SKS, conflux.ReverseBytes(digest))
 				log.Println("Prefix tree: Insert:", digestZp)
-				r.Peer.Insert(digestZp)
+				err := r.Peer.Insert(digestZp)
+				if err != nil {
+					log.Println(err)
+					continue
+				}
 				if keyChange.PreviousMd5 != "" {
 					prevDigest, err := hex.DecodeString(keyChange.PreviousMd5)
 					if err != nil {
@@ -83,7 +87,11 @@ func (r *SksPeer) HandleKeyUpdates() {
 					}
 					prevDigestZp := conflux.Zb(conflux.P_SKS, conflux.ReverseBytes(prevDigest))
 					log.Println("Prefix Tree: Remove:", prevDigestZp)
-					r.Peer.Remove(prevDigestZp)
+					err = r.Peer.Remove(prevDigestZp)
+					if err != nil {
+						log.Println(err)
+						continue
+					}
 				}
 			}
 		}
@@ -168,8 +176,6 @@ func (r *SksPeer) requestRecovery(host string, httpPort int, recoverList []*conf
 			resp := <-add.Response()
 			if resp.Error() != nil {
 				log.Println("Error adding key:", resp.Error())
-			} else {
-				log.Println("Key added")
 			}
 		}()
 		r.Service.Requests <- add

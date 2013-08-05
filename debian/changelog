@@ -4,6 +4,13 @@ hockeypuck (1.0~b1) UNRELEASED; urgency=low
   * Opening 1.0~b1 development and a bottle of
     Maker's. SKS reconciliation now working in
     the small. Cheers!
+  * cmd/sks-hash/main.go, instroot/etc/hockeypuck/hockeypuck.conf,
+    openpgp/recon.go, openpgp/responses.go, openpgp/validate.go,
+    openpgp/worker.go:
+    - Add commented-out SKS recon configuration stanza.
+    - Check errors in prefix tree insert/remove.
+    - Fixed Worker.LookupKey to correctly return error.
+    - go fmt
 
  -- Casey Marshall <casey.marshall@gmail.com>  Sat, 03 Aug 2013 10:15:11 -0500
 

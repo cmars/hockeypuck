@@ -302,11 +302,7 @@ func (w *Worker) LookupKey(keyid string) (pubkey *Pubkey, err error) {
 	if len(uuids) > 1 {
 		return nil, ErrKeyIdCollision
 	}
-	keys := w.fetchKeys(uuids).GoodKeys()
-	if len(keys) != 1 {
-		return nil, ErrInternalKeyInvalid
-	}
-	return keys[0], nil
+	return w.fetchKey(uuids[0])
 }
 
 func (w *Worker) fetchKeys(uuids []string) (results ReadKeyResults) {

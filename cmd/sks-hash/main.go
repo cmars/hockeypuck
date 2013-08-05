@@ -17,8 +17,8 @@
 package main
 
 import (
-	"launchpad.net/hockeypuck"
 	"fmt"
+	"launchpad.net/hockeypuck"
 	"os"
 )
 
@@ -27,7 +27,7 @@ func main() {
 LOOP:
 	for {
 		select {
-		case key, ok :=<-keys:
+		case key, ok := <-keys:
 			if key != nil {
 				digest := hockeypuck.SksDigest(key)
 				fmt.Println(digest)
@@ -35,7 +35,7 @@ LOOP:
 			if !ok {
 				break LOOP
 			}
-		case err, ok :=<-errors:
+		case err, ok := <-errors:
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "%v", err)
 			}
