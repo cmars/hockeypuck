@@ -43,6 +43,8 @@ var hkpServer *string = flag.String("hkp", "localhost:11371", "HKP server hostna
 var path *string = flag.String("path", "", "PGP keyrings to be loaded")
 var mailAdd *bool = flag.Bool("mail-add", false, "Load key(s) from mailsync message on stdin")
 var armor *bool = flag.Bool("armor", false, "Input is ascii-armored")
+var drop *int = flag.Int("drop", 0, "Drop this many keys from beginning of stream")
+var take *int = flag.Int("take", (1 << 31), "Take this many keys to load")
 
 func usage() {
 	flag.PrintDefaults()
@@ -117,7 +119,6 @@ func loadAll(path string, hkpserver string) (err error) {
 		}
 		armorChan := parse(r)
 		for armor := range armorChan {
-			log.Println("got key")
 			loadArmor(hkpserver, string(armor))
 		}
 		f.Close()
@@ -135,11 +136,9 @@ func loadArmor(hkpserver string, armor string) (err error) {
 	}
 	if resp != nil {
 		defer resp.Body.Close()
-		content, err := ioutil.ReadAll(resp.Body)
+		_, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			log.Println("Error reading response:", err)
-		} else {
-			log.Println(string(content))
 		}
 	}
 	return
@@ -148,7 +147,12 @@ func loadArmor(hkpserver string, armor string) (err error) {
 func parse(f io.Reader) (armorChan chan []byte) {
 	armorChan = make(chan []byte)
 	go func() {
+		defer close(armorChan)
+		keynum := 0
 		for keyRead := range openpgp.ReadKeys(f) {
+			if (keynum - *drop) > *take {
+				return
+			}
 			if keyRead.Error != nil {
 				log.Println("Error reading key:", keyRead.Error)
 				continue
@@ -158,11 +162,16 @@ func parse(f io.Reader) (armorChan chan []byte) {
 				log.Println("Invalid key fp=", keyRead.Pubkey.RFingerprint, ":", kv.KeyError)
 				continue
 			}
+			// Good key, increment count
+			keynum++
+			if keynum < *drop {
+				continue
+			}
+			log.Println("Load valid key fp=", keyRead.Pubkey.Fingerprint())
 			out := bytes.NewBuffer(nil)
 			openpgp.WriteArmoredPackets(out, kv.Pubkey)
 			armorChan <- out.Bytes()
 		}
-		close(armorChan)
 	}()
 	return armorChan
 }

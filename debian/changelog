@@ -11,6 +11,9 @@ hockeypuck (1.0~b1) UNRELEASED; urgency=low
     - Check errors in prefix tree insert/remove.
     - Fixed Worker.LookupKey to correctly return error.
     - go fmt
+  * cmd/hockeypuck-load/main.go:
+    - Add -drop and -take command line arguments to help
+      create synchronization test cases.
 
  -- Casey Marshall <casey.marshall@gmail.com>  Sat, 03 Aug 2013 10:15:11 -0500
 
