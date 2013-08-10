@@ -15,6 +15,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+// pktdump is a debugging tool that dumps raw OpenPGP packet data.
 package main
 
 import (

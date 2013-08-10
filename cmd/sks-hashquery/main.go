@@ -14,6 +14,9 @@
    You should have received a copy of the GNU Affero General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+// sks-hashquery is a debugging tool that tests the /pks/hashquery
+// bulk key download used by SKS.
 package main
 
 import (
@@ -22,7 +25,7 @@ import (
 	"fmt"
 	"github.com/cmars/conflux/recon"
 	"io/ioutil"
-	"launchpad.net/hockeypuck"
+	"launchpad.net/hockeypuck/openpgp"
 	"log"
 	"net/http"
 	"os"
@@ -86,24 +89,7 @@ func main() {
 }
 
 func printKey(keyData []byte) {
-	keys, errors := hockeypuck.ReadValidKeys(bytes.NewBuffer(keyData))
-LOOP:
-	for {
-		select {
-		case key, ok := <-keys:
-			if key != nil {
-				log.Println(key)
-			}
-			if !ok {
-				break LOOP
-			}
-		case err, ok := <-errors:
-			if err != nil {
-				log.Println(err)
-			}
-			if !ok {
-				break LOOP
-			}
-		}
+	for readKey := range openpgp.ReadValidKeys(bytes.NewBuffer(keyData)) {
+		log.Println(readKey)
 	}
 }

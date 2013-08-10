@@ -15,6 +15,8 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+// hockeypuck-load parses OpenPGP public key material
+// and POSTs to an OpenPGP keyserver (/pks/add).
 package main
 
 import (

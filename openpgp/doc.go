@@ -14,26 +14,8 @@
    You should have received a copy of the GNU Affero General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-package main
 
-import (
-	"database/sql"
-	_ "github.com/lib/pq"
-	"launchpad.net/hockeypuck/sql/pq"
-)
-
-func main() {
-	db, err := sql.Open("postgres", "dbname=hkp host=/var/run/postgresql sslmode=disable")
-	if err != nil {
-		panic(err)
-	}
-	pqdb := &pq.PqDb{db}
-	err = pqdb.CreateTables()
-	if err != nil {
-		panic(err)
-	}
-	err = pqdb.CreateIndexes()
-	if err != nil {
-		panic(err)
-	}
-}
+// Package openpgp parses, merges, validates, stores and searches OpenPGP public key material in RFC4880 format. Workers handle HKP requests, process their contents, and produce HKP responses.
+//
+// Public key material is stored in a PostgreSQL database.
+package openpgp

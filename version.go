@@ -14,6 +14,7 @@
    You should have received a copy of the GNU Affero General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+
 package hockeypuck
 
 import (
@@ -22,8 +23,10 @@ import (
 	"strings"
 )
 
+// System installed path to Hockeypuck version file.
 const VERSION_PATH = "/etc/hockeypuck/version"
 
+// Default version string.
 var Version string = "DEVELOPMENT"
 
 func init() {

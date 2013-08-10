@@ -14,16 +14,24 @@
    You should have received a copy of the GNU Affero General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+// Package hkp implements the OpenPGP HTTP Keyserver Protocol, as
+// described in the Internet-Draft, http://ietfreport.isoc.org/idref/draft-shaw-openpgp-hkp/.
+//
+// hkp provides a few extensions to the protocol, such as
+// SKS hashquery, server statistics and JSON-formatted search results.
 package hkp
 
 import (
 	"launchpad.net/hockeypuck"
 )
 
+// Settings stores HKP-specific settings for Hockeypuck.
 type Settings struct {
 	*hockeypuck.Settings
 }
 
+// Config returns the global HKP-specific Settings for Hockeypuck.
 func Config() *Settings {
 	return &Settings{hockeypuck.Config()}
 }

@@ -26,24 +26,33 @@ import (
 	"strings"
 )
 
+// ErrorMissingParam constructs an informative error when a
+// required parameter was missing from a request.
 func ErrorMissingParam(param string) error {
 	return errors.New(fmt.Sprintf("Missing required parameter: %s", param))
 }
 
+// ErrorMissingParam constructs an informative error when an
+// unknown operation was requested.
 func ErrorUnknownOperation(op string) error {
 	return errors.New(fmt.Sprintf("Unknown operation: %s", op))
 }
 
+// ErrorMissingParam constructs an informative error when an
+// invalid HTTP method was requested for the given HKP endpoint.
 func ErrorInvalidMethod(method string) error {
 	return errors.New(fmt.Sprintf("Invalid HTTP method: %s", method))
 }
 
+// Request defines an interface for all HKP web requests.
 type Request interface {
+	// Response returns a channel through which to send the response.
 	Response() ResponseChan
+	// Parse interprets the URL and POST parameters according to the HKP draft specification.
 	Parse() error
 }
 
-// Operation type in request.
+// Operation enumerates the supported HKP operations (op parameter) in the request.
 type Operation int
 
 // Hockeypuck supported Operations.

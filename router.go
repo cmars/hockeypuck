@@ -14,6 +14,7 @@
    You should have received a copy of the GNU Affero General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+
 package hockeypuck
 
 import (
@@ -28,10 +29,16 @@ import (
 	"path/filepath"
 )
 
+// System installed location for static files.
 const INSTALL_WEBROOT = "/var/lib/hockeypuck/www"
+
+// Hockeypuck package, used to locate static files when running from source.
 const HOCKEYPUCK_PKG = "launchpad.net/hockeypuck" // Any way to introspect?
 
+// Response for HTTP 500.
 const APPLICATION_ERROR = "APPLICATION ERROR"
+
+// Response for HTTP 400.
 const BAD_REQUEST = "BAD REQUEST"
 
 // Path to Hockeypuck's installed www directory
@@ -56,24 +63,29 @@ func (s *Settings) Webroot() string {
 	return webroot
 }
 
+// StaticRouter configures HTTP request handlers for static media files.
 type StaticRouter struct {
 	*mux.Router
 }
 
+// NewStaticRouter constructs a new static media router and sets up all request handlers.
 func NewStaticRouter(r *mux.Router) *StaticRouter {
 	sr := &StaticRouter{Router: r}
 	sr.HandleAll()
 	return sr
 }
 
+// HandleAll sets up all request handlers for Hockeypuck static media.
 func (sr *StaticRouter) HandleAll() {
 	sr.HandleMainPage()
 	sr.HandleFonts()
 	sr.HandleCss()
 }
 
+// MainTemplate is the base template for all Hockeypuck HTML pages.
 var MainTemplate *template.Template
 
+// InitTemplates parses all templates used in this package.
 func InitTemplates() {
 	var err error
 	MainTemplate, err = newMainTemplate()
@@ -95,6 +107,7 @@ func newMainTemplate() (*template.Template, error) {
 	return template.ParseFiles(files...)
 }
 
+// HandleMainPage handles the "/" top-level request.
 func (sr *StaticRouter) HandleMainPage() {
 	sr.HandleFunc("/",
 		func(resp http.ResponseWriter, req *http.Request) {
@@ -111,6 +124,7 @@ func (sr *StaticRouter) HandleMainPage() {
 		})
 }
 
+// HandleFonts handles all embedded web font requests.
 func (sr *StaticRouter) HandleFonts() {
 	sr.HandleFunc(`/fonts/{filename:.*\.ttf}`,
 		func(resp http.ResponseWriter, req *http.Request) {
@@ -124,6 +138,7 @@ func (sr *StaticRouter) HandleFonts() {
 		})
 }
 
+// HandleCSS handles all embedded cascading style sheet (CSS) requests.
 func (sr *StaticRouter) HandleCss() {
 	sr.HandleFunc(`/css/{filename:.*\.css}`,
 		func(resp http.ResponseWriter, req *http.Request) {

@@ -14,6 +14,7 @@
    You should have received a copy of the GNU Affero General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+
 package hockeypuck
 
 import (
@@ -26,8 +27,6 @@ import (
 	"syscall"
 )
 
-const CONFIG_PATH = "/etc/hockeypuck/hockeypuck.conf"
-
 // Logfile option
 func init() { flag.String("logfile", "", "Logfile (default stderr)") }
 func (s *Settings) LogFile() string {
@@ -36,6 +35,12 @@ func (s *Settings) LogFile() string {
 
 var logOut io.Writer = nil
 
+// InitLog initializes the logging output to the globally configured settings.
+// It also registers SIGHUP, SIGUSR1 and SIGUSR2 to close and reopen the log file
+// for logrotate(8) support.
+//
+// BUG: If InitLog is called before the application is properly configured, it will automatically
+// configure the application with an empty TOML (accept all defaults).
 func InitLog() {
 	if Config() == nil {
 		SetConfig("")

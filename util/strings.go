@@ -15,6 +15,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+// Package util contains a few commonly used utility functions.
 package util
 
 import (

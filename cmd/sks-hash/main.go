@@ -14,34 +14,22 @@
    You should have received a copy of the GNU Affero General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+// sks-hash is a debugging tool that calculates
+// a message digest of all information associated
+// with a public key using the same method as SKS.
 package main
 
 import (
 	"fmt"
-	"launchpad.net/hockeypuck"
+	"launchpad.net/hockeypuck/openpgp"
 	"os"
 )
 
 func main() {
-	keys, errors := hockeypuck.ReadValidKeys(os.Stdin)
-LOOP:
-	for {
-		select {
-		case key, ok := <-keys:
-			if key != nil {
-				digest := hockeypuck.SksDigest(key)
-				fmt.Println(digest)
-			}
-			if !ok {
-				break LOOP
-			}
-		case err, ok := <-errors:
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "%v", err)
-			}
-			if !ok {
-				break LOOP
-			}
+	for keyRead := range openpgp.ReadValidKeys(os.Stdin) {
+		if keyRead.Pubkey != nil {
+			fmt.Println(keyRead.Pubkey.Fingerprint(), keyRead.Pubkey.Md5)
 		}
 	}
 }

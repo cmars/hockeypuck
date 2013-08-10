@@ -14,6 +14,9 @@
    You should have received a copy of the GNU Affero General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+// Package hockeypuck provides common configuration, logging and
+// static content for the keyserver.
 package hockeypuck
 
 import (
@@ -28,18 +31,24 @@ import (
 
 var config *Settings
 
+// Config returns the global Settings for an application built with Hockeypuck.
 func Config() *Settings {
 	return config
 }
 
+// Settings stores configuration options for Hockeypuck.
 type Settings struct {
 	*toml.TomlTree
 }
 
+// GetString returns the string value for the configuration key if set,
+// otherwise the empty string.
 func (s *Settings) GetString(key string) string {
 	return s.GetStringDefault(key, "")
 }
 
+// GetStringDefault returns the string value for the configuration key if set,
+// otherwise the default value.
 func (s *Settings) GetStringDefault(key string, defaultValue string) string {
 	if s, is := s.Get(key).(string); is {
 		return s
@@ -47,6 +56,8 @@ func (s *Settings) GetStringDefault(key string, defaultValue string) string {
 	return defaultValue
 }
 
+// MustGetInt returns the int value for the configuration key if set and valid,
+// otherwise panics.
 func (s *Settings) MustGetInt(key string) int {
 	if v, err := s.getInt(key); err == nil {
 		return v
@@ -55,6 +66,8 @@ func (s *Settings) MustGetInt(key string) int {
 	}
 }
 
+// GetIntDefault returns the int value for the configuration key if set and valid,
+// otherwise the default value.
 func (s *Settings) GetIntDefault(key string, defaultValue int) int {
 	if v, err := s.getInt(key); err == nil {
 		return v
@@ -80,6 +93,8 @@ func (s *Settings) getInt(key string) (int, error) {
 	panic("unreachable")
 }
 
+// GetBool returns the boolean value for the configuration key if set,
+// otherwise false.
 func (s *Settings) GetBool(key string) bool {
 	var result bool
 	switch v := s.Get(key).(type) {
@@ -97,6 +112,8 @@ func (s *Settings) GetBool(key string) bool {
 	return result
 }
 
+// GetStrings returns a []string slice for the configuration key if set,
+// otherwise an empty slice.
 func (s *Settings) GetStrings(key string) (value []string) {
 	if strs, is := s.Get(key).([]interface{}); is {
 		for _, v := range strs {
@@ -108,6 +125,7 @@ func (s *Settings) GetStrings(key string) (value []string) {
 	return
 }
 
+// SetConfig sets the global configuration to the TOML-formatted string contents.
 func SetConfig(contents string) (err error) {
 	var tree *toml.TomlTree
 	if tree, err = toml.Load(contents); err != nil {
@@ -117,6 +135,7 @@ func SetConfig(contents string) (err error) {
 	return
 }
 
+// LoadConfig sets the global configuration to the TOML-formatted reader contents.
 func LoadConfig(r io.Reader) (err error) {
 	buf := bytes.NewBuffer(nil)
 	_, err = io.Copy(buf, r)
@@ -132,6 +151,7 @@ func LoadConfig(r io.Reader) (err error) {
 	return
 }
 
+// LoadConfigFile sets the global configuration to the contents from the TOML file path.
 func LoadConfigFile(path string) (err error) {
 	var tree *toml.TomlTree
 	if tree, err = toml.LoadFile(path); err != nil {
