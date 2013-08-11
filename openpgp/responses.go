@@ -96,6 +96,23 @@ func (r *AddResponse) WriteTo(w http.ResponseWriter) (err error) {
 	return
 }
 
+type RecoverKeyResponse struct {
+	Change *KeyChange
+	Err    error
+}
+
+func (r *RecoverKeyResponse) Error() error {
+	return r.Err
+}
+
+func (r *RecoverKeyResponse) WriteTo(w http.ResponseWriter) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	fmt.Fprintf(w, "%v", r.Change)
+	return nil
+}
+
 type IndexResponse struct {
 	Lookup  *hkp.Lookup
 	Keys    []*Pubkey

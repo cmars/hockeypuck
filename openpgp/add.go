@@ -20,7 +20,10 @@ package openpgp
 import (
 	"bytes"
 	"code.google.com/p/go.crypto/openpgp/armor"
+	"code.google.com/p/go.crypto/openpgp/packet"
+	"crypto/md5"
 	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/ascii85"
 	"errors"
@@ -55,6 +58,63 @@ func (w *Worker) Add(a *hkp.Add) {
 		}
 	}
 	a.Response() <- &AddResponse{Changes: changes, Errors: readErrors}
+}
+
+func (w *Worker) RecoverKey(rk *hkp.RecoverKey) {
+	resp := &RecoverKeyResponse{}
+	// Attempt to parse and upsert key
+	var pubkeys []*Pubkey
+	var err error
+	for readKey := range ReadValidKeys(bytes.NewBuffer(rk.Keytext)) {
+		if readKey.Error != nil {
+			err = readKey.Error
+			break
+		} else {
+			pubkeys = append(pubkeys, readKey.Pubkey)
+		}
+	}
+	if err == nil {
+		if len(pubkeys) == 0 {
+			rk.Response() <- &ErrorResponse{ErrKeyNotFound}
+			return
+		} else if len(pubkeys) > 1 {
+			rk.Response() <- &ErrorResponse{ErrTooManyResponses}
+			return
+		}
+		resp.Change = w.UpsertKey(pubkeys[0])
+		w.notifyChange(resp.Change)
+		rk.Response() <- resp
+		return
+	}
+	// Ok, we can't read this key material. Since it came from a peer
+	// that apparently *can* read it, we'll store an unsupported record
+	// for it, until Hockeypuck can parse it.
+	var packets []*packet.OpaquePacket
+	opktReader := packet.NewOpaqueReader(bytes.NewBuffer(rk.Keytext))
+	for opkt, pkterr := opktReader.Next(); pkterr != io.EOF; opkt, pkterr = opktReader.Next() {
+		if pkterr == nil {
+			packets = append(packets, opkt)
+		}
+	}
+	// Calculate digest
+	sha256Digest := sksDigestOpaque(packets, sha256.New())
+	md5Digest := sksDigestOpaque(packets, md5.New())
+	resp.Change = &KeyChange{Type: KeyChangeInvalid, Fingerprint: "[cannot parse]",
+		CurrentMd5: md5Digest, CurrentSha256: sha256Digest}
+	// Insert unsupported record if not exists
+	_, err = w.db.Execv(`
+INSERT INTO openpgp_unsupp (uuid, contents, md5, source)
+SELECT $1, $2, $3, $4 WHERE NOT EXISTS (
+	SELECT 1 FROM openpgp_unsupp WHERE uuid = $1)`,
+		sha256Digest, rk.Keytext, md5Digest, rk.Source)
+	if err != nil {
+		// Database communication error, yikes!
+		rk.Response() <- &ErrorResponse{err}
+		return
+	}
+	w.notifyChange(resp.Change)
+	resp.Err = err
+	rk.Response() <- resp
 }
 
 var ErrSubKeyChanges error = errors.New("Worker already has a key change subscriber")
@@ -126,13 +186,13 @@ func (change *KeyChange) calcType() KeyChangeType {
 }
 
 func (w *Worker) UpsertKey(key *Pubkey) (change *KeyChange) {
-	change = &KeyChange{Fingerprint: key.Fingerprint(), Type: KeyChangeInvalid}
+	change = &KeyChange{
+		Fingerprint:   key.Fingerprint(),
+		Type:          KeyChangeInvalid,
+		CurrentMd5:    key.Md5,
+		CurrentSha256: key.Sha256}
 	lastKey, err := w.LookupKey(key.Fingerprint())
 	if err == ErrKeyNotFound {
-		change.PreviousMd5 = ""
-		change.PreviousSha256 = ""
-		change.CurrentMd5 = key.Md5
-		change.CurrentSha256 = key.Sha256
 		change.Type = KeyAdded
 	} else if err != nil {
 		change.Error = err
@@ -161,7 +221,9 @@ func (w *Worker) UpsertKey(key *Pubkey) (change *KeyChange) {
 		key.Mtime = key.Ctime
 		change.Error = w.InsertKey(key)
 	}
-	log.Println(change)
+	if change.Type != KeyNotChanged {
+		log.Println(change)
+	}
 	return
 }
 

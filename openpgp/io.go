@@ -100,6 +100,10 @@ func SksDigest(key *Pubkey, h hash.Hash) string {
 	for opkt := range IterOpaquePackets(key) {
 		packets = append(packets, opkt.OpaquePacket)
 	}
+	return sksDigestOpaque(packets, h)
+}
+
+func sksDigestOpaque(packets []*packet.OpaquePacket, h hash.Hash) string {
 	sort.Sort(sksPacketSorter{packets})
 	for _, opkt := range packets {
 		binary.Write(h, binary.BigEndian, int32(opkt.Tag))

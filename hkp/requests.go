@@ -191,6 +191,24 @@ func (a *Add) Parse() (err error) {
 	return nil
 }
 
+type RecoverKey struct {
+	Keytext      []byte
+	Source       string
+	responseChan ResponseChan
+}
+
+func NewRecoverKey() *RecoverKey {
+	return &RecoverKey{responseChan: make(ResponseChan)}
+}
+
+func (rk *RecoverKey) Response() ResponseChan {
+	return rk.responseChan
+}
+
+func (rk *RecoverKey) Parse() error {
+	return nil
+}
+
 type HashQuery struct {
 	*http.Request
 	Digests      []string

@@ -25,8 +25,15 @@ hockeypuck (1.0~b1) UNRELEASED; urgency=low
     - Packaging script should fail on error.
   * openpgp/recon.go:
     - Add previously missing elements to prefix tree.
+  * hkp/requests.go, openpgp/add.go, openpgp/io.go, openpgp/recon.go,
+    openpgp/responses.go, openpgp/schema.go, openpgp/types.go,
+    openpgp/worker.go:
+    - Add fallback to track unsupported keys discovered through
+      gossip. LP: #1208290
+    - Initialize current digests in KeyChange for defined behavior in
+      change consumers.
 
- -- Casey Marshall <casey.marshall@gmail.com>  Sun, 11 Aug 2013 01:25:00 -0500
+ -- Casey Marshall <casey.marshall@gmail.com>  Sun, 11 Aug 2013 17:16:27 -0500
 
 hockeypuck (1.0~a2) precise; urgency=low
 

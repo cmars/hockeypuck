@@ -19,8 +19,6 @@ package openpgp
 
 import (
 	"bytes"
-	"code.google.com/p/go.crypto/openpgp"
-	"code.google.com/p/go.crypto/openpgp/armor"
 	"encoding/hex"
 	"fmt"
 	"github.com/cmars/conflux"
@@ -74,7 +72,7 @@ func (r *SksPeer) HandleKeyUpdates() {
 			digestZp := conflux.Zb(conflux.P_SKS, conflux.ReverseBytes(digest))
 			hasDigest, err := r.Peer.HasElement(digestZp)
 			if keyChange.PreviousMd5 != keyChange.CurrentMd5 || !hasDigest {
-				log.Println("Prefix tree: Insert:", digestZp)
+				log.Println("Prefix tree: Insert:", digestZp, keyChange, keyChange.CurrentMd5)
 				err := r.Peer.Insert(digestZp)
 				if err != nil {
 					log.Println(err)
@@ -106,13 +104,7 @@ func (r *SksPeer) HandleRecovery() {
 			if !ok {
 				return
 			}
-			host, _, err := net.SplitHostPort(rcvr.RemoteAddr.String())
-			if err != nil {
-				log.Println("Cannot parse remote address:", err)
-				continue
-			}
-			httpPort := rcvr.RemoteConfig.HttpPort
-			if err = r.requestRecovery(host, httpPort, rcvr.RemoteElements); err != nil {
+			if err := r.requestRecovery(rcvr); err != nil {
 				log.Println("Recovery request failed: ", err)
 			} else {
 				log.Println("Recovery complete")
@@ -121,14 +113,21 @@ func (r *SksPeer) HandleRecovery() {
 	}
 }
 
-func (r *SksPeer) requestRecovery(host string, httpPort int, recoverList []*conflux.Zp) (err error) {
+func (r *SksPeer) requestRecovery(rcvr *recon.Recover) (err error) {
+	var host string
+	host, _, err = net.SplitHostPort(rcvr.RemoteAddr.String())
+	if err != nil {
+		log.Println("Cannot parse remote address:", err)
+		return
+	}
+	httpPort := rcvr.RemoteConfig.HttpPort
 	// Make an sks hashquery request
 	hqBuf := bytes.NewBuffer(nil)
-	err = recon.WriteInt(hqBuf, len(recoverList))
+	err = recon.WriteInt(hqBuf, len(rcvr.RemoteElements))
 	if err != nil {
 		return
 	}
-	for _, z := range recoverList {
+	for _, z := range rcvr.RemoteElements {
 		zb := conflux.ReverseBytes(z.Bytes())
 		err = recon.WriteInt(hqBuf, len(zb))
 		if err != nil {
@@ -156,26 +155,20 @@ func (r *SksPeer) requestRecovery(host string, httpPort int, recoverList []*conf
 		if err != nil {
 			return
 		}
+		keyBuf := bytes.NewBuffer(nil)
+		_, err = io.CopyN(keyBuf, resp.Body, int64(keyLen))
+		if err != nil {
+			return
+		}
 		log.Println("Key#", i+1, ":", keyLen, "bytes")
-		armorBuf := bytes.NewBuffer(nil)
-		var armorOut io.WriteCloser
-		if armorOut, err = armor.Encode(armorBuf, openpgp.PublicKeyType, nil); err != nil {
-			return
-		}
-		if _, err = io.CopyN(armorOut, resp.Body, int64(keyLen)); err != nil {
-			return
-		}
-		if err = armorOut.Close(); err != nil {
-			return
-		}
 		// Merge locally
-		add := hkp.NewAdd()
-		add.Keytext = armorBuf.String()
-		add.Option = hkp.NoOption
+		recoverKey := hkp.NewRecoverKey()
+		recoverKey.Keytext = keyBuf.Bytes()
+		recoverKey.Source = rcvr.RemoteAddr.String()
 		go func() {
-			r.Service.Requests <- add
-			defer close(add.Response())
-			resp := <-add.Response()
+			r.Service.Requests <- recoverKey
+			defer close(recoverKey.Response())
+			resp := <-recoverKey.Response()
 			if resp.Error() != nil {
 				log.Println("Error adding key:", resp.Error())
 			}

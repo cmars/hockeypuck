@@ -327,6 +327,30 @@ FOREIGN KEY (sig_uuid) REFERENCES openpgp_sig(uuid)
 )
 `
 
+const CreateTable_OpenpgpUnsupp = `
+CREATE TABLE IF NOT EXISTS openpgp_unsupp (
+-----------------------------------------------------------------------
+-- SHA256 digest of the unsupported key material, using SKS method
+uuid TEXT NOT NULL,
+-- Time when the unsupported key material was added to Hockeypuck
+creation TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+-- Expiration of the unsupported key material, TBD
+expiration TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT '9999-12-31 23:59:59+00',
+-- State flag for this record
+state INTEGER NOT NULL DEFAULT 0,
+-----------------------------------------------------------------------
+-- Binary contents of the unsupported key material
+contents bytea NOT NULL,
+-- MD5 digest of the entire public key contents, compatible with SKS
+md5 TEXT NOT NULL,
+-- Original source TCP address (IP:PORT) of the key material
+source TEXT NOT NULL,
+-----------------------------------------------------------------------
+PRIMARY KEY (uuid),
+UNIQUE (md5)
+)
+`
+
 const CreateTable_PksStat = `
 CREATE TABLE IF NOT EXISTS pks_status (
 -----------------------------------------------------------------------
@@ -381,7 +405,8 @@ var CreateTableStatements []string = []string{
 	CreateTable_OpenpgpPubkeySig,
 	CreateTable_OpenpgpSubkeySig,
 	CreateTable_OpenpgpUidSig,
-	CreateTable_OpenpgpUatSig}
+	CreateTable_OpenpgpUatSig,
+	CreateTable_OpenpgpUnsupp}
 
 var AlterTableStatements []string = []string{
 	AlterTable_PubkeyPrimaryUid,

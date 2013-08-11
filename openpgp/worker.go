@@ -72,6 +72,8 @@ func (w *Worker) Run() {
 				w.Lookup(r)
 			case *hkp.Add:
 				w.Add(r)
+			case *hkp.RecoverKey:
+				w.RecoverKey(r)
 			case *hkp.HashQuery:
 				w.HashQuery(r)
 			default:

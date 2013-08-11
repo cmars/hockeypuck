@@ -52,7 +52,21 @@ func toOpaquePacket(buf []byte) (*packet.OpaquePacket, error) {
 	return r.Next()
 }
 
-// Model representing an OpenPGP public key packets.
+// Unsupported represents key material we receive from
+// a reconciliation peer that we cannot validate. Hockeypuck
+// will store such key material until such time it can
+// parse and interpret correctly.
+type Unsupported struct {
+	Sha256     string    `db:"uuid"`       // immutable
+	Creation   time.Time `db:"creation"`   // immutable
+	Expiration time.Time `db:"expiration"` // mutable
+	State      int       `db:"state"`      // mutable
+	Contents   []byte    `db:"contents"`   // immutable
+	Md5        string    `db:"md5"`        // immutable
+	Source     string    `db:"source"`     // immutable
+}
+
+// Pubkey represents an OpenPGP public key packet.
 // Searchable fields are extracted from the packet key material
 // stored in Packet, for database indexing.
 type Pubkey struct {
