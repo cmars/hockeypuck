@@ -1,4 +1,4 @@
-#!/bin/sh -x
+#!/bin/sh -ex
 
 # Get our current and last built revision
 REVNO=$(bzr log | grep -m1 "^revno: " | awk '{print $2}')
