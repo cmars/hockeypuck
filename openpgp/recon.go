@@ -71,15 +71,16 @@ func (r *SksPeer) HandleKeyUpdates() {
 				log.Println("bad digest:", keyChange.CurrentMd5)
 				continue
 			}
-			if keyChange.PreviousMd5 != keyChange.CurrentMd5 {
-				digestZp := conflux.Zb(conflux.P_SKS, conflux.ReverseBytes(digest))
+			digestZp := conflux.Zb(conflux.P_SKS, conflux.ReverseBytes(digest))
+			hasDigest, err := r.Peer.HasElement(digestZp)
+			if keyChange.PreviousMd5 != keyChange.CurrentMd5 || !hasDigest {
 				log.Println("Prefix tree: Insert:", digestZp)
 				err := r.Peer.Insert(digestZp)
 				if err != nil {
 					log.Println(err)
 					continue
 				}
-				if keyChange.PreviousMd5 != "" {
+				if keyChange.PreviousMd5 != "" && keyChange.PreviousMd5 != keyChange.CurrentMd5 {
 					prevDigest, err := hex.DecodeString(keyChange.PreviousMd5)
 					if err != nil {
 						log.Println("bad digest:", keyChange.PreviousMd5)

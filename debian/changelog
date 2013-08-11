@@ -23,8 +23,10 @@ hockeypuck (1.0~b1) UNRELEASED; urgency=low
     - Fix deadlock when adding keys from SKS recon.
   * debian/mkdists:
     - Packaging script should fail on error.
+  * openpgp/recon.go:
+    - Add previously missing elements to prefix tree.
 
- -- Casey Marshall <casey.marshall@gmail.com>  Sat, 10 Aug 2013 19:47:02 -0500
+ -- Casey Marshall <casey.marshall@gmail.com>  Sun, 11 Aug 2013 01:25:00 -0500
 
 hockeypuck (1.0~a2) precise; urgency=low
 
