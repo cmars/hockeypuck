@@ -172,13 +172,13 @@ func (r *SksPeer) requestRecovery(host string, httpPort int, recoverList []*conf
 		add.Keytext = armorBuf.String()
 		add.Option = hkp.NoOption
 		go func() {
+			r.Service.Requests <- add
 			defer close(add.Response())
 			resp := <-add.Response()
 			if resp.Error() != nil {
 				log.Println("Error adding key:", resp.Error())
 			}
 		}()
-		r.Service.Requests <- add
 	}
 	// Read last two bytes (CRLF, why?), or SKS will complain.
 	resp.Body.Read(make([]byte, 2))

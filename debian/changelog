@@ -19,8 +19,10 @@ hockeypuck (1.0~b1) UNRELEASED; urgency=low
     - Update debug utility commands wrt openpgp changes.
   * === removed directory cmd/lspgp, === removed directory cmd/pqtest:
     - Removed unused 'spike' debug utilities, no longer useful. 
+  * openpgp/recon.go:
+    - Fix deadlock when adding keys from SKS recon.
 
- -- Casey Marshall <casey.marshall@gmail.com>  Sat, 03 Aug 2013 10:15:11 -0500
+ -- Casey Marshall <casey.marshall@gmail.com>  Sat, 10 Aug 2013 19:18:22 -0500
 
 hockeypuck (1.0~a2) precise; urgency=low
 
