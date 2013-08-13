@@ -169,7 +169,7 @@ func parse(f io.Reader) (armorChan chan []byte) {
 			if keynum < *drop {
 				continue
 			}
-			log.Println("Load valid key fp=", keyRead.Pubkey.Fingerprint())
+			log.Println("Load valid key fp=", keyRead.Pubkey.Fingerprint(), "md5=", keyRead.Pubkey.Md5)
 			out := bytes.NewBuffer(nil)
 			openpgp.WriteArmoredPackets(out, kv.Pubkey)
 			armorChan <- out.Bytes()

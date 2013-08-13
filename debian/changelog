@@ -32,8 +32,11 @@ hockeypuck (1.0~b1) UNRELEASED; urgency=low
       gossip. LP: #1208290
     - Initialize current digests in KeyChange for defined behavior in
       change consumers.
+  * cmd/hockeypuck-load/main.go, openpgp/recon.go:
+    - Log public key digest when loading.
+    - Removed key reversal to match latest conflux Zp byte ordering fix.
 
- -- Casey Marshall <casey.marshall@gmail.com>  Sun, 11 Aug 2013 17:16:27 -0500
+ -- Casey Marshall <casey.marshall@gmail.com>  Mon, 12 Aug 2013 23:33:14 -0500
 
 hockeypuck (1.0~a2) precise; urgency=low
 

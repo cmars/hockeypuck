@@ -69,10 +69,11 @@ func (r *SksPeer) HandleKeyUpdates() {
 				log.Println("bad digest:", keyChange.CurrentMd5)
 				continue
 			}
-			digestZp := conflux.Zb(conflux.P_SKS, conflux.ReverseBytes(digest))
+			digest = append(digest, byte(0))
+			digestZp := conflux.Zb(conflux.P_SKS, digest)
 			hasDigest, err := r.Peer.HasElement(digestZp)
 			if keyChange.PreviousMd5 != keyChange.CurrentMd5 || !hasDigest {
-				log.Println("Prefix tree: Insert:", digestZp, keyChange, keyChange.CurrentMd5)
+				log.Println("Prefix tree: Insert:", hex.EncodeToString(digestZp.Bytes()), keyChange, keyChange.CurrentMd5)
 				err := r.Peer.Insert(digestZp)
 				if err != nil {
 					log.Println(err)
@@ -84,7 +85,8 @@ func (r *SksPeer) HandleKeyUpdates() {
 						log.Println("bad digest:", keyChange.PreviousMd5)
 						continue
 					}
-					prevDigestZp := conflux.Zb(conflux.P_SKS, conflux.ReverseBytes(prevDigest))
+					prevDigest = append(prevDigest, byte(0))
+					prevDigestZp := conflux.Zb(conflux.P_SKS, prevDigest)
 					log.Println("Prefix Tree: Remove:", prevDigestZp)
 					err = r.Peer.Remove(prevDigestZp)
 					if err != nil {
@@ -128,7 +130,7 @@ func (r *SksPeer) requestRecovery(rcvr *recon.Recover) (err error) {
 		return
 	}
 	for _, z := range rcvr.RemoteElements {
-		zb := conflux.ReverseBytes(z.Bytes())
+		zb := z.Bytes()
 		err = recon.WriteInt(hqBuf, len(zb))
 		if err != nil {
 			return
