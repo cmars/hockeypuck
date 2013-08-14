@@ -45,8 +45,8 @@ var hkpServer *string = flag.String("hkp", "localhost:11371", "HKP server hostna
 var path *string = flag.String("path", "", "PGP keyrings to be loaded")
 var mailAdd *bool = flag.Bool("mail-add", false, "Load key(s) from mailsync message on stdin")
 var armor *bool = flag.Bool("armor", false, "Input is ascii-armored")
-var drop *int = flag.Int("drop", 0, "Drop this many keys from beginning of stream")
-var take *int = flag.Int("take", (1 << 31), "Take this many keys to load")
+var drop *int64 = flag.Int64("drop", int64(0), "Drop this many keys from beginning of stream")
+var take *int64 = flag.Int64("take", int64((1<<63)-1), "Take this many keys to load")
 
 func usage() {
 	flag.PrintDefaults()
@@ -150,9 +150,9 @@ func parse(f io.Reader) (armorChan chan []byte) {
 	armorChan = make(chan []byte)
 	go func() {
 		defer close(armorChan)
-		keynum := 0
+		keynum := int64(0)
 		for keyRead := range openpgp.ReadKeys(f) {
-			if (keynum - *drop) > *take {
+			if (keynum - *drop) >= *take {
 				return
 			}
 			if keyRead.Error != nil {
@@ -166,7 +166,7 @@ func parse(f io.Reader) (armorChan chan []byte) {
 			}
 			// Good key, increment count
 			keynum++
-			if keynum < *drop {
+			if keynum-1 < *drop {
 				continue
 			}
 			log.Println("Load valid key fp=", keyRead.Pubkey.Fingerprint(), "md5=", keyRead.Pubkey.Md5)

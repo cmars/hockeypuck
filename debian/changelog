@@ -35,8 +35,14 @@ hockeypuck (1.0~b1) UNRELEASED; urgency=low
   * cmd/hockeypuck-load/main.go, openpgp/recon.go:
     - Log public key digest when loading.
     - Removed key reversal to match latest conflux Zp byte ordering fix.
+  * cmd/hockeypuck-load/main.go, hkp/requests.go, openpgp/add.go,
+    openpgp/recon.go, openpgp/worker.go:
+    - Fix off-by-one in drop, take flags of hockeypuck-load. Fix i386
+      compile issue with max int.
+    - Workaround some concurrency issues between adding keys, recon recovery,
+      and incoming queries.
 
- -- Casey Marshall <casey.marshall@gmail.com>  Mon, 12 Aug 2013 23:33:14 -0500
+ -- Casey Marshall <casey.marshall@gmail.com>  Tue, 13 Aug 2013 22:01:09 -0500
 
 hockeypuck (1.0~a2) precise; urgency=low
 

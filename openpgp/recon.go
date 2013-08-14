@@ -47,7 +47,7 @@ func NewSksPeer(s *hkp.Service) (*SksPeer, error) {
 		return nil, err
 	}
 	peer := recon.NewPeer(reconSettings, ptree)
-	sksPeer := &SksPeer{Peer: peer, Service: s, KeyChanges: make(KeyChangeChan)}
+	sksPeer := &SksPeer{Peer: peer, Service: s, KeyChanges: make(KeyChangeChan, reconSettings.SplitThreshold())}
 	return sksPeer, nil
 }
 
@@ -102,14 +102,18 @@ func (r *SksPeer) HandleKeyUpdates() {
 func (r *SksPeer) HandleRecovery() {
 	for {
 		select {
-		case rcvr, ok := <-r.Peer.RecoverChan:
-			if !ok {
-				return
-			}
-			if err := r.requestRecovery(rcvr); err != nil {
-				log.Println("Recovery request failed: ", err)
-			} else {
-				log.Println("Recovery complete")
+		case recoverMsg, ok := <-r.Peer.RecoverChan:
+			if recoverMsg != nil {
+				go func(rcvr *recon.Recover) {
+					if err := r.requestRecovery(rcvr); err != nil {
+						log.Println("Recovery request failed: ", err)
+					} else {
+						log.Println("Recovery complete")
+					}
+				}(recoverMsg)
+				if !ok {
+					return
+				}
 			}
 		}
 	}
@@ -129,6 +133,7 @@ func (r *SksPeer) requestRecovery(rcvr *recon.Recover) (err error) {
 	if err != nil {
 		return
 	}
+	recoverSet := conflux.NewZSet()
 	for _, z := range rcvr.RemoteElements {
 		zb := z.Bytes()
 		err = recon.WriteInt(hqBuf, len(zb))
@@ -139,6 +144,7 @@ func (r *SksPeer) requestRecovery(rcvr *recon.Recover) (err error) {
 		if err != nil {
 			return
 		}
+		recoverSet.Add(z)
 	}
 	resp, err := http.Post(fmt.Sprintf("http://%s:%d/pks/hashquery", host, httpPort),
 		"sks/hashquery", bytes.NewReader(hqBuf.Bytes()))
@@ -166,15 +172,15 @@ func (r *SksPeer) requestRecovery(rcvr *recon.Recover) (err error) {
 		// Merge locally
 		recoverKey := hkp.NewRecoverKey()
 		recoverKey.Keytext = keyBuf.Bytes()
+		recoverKey.RecoverSet = recoverSet
 		recoverKey.Source = rcvr.RemoteAddr.String()
 		go func() {
 			r.Service.Requests <- recoverKey
-			defer close(recoverKey.Response())
-			resp := <-recoverKey.Response()
-			if resp.Error() != nil {
-				log.Println("Error adding key:", resp.Error())
-			}
 		}()
+		resp := <-recoverKey.Response()
+		if resp != nil && resp.Error() != nil {
+			log.Println("Error adding key:", resp.Error())
+		}
 	}
 	// Read last two bytes (CRLF, why?), or SKS will complain.
 	resp.Body.Read(make([]byte, 2))

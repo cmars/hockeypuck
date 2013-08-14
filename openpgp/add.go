@@ -26,8 +26,10 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/ascii85"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/cmars/conflux"
 	"github.com/jmoiron/sqlx"
 	"io"
 	. "launchpad.net/hockeypuck/errors"
@@ -81,14 +83,26 @@ func (w *Worker) RecoverKey(rk *hkp.RecoverKey) {
 			rk.Response() <- &ErrorResponse{ErrTooManyResponses}
 			return
 		}
+		digest, err := hex.DecodeString(pubkeys[0].Md5)
+		if err != nil {
+			rk.Response() <- &ErrorResponse{err}
+			return
+		}
 		resp.Change = w.UpsertKey(pubkeys[0])
 		w.notifyChange(resp.Change)
-		rk.Response() <- resp
-		return
+		// If we arrived at the same digest as the recovery source, then we're
+		// done -- Hockeypuck fully supports all the key's contents. If not, then
+		// there must be some unsupported key material, so we'll continue and
+		// track this so that we can fully reconcile with the recovery source.
+		if rk.RecoverSet.Has(conflux.Zb(conflux.P_SKS, digest)) {
+			rk.Response() <- resp
+			return
+		}
 	}
-	// Ok, we can't read this key material. Since it came from a peer
-	// that apparently *can* read it, we'll store an unsupported record
-	// for it, until Hockeypuck can parse it.
+	// Ok, we failed to read at least some of this key material.
+	// Since it came from a recovery source that claims it *can* read it,
+	// we'll store an unsupported record for it. Future upgrades of Hockeypuck
+	// may add support for parsing and reloading it.
 	var packets []*packet.OpaquePacket
 	opktReader := packet.NewOpaqueReader(bytes.NewBuffer(rk.Keytext))
 	for opkt, pkterr := opktReader.Next(); pkterr != io.EOF; opkt, pkterr = opktReader.Next() {
