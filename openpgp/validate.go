@@ -29,10 +29,16 @@ import (
 	"database/sql"
 	"encoding/binary"
 	"errors"
+	"flag"
 )
 
 var ErrNoSelfSignature error = errors.New("Self-signature not found")
 var ErrNoBindingSignature error = errors.New("Binding signature not found")
+
+func init() { flag.Bool("openpgp.strict", false, "Strict key parsing") }
+func (s *Settings) Strict() bool {
+	return s.GetBool("hockeypuck.openpgp.strict")
+}
 
 // BadPacket associates an error with a packet record.
 type BadPacket struct {
@@ -64,6 +70,12 @@ func ValidateKey(pubkey *Pubkey) *KeyValidation {
 	pubkey.Visit(kv.resolve)
 	pubkey.Visit(kv.validate)
 	kv.removeInvalid()
+	if kv.KeyError == nil && Config().Strict() {
+		for _, bp := range kv.BadPackets {
+			kv.KeyError = bp.Reason
+			break
+		}
+	}
 	return kv
 }
 

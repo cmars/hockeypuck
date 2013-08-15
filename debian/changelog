@@ -47,6 +47,10 @@ hockeypuck (1.0~b1) UNRELEASED; urgency=low
       one per peer.
     - Refactored HKP host:port derivation from recon.Recover into conflux.
     - go fmt.
+  * openpgp/validate.go:
+    - Add hockeypuck.openpgp.strict option to reject key material containing
+      *anything* we can't parse. Useful for peering with SKS, as we can
+      track recovered unsupported keys for future reloading. LP: #1208290
 
  -- Casey Marshall <casey.marshall@gmail.com>  Wed, 14 Aug 2013 22:43:40 -0500
 
