@@ -28,8 +28,8 @@ import (
 	"io"
 	"launchpad.net/hockeypuck/hkp"
 	"log"
-	"net"
 	"net/http"
+	"time"
 )
 
 type SksPeer struct {
@@ -100,41 +100,99 @@ func (r *SksPeer) HandleKeyUpdates() {
 }
 
 func (r *SksPeer) HandleRecovery() {
+	rcvrChans := make(map[string]chan *recon.Recover)
+	defer func() {
+		for _, ch := range rcvrChans {
+			close(ch)
+		}
+	}()
 	for {
 		select {
-		case recoverMsg, ok := <-r.Peer.RecoverChan:
-			if recoverMsg != nil {
-				go func(rcvr *recon.Recover) {
-					if err := r.requestRecovery(rcvr); err != nil {
-						log.Println("Recovery request failed: ", err)
-					} else {
-						log.Println("Recovery complete")
-					}
-				}(recoverMsg)
-				if !ok {
-					return
-				}
+		case rcvr, ok := <-r.Peer.RecoverChan:
+			if !ok {
+				return
 			}
+			// Use remote HKP host:port as peer-unique identifier
+			remoteAddr, err := rcvr.HkpAddr()
+			if err != nil {
+				continue
+			}
+			// Mux recoveries to per-address channels
+			rcvrChan, has := rcvrChans[remoteAddr]
+			if !has {
+				rcvrChan = make(chan *recon.Recover)
+				rcvrChans[remoteAddr] = rcvrChan
+				go r.handleRemoteRecovery(rcvr, rcvrChan)
+			}
+			rcvrChan <- rcvr
 		}
 	}
 }
 
-func (r *SksPeer) requestRecovery(rcvr *recon.Recover) (err error) {
-	var host string
-	host, _, err = net.SplitHostPort(rcvr.RemoteAddr.String())
+type workRecoveredReady chan interface{}
+type workRecoveredWork chan *conflux.ZSet
+
+func (r *SksPeer) handleRemoteRecovery(rcvr *recon.Recover, rcvrChan chan *recon.Recover) {
+	recovered := conflux.NewZSet()
+	ready := make(workRecoveredReady)
+	work := make(workRecoveredWork)
+	defer close(work)
+	go r.workRecovered(rcvr, ready, work)
+	for {
+		select {
+		case rcvr, ok := <-rcvrChan:
+			if !ok {
+				return
+			}
+			// Aggregate recovered IDs
+			recovered.AddSlice(rcvr.RemoteElements)
+			log.Println("Recovery from", rcvr.RemoteAddr.String(), ":", recovered.Len(), "pending")
+		case _, ok := <-ready:
+			// Recovery worker is ready for more
+			if !ok {
+				return
+			}
+			work <- recovered
+			recovered = conflux.NewZSet()
+		}
+	}
+}
+
+func (r *SksPeer) workRecovered(rcvr *recon.Recover, ready workRecoveredReady, work workRecoveredWork) {
+	defer close(ready)
+	timer := time.NewTimer(time.Duration(r.Peer.GossipIntervalSecs()) * time.Second)
+	defer timer.Stop()
+	for {
+		select {
+		case recovered, ok := <-work:
+			if !ok {
+				return
+			}
+			err := r.requestRecovered(rcvr, recovered)
+			if err != nil {
+				log.Println(err)
+			}
+			timer.Reset(time.Duration(r.Peer.GossipIntervalSecs()) * time.Second)
+		case <-timer.C:
+			timer.Stop()
+			ready <- new(interface{})
+		}
+	}
+}
+
+func (r *SksPeer) requestRecovered(rcvr *recon.Recover, elements *conflux.ZSet) (err error) {
+	var remoteAddr string
+	remoteAddr, err = rcvr.HkpAddr()
 	if err != nil {
-		log.Println("Cannot parse remote address:", err)
 		return
 	}
-	httpPort := rcvr.RemoteConfig.HttpPort
 	// Make an sks hashquery request
 	hqBuf := bytes.NewBuffer(nil)
-	err = recon.WriteInt(hqBuf, len(rcvr.RemoteElements))
+	err = recon.WriteInt(hqBuf, elements.Len())
 	if err != nil {
 		return
 	}
-	recoverSet := conflux.NewZSet()
-	for _, z := range rcvr.RemoteElements {
+	for _, z := range elements.Items() {
 		zb := z.Bytes()
 		err = recon.WriteInt(hqBuf, len(zb))
 		if err != nil {
@@ -144,9 +202,8 @@ func (r *SksPeer) requestRecovery(rcvr *recon.Recover) (err error) {
 		if err != nil {
 			return
 		}
-		recoverSet.Add(z)
 	}
-	resp, err := http.Post(fmt.Sprintf("http://%s:%d/pks/hashquery", host, httpPort),
+	resp, err := http.Post(fmt.Sprintf("http://%s/pks/hashquery", remoteAddr),
 		"sks/hashquery", bytes.NewReader(hqBuf.Bytes()))
 	if err != nil {
 		return
@@ -172,7 +229,7 @@ func (r *SksPeer) requestRecovery(rcvr *recon.Recover) (err error) {
 		// Merge locally
 		recoverKey := hkp.NewRecoverKey()
 		recoverKey.Keytext = keyBuf.Bytes()
-		recoverKey.RecoverSet = recoverSet
+		recoverKey.RecoverSet = elements
 		recoverKey.Source = rcvr.RemoteAddr.String()
 		go func() {
 			r.Service.Requests <- recoverKey

@@ -37,9 +37,9 @@ import (
 const LOOKUP_RESULT_LIMIT = 100
 
 type Worker struct {
-	Service       *hkp.Service
-	keyChanges  KeyChangeChan
-	db            *sqlx.DB
+	Service    *hkp.Service
+	keyChanges KeyChangeChan
+	db         *sqlx.DB
 }
 
 // Number of workers to spawn

@@ -70,7 +70,6 @@ func (w *Worker) RecoverKey(rk *hkp.RecoverKey) {
 	for readKey := range ReadValidKeys(bytes.NewBuffer(rk.Keytext)) {
 		if readKey.Error != nil {
 			err = readKey.Error
-			break
 		} else {
 			pubkeys = append(pubkeys, readKey.Pubkey)
 		}

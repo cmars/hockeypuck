@@ -41,8 +41,14 @@ hockeypuck (1.0~b1) UNRELEASED; urgency=low
       compile issue with max int.
     - Workaround some concurrency issues between adding keys, recon recovery,
       and incoming queries.
+  * openpgp/add.go, openpgp/recon.go, openpgp/worker.go:
+    - Fix goroutine leak from early exit while enumerating keys.
+    - Multiplex peer recovery to goroutines aggregating recovery requests,
+      one per peer.
+    - Refactored HKP host:port derivation from recon.Recover into conflux.
+    - go fmt.
 
- -- Casey Marshall <casey.marshall@gmail.com>  Tue, 13 Aug 2013 22:01:09 -0500
+ -- Casey Marshall <casey.marshall@gmail.com>  Wed, 14 Aug 2013 22:43:40 -0500
 
 hockeypuck (1.0~a2) precise; urgency=low
 
