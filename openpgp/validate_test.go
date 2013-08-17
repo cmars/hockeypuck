@@ -18,6 +18,8 @@
 package openpgp
 
 import (
+	"github.com/stretchr/testify/assert"
+	"launchpad.net/hockeypuck"
 	"testing"
 )
 
@@ -25,6 +27,17 @@ func TestBadSelfSigUid(t *testing.T) {
 	key := MustInputAscKey(t, "badselfsig.asc")
 	kv := ValidateKey(key)
 	t.Log(kv)
+}
+
+func TestStrictV3(t *testing.T) {
+	f := MustInput(t, "sigv3.gpg")
+	defer f.Close()
+	defer hockeypuck.SetConfig("")
+	Config().Set("hockeypuck.openpgp.strict", true)
+	assert.True(t, Config().GetBool("hockeypuck.openpgp.strict"))
+	for _ = range ReadValidKeys(f) {
+		t.Fatal("v3 sig should not validate in strict mode (until we support them)")
+	}
 }
 
 /*

@@ -144,11 +144,22 @@ func ReadValidKeys(r io.Reader) PubkeyChan {
 	c := make(PubkeyChan)
 	go func() {
 		defer close(c)
+		var lastKeyError error
 		for keyRead := range ReadKeys(r) {
 			if keyRead.Error == nil {
 				kv := ValidateKey(keyRead.Pubkey)
 				keyRead.Pubkey = kv.Pubkey
-				keyRead.Error = kv.KeyError
+				if keyRead.Error == nil && kv.KeyError != nil {
+					keyRead.Error = kv.KeyError
+				}
+				if keyRead.Error == nil && lastKeyError != nil {
+					keyRead.Error = lastKeyError
+					lastKeyError = nil
+				}
+			} else {
+				if Config().Strict() {
+					lastKeyError = keyRead.Error
+				}
 			}
 			c <- keyRead
 		}

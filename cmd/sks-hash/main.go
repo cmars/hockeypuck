@@ -22,11 +22,13 @@ package main
 
 import (
 	"fmt"
+	"launchpad.net/hockeypuck"
 	"launchpad.net/hockeypuck/openpgp"
 	"os"
 )
 
 func main() {
+	hockeypuck.SetConfig("")
 	for keyRead := range openpgp.ReadValidKeys(os.Stdin) {
 		if keyRead.Pubkey != nil {
 			fmt.Println(keyRead.Pubkey.Fingerprint(), keyRead.Pubkey.Md5)

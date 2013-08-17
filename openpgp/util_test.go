@@ -23,7 +23,12 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"launchpad.net/hockeypuck"
 )
+
+func init() {
+	hockeypuck.SetConfig("")
+}
 
 func MustInput(t *testing.T, name string) *os.File {
 	_, thisFile, _, ok := runtime.Caller(0)

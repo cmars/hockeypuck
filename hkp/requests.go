@@ -21,7 +21,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/cmars/conflux"
 	"github.com/cmars/conflux/recon"
 	"net/http"
 	"strings"
@@ -189,25 +188,6 @@ func (a *Add) Parse() (err error) {
 		a.Keytext = keytext
 	}
 	a.Option = parseOptions(a.Form.Get("options"))
-	return nil
-}
-
-type RecoverKey struct {
-	Keytext      []byte
-	RecoverSet   *conflux.ZSet
-	Source       string
-	responseChan ResponseChan
-}
-
-func NewRecoverKey() *RecoverKey {
-	return &RecoverKey{responseChan: make(ResponseChan)}
-}
-
-func (rk *RecoverKey) Response() ResponseChan {
-	return rk.responseChan
-}
-
-func (rk *RecoverKey) Parse() error {
 	return nil
 }
 

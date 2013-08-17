@@ -38,6 +38,7 @@ const LOOKUP_RESULT_LIMIT = 100
 
 type Worker struct {
 	Service    *hkp.Service
+	Peer       *SksPeer
 	keyChanges KeyChangeChan
 	db         *sqlx.DB
 }
@@ -57,8 +58,8 @@ func (s *Settings) DSN() string {
 		"dbname=hkp host=/var/run/postgresql sslmode=disable")
 }
 
-func NewWorker(service *hkp.Service) (w *Worker, err error) {
-	w = &Worker{Service: service}
+func NewWorker(service *hkp.Service, peer *SksPeer) (w *Worker, err error) {
+	w = &Worker{Service: service, Peer: peer}
 	err = w.initDb()
 	return
 }
@@ -67,21 +68,26 @@ func (w *Worker) Run() {
 	for {
 		select {
 		case req, ok := <-w.Service.Requests:
+			if !ok {
+				return
+			}
 			switch r := req.(type) {
 			case *hkp.Lookup:
 				w.Lookup(r)
 			case *hkp.Add:
 				w.Add(r)
-			case *hkp.RecoverKey:
-				w.RecoverKey(r)
 			case *hkp.HashQuery:
 				w.HashQuery(r)
 			default:
 				log.Println("Unsupported HKP service request:", req)
 			}
+		case r, ok := <-w.Peer.RecoverKey:
 			if !ok {
 				return
 			}
+			resp := w.recoverKey(r)
+			log.Println(resp)
+			r.response <- resp
 		}
 	}
 }

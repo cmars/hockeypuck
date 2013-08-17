@@ -62,7 +62,7 @@ func (w *Worker) Add(a *hkp.Add) {
 	a.Response() <- &AddResponse{Changes: changes, Errors: readErrors}
 }
 
-func (w *Worker) RecoverKey(rk *hkp.RecoverKey) {
+func (w *Worker) recoverKey(rk *RecoverKey) hkp.Response {
 	resp := &RecoverKeyResponse{}
 	// Attempt to parse and upsert key
 	var pubkeys []*Pubkey
@@ -76,26 +76,22 @@ func (w *Worker) RecoverKey(rk *hkp.RecoverKey) {
 	}
 	if err == nil {
 		if len(pubkeys) == 0 {
-			rk.Response() <- &ErrorResponse{ErrKeyNotFound}
-			return
+			return &ErrorResponse{ErrKeyNotFound}
 		} else if len(pubkeys) > 1 {
-			rk.Response() <- &ErrorResponse{ErrTooManyResponses}
-			return
+			return &ErrorResponse{ErrTooManyResponses}
 		}
 		digest, err := hex.DecodeString(pubkeys[0].Md5)
 		if err != nil {
-			rk.Response() <- &ErrorResponse{err}
-			return
+			return &ErrorResponse{err}
 		}
 		resp.Change = w.UpsertKey(pubkeys[0])
-		w.notifyChange(resp.Change)
 		// If we arrived at the same digest as the recovery source, then we're
 		// done -- Hockeypuck fully supports all the key's contents. If not, then
 		// there must be some unsupported key material, so we'll continue and
 		// track this so that we can fully reconcile with the recovery source.
 		if rk.RecoverSet.Has(conflux.Zb(conflux.P_SKS, digest)) {
-			rk.Response() <- resp
-			return
+			w.notifyChange(resp.Change)
+			return resp
 		}
 	}
 	// Ok, we failed to read at least some of this key material.
@@ -122,12 +118,19 @@ SELECT $1, $2, $3, $4 WHERE NOT EXISTS (
 		sha256Digest, rk.Keytext, md5Digest, rk.Source)
 	if err != nil {
 		// Database communication error, yikes!
-		rk.Response() <- &ErrorResponse{err}
-		return
+		return &ErrorResponse{err}
 	}
-	w.notifyChange(resp.Change)
-	resp.Err = err
-	rk.Response() <- resp
+	digest, err := hex.DecodeString(md5Digest)
+	if err != nil {
+		return &ErrorResponse{err}
+	}
+	if rk.RecoverSet.Has(conflux.Zb(conflux.P_SKS, digest)) {
+		w.notifyChange(resp.Change)
+		resp.Err = nil
+		return resp
+	}
+	return &ErrorResponse{errors.New(
+		fmt.Sprintf("Failed to match peer digest [%x]", digest))}
 }
 
 var ErrSubKeyChanges error = errors.New("Worker already has a key change subscriber")

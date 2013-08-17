@@ -51,8 +51,15 @@ hockeypuck (1.0~b1) UNRELEASED; urgency=low
     - Add hockeypuck.openpgp.strict option to reject key material containing
       *anything* we can't parse. Useful for peering with SKS, as we can
       track recovered unsupported keys for future reloading. LP: #1208290
+  * cmd/hockeypuck/main.go, cmd/sks-hash/main.go, hkp/requests.go,
+    openpgp/add.go, openpgp/io.go, openpgp/recon.go,
+    openpgp/util_test.go, openpgp/validate_test.go, openpgp/worker.go,
+    openpgp/worker_test.go:
+    - Pause reconciliation while loading keys. Prevents thrashing peers.
+    - Separate worker channel for recovering keys from recon peers.
+    - Fix unit test package reference.
 
- -- Casey Marshall <casey.marshall@gmail.com>  Wed, 14 Aug 2013 22:43:40 -0500
+ -- Casey Marshall <casey.marshall@gmail.com>  Sat, 17 Aug 2013 00:15:40 -0500
 
 hockeypuck (1.0~a2) precise; urgency=low
 

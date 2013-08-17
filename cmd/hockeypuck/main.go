@@ -74,7 +74,7 @@ func main() {
 	sksPeer, err := openpgp.NewSksPeer(hkpRouter.Service)
 	// Launch the OpenPGP workers
 	for i := 0; i < openpgp.Config().NumWorkers(); i++ {
-		w, err := openpgp.NewWorker(hkpRouter.Service)
+		w, err := openpgp.NewWorker(hkpRouter.Service, sksPeer)
 		if err != nil {
 			die(err)
 		}

@@ -35,7 +35,15 @@ import (
 type SksPeer struct {
 	*recon.Peer
 	Service    *hkp.Service
+	RecoverKey chan *RecoverKey
 	KeyChanges KeyChangeChan
+}
+
+type RecoverKey struct {
+	Keytext    []byte
+	RecoverSet *conflux.ZSet
+	Source     string
+	response   hkp.ResponseChan
 }
 
 func NewSksPeer(s *hkp.Service) (*SksPeer, error) {
@@ -47,7 +55,11 @@ func NewSksPeer(s *hkp.Service) (*SksPeer, error) {
 		return nil, err
 	}
 	peer := recon.NewPeer(reconSettings, ptree)
-	sksPeer := &SksPeer{Peer: peer, Service: s, KeyChanges: make(KeyChangeChan, reconSettings.SplitThreshold())}
+	sksPeer := &SksPeer{
+		Peer:       peer,
+		Service:    s,
+		KeyChanges: make(KeyChangeChan, reconSettings.SplitThreshold()),
+		RecoverKey: make(chan *RecoverKey)}
 	return sksPeer, nil
 }
 
@@ -147,6 +159,7 @@ func (r *SksPeer) handleRemoteRecovery(rcvr *recon.Recover, rcvrChan chan *recon
 			// Aggregate recovered IDs
 			recovered.AddSlice(rcvr.RemoteElements)
 			log.Println("Recovery from", rcvr.RemoteAddr.String(), ":", recovered.Len(), "pending")
+			r.Peer.Pause()
 		case _, ok := <-ready:
 			// Recovery worker is ready for more
 			if !ok {
@@ -160,7 +173,7 @@ func (r *SksPeer) handleRemoteRecovery(rcvr *recon.Recover, rcvrChan chan *recon
 
 func (r *SksPeer) workRecovered(rcvr *recon.Recover, ready workRecoveredReady, work workRecoveredWork) {
 	defer close(ready)
-	timer := time.NewTimer(time.Duration(r.Peer.GossipIntervalSecs()) * time.Second)
+	timer := time.NewTimer(time.Duration(3) * time.Second)
 	defer timer.Stop()
 	for {
 		select {
@@ -173,6 +186,7 @@ func (r *SksPeer) workRecovered(rcvr *recon.Recover, ready workRecoveredReady, w
 				log.Println(err)
 			}
 			timer.Reset(time.Duration(r.Peer.GossipIntervalSecs()) * time.Second)
+			r.Peer.Resume()
 		case <-timer.C:
 			timer.Stop()
 			ready <- new(interface{})
@@ -227,14 +241,15 @@ func (r *SksPeer) requestRecovered(rcvr *recon.Recover, elements *conflux.ZSet) 
 		}
 		log.Println("Key#", i+1, ":", keyLen, "bytes")
 		// Merge locally
-		recoverKey := hkp.NewRecoverKey()
-		recoverKey.Keytext = keyBuf.Bytes()
-		recoverKey.RecoverSet = elements
-		recoverKey.Source = rcvr.RemoteAddr.String()
+		recoverKey := &RecoverKey{
+			Keytext:    keyBuf.Bytes(),
+			RecoverSet: elements,
+			Source:     rcvr.RemoteAddr.String(),
+			response:   make(chan hkp.Response)}
 		go func() {
-			r.Service.Requests <- recoverKey
+			r.RecoverKey <- recoverKey
 		}()
-		resp := <-recoverKey.Response()
+		resp := <-recoverKey.response
 		if resp != nil && resp.Error() != nil {
 			log.Println("Error adding key:", resp.Error())
 		}
