@@ -299,11 +299,11 @@ func (i *IndexResponse) WriteIndex(w io.Writer, key *Pubkey) error {
 					r.Creation.Format("2006-01-02"), ""}) // TODO: use issuer primary UID
 			}
 		case *UserAttribute:
-			for _, imageData := range r.GetJpegData() {
+			for _, imageData := range r.UserAttribute.ImageData() {
 				hkp.PksIndexTemplate.ExecuteTemplate(w, "uattr-image-row", struct {
 					ImageData string
 				}{
-					encodeToDataUri(imageData.Bytes())})
+					encodeToDataUri(imageData)})
 			}
 		}
 		return nil

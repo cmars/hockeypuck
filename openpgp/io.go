@@ -49,6 +49,11 @@ func Fingerprint(pubkey *packet.PublicKey) string {
 	return hex.EncodeToString(pubkey.Fingerprint[:])
 }
 
+// Get the public key fingerprint as a hex string.
+func FingerprintV3(pubkey *packet.PublicKeyV3) string {
+	return hex.EncodeToString(pubkey.Fingerprint[:])
+}
+
 func WritePackets(w io.Writer, root PacketRecord) error {
 	return root.Visit(func(rec PacketRecord) error {
 		op, err := rec.GetOpaquePacket()
@@ -140,26 +145,13 @@ func (pubkey *Pubkey) updateDigests() {
 	pubkey.Sha256 = SksDigest(pubkey, sha256.New())
 }
 
-func ReadValidKeys(r io.Reader) PubkeyChan {
+func ReadKeys(r io.Reader) PubkeyChan {
 	c := make(PubkeyChan)
 	go func() {
 		defer close(c)
-		var lastKeyError error
-		for keyRead := range ReadKeys(r) {
+		for keyRead := range readKeys(r) {
 			if keyRead.Error == nil {
-				kv := ValidateKey(keyRead.Pubkey)
-				keyRead.Pubkey = kv.Pubkey
-				if keyRead.Error == nil && kv.KeyError != nil {
-					keyRead.Error = kv.KeyError
-				}
-				if keyRead.Error == nil && lastKeyError != nil {
-					keyRead.Error = lastKeyError
-					lastKeyError = nil
-				}
-			} else {
-				if Config().Strict() {
-					lastKeyError = keyRead.Error
-				}
+				Resolve(keyRead.Pubkey)
 			}
 			c <- keyRead
 		}
@@ -168,7 +160,7 @@ func ReadValidKeys(r io.Reader) PubkeyChan {
 }
 
 // Read one or more public keys from input.
-func ReadKeys(r io.Reader) PubkeyChan {
+func readKeys(r io.Reader) PubkeyChan {
 	c := make(PubkeyChan)
 	go func() {
 		defer close(c)
@@ -193,8 +185,8 @@ func ReadKeys(r io.Reader) PubkeyChan {
 							c <- &ReadKeyResult{Pubkey: currentPubkey}
 							currentPubkey = nil
 						}
-						pubkey := new(Pubkey)
-						if err = pubkey.SetPublicKey(p); err != nil {
+						var pubkey *Pubkey
+						if pubkey, err = NewPubkey(p); err != nil {
 							currentPubkey = nil
 							c <- &ReadKeyResult{Error: err}
 							continue
@@ -208,8 +200,8 @@ func ReadKeys(r io.Reader) PubkeyChan {
 							continue
 						}
 						// This is a sub key
-						subkey := new(Subkey)
-						if err = subkey.SetPublicKey(p); err != nil {
+						var subkey *Subkey
+						if subkey, err = NewSubkey(p); err != nil {
 							c <- &ReadKeyResult{Error: err}
 						}
 						currentPubkey.subkeys = append(currentPubkey.subkeys, subkey)
@@ -220,8 +212,8 @@ func ReadKeys(r io.Reader) PubkeyChan {
 						c <- ErrReadKeys("Signature outside signable scope in stream")
 						continue
 					}
-					sig := new(Signature)
-					if err = sig.SetSignature(p); err != nil {
+					var sig *Signature
+					if sig, err = NewSignature(p); err != nil {
 						c <- &ReadKeyResult{Error: err}
 						continue
 					}
@@ -231,49 +223,28 @@ func ReadKeys(r io.Reader) PubkeyChan {
 						c <- ErrReadKeys("User ID outside primary public key scope in stream")
 						continue
 					}
-					uid := new(UserId)
-					if err = uid.SetUserId(p); err != nil {
+					var uid *UserId
+					if uid, err = NewUserId(p); err != nil {
 						c <- &ReadKeyResult{Error: err}
 						continue
 					}
 					currentSignable = uid
 					currentPubkey.userIds = append(currentPubkey.userIds, uid)
-				}
-			}
-			if _, isUnknown := parseErr.(packetErrors.UnknownPacketTypeError); isUnknown {
-				// Packets not yet supported by go.crypto/openpgp
-				switch opkt.Tag {
-				case 17: // Process user attribute packet
+				case *packet.UserAttribute:
 					if currentPubkey == nil {
-						c <- ErrReadKeys(
-							"User attribute outside primary public key scope in stream")
+						c <- ErrReadKeys("User attribute outside primary public key scope in stream")
 						continue
 					}
-					uat := new(UserAttribute)
-					if err = uat.SetPacket(opkt); err != nil {
+					var uat *UserAttribute
+					if uat, err = NewUserAttribute(p); err != nil {
 						c <- &ReadKeyResult{Error: err}
 						continue
 					}
 					currentSignable = uat
 					currentPubkey.userAttributes = append(currentPubkey.userAttributes, uat)
-				case 2: // Bad signature packet
-					// TODO: Check for signature version 3
-					c <- &ReadKeyResult{Error: parseErr}
-				case 6: // Bad public key packet
-					// TODO: Check for unsupported PGP public key packet version
-					// For now, clear state, ignore to next key
-					if currentPubkey != nil {
-						// Send prior public key, if any
-						currentPubkey.updateDigests()
-						c <- &ReadKeyResult{Pubkey: currentPubkey}
-						currentPubkey = nil
-					}
-					c <- &ReadKeyResult{Error: parseErr}
-					currentPubkey = nil
-					currentSignable = nil
-				default:
-					c <- &ReadKeyResult{Error: parseErr}
 				}
+			} else if _, isUnknown := parseErr.(packetErrors.UnknownPacketTypeError); isUnknown {
+				c <- &ReadKeyResult{Error: parseErr}
 			}
 		}
 		if currentPubkey != nil {

@@ -58,8 +58,25 @@ hockeypuck (1.0~b1) UNRELEASED; urgency=low
     - Pause reconciliation while loading keys. Prevents thrashing peers.
     - Separate worker channel for recovering keys from recon peers.
     - Fix unit test package reference.
+  * openpgp/add.go, openpgp/db.go, openpgp/io.go, openpgp/io_test.go,
+    openpgp/pubkey.go, openpgp/resolve.go, openpgp/resolve_test.go,
+    openpgp/responses.go, openpgp/schema.go, openpgp/signature.go,
+    openpgp/subkey.go, openpgp/types.go, openpgp/userattribute.go,
+    openpgp/userid.go, openpgp/util_test.go, openpgp/validate.go,
+    openpgp/validate_test.go, openpgp/worker.go, openpgp/worker_test.go:
+    - Split pgp type wrappers into separate files.
+    - Refactor & rethink validation. Require a valid self-signature in order
+      to accept key material, but store expired, revoked material.
+    - Select primary UID based on earliest non-expired with flag.
+      LP: #1195901
+    - Updated to use UserAttribute, V3 packet support and other recent
+      enhancements to go.crypto. LP: #1075382, LP: #1044769
+    - Separate SQL for creating and dropping constraints to support bulk
+      loading. LP: #1208295
+    - Define key material states to address spam and support other features.
+      LP: #1210923, LP: #1074224
 
- -- Casey Marshall <casey.marshall@gmail.com>  Sat, 17 Aug 2013 00:15:40 -0500
+ -- Casey Marshall <casey.marshall@gmail.com>  Wed, 04 Sep 2013 17:49:10 -0500
 
 hockeypuck (1.0~a2) precise; urgency=low
 

@@ -19,11 +19,11 @@ package openpgp
 
 import (
 	"code.google.com/p/go.crypto/openpgp/armor"
+	"launchpad.net/hockeypuck"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
-	"launchpad.net/hockeypuck"
 )
 
 func init() {

@@ -50,7 +50,7 @@ func (w *Worker) Add(a *hkp.Add) {
 		a.Response() <- &ErrorResponse{err}
 		return
 	}
-	for readKey := range ReadValidKeys(armorBlock.Body) {
+	for readKey := range ReadKeys(armorBlock.Body) {
 		if readKey.Error != nil {
 			readErrors = append(readErrors, readKey)
 		} else {
@@ -67,7 +67,7 @@ func (w *Worker) recoverKey(rk *RecoverKey) hkp.Response {
 	// Attempt to parse and upsert key
 	var pubkeys []*Pubkey
 	var err error
-	for readKey := range ReadValidKeys(bytes.NewBuffer(rk.Keytext)) {
+	for readKey := range ReadKeys(bytes.NewBuffer(rk.Keytext)) {
 		if readKey.Error != nil {
 			err = readKey.Error
 		} else {

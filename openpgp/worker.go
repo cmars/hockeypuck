@@ -21,6 +21,8 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
+"os"
+"os/user"
 	"flag"
 	"fmt"
 	"github.com/jmoiron/sqlx"
@@ -53,9 +55,19 @@ func (s *Settings) Driver() string {
 	return s.GetStringDefault("hockeypuck.openpgp.db.driver", "postgres")
 }
 
+func currentUsername() (username string) {
+	if me, err := user.Current(); err != nil {
+		username = os.Getenv("USER")
+	} else {
+		username = me.Name
+	}
+	return
+}
+
 func (s *Settings) DSN() string {
 	return s.GetStringDefault("hockeypuck.openpgp.db.dsn",
-		"dbname=hkp host=/var/run/postgresql sslmode=disable")
+		fmt.Sprintf("dbname=hkp host=/var/run/postgresql sslmode=disable user=%s",
+			currentUsername()))
 }
 
 func NewWorker(service *hkp.Service, peer *SksPeer) (w *Worker, err error) {
@@ -98,8 +110,7 @@ func (w *Worker) initDb() (err error) {
 		return
 	}
 	// Create tables and indexes (idempotent).
-	w.CreateTables()
-	w.CreateIndexes()
+	w.CreateSchema()
 	return
 }
 
@@ -332,6 +343,9 @@ func (w *Worker) fetchKey(uuid string) (pubkey *Pubkey, err error) {
 	} else if err != nil {
 		return
 	}
+	if err = pubkey.Read(); err != nil {
+		return
+	}
 	// Retrieve all signatures made directly on the primary public key
 	sigs := []Signature{}
 	err = w.db.Select(&sigs, `
@@ -342,6 +356,11 @@ WHERE pksig.pubkey_uuid = $1`, uuid)
 		return
 	}
 	pubkey.signatures = toSigPtrSlice(sigs)
+	for _, sig := range pubkey.signatures {
+		if err = sig.Read(); err != nil {
+			return
+		}
+	}
 	// Retrieve all uid records
 	uids := []UserId{}
 	err = w.db.Select(&uids, `
@@ -353,6 +372,9 @@ FROM openpgp_uid WHERE pubkey_uuid = $1`, uuid)
 	}
 	pubkey.userIds = toUidPtrSlice(uids)
 	for _, uid := range pubkey.userIds {
+		if err = uid.Read(); err != nil {
+			return
+		}
 		sigs = []Signature{}
 		err = w.db.Select(&sigs, `
 SELECT sig.* FROM openpgp_sig sig
@@ -362,6 +384,11 @@ WHERE usig.uid_uuid = $1`, uid.ScopedDigest)
 			return
 		}
 		uid.signatures = toSigPtrSlice(sigs)
+		for _, sig := range uid.signatures {
+			if err = sig.Read(); err != nil {
+				return
+			}
+		}
 	}
 	// Retrieve all user attribute records
 	uats := []UserAttribute{}
@@ -372,6 +399,9 @@ WHERE usig.uid_uuid = $1`, uid.ScopedDigest)
 	}
 	pubkey.userAttributes = toUatPtrSlice(uats)
 	for _, uat := range pubkey.userAttributes {
+		if err = uat.Read(); err != nil {
+			return
+		}
 		sigs = []Signature{}
 		err = w.db.Select(&sigs, `
 SELECT sig.* FROM openpgp_sig sig
@@ -381,6 +411,11 @@ WHERE usig.uat_uuid = $1`, uat.ScopedDigest)
 			return
 		}
 		uat.signatures = toSigPtrSlice(sigs)
+		for _, sig := range uat.signatures {
+			if err = sig.Read(); err != nil {
+				return
+			}
+		}
 	}
 	// Retrieve all subkey records
 	subkeys := []Subkey{}
@@ -391,6 +426,9 @@ WHERE usig.uat_uuid = $1`, uat.ScopedDigest)
 	}
 	pubkey.subkeys = toSubkeyPtrSlice(subkeys)
 	for _, subkey := range pubkey.subkeys {
+		if err = subkey.Read(); err != nil {
+			return
+		}
 		sigs = []Signature{}
 		err = w.db.Select(&sigs, `
 SELECT sig.* FROM openpgp_sig sig
@@ -400,9 +438,14 @@ WHERE sksig.subkey_uuid = $1`, subkey.RFingerprint)
 			return
 		}
 		subkey.signatures = toSigPtrSlice(sigs)
+		for _, sig := range subkey.signatures {
+			if err = sig.Read(); err != nil {
+				return
+			}
+		}
 	}
-	kv := ValidateKey(pubkey)
-	return kv.Pubkey, kv.KeyError
+	Resolve(pubkey)
+	return
 }
 
 func toSigPtrSlice(recs []Signature) (result []*Signature) {

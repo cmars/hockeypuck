@@ -21,12 +21,23 @@ import (
 	"log"
 )
 
+func (w *Worker) CreateSchema() (err error) {
+	if err = w.CreateTables(); err != nil {
+		return
+	}
+	return w.CreateConstraints()
+}
+
 func (w *Worker) CreateTables() (err error) {
-	for _, crSql := range CreateTableStatements {
+	for _, crSql := range CreateTablesSql {
 		w.db.Execf(crSql)
 	}
-	for _, alSql := range AlterTableStatements {
-		if _, err := w.db.Exec(alSql); err != nil {
+	return
+}
+
+func (w *Worker) CreateConstraints() (err error) {
+	for _, crSql := range CreateConstraintsSql {
+		if _, err := w.db.Exec(crSql); err != nil {
 			// TODO: Ignore duplicate error or check for this ahead of time
 			log.Println(err)
 		}
@@ -34,12 +45,12 @@ func (w *Worker) CreateTables() (err error) {
 	return
 }
 
-func (w *Worker) CreateIndexes() (err error) {
-	var count int
-	row := w.db.QueryRow(IndexExists_OpenpgpUidFulltext)
-	err = row.Scan(&count)
-	if err == nil && count == 0 {
-		w.db.Execf(CreateIndex_OpenpgpUidFulltext)
+func (w *Worker) DropConstraints() (err error) {
+	for _, drSql := range DropConstraintsSql {
+		if _, err := w.db.Exec(drSql); err != nil {
+			// TODO: Ignore duplicate error or check for this ahead of time
+			log.Println(err)
+		}
 	}
-	return
+	return nil
 }

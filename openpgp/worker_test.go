@@ -20,23 +20,28 @@ package openpgp
 import (
 	"code.google.com/p/go.crypto/openpgp/armor"
 	"crypto/sha256"
+	"fmt"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"launchpad.net/hockeypuck"
 	"testing"
 )
 
+func connectString() string {
+	return fmt.Sprintf(
+		"dbname=postgres host=/var/run/postgresql sslmode=disable user=%s", currentUsername())
+}
+
 func MustCreateWorker(t *testing.T) *Worker {
-	db, err := sqlx.Connect("postgres",
-		"dbname=postgres host=/var/run/postgresql sslmode=disable")
+	db, err := sqlx.Connect("postgres", connectString())
 	assert.Nil(t, err)
 	db.Execf("DROP DATABASE IF EXISTS testhkp")
 	db.Execf("CREATE DATABASE testhkp")
-	hockeypuck.SetConfig(`
+	hockeypuck.SetConfig(fmt.Sprintf(`
 [hockeypuck.openpgp.db]
 driver="postgres"
-dsn="dbname=testhkp host=/var/run/postgresql sslmode=disable"
-`)
+dsn="dbname=testhkp host=/var/run/postgresql sslmode=disable user=%s"
+`, currentUsername()))
 	w := &Worker{}
 	w.initDb()
 	return w
@@ -44,10 +49,8 @@ dsn="dbname=testhkp host=/var/run/postgresql sslmode=disable"
 
 func MustDestroyWorker(t *testing.T, w *Worker) {
 	w.db.Close()
-	db, err := sqlx.Connect("postgres",
-		"dbname=postgres host=/var/run/postgresql sslmode=disable")
+	db, err := sqlx.Connect("postgres", connectString())
 	assert.Nil(t, err)
-	db.Execf("DROP DATABASE IF EXISTS testhkp")
 	db.Close()
 }
 
@@ -59,7 +62,7 @@ func TestValidateKey(t *testing.T) {
 		t.Fatal(err)
 	}
 	var keys []*Pubkey
-	for keyRead := range ReadValidKeys(block.Body) {
+	for keyRead := range ReadKeys(block.Body) {
 		keys = append(keys, keyRead.Pubkey)
 	}
 	assert.Equal(t, 1, len(keys))
@@ -82,16 +85,15 @@ func testRoundTripKey(t *testing.T, testfile string) {
 	w := MustCreateWorker(t)
 	defer MustDestroyWorker(t, w)
 	key1 := MustInputAscKey(t, testfile)
-	kv := ValidateKey(key1)
-	assert.Nil(t, kv.KeyError)
+	Resolve(key1)
 	err := w.InsertKey(key1)
 	assert.Nil(t, err)
 	key2, err := w.fetchKey(key1.RFingerprint)
 	if err != nil {
 		t.Fatal(err)
 	}
-	//assert.Equal(t, key1.userIds[0].Keywords, "Jenny Ondioline <jennyo@transient.net>")
-	//assert.Equal(t, key1.userIds[0].Keywords, key2.userIds[0].Keywords)
+	t.Log(key1)
+	t.Log(key2)
 	h1 := SksDigest(key1, sha256.New())
 	h2 := SksDigest(key2, sha256.New())
 	assert.Equal(t, h1, h2)

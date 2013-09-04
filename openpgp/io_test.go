@@ -18,6 +18,9 @@
 package openpgp
 
 import (
+	"bytes"
+	"code.google.com/p/go.crypto/openpgp/armor"
+	"code.google.com/p/go.crypto/openpgp/packet"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -25,10 +28,10 @@ import (
 func TestVerifyUserAttributeSig(t *testing.T) {
 	key := MustInputAscKey(t, "uat.asc")
 	assert.Equal(t, 1, len(key.userAttributes), "Failed to read user attribute")
-	ValidateKey(key)
+	Resolve(key)
 	assert.Equal(t, 1, len(key.userAttributes), "Failed to validate user attribute")
 	uat := key.userAttributes[0]
-	imageDats := uat.GetJpegData()
+	imageDats := uat.UserAttribute.ImageData()
 	assert.Equal(t, 1, len(imageDats), "Expected 1 image in uat, found", len(imageDats))
 	// TODO: check contents
 }
@@ -40,4 +43,27 @@ func TestSksDigest(t *testing.T) {
 	key := MustInputAscKey(t, "sksdigest.asc")
 	assert.Equal(t, SKS_DIGEST__SHORTID, key.ShortId())
 	assert.Equal(t, SKS_DIGEST__REFERENCE, key.Md5)
+}
+
+func TestUatRtt(t *testing.T) {
+	f := MustInput(t, "uat.asc")
+	defer f.Close()
+	block, err := armor.Decode(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var p packet.Packet
+	for {
+		p, err = packet.Read(block.Body)
+		if err != nil {
+			break
+		}
+		if uat, is := p.(*packet.UserAttribute); is {
+			var buf bytes.Buffer
+			uat.Serialize(&buf)
+			or := packet.NewOpaqueReader(bytes.NewBuffer(buf.Bytes()))
+			op, _ := or.Next()
+			assert.Equal(t, buf.Bytes()[3:], op.Contents)
+		}
+	}
 }
