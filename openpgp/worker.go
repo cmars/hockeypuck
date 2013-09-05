@@ -21,8 +21,6 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
-"os"
-"os/user"
 	"flag"
 	"fmt"
 	"github.com/jmoiron/sqlx"
@@ -32,6 +30,8 @@ import (
 	"launchpad.net/hockeypuck/hkp"
 	"launchpad.net/hockeypuck/util"
 	"log"
+	"os"
+	"os/user"
 	"runtime"
 	"strings"
 )
@@ -39,10 +39,10 @@ import (
 const LOOKUP_RESULT_LIMIT = 100
 
 type Worker struct {
+	*Loader
 	Service    *hkp.Service
 	Peer       *SksPeer
 	keyChanges KeyChangeChan
-	db         *sqlx.DB
 }
 
 // Number of workers to spawn
@@ -71,8 +71,11 @@ func (s *Settings) DSN() string {
 }
 
 func NewWorker(service *hkp.Service, peer *SksPeer) (w *Worker, err error) {
-	w = &Worker{Service: service, Peer: peer}
-	err = w.initDb()
+	w = &Worker{Loader: &Loader{}, Service: service, Peer: peer}
+	if w.db, err = NewDB(); err != nil {
+		return
+	}
+	err = w.db.CreateSchema()
 	return
 }
 
@@ -102,16 +105,6 @@ func (w *Worker) Run() {
 			r.response <- resp
 		}
 	}
-}
-
-func (w *Worker) initDb() (err error) {
-	w.db, err = sqlx.Connect(Config().Driver(), Config().DSN())
-	if err != nil {
-		return
-	}
-	// Create tables and indexes (idempotent).
-	w.CreateSchema()
-	return
 }
 
 func (w *Worker) Lookup(l *hkp.Lookup) {

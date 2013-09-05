@@ -18,38 +18,53 @@
 package openpgp
 
 import (
+	"github.com/jmoiron/sqlx"
 	"log"
 )
 
-func (w *Worker) CreateSchema() (err error) {
-	if err = w.CreateTables(); err != nil {
-		return
-	}
-	return w.CreateConstraints()
+type DB struct {
+	*sqlx.DB
 }
 
-func (w *Worker) CreateTables() (err error) {
+func NewDB() (db *DB, err error) {
+	db = new(DB)
+	db.DB, err = sqlx.Connect(Config().Driver(), Config().DSN())
+	return
+}
+
+func (db *DB) CreateSchema() (err error) {
+	if err = db.CreateTables(); err != nil {
+		return
+	}
+	return db.CreateConstraints()
+}
+
+func (db *DB) CreateTables() (err error) {
 	for _, crSql := range CreateTablesSql {
-		w.db.Execf(crSql)
+		db.Execf(crSql)
 	}
 	return
 }
 
-func (w *Worker) CreateConstraints() (err error) {
-	for _, crSql := range CreateConstraintsSql {
-		if _, err := w.db.Exec(crSql); err != nil {
-			// TODO: Ignore duplicate error or check for this ahead of time
-			log.Println(err)
+func (db *DB) CreateConstraints() (err error) {
+	for _, crSqls := range CreateConstraintsSql {
+		for _, crSql := range crSqls {
+			if _, err := db.Exec(crSql); err != nil {
+				// TODO: Ignore duplicate error or check for this ahead of time
+				log.Println(err)
+			}
 		}
 	}
 	return
 }
 
-func (w *Worker) DropConstraints() (err error) {
-	for _, drSql := range DropConstraintsSql {
-		if _, err := w.db.Exec(drSql); err != nil {
-			// TODO: Ignore duplicate error or check for this ahead of time
-			log.Println(err)
+func (db *DB) DropConstraints() (err error) {
+	for _, drSqls := range DropConstraintsSql {
+		for _, drSql := range drSqls {
+			if _, err := db.Exec(drSql); err != nil {
+				// TODO: Ignore duplicate error or check for this ahead of time
+				log.Println(err)
+			}
 		}
 	}
 	return nil
