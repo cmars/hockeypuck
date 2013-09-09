@@ -140,17 +140,49 @@ func (uid *UserId) linkSelfSigs(pubkey *Pubkey) {
 					uid.RevSigDigest = sql.NullString{sig.ScopedDigest, true}
 				}
 			}
-		} else if sig.SigType >= 0x10 && sig.SigType <= 0x13 {
+		}
+	}
+	if uid.revSig != nil {
+		// Check for existing primary that was revoked.
+		if pubkey.PrimaryUid.String == uid.ScopedDigest {
+			pubkey.PrimaryUid = sql.NullString{"", false}
+			pubkey.primaryUid = nil
+			pubkey.primaryUidSig = nil
+		}
+		return
+	}
+	// Look for a better primary UID
+	for _, sig := range uid.signatures {
+		if !strings.HasPrefix(pubkey.RFingerprint, sig.RIssuerKeyId) {
+			// Ignore signatures not made by this key (not self-sig)
+			continue
+		}
+		if time.Now().Unix() > sig.Expiration.Unix() {
+			// Ignore expired signatures
+			continue
+		}
+		if sig.SigType >= 0x10 && sig.SigType <= 0x13 {
 			if err := pubkey.verifyUserIdSelfSig(uid, sig); err == nil {
-				if uid.selfSignature == nil || sig.Creation.Unix() < uid.selfSignature.Creation.Unix() {
+				if uid.selfSignature == nil || sig.Creation.Unix() > uid.selfSignature.Creation.Unix() {
+					// Choose the most-recent self-signature on the uid
 					uid.selfSignature = sig
 				}
-				if sig.Signature != nil && sig.Signature.IsPrimaryId != nil && *sig.Signature.IsPrimaryId {
-					if (pubkey.primaryUidSig == nil || sig.Creation.Unix() < pubkey.primaryUidSig.Creation.Unix()) && time.Now().Unix() < sig.Expiration.Unix() {
-						pubkey.primaryUid = uid
-						pubkey.PrimaryUid = sql.NullString{uid.ScopedDigest, true}
-						pubkey.primaryUidSig = sig
+				var replace bool
+				if pubkey.primaryUidSig == nil {
+					// If we don't have a prior primary, let's start with this one
+					replace = true
+				} else if sig.Creation.Unix() > pubkey.primaryUidSig.Creation.Unix() {
+					// If this uid signature is newer than the current primary candidate,
+					// and its either signed as primary, or we haven't yet found a primary
+					// uid, prefer this one.
+					if sig.IsPrimary() || !pubkey.primaryUidSig.IsPrimary() {
+						replace = true
 					}
+				}
+				if replace {
+					pubkey.primaryUid = uid
+					pubkey.PrimaryUid = sql.NullString{uid.ScopedDigest, true}
+					pubkey.primaryUidSig = sig
 				}
 			}
 		}

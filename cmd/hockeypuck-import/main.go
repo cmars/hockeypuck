@@ -77,7 +77,7 @@ func main() {
 				select {
 				case key := <-keys:
 					if err = l.InsertKey(key); err != nil {
-						log.Println(err)
+						log.Println("Error inserting key:", key.Fingerprint(), ":", err)
 					}
 				}
 			}
@@ -99,6 +99,7 @@ func readAllKeys(path string, keys chan *openpgp.Pubkey) {
 			log.Println("Failed to open", keyfile, ":", err)
 			continue
 		} else {
+			defer f.Close()
 			log.Println("Loading keys from", keyfile)
 		}
 		for keyRead := range openpgp.ReadKeys(f) {

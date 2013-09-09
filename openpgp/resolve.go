@@ -61,9 +61,6 @@ func (r *resolver) resolve(rec PacketRecord) (err error) {
 
 func (r *resolver) setSigScope(scope string, sigs ...*Signature) {
 	for _, sig := range sigs {
-		sigScope := sig.calcScopedDigest(r.Pubkey, scope)
-		if sigScope != sig.ScopedDigest {
-			sig.ScopedDigest = sigScope
-		}
+		sig.ScopedDigest = sig.calcScopedDigest(r.Pubkey, scope)
 	}
 }

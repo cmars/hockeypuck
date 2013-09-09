@@ -185,3 +185,7 @@ func (sig *Signature) initV4() (err error) {
 func (sig *Signature) Visit(visitor PacketVisitor) (err error) {
 	return visitor(sig)
 }
+
+func (sig *Signature) IsPrimary() bool {
+	return sig.Signature != nil && sig.Signature.IsPrimaryId != nil && *sig.Signature.IsPrimaryId
+}

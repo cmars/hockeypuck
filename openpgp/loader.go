@@ -31,7 +31,7 @@ func NewLoader() (l *Loader, err error) {
 		return
 	}
 	// Create tables and indexes (idempotent).
-	if err = l.db.CreateSchema(); err != nil {
+	if err = l.db.CreateTables(); err != nil {
 		return
 	}
 	// Drop constraints for bulk import.
@@ -48,18 +48,7 @@ func (l *Loader) InsertKey(pubkey *Pubkey) error {
 	err = pubkey.Visit(func(rec PacketRecord) error {
 		switch r := rec.(type) {
 		case *Pubkey:
-			if _, err := l.db.Execv(`
-INSERT INTO openpgp_pubkey (
-	uuid, creation, expiration, state, packet,
-	ctime, mtime,
-    md5, sha256, algorithm, bit_len)
-VALUES (
-	$1, $2, $3, $4, $5,
-	now(), now(),
-    $6, $7, $8, $9)`,
-				r.RFingerprint, r.Creation, r.Expiration, r.State, r.Packet,
-				// TODO: use mtime and ctime from record, or use RETURNING to set it
-				r.Md5, r.Sha256, r.Algorithm, r.BitLen); err != nil {
+			if err := l.insertPubkey(tx, r); err != nil {
 				return err
 			}
 			signable = r
@@ -72,15 +61,9 @@ VALUES (
 			if err := l.insertUid(tx, pubkey, r); err != nil {
 				return err
 			}
-			if err := l.updatePrimaryUid(tx, pubkey, r); err != nil {
-				return err
-			}
 			signable = r
 		case *UserAttribute:
 			if err := l.insertUat(tx, pubkey, r); err != nil {
-				return err
-			}
-			if err := l.updatePrimaryUat(tx, pubkey, r); err != nil {
 				return err
 			}
 			signable = r
@@ -99,6 +82,22 @@ VALUES (
 	} else {
 		tx.Commit()
 	}
+	return err
+}
+
+func (l *Loader) insertPubkey(tx *sqlx.Tx, r *Pubkey) error {
+	_, err := tx.Execv(`
+INSERT INTO openpgp_pubkey (
+	uuid, creation, expiration, state, packet,
+	ctime, mtime,
+    md5, sha256, algorithm, bit_len)
+VALUES (
+	$1, $2, $3, $4, $5,
+	now(), now(),
+    $6, $7, $8, $9)`,
+		r.RFingerprint, r.Creation, r.Expiration, r.State, r.Packet,
+		// TODO: use mtime and ctime from record, or use RETURNING to set it
+		r.Md5, r.Sha256, r.Algorithm, r.BitLen)
 	return err
 }
 
@@ -141,36 +140,12 @@ VALUES (
 	return err
 }
 
-func (l *Loader) updatePrimaryUid(tx *sqlx.Tx, pubkey *Pubkey, r *UserId) error {
-	if pubkey.PrimaryUid.String == r.ScopedDigest {
-		if _, err := tx.Execv(`
-UPDATE openpgp_pubkey SET primary_uid = $1 WHERE uuid = $2`,
-			r.ScopedDigest, pubkey.RFingerprint); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (l *Loader) updatePrimaryUat(tx *sqlx.Tx, pubkey *Pubkey, r *UserAttribute) error {
-	if pubkey.PrimaryUat.String == r.ScopedDigest {
-		if _, err := tx.Execv(`
-UPDATE openpgp_pubkey SET primary_uat = $1 WHERE uuid = $2`,
-			r.ScopedDigest, pubkey.RFingerprint); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (l *Loader) insertSig(tx *sqlx.Tx, pubkey *Pubkey, r *Signature) error {
 	_, err := tx.Execv(`
 INSERT INTO openpgp_sig (
 	uuid, creation, expiration, state, packet,
 	sig_type, signer, signer_uuid)
-SELECT $1, $2, $3, $4, $5,
-	$6, $7, COALESCE($8, (
-		SELECT uuid FROM openpgp_pubkey WHERE uuid LIKE $7 || '________________________'))`,
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 		r.ScopedDigest, r.Creation, r.Expiration, r.State, r.Packet,
 		r.SigType, r.RIssuerKeyId, r.RIssuerFingerprint)
 	// TODO: use RETURNING to update matched issuer fingerprint
@@ -189,42 +164,31 @@ func (l *Loader) insertSigRelations(
 	case *Pubkey:
 		_, err = tx.Execv(`
 INSERT INTO openpgp_pubkey_sig (uuid, pubkey_uuid, sig_uuid)
-SELECT $1, $2, $3 WHERE NOT EXISTS (
-	SELECT 1 FROM openpgp_subkey_sig WHERE pubkey_uuid = $2 AND sig_uuid = $3)`,
-			sigRelationUuid, signed.RFingerprint, r.ScopedDigest)
+VALUES ($1, $2, $3)`, sigRelationUuid, signed.RFingerprint, r.ScopedDigest)
 		if err != nil {
 			return err
 		}
 	case *Subkey:
 		_, err = tx.Execv(`
 INSERT INTO openpgp_subkey_sig (uuid, pubkey_uuid, subkey_uuid, sig_uuid)
-SELECT $1, $2, $3, $4 WHERE NOT EXISTS (
-	SELECT 1 FROM openpgp_subkey_sig
-		WHERE subkey_uuid = $3 AND sig_uuid = $4)`,
-			sigRelationUuid, pubkey.RFingerprint, signed.RFingerprint,
-			r.ScopedDigest)
+VALUES ($1, $2, $3, $4)`, sigRelationUuid, pubkey.RFingerprint,
+			signed.RFingerprint, r.ScopedDigest)
 		if err != nil {
 			return err
 		}
 	case *UserId:
 		_, err = tx.Execv(`
 INSERT INTO openpgp_uid_sig (uuid, pubkey_uuid, uid_uuid, sig_uuid)
-SELECT $1, $2, $3, $4 WHERE NOT EXISTS (
-	SELECT 1 FROM openpgp_uid_sig
-		WHERE uid_uuid = $3 AND sig_uuid = $4)`,
-			sigRelationUuid, pubkey.RFingerprint, signed.ScopedDigest,
-			r.ScopedDigest)
+VALUES ($1, $2, $3, $4)`, sigRelationUuid, pubkey.RFingerprint,
+			signed.ScopedDigest, r.ScopedDigest)
 		if err != nil {
 			return err
 		}
 	case *UserAttribute:
 		_, err = tx.Execv(`
 INSERT INTO openpgp_uat_sig (uuid, pubkey_uuid, uat_uuid, sig_uuid)
-SELECT $1, $2, $3, $4 WHERE NOT EXISTS (
-	SELECT 1 FROM openpgp_uat_sig
-		WHERE uat_uuid = $3 AND sig_uuid = $4)`,
-			sigRelationUuid, pubkey.RFingerprint, signed.ScopedDigest,
-			r.ScopedDigest)
+VALUES ($1, $2, $3, $4)`, sigRelationUuid, pubkey.RFingerprint,
+			signed.ScopedDigest, r.ScopedDigest)
 		if err != nil {
 			return err
 		}

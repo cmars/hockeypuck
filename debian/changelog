@@ -79,8 +79,19 @@ hockeypuck (1.0~b1) UNRELEASED; urgency=low
     import/main.go, openpgp/add.go, openpgp/db.go, openpgp/loader.go,
     openpgp/schema.go, openpgp/worker.go:
     - Add bulk loading support without FK constraints. LP: #1208295.
+  * cmd/hockeypuck-import/main.go, openpgp/add.go, openpgp/io.go,
+    openpgp/loader.go, openpgp/resolve.go, openpgp/resolve_test.go,
+    openpgp/schema.go, openpgp/signature.go,
+    openpgp/testdata/252B8B37.dupsig.asc,
+    openpgp/testdata/lp1195901_2.asc, openpgp/testdata/lp1195901.asc,
+    openpgp/userattribute.go, openpgp/userid.go, openpgp/worker_test.go:
+    - Fix rules for choosing a primary UID. LP: #1195901
+    - Support bulk loading, refactor out common functionality. LP: #1208295
+      Drop all constraints for bulk loading.
+    - Don't leak keyring file descriptors in hockeypuck-import.
+    - Add some test cases.
 
- -- Casey Marshall <casey.marshall@gmail.com>  Wed, 04 Sep 2013 17:49:10 -0500
+ -- Casey Marshall <cmars@cmarstech.com>  Wed, 04 Sep 2013 17:49:10 -0500
 
 hockeypuck (1.0~a2) precise; urgency=low
 

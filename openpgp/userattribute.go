@@ -137,17 +137,46 @@ func (uat *UserAttribute) linkSelfSigs(pubkey *Pubkey) {
 					uat.RevSigDigest = sql.NullString{sig.ScopedDigest, true}
 				}
 			}
-		} else if sig.SigType >= 0x10 && sig.SigType <= 0x13 {
+		}
+	}
+	if uat.revSig != nil {
+		// Check for existing primary that was revoked.
+		if pubkey.PrimaryUat.String == uat.ScopedDigest {
+			pubkey.PrimaryUat = sql.NullString{"", false}
+			pubkey.primaryUat = nil
+			pubkey.primaryUatSig = nil
+		}
+		return
+	}
+	for _, sig := range uat.signatures {
+		if !strings.HasPrefix(pubkey.RFingerprint, sig.RIssuerKeyId) {
+			continue
+		}
+		if time.Now().Unix() > sig.Expiration.Unix() {
+			// Ignore expired signatures
+			continue
+		}
+		if sig.SigType >= 0x10 && sig.SigType <= 0x13 {
 			if err := pubkey.verifyUserAttrSelfSig(uat, sig); err == nil {
-				if uat.selfSignature == nil || sig.Creation.Unix() < uat.selfSignature.Creation.Unix() {
+				if uat.selfSignature == nil || sig.Creation.Unix() > uat.selfSignature.Creation.Unix() {
 					uat.selfSignature = sig
 				}
-				if sig.Signature != nil && sig.Signature.IsPrimaryId != nil && *sig.Signature.IsPrimaryId {
-					if (pubkey.primaryUatSig == nil || sig.Creation.Unix() < pubkey.primaryUatSig.Creation.Unix()) && time.Now().Unix() < sig.Expiration.Unix() {
-						pubkey.primaryUat = uat
-						pubkey.PrimaryUat = sql.NullString{uat.ScopedDigest, true}
-						pubkey.primaryUatSig = sig
+				var replace bool
+				if pubkey.primaryUatSig == nil {
+					// If we don't have a prior primary, let's start with this one
+					replace = true
+				} else if sig.Creation.Unix() > pubkey.primaryUatSig.Creation.Unix() {
+					// If this uat signature is newer than the current primary candidate,
+					// and its either signed as primary, or we haven't yet found a primary
+					// user attribute, prefer this one.
+					if sig.IsPrimary() || !pubkey.primaryUatSig.IsPrimary() {
+						replace = true
 					}
+				}
+				if replace {
+					pubkey.primaryUat = uat
+					pubkey.PrimaryUat = sql.NullString{uat.ScopedDigest, true}
+					pubkey.primaryUatSig = sig
 				}
 			}
 		}

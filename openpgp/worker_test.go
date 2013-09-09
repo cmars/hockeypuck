@@ -42,8 +42,8 @@ func MustCreateWorker(t *testing.T) *Worker {
 driver="postgres"
 dsn="dbname=testhkp host=/var/run/postgresql sslmode=disable user=%s"
 `, currentUsername()))
-	w := &Worker{}
-	w.initDb()
+	w, err := NewWorker(nil, nil)
+	assert.Nil(t, err)
 	return w
 }
 

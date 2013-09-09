@@ -29,6 +29,7 @@ import (
 	"errors"
 	"hash"
 	"io"
+	"log"
 	"sort"
 	"time"
 )
@@ -103,7 +104,11 @@ func IterOpaquePackets(root PacketRecord) OpaquePacketChan {
 func SksDigest(key *Pubkey, h hash.Hash) string {
 	var packets packetSlice
 	for opkt := range IterOpaquePackets(key) {
-		packets = append(packets, opkt.OpaquePacket)
+		if opkt.Error != nil {
+			log.Println("Error parsing packet:", opkt.Error, "public key fingerprint:", key.Fingerprint())
+		} else {
+			packets = append(packets, opkt.OpaquePacket)
+		}
 	}
 	return sksDigestOpaque(packets, h)
 }
