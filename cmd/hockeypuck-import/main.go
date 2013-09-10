@@ -28,9 +28,10 @@ import (
 	"path/filepath"
 )
 
-var path *string = flag.String("path", "", "PGP keyrings to be loaded")
+var load *string = flag.String("load", "", "Load PGP keyring filename or glob pattern")
 var showVersion *bool = flag.Bool("version", false, "Display version and exit")
 var configFile *string = flag.String("config", "", "Config file")
+var reindex *bool = flag.Bool("reindex", true, "Rebuild constraints and indexes")
 
 func usage() {
 	flag.PrintDefaults()
@@ -47,9 +48,6 @@ func die(err error) {
 
 func main() {
 	flag.Parse()
-	if *path == "" {
-		usage()
-	}
 	var err error
 	// Load Hockeypuck config file
 	if *configFile != "" {
@@ -66,12 +64,13 @@ func main() {
 	}
 	InitLog()
 	keys := make(chan *openpgp.Pubkey)
+	var db *openpgp.DB
+	if db, err = openpgp.NewDB(); err != nil {
+		die(err)
+	}
 	for i := 0; i < openpgp.Config().NumWorkers(); i++ {
-		var l *openpgp.Loader
-		if l, err = openpgp.NewLoader(); err != nil {
-			die(err)
-		}
 		go func() {
+			l := openpgp.NewLoader(db)
 			var err error
 			for {
 				select {
@@ -83,7 +82,26 @@ func main() {
 			}
 		}()
 	}
-	readAllKeys(*path, keys)
+	// Ensure tables all exist
+	if err = db.CreateTables(); err != nil {
+		die(err)
+	}
+	// If we're reindexing, drop all constraints
+	if *reindex {
+		if err = db.DropConstraints(); err != nil {
+			die(err)
+		}
+	}
+	// Load any tables if specified
+	if *load != "" {
+		readAllKeys(*load, keys)
+	}
+	// If we're reindexing, ensure uniqueness & create all constraints
+	if *reindex {
+		if err = db.CreateConstraints(); err != nil {
+			die(err)
+		}
+	}
 }
 
 func readAllKeys(path string, keys chan *openpgp.Pubkey) {

@@ -17,6 +17,11 @@
 
 package openpgp
 
+import (
+	"bytes"
+	"text/template"
+)
+
 /*
 
    Notes on Hockeypuck OpenPGP SQL schema
@@ -257,6 +262,29 @@ uat_uuid TEXT NOT NULL,
 sig_uuid TEXT NOT NULL
 )`
 
+const Cr_openpgp_unsupp = `
+CREATE TABLE IF NOT EXISTS openpgp_unsupp (
+-----------------------------------------------------------------------
+-- Universally-unique identifer
+uuid TEXT NOT NULL,
+-- Creation timestamp. Since this opaque packet lacks a field
+-- for creation time, the current time is used.
+creation TIMESTAMP WITH TIME ZONE NOT NULL,
+-- User attribute expiration timestamp (if any)
+expiration TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT '9999-12-31 23:59:59+00',
+-- State flag for this record
+state INTEGER NOT NULL DEFAULT 0,
+-- Binary contents of the OpenPGP packet
+packet bytea,
+-----------------------------------------------------------------------
+-- Public key to which this unsupported packet belongs
+pubkey_uuid TEXT,
+-- Packet tag, if any
+tag INTEGER NOT NULL DEFAULT 0,
+-- Reason packet is unsupported
+reason TEXT
+)`
+
 const Cr_pks_stat = `
 CREATE TABLE IF NOT EXISTS pks_status (
 -----------------------------------------------------------------------
@@ -288,24 +316,19 @@ var CreateTablesSql []string = []string{
 	Cr_openpgp_subkey_sig,
 	Cr_openpgp_uid_sig,
 	Cr_openpgp_uat_sig,
+	Cr_openpgp_unsupp,
 	Cr_pks_stat}
 
 var Cr_openpgp_pubkey_constraints []string = []string{
 	`ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_pk PRIMARY KEY (uuid);`,
 	`ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_md5 UNIQUE (md5);`,
-	`ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_sha256 UNIQUE (sha256);`,
-	`ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_primary_uid_fk
-	FOREIGN KEY (primary_uid) REFERENCES openpgp_uid(uuid)
-	DEFERRABLE INITIALLY DEFERRED;`,
-	`ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_primary_uat_fk
-	FOREIGN KEY (primary_uat) REFERENCES openpgp_uat(uuid)
-	DEFERRABLE INITIALLY DEFERRED;`,
-	`ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_revsig_fk
-	FOREIGN KEY (revsig_uuid) REFERENCES openpgp_sig(uuid)
-	DEFERRABLE INITIALLY DEFERRED;`}
+	`ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_sha256 UNIQUE (sha256);`}
 
 var Cr_openpgp_sig_constraints []string = []string{
 	`ALTER TABLE openpgp_sig ADD CONSTRAINT openpgp_sig_pk PRIMARY KEY (uuid);`,
+	`ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_revsig_fk
+	FOREIGN KEY (revsig_uuid) REFERENCES openpgp_sig(uuid)
+	DEFERRABLE INITIALLY DEFERRED;`,
 	`ALTER TABLE openpgp_sig ADD CONSTRAINT openpgp_sig_signer_fk FOREIGN KEY (signer_uuid)
 	REFERENCES openpgp_pubkey(uuid) DEFERRABLE INITIALLY DEFERRED;`,
 	`ALTER TABLE openpgp_sig ADD CONSTRAINT openpgp_sig_rev_fk FOREIGN KEY (revsig_uuid)
@@ -325,6 +348,9 @@ var Cr_openpgp_uid_constraints []string = []string{
 	`ALTER TABLE openpgp_uid ADD CONSTRAINT openpgp_uid_pubkey_fk
 	FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid)
 	DEFERRABLE INITIALLY DEFERRED;`,
+	`ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_primary_uid_fk
+	FOREIGN KEY (primary_uid) REFERENCES openpgp_uid(uuid)
+	DEFERRABLE INITIALLY DEFERRED;`,
 	`ALTER TABLE openpgp_uid ADD CONSTRAINT openpgp_uid_rev_fk
 	FOREIGN KEY (revsig_uuid) REFERENCES openpgp_sig(uuid)
 	DEFERRABLE INITIALLY DEFERRED;`,
@@ -334,6 +360,9 @@ var Cr_openpgp_uat_constraints []string = []string{
 	`ALTER TABLE openpgp_uat ADD CONSTRAINT openpgp_uat_pk PRIMARY KEY (uuid);`,
 	`ALTER TABLE openpgp_uat ADD CONSTRAINT openpgp_uat_pubkey_fk
 	FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid)
+	DEFERRABLE INITIALLY DEFERRED;`,
+	`ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_primary_uat_fk
+	FOREIGN KEY (primary_uat) REFERENCES openpgp_uat(uuid)
 	DEFERRABLE INITIALLY DEFERRED;`,
 	`ALTER TABLE openpgp_uat ADD CONSTRAINT openpgp_uat_rev_fk
 	FOREIGN KEY (revsig_uuid) REFERENCES openpgp_sig(uuid)
@@ -392,6 +421,12 @@ var Cr_openpgp_uat_sig_constraints []string = []string{
 	FOREIGN KEY (sig_uuid) REFERENCES openpgp_sig(uuid)
 	DEFERRABLE INITIALLY DEFERRED;`}
 
+var Cr_openpgp_unsupp_constraints []string = []string{
+	`ALTER TABLE openpgp_unsupp ADD CONSTRAINT openpgp_unsupp_pk PRIMARY KEY (uuid);`,
+	`ALTER TABLE openpgp_unsupp ADD CONSTRAINT openpgp_unsupp_pubkey_fk
+	FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid)
+	DEFERRABLE INITIALLY DEFERRED;`}
+
 var CreateConstraintsSql [][]string = [][]string{
 	Cr_openpgp_pubkey_constraints,
 	Cr_openpgp_sig_constraints,
@@ -401,7 +436,61 @@ var CreateConstraintsSql [][]string = [][]string{
 	Cr_openpgp_pubkey_sig_constraints,
 	Cr_openpgp_subkey_sig_constraints,
 	Cr_openpgp_uid_sig_constraints,
-	Cr_openpgp_uat_sig_constraints}
+	Cr_openpgp_uat_sig_constraints,
+	Cr_openpgp_unsupp_constraints}
+
+const dedupTemplate = `
+WITH has_dups AS (
+    	SELECT {{.ColumnName}} FROM {{.TableName}}
+    	GROUP BY {{.ColumnName}} HAVING COUNT({{.ColumnName}}) > 1),
+	dups AS (
+		SELECT {{.ColumnName}}, ROW_NUMBER() OVER ({{ if .OrderBy }}ORDER BY ({{.OrderBy}}){{ end }}) AS rownum
+		FROM {{.TableName}} GROUP BY {{.ColumnName}}{{ if .OrderBy }}, {{.OrderBy}}{{ end }})
+DELETE FROM {{.TableName}} WHERE {{.ColumnName}} IN (
+	SELECT hd.{{.ColumnName}} FROM has_dups hd JOIN dups ON (hd.{{.ColumnName}} = dups.{{.ColumnName}})
+	WHERE rownum > 1)`
+
+type dedup struct {
+	TableName  string
+	ColumnName string
+	OrderBy    string
+}
+
+var dedups []dedup = []dedup{
+	dedup{"openpgp_pubkey", "uuid", "ctime"},
+	dedup{"openpgp_sig", "uuid", "creation"},
+	dedup{"openpgp_subkey", "uuid", "creation"},
+	dedup{"openpgp_uid", "uuid", "creation"},
+	dedup{"openpgp_uat", "uuid", "creation"},
+	dedup{"openpgp_pubkey_sig", "uuid", ""},
+	dedup{"openpgp_pubkey_sig", "pubkey_uuid", ""},
+	dedup{"openpgp_pubkey_sig", "sig_uuid", ""},
+	dedup{"openpgp_subkey_sig", "uuid", ""},
+	dedup{"openpgp_subkey_sig", "subkey_uuid", ""},
+	dedup{"openpgp_subkey_sig", "sig_uuid", ""},
+	dedup{"openpgp_uid_sig", "uuid", ""},
+	dedup{"openpgp_uid_sig", "uid_uuid", ""},
+	dedup{"openpgp_uid_sig", "sig_uuid", ""},
+	dedup{"openpgp_uat_sig", "uuid", ""},
+	dedup{"openpgp_uat_sig", "uat_uuid", ""},
+	dedup{"openpgp_uat_sig", "sig_uuid", ""},
+	dedup{"openpgp_unsupp", "uuid", ""}}
+
+var DeleteDuplicatesSql []string
+
+func init() {
+	t := template.Must(template.New("DeleteDuplicates").Parse(dedupTemplate))
+	var sql []string
+	var err error
+	for _, dedup := range dedups {
+		var out bytes.Buffer
+		if err = t.Execute(&out, dedup); err != nil {
+			panic(err)
+		}
+		sql = append(sql, out.String())
+	}
+	DeleteDuplicatesSql = sql
+}
 
 var Dr_openpgp_pubkey_constraints []string = []string{
 	`ALTER TABLE openpgp_pubkey DROP CONSTRAINT openpgp_pubkey_pk;`,
@@ -455,6 +544,10 @@ var Dr_openpgp_uat_sig_constraints []string = []string{
 	`ALTER TABLE openpgp_uat_sig DROP CONSTRAINT openpgp_uat_sig_uat_fk;`,
 	`ALTER TABLE openpgp_uat_sig DROP CONSTRAINT openpgp_uat_sig_sig_fk;`}
 
+var Dr_openpgp_unsupp_constraints []string = []string{
+	`ALTER TABLE openpgp_unsupp DROP CONSTRAINT openpgp_unsupp_pk;`,
+	`ALTER TABLE openpgp_unsupp DROP CONSTRAINT openpgp_unsupp_pubkey_fk;`}
+
 var DropConstraintsSql [][]string = [][]string{
 	Dr_openpgp_pubkey_constraints,
 	Dr_openpgp_sig_constraints,
@@ -464,4 +557,5 @@ var DropConstraintsSql [][]string = [][]string{
 	Dr_openpgp_pubkey_sig_constraints,
 	Dr_openpgp_subkey_sig_constraints,
 	Dr_openpgp_uid_sig_constraints,
-	Dr_openpgp_uat_sig_constraints}
+	Dr_openpgp_uat_sig_constraints,
+	Dr_openpgp_unsupp_constraints}

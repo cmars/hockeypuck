@@ -59,6 +59,7 @@ type Pubkey struct {
 	subkeys        []*Subkey        `db:"-"`
 	userIds        []*UserId        `db:"-"`
 	userAttributes []*UserAttribute `db:"-"`
+	unsupported    []*Unsupported   `db:"-"`
 
 	/* Cross-references */
 
@@ -225,6 +226,12 @@ func (pubkey *Pubkey) Visit(visitor PacketVisitor) (err error) {
 	}
 	for _, subkey := range pubkey.subkeys {
 		err = subkey.Visit(visitor)
+		if err != nil {
+			return
+		}
+	}
+	for _, unsupp := range pubkey.unsupported {
+		err = unsupp.Visit(visitor)
 		if err != nil {
 			return
 		}

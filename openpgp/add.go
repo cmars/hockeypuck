@@ -20,16 +20,11 @@ package openpgp
 import (
 	"bytes"
 	"code.google.com/p/go.crypto/openpgp/armor"
-	"code.google.com/p/go.crypto/openpgp/packet"
-	"crypto/md5"
 	"crypto/rand"
-	"crypto/sha256"
 	"database/sql"
 	"encoding/ascii85"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/cmars/conflux"
 	"github.com/jmoiron/sqlx"
 	"io"
 	. "launchpad.net/hockeypuck/errors"
@@ -74,63 +69,17 @@ func (w *Worker) recoverKey(rk *RecoverKey) hkp.Response {
 			pubkeys = append(pubkeys, readKey.Pubkey)
 		}
 	}
-	if err == nil {
-		if len(pubkeys) == 0 {
-			return &ErrorResponse{ErrKeyNotFound}
-		} else if len(pubkeys) > 1 {
-			return &ErrorResponse{ErrTooManyResponses}
-		}
-		digest, err := hex.DecodeString(pubkeys[0].Md5)
-		if err != nil {
-			return &ErrorResponse{err}
-		}
-		resp.Change = w.UpsertKey(pubkeys[0])
-		// If we arrived at the same digest as the recovery source, then we're
-		// done -- Hockeypuck fully supports all the key's contents. If not, then
-		// there must be some unsupported key material, so we'll continue and
-		// track this so that we can fully reconcile with the recovery source.
-		if rk.RecoverSet.Has(conflux.Zb(conflux.P_SKS, digest)) {
-			w.notifyChange(resp.Change)
-			return resp
-		}
-	}
-	// Ok, we failed to read at least some of this key material.
-	// Since it came from a recovery source that claims it *can* read it,
-	// we'll store an unsupported record for it. Future upgrades of Hockeypuck
-	// may add support for parsing and reloading it.
-	var packets []*packet.OpaquePacket
-	opktReader := packet.NewOpaqueReader(bytes.NewBuffer(rk.Keytext))
-	for opkt, pkterr := opktReader.Next(); pkterr != io.EOF; opkt, pkterr = opktReader.Next() {
-		if pkterr == nil {
-			packets = append(packets, opkt)
-		}
-	}
-	// Calculate digest
-	sha256Digest := sksDigestOpaque(packets, sha256.New())
-	md5Digest := sksDigestOpaque(packets, md5.New())
-	resp.Change = &KeyChange{Type: KeyChangeInvalid, Fingerprint: "[cannot parse]",
-		CurrentMd5: md5Digest, CurrentSha256: sha256Digest}
-	// Insert unsupported record if not exists
-	_, err = w.db.Execv(`
-INSERT INTO openpgp_unsupp (uuid, contents, md5, source)
-SELECT $1, $2, $3, $4 WHERE NOT EXISTS (
-	SELECT 1 FROM openpgp_unsupp WHERE uuid = $1)`,
-		sha256Digest, rk.Keytext, md5Digest, rk.Source)
-	if err != nil {
-		// Database communication error, yikes!
-		return &ErrorResponse{err}
-	}
-	digest, err := hex.DecodeString(md5Digest)
 	if err != nil {
 		return &ErrorResponse{err}
 	}
-	if rk.RecoverSet.Has(conflux.Zb(conflux.P_SKS, digest)) {
-		w.notifyChange(resp.Change)
-		resp.Err = nil
-		return resp
+	if len(pubkeys) == 0 {
+		return &ErrorResponse{ErrKeyNotFound}
+	} else if len(pubkeys) > 1 {
+		return &ErrorResponse{ErrTooManyResponses}
 	}
-	return &ErrorResponse{errors.New(
-		fmt.Sprintf("Failed to match peer digest [%x]", digest))}
+	resp.Change = w.UpsertKey(pubkeys[0])
+	w.notifyChange(resp.Change)
+	return resp
 }
 
 var ErrSubKeyChanges error = errors.New("Worker already has a key change subscriber")

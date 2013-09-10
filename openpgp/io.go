@@ -20,7 +20,6 @@ package openpgp
 import (
 	"code.google.com/p/go.crypto/openpgp"
 	"code.google.com/p/go.crypto/openpgp/armor"
-	packetErrors "code.google.com/p/go.crypto/openpgp/errors"
 	"code.google.com/p/go.crypto/openpgp/packet"
 	"crypto/md5"
 	"crypto/sha256"
@@ -248,7 +247,14 @@ func readKeys(r io.Reader) PubkeyChan {
 					currentSignable = uat
 					currentPubkey.userAttributes = append(currentPubkey.userAttributes, uat)
 				}
-			} else if _, isUnknown := parseErr.(packetErrors.UnknownPacketTypeError); isUnknown {
+			} else if currentPubkey != nil {
+				var unsupp *Unsupported
+				if unsupp, err = NewUnsupported(opkt); err != nil {
+					c <- &ReadKeyResult{Error: err}
+					continue
+				}
+				currentPubkey.unsupported = append(currentPubkey.unsupported, unsupp)
+			} else {
 				c <- &ReadKeyResult{Error: parseErr}
 			}
 		}

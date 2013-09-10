@@ -25,18 +25,8 @@ type Loader struct {
 	db *DB
 }
 
-func NewLoader() (l *Loader, err error) {
-	l = new(Loader)
-	if l.db, err = NewDB(); err != nil {
-		return
-	}
-	// Create tables and indexes (idempotent).
-	if err = l.db.CreateTables(); err != nil {
-		return
-	}
-	// Drop constraints for bulk import.
-	err = l.db.DropConstraints()
-	return
+func NewLoader(db *DB) *Loader {
+	return &Loader{db: db}
 }
 
 func (l *Loader) InsertKey(pubkey *Pubkey) error {
@@ -72,6 +62,10 @@ func (l *Loader) InsertKey(pubkey *Pubkey) error {
 				return err
 			}
 			if err := l.insertSigRelations(tx, pubkey, signable, r); err != nil {
+				return err
+			}
+		case *Unsupported:
+			if err := l.insertUnsupported(tx, pubkey, r); err != nil {
 				return err
 			}
 		}
@@ -137,6 +131,14 @@ VALUES (
 	$6)`,
 		r.ScopedDigest, r.Creation, r.Expiration, r.State, r.Packet,
 		pubkey.RFingerprint)
+	return err
+}
+
+func (l *Loader) insertUnsupported(tx *sqlx.Tx, pubkey *Pubkey, r *Unsupported) error {
+	_, err := tx.Execv(`
+INSERT INTO openpgp_unsupp (uuid, creation, packet, pubkey_uuid, tag, reason)
+VALUES ($1, now(), $2, $3, $4, $5)`, r.ScopedDigest, r.Packet, r.PubkeyRFP,
+		r.OpaquePacket.Tag, r.OpaquePacket.Reason)
 	return err
 }
 

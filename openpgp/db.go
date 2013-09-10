@@ -41,17 +41,24 @@ func (db *DB) CreateSchema() (err error) {
 
 func (db *DB) CreateTables() (err error) {
 	for _, crSql := range CreateTablesSql {
+		log.Println(crSql)
 		db.Execf(crSql)
 	}
 	return
 }
 
 func (db *DB) CreateConstraints() (err error) {
+	for _, sql := range DeleteDuplicatesSql {
+		log.Println(sql)
+		if _, err = db.Exec(sql); err != nil {
+			return
+		}
+	}
 	for _, crSqls := range CreateConstraintsSql {
 		for _, crSql := range crSqls {
-			if _, err := db.Exec(crSql); err != nil {
-				// TODO: Ignore duplicate error or check for this ahead of time
-				log.Println(err)
+			log.Println(crSql)
+			if _, err = db.Exec(crSql); err != nil {
+				return
 			}
 		}
 	}
@@ -61,6 +68,7 @@ func (db *DB) CreateConstraints() (err error) {
 func (db *DB) DropConstraints() (err error) {
 	for _, drSqls := range DropConstraintsSql {
 		for _, drSql := range drSqls {
+			log.Println(drSql)
 			if _, err := db.Exec(drSql); err != nil {
 				// TODO: Ignore duplicate error or check for this ahead of time
 				log.Println(err)

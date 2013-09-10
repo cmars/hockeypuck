@@ -90,6 +90,14 @@ hockeypuck (1.0~b1) UNRELEASED; urgency=low
       Drop all constraints for bulk loading.
     - Don't leak keyring file descriptors in hockeypuck-import.
     - Add some test cases.
+  * cmd/hockeypuck-import/main.go, openpgp/add.go, openpgp/db.go,
+    openpgp/io.go, openpgp/loader.go, openpgp/pubkey.go,
+    openpgp/resolve.go, openpgp/resolve_test.go, openpgp/schema.go,
+    openpgp/types.go, openpgp/unsupp.go, openpgp/worker.go:
+    - Bulk load without constraints, afterward delete duplicates and add
+      constraints. LP: #1208295
+    - Add unsupported packet record for storing packets that
+      go.crypto won't parse but SKS includes in key hashing. LP: #1208290
 
  -- Casey Marshall <cmars@cmarstech.com>  Wed, 04 Sep 2013 17:49:10 -0500
 
