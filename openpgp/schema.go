@@ -474,7 +474,7 @@ var dedups []dedup = []dedup{
 	dedup{"openpgp_uat_sig", "uuid", ""},
 	dedup{"openpgp_uat_sig", "uat_uuid", ""},
 	dedup{"openpgp_uat_sig", "sig_uuid", ""},
-	dedup{"openpgp_unsupp", "uuid", ""}}
+	dedup{"openpgp_unsupp", "uuid", "creation"}}
 
 var DeleteDuplicatesSql []string
 

@@ -135,10 +135,14 @@ VALUES (
 }
 
 func (l *Loader) insertUnsupported(tx *sqlx.Tx, pubkey *Pubkey, r *Unsupported) error {
+	var reason string
+	if r.OpaquePacket.Reason != nil {
+		reason = r.OpaquePacket.Reason.Error()
+	}
 	_, err := tx.Execv(`
 INSERT INTO openpgp_unsupp (uuid, creation, packet, pubkey_uuid, tag, reason)
-VALUES ($1, now(), $2, $3, $4, $5)`, r.ScopedDigest, r.Packet, r.PubkeyRFP,
-		r.OpaquePacket.Tag, r.OpaquePacket.Reason)
+VALUES ($1, now(), $2, $3, $4, $5)`, r.ScopedDigest, r.Packet, pubkey.RFingerprint,
+		r.OpaquePacket.Tag, reason)
 	return err
 }
 
