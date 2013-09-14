@@ -84,14 +84,17 @@ func (l *Loader) insertPubkey(tx *sqlx.Tx, r *Pubkey) error {
 INSERT INTO openpgp_pubkey (
 	uuid, creation, expiration, state, packet,
 	ctime, mtime,
-    md5, sha256, algorithm, bit_len)
+    md5, sha256, revsig_uuid, primary_uid, primary_uat,
+	algorithm, bit_len)
 VALUES (
 	$1, $2, $3, $4, $5,
 	now(), now(),
-    $6, $7, $8, $9)`,
+    $6, $7, $8, $9, $10,
+	$11, $12)`,
 		r.RFingerprint, r.Creation, r.Expiration, r.State, r.Packet,
 		// TODO: use mtime and ctime from record, or use RETURNING to set it
-		r.Md5, r.Sha256, r.Algorithm, r.BitLen)
+		r.Md5, r.Sha256, r.RevSigDigest, r.PrimaryUid, r.PrimaryUat,
+		r.Algorithm, r.BitLen)
 	return err
 }
 
@@ -99,12 +102,12 @@ func (l *Loader) insertSubkey(tx *sqlx.Tx, pubkey *Pubkey, r *Subkey) error {
 	_, err := tx.Execv(`
 INSERT INTO openpgp_subkey (
 	uuid, creation, expiration, state, packet,
-	pubkey_uuid, algorithm, bit_len)
+	pubkey_uuid, revsig_uuid, algorithm, bit_len)
 VALUES (
 	$1, $2, $3, $4, $5,
-	$6, $7, $8)`,
+	$6, $7, $8, $9)`,
 		r.RFingerprint, r.Creation, r.Expiration, r.State, r.Packet,
-		pubkey.RFingerprint, r.Algorithm, r.BitLen)
+		pubkey.RFingerprint, r.RevSigDigest, r.Algorithm, r.BitLen)
 	return err
 }
 
@@ -112,12 +115,12 @@ func (l *Loader) insertUid(tx *sqlx.Tx, pubkey *Pubkey, r *UserId) error {
 	_, err := tx.Execv(`
 INSERT INTO openpgp_uid (
 	uuid, creation, expiration, state, packet,
-	pubkey_uuid, keywords, keywords_fulltext)
+	pubkey_uuid, revsig_uuid, keywords, keywords_fulltext)
 VALUES (
 	$1, $2, $3, $4, $5,
-	$6, $7, to_tsvector($7))`,
+	$6, $7, $8, to_tsvector($8))`,
 		r.ScopedDigest, r.Creation, r.Expiration, r.State, r.Packet,
-		pubkey.RFingerprint, r.Keywords)
+		pubkey.RFingerprint, r.RevSigDigest, r.Keywords)
 	return err
 }
 
@@ -125,12 +128,12 @@ func (l *Loader) insertUat(tx *sqlx.Tx, pubkey *Pubkey, r *UserAttribute) error 
 	_, err := tx.Execv(`
 INSERT INTO openpgp_uat (
 	uuid, creation, expiration, state, packet,
-	pubkey_uuid)
+	pubkey_uuid, revsig_uuid)
 VALUES (
 	$1, $2, $3, $4, $5,
-	$6)`,
+	$6, $7)`,
 		r.ScopedDigest, r.Creation, r.Expiration, r.State, r.Packet,
-		pubkey.RFingerprint)
+		pubkey.RFingerprint, r.RevSigDigest)
 	return err
 }
 
@@ -140,9 +143,9 @@ func (l *Loader) insertUnsupported(tx *sqlx.Tx, pubkey *Pubkey, r *Unsupported) 
 		reason = r.OpaquePacket.Reason.Error()
 	}
 	_, err := tx.Execv(`
-INSERT INTO openpgp_unsupp (uuid, creation, packet, pubkey_uuid, tag, reason)
-VALUES ($1, now(), $2, $3, $4, $5)`, r.ScopedDigest, r.Packet, pubkey.RFingerprint,
-		r.OpaquePacket.Tag, reason)
+INSERT INTO openpgp_unsupp (uuid, creation, packet, pubkey_uuid, prev_uuid, tag, reason)
+VALUES ($1, now(), $2, $3, $4, $5, $6)`, r.ScopedDigest, r.Packet, pubkey.RFingerprint,
+		r.PrevDigest, r.OpaquePacket.Tag, reason)
 	return err
 }
 
@@ -158,9 +161,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 	return err
 }
 
-func (l *Loader) insertSigRelations(
-	tx *sqlx.Tx, pubkey *Pubkey, signable PacketRecord, r *Signature) error {
-
+func (l *Loader) insertSigRelations(tx *sqlx.Tx, pubkey *Pubkey, signable PacketRecord, r *Signature) error {
 	sigRelationUuid, err := NewUuid()
 	if err != nil {
 		return err

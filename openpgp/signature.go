@@ -71,7 +71,9 @@ func toAscii85String(buf []byte) string {
 func (sig *Signature) calcScopedDigest(pubkey *Pubkey, scope string) string {
 	h := sha256.New()
 	h.Write([]byte(pubkey.RFingerprint))
+	h.Write([]byte("{sig}"))
 	h.Write([]byte(scope))
+	h.Write([]byte("{sig}"))
 	h.Write(sig.Packet)
 	return toAscii85String(h.Sum(nil))
 }
@@ -80,6 +82,8 @@ func (sig *Signature) Serialize(w io.Writer) error {
 	_, err := w.Write(sig.Packet)
 	return err
 }
+
+func (sig *Signature) Uuid() string { return sig.ScopedDigest }
 
 func (sig *Signature) GetOpaquePacket() (*packet.OpaquePacket, error) {
 	return toOpaquePacket(sig.Packet)

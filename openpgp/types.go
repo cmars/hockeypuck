@@ -68,9 +68,10 @@ type PacketVisitor func(PacketRecord) error
 type PacketRecord interface {
 	GetOpaquePacket() (*packet.OpaquePacket, error)
 	GetPacket() (packet.Packet, error)
-	setPacket(packet.Packet) error
 	Read() error
 	Serialize(w io.Writer) error
+	setPacket(packet.Packet) error
+	Uuid() string
 	Visit(PacketVisitor) error
 }
 

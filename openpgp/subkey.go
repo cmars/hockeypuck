@@ -71,6 +71,8 @@ func (subkey *Subkey) Serialize(w io.Writer) error {
 	return err
 }
 
+func (subkey *Subkey) Uuid() string { return subkey.RFingerprint }
+
 func (subkey *Subkey) GetOpaquePacket() (*packet.OpaquePacket, error) {
 	return toOpaquePacket(subkey.Packet)
 }

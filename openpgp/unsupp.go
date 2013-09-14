@@ -36,8 +36,13 @@ type Unsupported struct {
 	State        int       `db:"state"`       // mutable
 	Packet       []byte    `db:"packet"`      // immutable
 	PubkeyRFP    string    `db:"pubkey_uuid"` // immutable
+	PrevDigest   string    `db:"prev_uuid"`   // immutable
 	Tag          int       `db:"tag"`         // immutable
 	Reason       string    `db:"reason"`      // mutable
+
+	/* Cross-references */
+
+	prevRecord PacketRecord
 
 	/* Parsed packet data */
 
@@ -47,6 +52,9 @@ type Unsupported struct {
 func (un *Unsupported) calcScopedDigest(pubkey *Pubkey) string {
 	h := sha256.New()
 	h.Write([]byte(pubkey.RFingerprint))
+	h.Write([]byte("{unsupp}"))
+	h.Write([]byte(un.PrevDigest))
+	h.Write([]byte("{unsupp}"))
 	h.Write(un.Packet)
 	return toAscii85String(h.Sum(nil))
 }
@@ -80,8 +88,9 @@ func (un *Unsupported) Read() (err error) {
 	return
 }
 
-func NewUnsupported(p packet.Packet) (un *Unsupported, err error) {
+func NewUnsupported(p packet.Packet, last PacketRecord) (un *Unsupported, err error) {
 	un = new(Unsupported)
+	un.prevRecord = last
 	if err = un.setPacket(p); err != nil {
 		return
 	}
@@ -105,6 +114,8 @@ func (un *Unsupported) Serialize(w io.Writer) error {
 	_, err := w.Write(un.Packet)
 	return err
 }
+
+func (un *Unsupported) Uuid() string { return un.ScopedDigest }
 
 func (un *Unsupported) Visit(visitor PacketVisitor) error {
 	return visitor(un)

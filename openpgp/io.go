@@ -172,6 +172,7 @@ func readKeys(r io.Reader) PubkeyChan {
 		var opkt *packet.OpaquePacket
 		var currentPubkey *Pubkey
 		var currentSignable Signable
+		var lastRecord PacketRecord
 		opktReader := packet.NewOpaqueReader(r)
 		for opkt, err = opktReader.Next(); err != io.EOF; opkt, err = opktReader.Next() {
 			if err != nil {
@@ -188,6 +189,8 @@ func readKeys(r io.Reader) PubkeyChan {
 							currentPubkey.updateDigests()
 							c <- &ReadKeyResult{Pubkey: currentPubkey}
 							currentPubkey = nil
+							currentSignable = nil
+							lastRecord = nil
 						}
 						var pubkey *Pubkey
 						if pubkey, err = NewPubkey(p); err != nil {
@@ -197,6 +200,7 @@ func readKeys(r io.Reader) PubkeyChan {
 						}
 						currentPubkey = pubkey
 						currentSignable = currentPubkey
+						lastRecord = pubkey
 					} else {
 						if currentPubkey == nil {
 							c <- ErrReadKeys(
@@ -210,6 +214,7 @@ func readKeys(r io.Reader) PubkeyChan {
 						}
 						currentPubkey.subkeys = append(currentPubkey.subkeys, subkey)
 						currentSignable = subkey
+						lastRecord = subkey
 					}
 				case *packet.Signature:
 					if currentSignable == nil {
@@ -222,6 +227,7 @@ func readKeys(r io.Reader) PubkeyChan {
 						continue
 					}
 					currentSignable.AddSignature(sig)
+					lastRecord = sig
 				case *packet.UserId:
 					if currentPubkey == nil {
 						c <- ErrReadKeys("User ID outside primary public key scope in stream")
@@ -234,6 +240,7 @@ func readKeys(r io.Reader) PubkeyChan {
 					}
 					currentSignable = uid
 					currentPubkey.userIds = append(currentPubkey.userIds, uid)
+					lastRecord = uid
 				case *packet.UserAttribute:
 					if currentPubkey == nil {
 						c <- ErrReadKeys("User attribute outside primary public key scope in stream")
@@ -246,14 +253,16 @@ func readKeys(r io.Reader) PubkeyChan {
 					}
 					currentSignable = uat
 					currentPubkey.userAttributes = append(currentPubkey.userAttributes, uat)
+					lastRecord = uat
 				}
 			} else if currentPubkey != nil {
 				var unsupp *Unsupported
-				if unsupp, err = NewUnsupported(opkt); err != nil {
+				if unsupp, err = NewUnsupported(opkt, lastRecord); err != nil {
 					c <- &ReadKeyResult{Error: err}
 					continue
 				}
 				currentPubkey.unsupported = append(currentPubkey.unsupported, unsupp)
+				lastRecord = unsupp
 			} else {
 				c <- &ReadKeyResult{Error: parseErr}
 			}
