@@ -19,6 +19,7 @@ package openpgp
 
 import (
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 	"log"
 )
 
@@ -47,18 +48,42 @@ func (db *DB) CreateTables() (err error) {
 	return
 }
 
-func (db *DB) CreateConstraints() (err error) {
+func (db *DB) DeleteDuplicates() (err error) {
 	for _, sql := range DeleteDuplicatesSql {
 		log.Println(sql)
 		if _, err = db.Exec(sql); err != nil {
 			return
 		}
 	}
+	return
+}
+
+func isDuplicateConstraint(err error) bool {
+	if pgerr, is := err.(pq.PGError); is {
+		switch pgerr.Get('C') {
+		case "42P16":
+			return true
+		case "42P07":
+			return true
+		case "42P10":
+			return true
+		case "42710":
+			return true
+		}
+	}
+	return false
+}
+
+func (db *DB) CreateConstraints() (err error) {
 	for _, crSqls := range CreateConstraintsSql {
 		for _, crSql := range crSqls {
 			log.Println(crSql)
 			if _, err = db.Exec(crSql); err != nil {
-				return
+				if isDuplicateConstraint(err) {
+					err = nil
+				} else {
+					return
+				}
 			}
 		}
 	}

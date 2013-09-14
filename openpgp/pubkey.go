@@ -92,6 +92,8 @@ func (pubkey *Pubkey) Serialize(w io.Writer) error {
 	return err
 }
 
+func (pubkey *Pubkey) Uuid() string { return pubkey.RFingerprint }
+
 func (pubkey *Pubkey) GetOpaquePacket() (*packet.OpaquePacket, error) {
 	return toOpaquePacket(pubkey.Packet)
 }

@@ -56,6 +56,9 @@ func (r *resolver) resolve(rec PacketRecord) (err error) {
 		r.setSigScope(p.RFingerprint, p.signatures...)
 		p.linkSelfSigs(r.Pubkey)
 	case *Unsupported:
+		if p.prevRecord != nil {
+			p.PrevDigest = p.prevRecord.Uuid()
+		}
 		p.ScopedDigest = p.calcScopedDigest(r.Pubkey)
 	}
 	return

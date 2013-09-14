@@ -1,4 +1,4 @@
-hockeypuck (1.0~b1) UNRELEASED; urgency=low
+hockeypuck (1.0~b1ubuntu1) UNRELEASED; urgency=low
 
   [ Casey Marshall ]
   * Opening 1.0~b1 development and a bottle of
@@ -98,8 +98,23 @@ hockeypuck (1.0~b1) UNRELEASED; urgency=low
       constraints. LP: #1208295
     - Add unsupported packet record for storing packets that
       go.crypto won't parse but SKS includes in key hashing. LP: #1208290
+  * cmd/hockeypuck-import/main.go, openpgp/db.go, openpgp/io.go,
+    openpgp/loader.go, openpgp/pubkey.go, openpgp/resolve.go,
+    openpgp/resolve_test.go, openpgp/schema.go, openpgp/signature.go,
+    openpgp/subkey.go, openpgp/types.go, openpgp/unsupp.go,
+    openpgp/userattribute.go, openpgp/userid.go:
+    - Support optionally dropping and recreating indexes & constraints
+      with hockeypuck-import.
+      Silently ignore duplicate error when adding constraints.
+      Corrected de-duplication of unique keys. LP: #1208295
+    - Track record prior to unsupported, use to make unparseable
+      content positionally unique. Added PacketRecord.Uuid() to support.
+      Add unsupported packet parsing unit test case. LP: #1208290
+    - Capture primary UserId and UserAttribute, revocation signatures
+      during initial insert. LP: #1195901
+    - Packet-type specific scoped digest calculation.
 
- -- Casey Marshall <cmars@cmarstech.com>  Wed, 04 Sep 2013 17:49:10 -0500
+ -- Casey Marshall <cmars@cmarstech.com>  Sat, 14 Sep 2013 02:12:40 -0500
 
 hockeypuck (1.0~a2) precise; urgency=low
 

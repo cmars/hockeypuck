@@ -279,6 +279,8 @@ packet bytea,
 -----------------------------------------------------------------------
 -- Public key to which this unsupported packet belongs
 pubkey_uuid TEXT,
+-- The UUID of the prior packet record in the key material stream
+prev_uuid TEXT NOT NULL,
 -- Packet tag, if any
 tag INTEGER NOT NULL DEFAULT 0,
 -- Reason packet is unsupported
@@ -423,6 +425,8 @@ var Cr_openpgp_uat_sig_constraints []string = []string{
 
 var Cr_openpgp_unsupp_constraints []string = []string{
 	`ALTER TABLE openpgp_unsupp ADD CONSTRAINT openpgp_unsupp_pk PRIMARY KEY (uuid);`,
+	`ALTER TABLE openpgp_unsupp ADD CONSTRAINT openpgp_unsupp_unique
+	UNIQUE (pubkey_uuid, prev_uuid);`,
 	`ALTER TABLE openpgp_unsupp ADD CONSTRAINT openpgp_unsupp_pubkey_fk
 	FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid)
 	DEFERRABLE INITIALLY DEFERRED;`}
@@ -440,41 +444,36 @@ var CreateConstraintsSql [][]string = [][]string{
 	Cr_openpgp_unsupp_constraints}
 
 const dedupTemplate = `
-WITH has_dups AS (
-    	SELECT {{.ColumnName}} FROM {{.TableName}}
-    	GROUP BY {{.ColumnName}} HAVING COUNT({{.ColumnName}}) > 1),
-	dups AS (
-		SELECT {{.ColumnName}}, ROW_NUMBER() OVER ({{ if .OrderBy }}ORDER BY ({{.OrderBy}}){{ end }}) AS rownum
-		FROM {{.TableName}} GROUP BY {{.ColumnName}}{{ if .OrderBy }}, {{.OrderBy}}{{ end }})
-DELETE FROM {{.TableName}} WHERE {{.ColumnName}} IN (
-	SELECT hd.{{.ColumnName}} FROM has_dups hd JOIN dups ON (hd.{{.ColumnName}} = dups.{{.ColumnName}})
-	WHERE rownum > 1)`
+{{define "cols"}}{{/*
+*/}}{{range $i, $colname := .UniqueColumns}}{{if $i}},{{end}}{{$colname}}{{end}}{{/*
+*/}}{{end}}{{/*
+*/}}{{define "sql"}}{{/*
+*/}}DELETE FROM {{.TableName}}
+WHERE ctid NOT IN (
+	SELECT MIN(t.ctid) FROM {{.TableName}} t GROUP BY {{template "cols" .}}){{/*
+*/}}{{end}}{{template "sql" .}}`
 
 type dedup struct {
-	TableName  string
-	ColumnName string
-	OrderBy    string
+	TableName     string
+	UniqueColumns []string
 }
 
 var dedups []dedup = []dedup{
-	dedup{"openpgp_pubkey", "uuid", "ctime"},
-	dedup{"openpgp_sig", "uuid", "creation"},
-	dedup{"openpgp_subkey", "uuid", "creation"},
-	dedup{"openpgp_uid", "uuid", "creation"},
-	dedup{"openpgp_uat", "uuid", "creation"},
-	dedup{"openpgp_pubkey_sig", "uuid", ""},
-	dedup{"openpgp_pubkey_sig", "pubkey_uuid", ""},
-	dedup{"openpgp_pubkey_sig", "sig_uuid", ""},
-	dedup{"openpgp_subkey_sig", "uuid", ""},
-	dedup{"openpgp_subkey_sig", "subkey_uuid", ""},
-	dedup{"openpgp_subkey_sig", "sig_uuid", ""},
-	dedup{"openpgp_uid_sig", "uuid", ""},
-	dedup{"openpgp_uid_sig", "uid_uuid", ""},
-	dedup{"openpgp_uid_sig", "sig_uuid", ""},
-	dedup{"openpgp_uat_sig", "uuid", ""},
-	dedup{"openpgp_uat_sig", "uat_uuid", ""},
-	dedup{"openpgp_uat_sig", "sig_uuid", ""},
-	dedup{"openpgp_unsupp", "uuid", "creation"}}
+	dedup{"openpgp_pubkey", []string{"uuid"}},
+	dedup{"openpgp_sig", []string{"uuid"}},
+	dedup{"openpgp_subkey", []string{"uuid"}},
+	dedup{"openpgp_uid", []string{"uuid"}},
+	dedup{"openpgp_uat", []string{"uuid"}},
+	dedup{"openpgp_pubkey_sig", []string{"uuid"}},
+	dedup{"openpgp_pubkey_sig", []string{"pubkey_uuid", "sig_uuid"}},
+	dedup{"openpgp_subkey_sig", []string{"uuid"}},
+	dedup{"openpgp_subkey_sig", []string{"subkey_uuid", "sig_uuid"}},
+	dedup{"openpgp_uid_sig", []string{"uuid"}},
+	dedup{"openpgp_uid_sig", []string{"uid_uuid", "sig_uuid"}},
+	dedup{"openpgp_uat_sig", []string{"uuid"}},
+	dedup{"openpgp_uat_sig", []string{"uat_uuid", "sig_uuid"}},
+	dedup{"openpgp_unsupp", []string{"uuid"}},
+	dedup{"openpgp_unsupp", []string{"pubkey_uuid", "prev_uuid"}}}
 
 var DeleteDuplicatesSql []string
 
@@ -546,6 +545,7 @@ var Dr_openpgp_uat_sig_constraints []string = []string{
 
 var Dr_openpgp_unsupp_constraints []string = []string{
 	`ALTER TABLE openpgp_unsupp DROP CONSTRAINT openpgp_unsupp_pk;`,
+	`ALTER TABLE openpgp_unsupp DROP CONSTRAINT openpgp_unsupp_unique;`,
 	`ALTER TABLE openpgp_unsupp DROP CONSTRAINT openpgp_unsupp_pubkey_fk;`}
 
 var DropConstraintsSql [][]string = [][]string{

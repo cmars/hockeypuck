@@ -73,3 +73,35 @@ func TestPrimaryUidSelection(t *testing.T) {
 	assert.NotNil(t, key.primaryUid)
 	assert.Equal(t, key.primaryUid.Keywords, "Phil Pennock <phil.pennock@globnix.org>")
 }
+
+func TestPrimaryUidFallback(t *testing.T) {
+	f := MustInput(t, "snowcrash.gpg")
+	var key *Pubkey
+	for keyRead := range ReadKeys(f) {
+		assert.Nil(t, keyRead.Error)
+		key = keyRead.Pubkey
+	}
+	assert.NotNil(t, key)
+	assert.NotEmpty(t, key.PrimaryUid)
+	t.Log(key.PrimaryUid)
+}
+
+func TestUnsupp(t *testing.T) {
+	f := MustInput(t, "snowcrash.gpg")
+	var key *Pubkey
+	for keyRead := range ReadKeys(f) {
+		assert.Nil(t, keyRead.Error)
+		key = keyRead.Pubkey
+	}
+	assert.NotNil(t, key)
+	assert.NotEmpty(t, key.unsupported)
+	for _, unsupp := range key.unsupported {
+		assert.NotEmpty(t, unsupp.PrevDigest)
+		t.Log(unsupp.PrevDigest)
+	}
+}
+
+func TestMissingUidFk(t *testing.T) {
+	key := MustInputAscKey(t, "d7346e26.asc")
+	t.Log(key)
+}

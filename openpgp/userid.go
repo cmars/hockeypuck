@@ -52,6 +52,7 @@ type UserId struct {
 func (uid *UserId) calcScopedDigest(pubkey *Pubkey) string {
 	h := sha256.New()
 	h.Write([]byte(pubkey.RFingerprint))
+	h.Write([]byte("{uid}"))
 	h.Write(uid.Packet)
 	return toAscii85String(h.Sum(nil))
 }
@@ -60,6 +61,8 @@ func (uid *UserId) Serialize(w io.Writer) error {
 	_, err := w.Write(uid.Packet)
 	return err
 }
+
+func (uid *UserId) Uuid() string { return uid.ScopedDigest }
 
 func (uid *UserId) GetOpaquePacket() (*packet.OpaquePacket, error) {
 	return toOpaquePacket(uid.Packet)

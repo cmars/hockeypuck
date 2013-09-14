@@ -31,7 +31,8 @@ import (
 var load *string = flag.String("load", "", "Load PGP keyring filename or glob pattern")
 var showVersion *bool = flag.Bool("version", false, "Display version and exit")
 var configFile *string = flag.String("config", "", "Config file")
-var reindex *bool = flag.Bool("reindex", true, "Rebuild constraints and indexes")
+var dropIndexes *bool = flag.Bool("drop-indexes", true, "Drop constraints and indexes")
+var buildIndexes *bool = flag.Bool("build-indexes", true, "Create constraints and indexes")
 
 func usage() {
 	flag.PrintDefaults()
@@ -86,8 +87,8 @@ func main() {
 	if err = db.CreateTables(); err != nil {
 		die(err)
 	}
-	// If we're reindexing, drop all constraints
-	if *reindex {
+	// Drop all constraints
+	if *dropIndexes {
 		if err = db.DropConstraints(); err != nil {
 			die(err)
 		}
@@ -96,8 +97,14 @@ func main() {
 	if *load != "" {
 		readAllKeys(*load, keys)
 	}
-	// If we're reindexing, ensure uniqueness & create all constraints
-	if *reindex {
+	// Ensure uniqueness if we dropped constraints
+	if *dropIndexes {
+		if err = db.DeleteDuplicates(); err != nil {
+			die(err)
+		}
+	}
+	// Create all constraints
+	if *buildIndexes {
 		if err = db.CreateConstraints(); err != nil {
 			die(err)
 		}
@@ -110,8 +117,7 @@ func readAllKeys(path string, keys chan *openpgp.Pubkey) {
 		die(err)
 	}
 	var f *os.File
-	for i := 0; i < len(keyfiles); i++ {
-		keyfile := keyfiles[i]
+	for _, keyfile := range keyfiles {
 		f, err = os.Open(keyfile)
 		if err != nil {
 			log.Println("Failed to open", keyfile, ":", err)
