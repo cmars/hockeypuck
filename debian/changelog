@@ -1,4 +1,4 @@
-hockeypuck (1.0~b1ubuntu1) UNRELEASED; urgency=low
+hockeypuck (1.0~b1) UNRELEASED; urgency=low
 
   [ Casey Marshall ]
   * Opening 1.0~b1 development and a bottle of
@@ -113,6 +113,14 @@ hockeypuck (1.0~b1ubuntu1) UNRELEASED; urgency=low
     - Capture primary UserId and UserAttribute, revocation signatures
       during initial insert. LP: #1195901
     - Packet-type specific scoped digest calculation.
+  * openpgp/resolve_test.go, openpgp/responses.go, openpgp/sort.go,
+    openpgp/userattribute.go, openpgp/userid.go:
+    - Add function to sort public key contents for display purposes,
+      unit test case. LP: #1195901
+    - Fixed uid/uat revocation signature logic, so that a newer
+      positive certification overrides a revocation. Tracking the newest
+      revocation & self-signatures.
+    - Fix timestamp rendering in options=mr.
 
  -- Casey Marshall <cmars@cmarstech.com>  Sat, 14 Sep 2013 02:12:40 -0500
 
