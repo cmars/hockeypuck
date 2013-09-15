@@ -151,6 +151,7 @@ func (r *IndexResponse) WriteTo(w http.ResponseWriter) error {
 	}
 	if err == nil {
 		for _, key := range r.Keys {
+			Sort(key)
 			err = writeFn(w, key)
 		}
 	} else {
@@ -321,11 +322,11 @@ func (i *IndexResponse) WriteMachineReadable(w io.Writer, key *Pubkey) error {
 				r.Creation.Unix(),
 				r.Expiration.Unix())
 		case *UserId:
-			fmt.Fprintf(w, "uid:%s:%s:%s:\n",
+			fmt.Fprintf(w, "uid:%s:%d:%d:\n",
 				r.Keywords, r.Creation.Unix(), r.Expiration.Unix())
 		case *Signature:
 			if i.Verbose {
-				fmt.Fprintf(w, "sig:%s:%s:%s",
+				fmt.Fprintf(w, "sig:%d:%d:%s\n",
 					r.Creation.Unix(), r.Expiration.Unix(), r.IssuerKeyId())
 			}
 		case *UserAttribute:

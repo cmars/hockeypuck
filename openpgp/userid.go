@@ -137,22 +137,14 @@ func (uid *UserId) linkSelfSigs(pubkey *Pubkey) {
 			continue
 		}
 		if sig.SigType == 0x30 { // TODO: add packet.SigTypeCertRevocation
-			if uid.revSig == nil || sig.Creation.Unix() < uid.revSig.Creation.Unix() {
+			if uid.revSig == nil || sig.Creation.Unix() > uid.revSig.Creation.Unix() {
+				// Keep the most recent revocation
 				if err := pubkey.verifyUserIdSelfSig(uid, sig); err == nil {
 					uid.revSig = sig
 					uid.RevSigDigest = sql.NullString{sig.ScopedDigest, true}
 				}
 			}
 		}
-	}
-	if uid.revSig != nil {
-		// Check for existing primary that was revoked.
-		if pubkey.PrimaryUid.String == uid.ScopedDigest {
-			pubkey.PrimaryUid = sql.NullString{"", false}
-			pubkey.primaryUid = nil
-			pubkey.primaryUidSig = nil
-		}
-		return
 	}
 	// Look for a better primary UID
 	for _, sig := range uid.signatures {
@@ -169,6 +161,11 @@ func (uid *UserId) linkSelfSigs(pubkey *Pubkey) {
 				if uid.selfSignature == nil || sig.Creation.Unix() > uid.selfSignature.Creation.Unix() {
 					// Choose the most-recent self-signature on the uid
 					uid.selfSignature = sig
+				}
+				if uid.revSig != nil && sig.Creation.Unix() > uid.selfSignature.Creation.Unix() {
+					// A self-certification more recent than a revocation effectively cancels it.
+					uid.revSig = nil
+					uid.RevSigDigest = sql.NullString{"", false}
 				}
 				var replace bool
 				if pubkey.primaryUidSig == nil {
@@ -189,6 +186,15 @@ func (uid *UserId) linkSelfSigs(pubkey *Pubkey) {
 				}
 			}
 		}
+	}
+	if uid.revSig != nil {
+		// Check for existing primary that was revoked.
+		if pubkey.PrimaryUid.String == uid.ScopedDigest {
+			pubkey.PrimaryUid = sql.NullString{"", false}
+			pubkey.primaryUid = nil
+			pubkey.primaryUidSig = nil
+		}
+		return
 	}
 	// Remove User Ids without a self-signature
 	if uid.selfSignature == nil {

@@ -134,7 +134,7 @@ func (uat *UserAttribute) linkSelfSigs(pubkey *Pubkey) {
 			continue
 		}
 		if sig.SigType == 0x30 { // TODO: add packet.SigTypeCertRevocation
-			if uat.revSig == nil || sig.Creation.Unix() < uat.revSig.Creation.Unix() {
+			if uat.revSig == nil || sig.Creation.Unix() > uat.revSig.Creation.Unix() {
 				if err := pubkey.verifyUserAttrSelfSig(uat, sig); err == nil {
 					uat.revSig = sig
 					uat.RevSigDigest = sql.NullString{sig.ScopedDigest, true}
@@ -163,6 +163,11 @@ func (uat *UserAttribute) linkSelfSigs(pubkey *Pubkey) {
 			if err := pubkey.verifyUserAttrSelfSig(uat, sig); err == nil {
 				if uat.selfSignature == nil || sig.Creation.Unix() > uat.selfSignature.Creation.Unix() {
 					uat.selfSignature = sig
+				}
+				if uat.revSig != nil && sig.Creation.Unix() > uat.selfSignature.Creation.Unix() {
+					// A self-certification more recent than a revocation effectively cancels it.
+					uat.revSig = nil
+					uat.RevSigDigest = sql.NullString{"", false}
 				}
 				var replace bool
 				if pubkey.primaryUatSig == nil {

@@ -74,6 +74,21 @@ func TestPrimaryUidSelection(t *testing.T) {
 	assert.Equal(t, key.primaryUid.Keywords, "Phil Pennock <phil.pennock@globnix.org>")
 }
 
+func TestSortPrimaryUid(t *testing.T) {
+	key := MustInputAscKey(t, "lp1195901.asc")
+	Resolve(key)
+	Sort(key)
+	expect := []string{
+		"Phil Pennock <phil.pennock@spodhuis.org>",
+		"Phil Pennock <phil.pennock@globnix.org>",
+		"Phil Pennock <pdp@spodhuis.org>",
+		"Phil Pennock <pdp@exim.org>",
+		"Phil Pennock <pdp@spodhuis.demon.nl>"}
+	for i := range key.userIds {
+		assert.Equal(t, expect[i], key.userIds[i].Keywords)
+	}
+}
+
 func TestPrimaryUidFallback(t *testing.T) {
 	f := MustInput(t, "snowcrash.gpg")
 	var key *Pubkey
