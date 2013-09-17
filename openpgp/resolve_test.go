@@ -22,16 +22,17 @@ import (
 	"code.google.com/p/go.crypto/openpgp/packet"
 	"crypto/md5"
 	"github.com/stretchr/testify/assert"
-	"strings"
 	"testing"
 )
 
 func TestBadSelfSigUid(t *testing.T) {
-	key := MustInputAscKey(t, "badselfsig.asc")
-	Resolve(key)
-	for _, uid := range key.userIds {
-		assert.True(t, !strings.Contains(uid.UserId.Id, "Karneef"))
+	f := MustInput(t, "badselfsig.asc")
+	i := 0
+	for keyRead := range ReadKeys(f) {
+		assert.NotNil(t, keyRead.Error)
+		i++
 	}
+	assert.Equal(t, 1, i)
 }
 
 func TestDupSig(t *testing.T) {
@@ -101,7 +102,10 @@ func TestPrimaryUidFallback(t *testing.T) {
 	t.Log(key.PrimaryUid)
 }
 
-func TestUnsupp(t *testing.T) {
+// TestUnsuppIgnored tests parsing key material containing
+// packets which are not normally part of an exported public key --
+// trust packets, in this case.
+func TestUnsuppIgnored(t *testing.T) {
 	f := MustInput(t, "snowcrash.gpg")
 	var key *Pubkey
 	for keyRead := range ReadKeys(f) {
@@ -109,7 +113,7 @@ func TestUnsupp(t *testing.T) {
 		key = keyRead.Pubkey
 	}
 	assert.NotNil(t, key)
-	assert.NotEmpty(t, key.Unsupported)
+	assert.Empty(t, key.Unsupported)
 }
 
 func TestMissingUidFk(t *testing.T) {

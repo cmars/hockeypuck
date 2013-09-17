@@ -113,7 +113,10 @@ primary_uat TEXT,
 -- Public-key algorithm, RFC 4880, Section 9.1
 algorithm INTEGER NOT NULL,
 -- Public-key bit length
-bit_len INTEGER NOT NULL
+bit_len INTEGER NOT NULL,
+-----------------------------------------------------------------------
+-- Unsupported key material aggregated here
+unsupp bytea
 )`
 
 const Cr_openpgp_sig = `
@@ -262,31 +265,6 @@ uat_uuid TEXT NOT NULL,
 sig_uuid TEXT NOT NULL
 )`
 
-const Cr_openpgp_unsupp = `
-CREATE TABLE IF NOT EXISTS openpgp_unsupp (
------------------------------------------------------------------------
--- Universally-unique identifer
-uuid TEXT NOT NULL,
--- Creation timestamp. Since this opaque packet lacks a field
--- for creation time, the current time is used.
-creation TIMESTAMP WITH TIME ZONE NOT NULL,
--- User attribute expiration timestamp (if any)
-expiration TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT '9999-12-31 23:59:59+00',
--- State flag for this record
-state INTEGER NOT NULL DEFAULT 0,
--- Binary contents of the OpenPGP packet
-packet bytea,
------------------------------------------------------------------------
--- Public key to which this unsupported packet belongs
-pubkey_uuid TEXT,
--- The UUID of the prior packet record in the key material stream
-prev_uuid TEXT NOT NULL,
--- Packet tag, if any
-tag INTEGER NOT NULL DEFAULT 0,
--- Reason packet is unsupported
-reason TEXT
-)`
-
 const Cr_pks_stat = `
 CREATE TABLE IF NOT EXISTS pks_status (
 -----------------------------------------------------------------------
@@ -318,7 +296,6 @@ var CreateTablesSql []string = []string{
 	Cr_openpgp_subkey_sig,
 	Cr_openpgp_uid_sig,
 	Cr_openpgp_uat_sig,
-	Cr_openpgp_unsupp,
 	Cr_pks_stat}
 
 var Cr_openpgp_pubkey_constraints []string = []string{
@@ -423,14 +400,6 @@ var Cr_openpgp_uat_sig_constraints []string = []string{
 	FOREIGN KEY (sig_uuid) REFERENCES openpgp_sig(uuid)
 	DEFERRABLE INITIALLY DEFERRED;`}
 
-var Cr_openpgp_unsupp_constraints []string = []string{
-	`ALTER TABLE openpgp_unsupp ADD CONSTRAINT openpgp_unsupp_pk PRIMARY KEY (uuid);`,
-	`ALTER TABLE openpgp_unsupp ADD CONSTRAINT openpgp_unsupp_unique
-	UNIQUE (pubkey_uuid, prev_uuid);`,
-	`ALTER TABLE openpgp_unsupp ADD CONSTRAINT openpgp_unsupp_pubkey_fk
-	FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid)
-	DEFERRABLE INITIALLY DEFERRED;`}
-
 var CreateConstraintsSql [][]string = [][]string{
 	Cr_openpgp_pubkey_constraints,
 	Cr_openpgp_sig_constraints,
@@ -440,8 +409,7 @@ var CreateConstraintsSql [][]string = [][]string{
 	Cr_openpgp_pubkey_sig_constraints,
 	Cr_openpgp_subkey_sig_constraints,
 	Cr_openpgp_uid_sig_constraints,
-	Cr_openpgp_uat_sig_constraints,
-	Cr_openpgp_unsupp_constraints}
+	Cr_openpgp_uat_sig_constraints}
 
 const dedupTemplate = `
 {{define "cols"}}{{/*
@@ -471,9 +439,7 @@ var dedups []dedup = []dedup{
 	dedup{"openpgp_uid_sig", []string{"uuid"}},
 	dedup{"openpgp_uid_sig", []string{"uid_uuid", "sig_uuid"}},
 	dedup{"openpgp_uat_sig", []string{"uuid"}},
-	dedup{"openpgp_uat_sig", []string{"uat_uuid", "sig_uuid"}},
-	dedup{"openpgp_unsupp", []string{"uuid"}},
-	dedup{"openpgp_unsupp", []string{"pubkey_uuid", "prev_uuid"}}}
+	dedup{"openpgp_uat_sig", []string{"uat_uuid", "sig_uuid"}}}
 
 var DeleteDuplicatesSql []string
 
@@ -543,11 +509,6 @@ var Dr_openpgp_uat_sig_constraints []string = []string{
 	`ALTER TABLE openpgp_uat_sig DROP CONSTRAINT openpgp_uat_sig_uat_fk;`,
 	`ALTER TABLE openpgp_uat_sig DROP CONSTRAINT openpgp_uat_sig_sig_fk;`}
 
-var Dr_openpgp_unsupp_constraints []string = []string{
-	`ALTER TABLE openpgp_unsupp DROP CONSTRAINT openpgp_unsupp_pk;`,
-	`ALTER TABLE openpgp_unsupp DROP CONSTRAINT openpgp_unsupp_unique;`,
-	`ALTER TABLE openpgp_unsupp DROP CONSTRAINT openpgp_unsupp_pubkey_fk;`}
-
 var DropConstraintsSql [][]string = [][]string{
 	Dr_openpgp_pubkey_constraints,
 	Dr_openpgp_sig_constraints,
@@ -557,5 +518,4 @@ var DropConstraintsSql [][]string = [][]string{
 	Dr_openpgp_pubkey_sig_constraints,
 	Dr_openpgp_subkey_sig_constraints,
 	Dr_openpgp_uid_sig_constraints,
-	Dr_openpgp_uat_sig_constraints,
-	Dr_openpgp_unsupp_constraints}
+	Dr_openpgp_uat_sig_constraints}

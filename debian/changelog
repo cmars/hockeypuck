@@ -131,6 +131,10 @@ hockeypuck (1.0~b1) UNRELEASED; urgency=low
     - Flag invalid selfsigs, but do not remove them, for compatibility
       with SKS.
     - Store unsupported key material in openpgp_pubkey.unsupp column.
+  * openpgp/io.go, openpgp/resolve_test.go, openpgp/schema.go:
+    - Fix parsing unit tests wrt latest changes, address corner cases
+      such as missing public key, empty keyring material.
+    - Remove openpgp_unsupp table, constraints from schema.
 
  -- Casey Marshall <cmars@cmarstech.com>  Sat, 14 Sep 2013 02:12:40 -0500
 

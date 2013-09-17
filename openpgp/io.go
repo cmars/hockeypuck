@@ -114,7 +114,7 @@ func ReadOpaqueKeyrings(r io.Reader) OpaqueKeyringChan {
 		}
 		if err == io.EOF && current != nil {
 			c <- current
-		} else {
+		} else if err != nil {
 			c <- &OpaqueKeyring{Error: err}
 		}
 	}()
@@ -281,9 +281,14 @@ func readKeys(r io.Reader) PubkeyChan {
 					pubkey.AppendUnsupported(badPacket)
 				}
 			}
+			if pubkey == nil {
+				c <- &ReadKeyResult{Error: errors.New("No primary public key found")}
+				continue
+			}
 			if err = pubkey.Validate(); err != nil {
 				// Feed back gross syntactical errors, such as packets with no sigs
 				c <- &ReadKeyResult{Error: err}
+				continue
 			}
 			pubkey.updateDigests()
 			// Validate signatures and wire-up relationships.
