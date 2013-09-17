@@ -109,11 +109,7 @@ func TestUnsupp(t *testing.T) {
 		key = keyRead.Pubkey
 	}
 	assert.NotNil(t, key)
-	assert.NotEmpty(t, key.unsupported)
-	for _, unsupp := range key.unsupported {
-		assert.NotEmpty(t, unsupp.PrevDigest)
-		t.Log(unsupp.PrevDigest)
-	}
+	assert.NotEmpty(t, key.Unsupported)
 }
 
 func TestMissingUidFk(t *testing.T) {

@@ -189,14 +189,8 @@ func (uat *UserAttribute) linkSelfSigs(pubkey *Pubkey) {
 			}
 		}
 	}
-	// Remove User Attributes without a self-signature
+	// Flag User Attributes without a self-signature
 	if uat.selfSignature == nil {
-		var userAttributes []*UserAttribute
-		for i := range pubkey.userAttributes {
-			if pubkey.userAttributes[i] != uat {
-				userAttributes = append(userAttributes, pubkey.userAttributes[i])
-			}
-		}
-		pubkey.userAttributes = userAttributes
+		uat.State |= PacketStateNoSelfSig
 	}
 }

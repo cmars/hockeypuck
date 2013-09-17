@@ -198,12 +198,6 @@ func (uid *UserId) linkSelfSigs(pubkey *Pubkey) {
 	}
 	// Remove User Ids without a self-signature
 	if uid.selfSignature == nil {
-		var userIds []*UserId
-		for i := range pubkey.userIds {
-			if pubkey.userIds[i] != uid {
-				userIds = append(userIds, pubkey.userIds[i])
-			}
-		}
-		pubkey.userIds = userIds
+		uid.State |= PacketStateNoSelfSig
 	}
 }

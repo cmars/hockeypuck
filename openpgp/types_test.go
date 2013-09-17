@@ -51,10 +51,13 @@ func TestIterOpaque(t *testing.T) {
 	for _, tag := range []int{2, 6, 13, 14} {
 		hits[tag] = 0
 	}
-	for opkt := range IterOpaquePackets(key) {
-		assert.Nil(t, opkt.Error)
-		hits[int(opkt.Tag)]++
-	}
+	err := key.Visit(func(rec PacketRecord) error {
+		if opkt, err := rec.GetOpaquePacket(); err != nil {
+			hits[int(opkt.Tag)]++
+		}
+		return nil
+	})
+	assert.Nil(t, err)
 	t.Log(hits)
 	assert.Equal(t, 2, hits[2])
 	assert.Equal(t, 1, hits[6])

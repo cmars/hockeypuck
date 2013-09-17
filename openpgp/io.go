@@ -36,6 +36,8 @@ import (
 // Comparable time flag for "never expires"
 var NeverExpires time.Time
 
+var ErrMissingSignature = errors.New("Key material missing an expected signature")
+
 func init() {
 	t, err := time.Parse("2006-01-02 15:04:05 -0700", "9999-12-31 23:59:59 +0000")
 	if err != nil {
@@ -73,25 +75,48 @@ func WriteArmoredPackets(w io.Writer, root PacketRecord) error {
 	return WritePackets(armw, root)
 }
 
-type OpaquePacketResult struct {
-	*packet.OpaquePacket
-	Error error
+type OpaqueKeyring struct {
+	Packets      []*packet.OpaquePacket
+	RFingerprint string
+	Md5          string
+	Sha256       string
+	Error        error
 }
 
-type OpaquePacketChan chan *OpaquePacketResult
+type OpaqueKeyringChan chan *OpaqueKeyring
 
-func IterOpaquePackets(root PacketRecord) OpaquePacketChan {
-	c := make(OpaquePacketChan)
+func ReadOpaqueKeyrings(r io.Reader) OpaqueKeyringChan {
+	c := make(OpaqueKeyringChan)
+	or := packet.NewOpaqueReader(r)
 	go func() {
 		defer close(c)
-		root.Visit(func(rec PacketRecord) error {
-			op, err := rec.GetOpaquePacket()
-			c <- &OpaquePacketResult{op, err}
-			if err != nil {
-				return err
+		var op *packet.OpaquePacket
+		var err error
+		var current *OpaqueKeyring
+		for op, err = or.Next(); err == nil; op, err = or.Next() {
+			switch op.Tag {
+			case packet.PacketTypePublicKey:
+				if current != nil {
+					c <- current
+					current = nil
+				}
+				current = new(OpaqueKeyring)
+				fallthrough
+			case packet.PacketTypeUserId:
+				fallthrough
+			case packet.PacketTypeUserAttribute:
+				fallthrough
+			case packet.PacketTypePublicSubkey:
+				fallthrough
+			case packet.PacketTypeSignature:
+				current.Packets = append(current.Packets, op)
 			}
-			return nil
-		})
+		}
+		if err == io.EOF && current != nil {
+			c <- current
+		} else {
+			c <- &OpaqueKeyring{Error: err}
+		}
 	}()
 	return c
 }
@@ -102,13 +127,16 @@ func IterOpaquePackets(root PacketRecord) OpaquePacketChan {
 // Use MD5 for matching digest values with SKS.
 func SksDigest(key *Pubkey, h hash.Hash) string {
 	var packets packetSlice
-	for opkt := range IterOpaquePackets(key) {
-		if opkt.Error != nil {
-			log.Println("Error parsing packet:", opkt.Error, "public key fingerprint:", key.Fingerprint())
+	key.Visit(func(rec PacketRecord) error {
+		if opkt, err := rec.GetOpaquePacket(); err != nil {
+			log.Println("Error parsing packet:", err, "public key fingerprint:", key.Fingerprint())
+			return err
 		} else {
-			packets = append(packets, opkt.OpaquePacket)
+			packets = append(packets, opkt)
 		}
-	}
+		return nil
+	})
+	packets = append(packets, key.UnsupportedPackets()...)
 	return sksDigestOpaque(packets, h)
 }
 
@@ -169,108 +197,119 @@ func readKeys(r io.Reader) PubkeyChan {
 	go func() {
 		defer close(c)
 		var err error
-		var opkt *packet.OpaquePacket
-		var currentPubkey *Pubkey
-		var currentSignable Signable
-		var lastRecord PacketRecord
-		opktReader := packet.NewOpaqueReader(r)
-		for opkt, err = opktReader.Next(); err != io.EOF; opkt, err = opktReader.Next() {
-			if err != nil {
-				c <- &ReadKeyResult{Error: err}
-				return
-			}
-			pkt, parseErr := opkt.Parse()
-			if parseErr == nil {
-				switch p := pkt.(type) {
-				case *packet.PublicKey:
-					if !p.IsSubkey {
-						if currentPubkey != nil {
-							// New public key found, send prior one
-							currentPubkey.updateDigests()
-							c <- &ReadKeyResult{Pubkey: currentPubkey}
-							currentPubkey = nil
-							currentSignable = nil
-							lastRecord = nil
+		var pubkey *Pubkey
+		var signable Signable
+		var pkt packet.Packet
+		var parseErr error
+		for opkr := range ReadOpaqueKeyrings(r) {
+			pubkey = nil
+			for _, opkt := range opkr.Packets {
+				if pkt, parseErr = opkt.Parse(); parseErr != nil {
+					// Deal with opaque package parse errors
+					if opkt.Tag == packet.PacketTypePublicKey {
+						// If the primary public key cannot be parsed, we'll need to store
+						// what we can to sync it.
+						if pubkey == nil {
+							if pubkey, err = NewInvalidPubkey(opkt); err != nil {
+								log.Println("Failed to parse invalid primary pubkey:", opkt)
+								panic("Could not create invalid primary pubkey, should not happen!")
+							}
+						} else {
+							// Multiple primary public keys in this keyring? ReadOpaqueKeyings bug.
+							log.Println("On pubkey:", pubkey)
+							log.Println("Found embedded primary pubkey:", opkt)
+							panic("Multiple primary public keys in keyring, should not happen!")
 						}
-						var pubkey *Pubkey
-						if pubkey, err = NewPubkey(p); err != nil {
-							currentPubkey = nil
-							c <- &ReadKeyResult{Error: err}
-							continue
-						}
-						currentPubkey = pubkey
-						currentSignable = currentPubkey
-						lastRecord = pubkey
+					} else if pubkey == nil {
+						// Primary public key not first packet in this keyring? ReadOpaqueKeyings bug.
+						panic("Primary public key was not the first packet in OpaqueKeyring, should not happen!")
 					} else {
-						if currentPubkey == nil {
-							c <- ErrReadKeys(
-								"Subkey outside of primary public key scope in stream")
-							continue
-						}
-						// This is a sub key
-						var subkey *Subkey
-						if subkey, err = NewSubkey(p); err != nil {
-							c <- &ReadKeyResult{Error: err}
-						}
-						currentPubkey.subkeys = append(currentPubkey.subkeys, subkey)
-						currentSignable = subkey
-						lastRecord = subkey
+						// Add other packet to primary public key as unsupported keyring trash.
+						pubkey.AppendUnsupported(opkt)
 					}
-				case *packet.Signature:
-					if currentSignable == nil {
-						c <- ErrReadKeys("Signature outside signable scope in stream")
-						continue
-					}
-					var sig *Signature
-					if sig, err = NewSignature(p); err != nil {
-						c <- &ReadKeyResult{Error: err}
-						continue
-					}
-					currentSignable.AddSignature(sig)
-					lastRecord = sig
-				case *packet.UserId:
-					if currentPubkey == nil {
-						c <- ErrReadKeys("User ID outside primary public key scope in stream")
-						continue
-					}
-					var uid *UserId
-					if uid, err = NewUserId(p); err != nil {
-						c <- &ReadKeyResult{Error: err}
-						continue
-					}
-					currentSignable = uid
-					currentPubkey.userIds = append(currentPubkey.userIds, uid)
-					lastRecord = uid
-				case *packet.UserAttribute:
-					if currentPubkey == nil {
-						c <- ErrReadKeys("User attribute outside primary public key scope in stream")
-						continue
-					}
-					var uat *UserAttribute
-					if uat, err = NewUserAttribute(p); err != nil {
-						c <- &ReadKeyResult{Error: err}
-						continue
-					}
-					currentSignable = uat
-					currentPubkey.userAttributes = append(currentPubkey.userAttributes, uat)
-					lastRecord = uat
-				}
-			} else if currentPubkey != nil {
-				var unsupp *Unsupported
-				if unsupp, err = NewUnsupported(opkt, lastRecord); err != nil {
-					c <- &ReadKeyResult{Error: err}
 					continue
 				}
-				currentPubkey.unsupported = append(currentPubkey.unsupported, unsupp)
-				lastRecord = unsupp
-			} else {
-				c <- &ReadKeyResult{Error: parseErr}
+				var badPacket *packet.OpaquePacket
+				switch opkt.Tag {
+				case packet.PacketTypePublicKey:
+					if pubkey != nil {
+						log.Println("On pubkey:", pubkey)
+						log.Println("Found embedded primary pubkey:", opkt)
+						panic("Multiple primary public keys in keyring, should not happen!")
+					}
+					if pubkey, err = NewPubkey(pkt); err != nil {
+						if pubkey, err = NewInvalidPubkey(opkt); err != nil {
+							log.Println("Failed to parse invalid primary pubkey:", opkt)
+							panic("Could not create invalid primary pubkey, should not happen!")
+						}
+					} else {
+						signable = pubkey
+					}
+				case packet.PacketTypePublicSubkey:
+					if subkey, err := NewSubkey(pkt); err != nil {
+						badPacket = opkt
+					} else {
+						pubkey.subkeys = append(pubkey.subkeys, subkey)
+						signable = subkey
+					}
+				case packet.PacketTypeUserId:
+					if userId, err := NewUserId(pkt); err != nil {
+						badPacket = opkt
+					} else {
+						pubkey.userIds = append(pubkey.userIds, userId)
+						signable = userId
+					}
+				case packet.PacketTypeUserAttribute:
+					if userAttr, err := NewUserAttribute(pkt); err != nil {
+						badPacket = opkt
+					} else {
+						pubkey.userAttributes = append(pubkey.userAttributes, userAttr)
+						signable = userAttr
+					}
+				case packet.PacketTypeSignature:
+					if sig, err := NewSignature(pkt); err != nil {
+						badPacket = opkt
+					} else if signable == nil {
+						badPacket = opkt
+					} else {
+						signable.AddSignature(sig)
+					}
+				default:
+					badPacket = opkt
+				}
+				if badPacket != nil {
+					pubkey.AppendUnsupported(badPacket)
+				}
 			}
-		}
-		if currentPubkey != nil {
-			currentPubkey.updateDigests()
-			c <- &ReadKeyResult{Pubkey: currentPubkey}
+			if err = pubkey.Validate(); err != nil {
+				// Feed back gross syntactical errors, such as packets with no sigs
+				c <- &ReadKeyResult{Error: err}
+			}
+			pubkey.updateDigests()
+			// Validate signatures and wire-up relationships.
+			// Also flags invalid key material but does not remove it.
+			Resolve(pubkey)
+			c <- &ReadKeyResult{Pubkey: pubkey}
 		}
 	}()
 	return c
+}
+
+func (pubkey *Pubkey) Validate() error {
+	for _, uid := range pubkey.userIds {
+		if len(uid.signatures) == 0 {
+			return ErrMissingSignature
+		}
+	}
+	for _, uat := range pubkey.userAttributes {
+		if len(uat.signatures) == 0 {
+			return ErrMissingSignature
+		}
+	}
+	for _, subkey := range pubkey.subkeys {
+		if len(subkey.signatures) == 0 {
+			return ErrMissingSignature
+		}
+	}
+	return nil
 }

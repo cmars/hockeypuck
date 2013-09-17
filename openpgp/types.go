@@ -34,33 +34,30 @@ const (
 	// No policy or semantic interpretation of the key material has been applied.
 	PacketStateOk = 0
 
-	// 1xx packet states reflect policy dispositions of the public key material
-	// made external to the OpenPGP contents.
-
 	// Key material has been registered with Hockeypuck by the key owner,
 	// who has signed a nonced challenge message with the associated private key.
-	PacketStateRegistered = 100
+	PacketStateRegistered = 1 << 0
 	// Key material is cloaked. Hockeypuck will respond as if the key does not exist
 	// unless the HKP request has proper authentication.
-	PacketStateCloaked = iota
+	PacketStateCloaked = 1 << 1
 	// Key material is banned from HKP results unconditionally. Could be signature
 	// graphiti or other unwanted content.
-	PacketStateBanned = iota
+	PacketStateSpam = 1 << 2
 	// Key material is considered to be abandoned according to keyserver policy.
-	PacketStateAbandoned = iota
-	// Key material is rejected according to keyserver policy. For example,
-	// a keyserver could reject all keys and signatures without expirations.
-	PacketStateRejected = iota
+	PacketStateAbandoned = 1 << 3
 
-	// 4xx packet states indicate semantic problems with the key material, rendering it
-	// unusable.
+	// Bits 4-15 reserved for additional policies.
 
-	// General error code for semantically invalid key
-	PacketStateInvalid = 400
-	// Key material has a verified revocation certificate
-	PacketStateRevoked = iota
-	// Key material lacks a verified self-signature
-	PacketStateMissingSelfSig = iota
+	// Bits 16-23 indicate signature verification failure on the key material
+
+	// Key material lacks a valid, non-expired self-signature
+	PacketStateNoSelfSig = 1 << 16
+
+	// Subkey material lacks a valid, non-expired binding-signature
+	PacketStateNoBindingSig = 1 << 17
+
+	// Public key is unsupported (unknown algorithm code, etc.)
+	PacketStateUnsuppPubkey = 1 << 18
 )
 
 type PacketVisitor func(PacketRecord) error

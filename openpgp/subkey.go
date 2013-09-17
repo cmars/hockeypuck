@@ -223,13 +223,7 @@ func (subkey *Subkey) linkSelfSigs(pubkey *Pubkey) {
 	}
 	// Remove subkeys without a binding signature
 	if subkey.bindingSig == nil {
-		var subkeys []*Subkey
-		for i := range pubkey.subkeys {
-			if pubkey.subkeys[i] != subkey {
-				subkeys = append(subkeys, pubkey.subkeys[i])
-			}
-		}
-		pubkey.subkeys = subkeys
+		subkey.State |= PacketStateNoBindingSig
 	}
 }
 

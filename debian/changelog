@@ -121,6 +121,16 @@ hockeypuck (1.0~b1) UNRELEASED; urgency=low
       positive certification overrides a revocation. Tracking the newest
       revocation & self-signatures.
     - Fix timestamp rendering in options=mr.
+  * openpgp/add.go, openpgp/io.go, openpgp/loader.go, openpgp/pubkey.go,
+    openpgp/resolve.go, openpgp/resolve_test.go, openpgp/subkey.go,
+    openpgp/types.go, openpgp/types_test.go, openpgp/unsupp.go,
+    openpgp/userattribute.go, openpgp/userid.go, openpgp/worker.go:
+    - Parse first in blocks of opaque packets delimited by tag=6
+      public key, then interpret.
+    - Reject keyrings missing signatures on syntactic basis like SKS.
+    - Flag invalid selfsigs, but do not remove them, for compatibility
+      with SKS.
+    - Store unsupported key material in openpgp_pubkey.unsupp column.
 
  -- Casey Marshall <cmars@cmarstech.com>  Sat, 14 Sep 2013 02:12:40 -0500
 

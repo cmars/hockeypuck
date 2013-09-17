@@ -33,8 +33,12 @@ import (
 	"time"
 )
 
+// KeyChangeChan channels are used for sending and receiving
+// key changes resulting from adding a new key or merging
+// updates into an existing one.
 type KeyChangeChan chan *KeyChange
 
+// Add responds to /pks/add HKP requests.
 func (w *Worker) Add(a *hkp.Add) {
 	// Parse armored keytext
 	var changes []*KeyChange
@@ -57,6 +61,8 @@ func (w *Worker) Add(a *hkp.Add) {
 	a.Response() <- &AddResponse{Changes: changes, Errors: readErrors}
 }
 
+// recoverKey responds to public keys recovered from the recon
+// protocol.
 func (w *Worker) recoverKey(rk *RecoverKey) hkp.Response {
 	resp := &RecoverKeyResponse{}
 	// Attempt to parse and upsert key
@@ -82,8 +88,12 @@ func (w *Worker) recoverKey(rk *RecoverKey) hkp.Response {
 	return resp
 }
 
+// ErrSubKeyChanges is an error occurring when attempting to subscribe
+// to KeyChange messages on a worker that already has a subscriber.
 var ErrSubKeyChanges error = errors.New("Worker already has a key change subscriber")
 
+// SubKeyChanges subscribes a KeyChange channel to receive updates on
+// any keys added or updated by this worker.
 func (w *Worker) SubKeyChanges(keyChanges KeyChangeChan) error {
 	if w.keyChanges != nil {
 		return ErrSubKeyChanges
@@ -92,31 +102,51 @@ func (w *Worker) SubKeyChanges(keyChanges KeyChangeChan) error {
 	return nil
 }
 
+// notifyChange is used by the worker to broadcast key changes
+// to a subscriber, if any.
 func (w *Worker) notifyChange(keyChange *KeyChange) {
 	if w.keyChanges != nil {
 		w.keyChanges <- keyChange
 	}
 }
 
+// KeyChangeType identifies the type of change that a worker has
+// made to a public key.
 type KeyChangeType int
 
 const (
+	// KeyChangeInvalid indicates that the attempted key change information
+	// does not describe an expected, valid event.
 	KeyChangeInvalid KeyChangeType = iota
-	KeyNotChanged    KeyChangeType = iota
-	KeyAdded         KeyChangeType = iota
-	KeyModified      KeyChangeType = iota
+	// KeyNotChanged indicates that a request to update an existing public key
+	// did not result in any change or addition of new key material.
+	KeyNotChanged KeyChangeType = iota
+	// KeyAdded indicates a new key was added to the database.
+	KeyAdded KeyChangeType = iota
+	// KeyModified indicates that an existing key was updated with new information.
+	KeyModified KeyChangeType = iota
 )
 
+// KeyChange describes the change made to a public key resulting from
+// a /pks/add HKP request.
 type KeyChange struct {
-	Fingerprint    string
-	CurrentMd5     string
-	PreviousMd5    string
-	CurrentSha256  string
+	// Fingerprint is the public key fingerprint
+	Fingerprint string
+	// CurrentMd5 contains the new digest of the key (SKS compatible).
+	CurrentMd5 string
+	// PreviousMd5 contains the digest of the key prior to update, if any (SKS compatible).
+	PreviousMd5 string
+	// CurrentSha256 contains the new digest of the key.
+	CurrentSha256 string
+	// PreviousSha256 contains the digest of the key prior to update, if any.
 	PreviousSha256 string
-	Error          error
-	Type           KeyChangeType
+	// Error captures the error that prevented the change from occurring, otherwise nil.
+	Error error
+	// Type indicates the type of key change that occurred, as indicated by KeyChangeType.
+	Type KeyChangeType
 }
 
+// String represents the key change event as a string for diagnostic purposes.
 func (kc *KeyChange) String() string {
 	w := bytes.NewBuffer(nil)
 	var msg string
@@ -196,6 +226,7 @@ func (w *Worker) UpsertKey(key *Pubkey) (change *KeyChange) {
 	return
 }
 
+// UpdateKey updates the database to the contents of the given public key.
 func (w *Worker) UpdateKey(pubkey *Pubkey) error {
 	tx, err := w.db.Beginx()
 	if err != nil {
@@ -271,8 +302,12 @@ UPDATE openpgp_sig SET
 	return err
 }
 
-const UUID_LEN = 40 // log(2**256, 85) = 39.9413926456896
+// UUID_LEN is the size of unique primary keys generated for certain
+// database records. The length is chosen to approximate 256 bits of security.
+// When Ascii85 encoding is used, log(2**256, 85) = 39.9413926456896
+const UUID_LEN = 40
 
+// NewUuid creates a new randomly generated, secure unique identifier.
 func NewUuid() (string, error) {
 	buf := bytes.NewBuffer([]byte{})
 	enc := ascii85.NewEncoder(buf)
@@ -286,6 +321,9 @@ func NewUuid() (string, error) {
 	return string(buf.Bytes()), nil
 }
 
+// UpdateKeyRelations updates the foreign-key relations between
+// matching public key packet records to represent the state of the
+// given public key.
 func (w *Worker) UpdateKeyRelations(pubkey *Pubkey) error {
 	var signable PacketRecord
 	tx, err := w.db.Beginx()
