@@ -145,6 +145,11 @@ hockeypuck (1.0~b1) UNRELEASED; urgency=low
       for SKS compatibility.
     - Validate function now removes packets without any signatures,
       emulate keyMerge.ml behavior.
+  * cmd/hockeypuck-import/main.go, openpgp/add.go, openpgp/loader.go,
+    openpgp/recon.go:
+    - Loader and worker now require explicit transaction control.
+    - hockeypuck-import supports # of keys per commit into openpgp.
+      Prefix tree drop/build support.
 
  -- Casey Marshall <cmars@snowcrash>  Tue, 17 Sep 2013 22:09:56 -0500
 
