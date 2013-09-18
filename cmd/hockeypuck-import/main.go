@@ -19,8 +19,11 @@
 package main
 
 import (
+	"encoding/hex"
 	"flag"
 	"fmt"
+	"github.com/cmars/conflux"
+	"github.com/cmars/conflux/recon"
 	. "launchpad.net/hockeypuck"
 	"launchpad.net/hockeypuck/openpgp"
 	"log"
@@ -33,6 +36,9 @@ var showVersion *bool = flag.Bool("version", false, "Display version and exit")
 var configFile *string = flag.String("config", "", "Config file")
 var dropIndexes *bool = flag.Bool("drop-indexes", true, "Drop constraints and indexes")
 var buildIndexes *bool = flag.Bool("build-indexes", true, "Create constraints and indexes")
+var dropPtree *bool = flag.Bool("drop-ptree", true, "Drop reconciliation prefix tree")
+var buildPtree *bool = flag.Bool("build-ptree", true, "Build reconciliation prefix tree")
+var txnSize *int = flag.Int("txn-size", 5000, "Transaction size (keys loaded per commit)")
 
 func usage() {
 	flag.PrintDefaults()
@@ -65,20 +71,64 @@ func main() {
 	}
 	InitLog()
 	keys := make(chan *openpgp.Pubkey)
+	hashes := make(chan *conflux.Zp, 15000)
 	var db *openpgp.DB
 	if db, err = openpgp.NewDB(); err != nil {
 		die(err)
 	}
+	var ptree recon.PrefixTree
+	reconSettings := recon.NewSettings(openpgp.Config().Settings.TomlTree)
+	if ptree, err = openpgp.NewSksPTree(reconSettings); err != nil {
+		die(err)
+	}
+	if *dropPtree {
+		if err = ptree.Drop(); err != nil {
+			panic(err)
+		}
+	}
+	if *buildPtree {
+		if err = ptree.Create(); err != nil {
+			panic(err)
+		}
+		go func() {
+			for {
+				select {
+				case z, ok := <-hashes:
+					if z != nil {
+						err = ptree.Insert(z)
+						if err != nil {
+							log.Printf("Error inserting %x into ptree: %v", z.Bytes(), err)
+						}
+					}
+					if !ok {
+						return
+					}
+				}
+			}
+		}()
+	}
 	for i := 0; i < openpgp.Config().NumWorkers(); i++ {
 		go func() {
 			l := openpgp.NewLoader(db)
+			l.Begin()
+			defer l.Commit()
+			nkeys := 0
 			var err error
 			for {
 				select {
-				case key := <-keys:
-					if err = l.InsertKey(key); err != nil {
-						log.Println("Error inserting key:", key.Fingerprint(), ":", err)
+				case key, ok := <-keys:
+					if key != nil {
+						if err = l.InsertKey(key); err != nil {
+							log.Println("Error inserting key:", key.Fingerprint(), ":", err)
+						}
+						nkeys++
 					}
+					if !ok {
+						return
+					}
+				}
+				if nkeys%*txnSize == 0 {
+					l.Commit()
 				}
 			}
 		}()
@@ -95,8 +145,10 @@ func main() {
 	}
 	// Load any tables if specified
 	if *load != "" {
-		readAllKeys(*load, keys)
+		readAllKeys(*load, keys, hashes)
 	}
+	close(keys)
+	close(hashes)
 	// Ensure uniqueness if we dropped constraints
 	if *dropIndexes {
 		if err = db.DeleteDuplicates(); err != nil {
@@ -111,7 +163,7 @@ func main() {
 	}
 }
 
-func readAllKeys(path string, keys chan *openpgp.Pubkey) {
+func readAllKeys(path string, keys chan *openpgp.Pubkey, hashes chan *conflux.Zp) {
 	keyfiles, err := filepath.Glob(path)
 	if err != nil {
 		die(err)
@@ -132,6 +184,16 @@ func readAllKeys(path string, keys chan *openpgp.Pubkey) {
 				continue
 			}
 			keys <- keyRead.Pubkey
+			if *buildPtree {
+				digest, err := hex.DecodeString(keyRead.Pubkey.Md5)
+				if err != nil {
+					log.Println("bad digest:", keyRead.Pubkey.Md5)
+					continue
+				}
+				digest = append(digest, byte(0))
+				digestZp := conflux.Zb(conflux.P_SKS, digest)
+				hashes <- digestZp
+			}
 		}
 	}
 }

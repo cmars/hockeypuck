@@ -23,60 +23,69 @@ import (
 
 type Loader struct {
 	db *DB
+	tx *sqlx.Tx
 }
 
 func NewLoader(db *DB) *Loader {
 	return &Loader{db: db}
 }
 
-func (l *Loader) InsertKey(pubkey *Pubkey) error {
-	tx, err := l.db.Beginx()
-	if err != nil {
-		return err
-	}
+func (l *Loader) Begin() (_ *sqlx.Tx, err error) {
+	l.tx, err = l.db.Beginx()
+	return l.tx, err
+}
+
+func (l *Loader) Commit() (err error) {
+	err = l.tx.Commit()
+	l.tx = nil
+	return
+}
+
+func (l *Loader) Rollback() (err error) {
+	err = l.tx.Rollback()
+	l.tx = nil
+	return
+}
+
+func (l *Loader) InsertKey(pubkey *Pubkey) (err error) {
 	var signable PacketRecord
 	err = pubkey.Visit(func(rec PacketRecord) error {
 		switch r := rec.(type) {
 		case *Pubkey:
-			if err := l.insertPubkey(tx, r); err != nil {
+			if err := l.insertPubkey(r); err != nil {
 				return err
 			}
 			signable = r
 		case *Subkey:
-			if err := l.insertSubkey(tx, pubkey, r); err != nil {
+			if err := l.insertSubkey(pubkey, r); err != nil {
 				return err
 			}
 			signable = r
 		case *UserId:
-			if err := l.insertUid(tx, pubkey, r); err != nil {
+			if err := l.insertUid(pubkey, r); err != nil {
 				return err
 			}
 			signable = r
 		case *UserAttribute:
-			if err := l.insertUat(tx, pubkey, r); err != nil {
+			if err := l.insertUat(pubkey, r); err != nil {
 				return err
 			}
 			signable = r
 		case *Signature:
-			if err := l.insertSig(tx, pubkey, r); err != nil {
+			if err := l.insertSig(pubkey, r); err != nil {
 				return err
 			}
-			if err := l.insertSigRelations(tx, pubkey, signable, r); err != nil {
+			if err := l.insertSigRelations(pubkey, signable, r); err != nil {
 				return err
 			}
 		}
 		return nil
 	})
-	if err != nil {
-		tx.Rollback()
-	} else {
-		tx.Commit()
-	}
 	return err
 }
 
-func (l *Loader) insertPubkey(tx *sqlx.Tx, r *Pubkey) error {
-	_, err := tx.Execv(`
+func (l *Loader) insertPubkey(r *Pubkey) error {
+	_, err := l.tx.Execv(`
 INSERT INTO openpgp_pubkey (
 	uuid, creation, expiration, state, packet,
 	ctime, mtime,
@@ -94,8 +103,8 @@ VALUES (
 	return err
 }
 
-func (l *Loader) insertSubkey(tx *sqlx.Tx, pubkey *Pubkey, r *Subkey) error {
-	_, err := tx.Execv(`
+func (l *Loader) insertSubkey(pubkey *Pubkey, r *Subkey) error {
+	_, err := l.tx.Execv(`
 INSERT INTO openpgp_subkey (
 	uuid, creation, expiration, state, packet,
 	pubkey_uuid, revsig_uuid, algorithm, bit_len)
@@ -107,8 +116,8 @@ VALUES (
 	return err
 }
 
-func (l *Loader) insertUid(tx *sqlx.Tx, pubkey *Pubkey, r *UserId) error {
-	_, err := tx.Execv(`
+func (l *Loader) insertUid(pubkey *Pubkey, r *UserId) error {
+	_, err := l.tx.Execv(`
 INSERT INTO openpgp_uid (
 	uuid, creation, expiration, state, packet,
 	pubkey_uuid, revsig_uuid, keywords, keywords_fulltext)
@@ -120,8 +129,8 @@ VALUES (
 	return err
 }
 
-func (l *Loader) insertUat(tx *sqlx.Tx, pubkey *Pubkey, r *UserAttribute) error {
-	_, err := tx.Execv(`
+func (l *Loader) insertUat(pubkey *Pubkey, r *UserAttribute) error {
+	_, err := l.tx.Execv(`
 INSERT INTO openpgp_uat (
 	uuid, creation, expiration, state, packet,
 	pubkey_uuid, revsig_uuid)
@@ -133,8 +142,8 @@ VALUES (
 	return err
 }
 
-func (l *Loader) insertSig(tx *sqlx.Tx, pubkey *Pubkey, r *Signature) error {
-	_, err := tx.Execv(`
+func (l *Loader) insertSig(pubkey *Pubkey, r *Signature) error {
+	_, err := l.tx.Execv(`
 INSERT INTO openpgp_sig (
 	uuid, creation, expiration, state, packet,
 	sig_type, signer, signer_uuid)
@@ -145,7 +154,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 	return err
 }
 
-func (l *Loader) insertSigRelations(tx *sqlx.Tx, pubkey *Pubkey, signable PacketRecord, r *Signature) error {
+func (l *Loader) insertSigRelations(pubkey *Pubkey, signable PacketRecord, r *Signature) error {
 	sigRelationUuid, err := NewUuid()
 	if err != nil {
 		return err
@@ -153,14 +162,14 @@ func (l *Loader) insertSigRelations(tx *sqlx.Tx, pubkey *Pubkey, signable Packet
 	// Add signature relation to other packets
 	switch signed := signable.(type) {
 	case *Pubkey:
-		_, err = tx.Execv(`
+		_, err = l.tx.Execv(`
 INSERT INTO openpgp_pubkey_sig (uuid, pubkey_uuid, sig_uuid)
 VALUES ($1, $2, $3)`, sigRelationUuid, signed.RFingerprint, r.ScopedDigest)
 		if err != nil {
 			return err
 		}
 	case *Subkey:
-		_, err = tx.Execv(`
+		_, err = l.tx.Execv(`
 INSERT INTO openpgp_subkey_sig (uuid, pubkey_uuid, subkey_uuid, sig_uuid)
 VALUES ($1, $2, $3, $4)`, sigRelationUuid, pubkey.RFingerprint,
 			signed.RFingerprint, r.ScopedDigest)
@@ -168,7 +177,7 @@ VALUES ($1, $2, $3, $4)`, sigRelationUuid, pubkey.RFingerprint,
 			return err
 		}
 	case *UserId:
-		_, err = tx.Execv(`
+		_, err = l.tx.Execv(`
 INSERT INTO openpgp_uid_sig (uuid, pubkey_uuid, uid_uuid, sig_uuid)
 VALUES ($1, $2, $3, $4)`, sigRelationUuid, pubkey.RFingerprint,
 			signed.ScopedDigest, r.ScopedDigest)
@@ -176,7 +185,7 @@ VALUES ($1, $2, $3, $4)`, sigRelationUuid, pubkey.RFingerprint,
 			return err
 		}
 	case *UserAttribute:
-		_, err = tx.Execv(`
+		_, err = l.tx.Execv(`
 INSERT INTO openpgp_uat_sig (uuid, pubkey_uuid, uat_uuid, sig_uuid)
 VALUES ($1, $2, $3, $4)`, sigRelationUuid, pubkey.RFingerprint,
 			signed.ScopedDigest, r.ScopedDigest)

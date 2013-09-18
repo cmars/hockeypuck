@@ -46,11 +46,18 @@ type RecoverKey struct {
 	response   hkp.ResponseChan
 }
 
-func NewSksPeer(s *hkp.Service) (*SksPeer, error) {
-	reconSettings := recon.NewSettings(Config().Settings.TomlTree)
+func NewSksPTree(reconSettings *recon.Settings) (recon.PrefixTree, error) {
 	pqpTreeSettings := pqptree.NewSettings(reconSettings)
 	db, err := sqlx.Connect(Config().Driver(), Config().DSN())
-	ptree, err := pqptree.New("sks", db, pqpTreeSettings)
+	if err != nil {
+		return nil, err
+	}
+	return pqptree.New("sks", db, pqpTreeSettings)
+}
+
+func NewSksPeer(s *hkp.Service) (*SksPeer, error) {
+	reconSettings := recon.NewSettings(Config().Settings.TomlTree)
+	ptree, err := NewSksPTree(reconSettings)
 	if err != nil {
 		return nil, err
 	}
@@ -64,6 +71,7 @@ func NewSksPeer(s *hkp.Service) (*SksPeer, error) {
 }
 
 func (r *SksPeer) Start() {
+	r.Peer.PrefixTree.Create()
 	go r.HandleRecovery()
 	go r.HandleKeyUpdates()
 	go r.Peer.Start()
