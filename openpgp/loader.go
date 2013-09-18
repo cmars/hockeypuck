@@ -36,15 +36,15 @@ func (l *Loader) Begin() (_ *sqlx.Tx, err error) {
 }
 
 func (l *Loader) Commit() (err error) {
-	err = l.tx.Commit()
-	l.tx = nil
-	return
+	if err = l.tx.Commit(); err != nil {
+		return
+	}
+	return l.Begin()
 }
 
 func (l *Loader) Rollback() (err error) {
 	err = l.tx.Rollback()
-	l.tx = nil
-	return
+	return l.Begin()
 }
 
 func (l *Loader) InsertKey(pubkey *Pubkey) (err error) {

@@ -128,7 +128,9 @@ func main() {
 					}
 				}
 				if nkeys%*txnSize == 0 {
-					l.Commit()
+					if err = l.Commit(); err != nil {
+						panic(err)
+					}
 				}
 			}
 		}()
