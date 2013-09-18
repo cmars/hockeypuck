@@ -79,6 +79,7 @@ type publicKeyRecord interface {
 
 type Signable interface {
 	AddSignature(*Signature)
+	RemoveSignature(*Signature)
 }
 
 func toOpaquePacket(buf []byte) (*packet.OpaquePacket, error) {

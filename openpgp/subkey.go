@@ -115,8 +115,16 @@ func (subkey *Subkey) Read() (err error) {
 	return subkey.setPacket(p)
 }
 
-func NewSubkey(p packet.Packet) (subkey *Subkey, err error) {
-	subkey = new(Subkey)
+func NewSubkey(op *packet.OpaquePacket) (subkey *Subkey, err error) {
+	var buf bytes.Buffer
+	if err = op.Serialize(&buf); err != nil {
+		return
+	}
+	subkey = &Subkey{Packet: buf.Bytes()}
+	var p packet.Packet
+	if p, err = op.Parse(); err != nil {
+		return
+	}
 	if err = subkey.setPacket(p); err != nil {
 		return
 	}
@@ -131,11 +139,6 @@ func NewSubkey(p packet.Packet) (subkey *Subkey, err error) {
 }
 
 func (subkey *Subkey) initV4() error {
-	buf := bytes.NewBuffer(nil)
-	err := subkey.PublicKey.Serialize(buf)
-	if err != nil {
-		return err
-	}
 	fingerprint := Fingerprint(subkey.PublicKey)
 	bitLen, err := subkey.PublicKey.BitLength()
 	if err != nil {
@@ -145,7 +148,6 @@ func (subkey *Subkey) initV4() error {
 		log.Println("Expected sub-key packet, got primary public key")
 		return ErrInvalidPacketType
 	}
-	subkey.Packet = buf.Bytes()
 	subkey.RFingerprint = util.Reverse(fingerprint)
 	subkey.Creation = subkey.PublicKey.CreationTime
 	subkey.Expiration = NeverExpires
@@ -155,11 +157,6 @@ func (subkey *Subkey) initV4() error {
 }
 
 func (subkey *Subkey) initV3() error {
-	var buf bytes.Buffer
-	err := subkey.PublicKeyV3.Serialize(&buf)
-	if err != nil {
-		return err
-	}
 	fingerprint := FingerprintV3(subkey.PublicKeyV3)
 	bitLen, err := subkey.PublicKeyV3.BitLength()
 	if err != nil {
@@ -169,7 +166,6 @@ func (subkey *Subkey) initV3() error {
 		log.Println("Expected primary public key packet, got sub-key")
 		return ErrInvalidPacketType
 	}
-	subkey.Packet = buf.Bytes()
 	subkey.RFingerprint = util.Reverse(fingerprint)
 	subkey.Creation = subkey.PublicKeyV3.CreationTime
 	subkey.Expiration = NeverExpires
@@ -197,6 +193,10 @@ func (subkey *Subkey) Visit(visitor PacketVisitor) (err error) {
 
 func (subkey *Subkey) AddSignature(sig *Signature) {
 	subkey.signatures = append(subkey.signatures, sig)
+}
+
+func (subkey *Subkey) RemoveSignature(sig *Signature) {
+	subkey.signatures = removeSignature(subkey.signatures, sig)
 }
 
 func (subkey *Subkey) linkSelfSigs(pubkey *Pubkey) {

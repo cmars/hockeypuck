@@ -18,6 +18,7 @@
 package openpgp
 
 import (
+	"bytes"
 	"code.google.com/p/go.crypto/openpgp/armor"
 	"code.google.com/p/go.crypto/openpgp/packet"
 	"crypto/md5"
@@ -36,24 +37,65 @@ func TestBadSelfSigUid(t *testing.T) {
 }
 
 func TestDupSig(t *testing.T) {
-	f := MustInput(t, "252B8B37.dupsig.asc")
-	defer f.Close()
-	block, err := armor.Decode(f)
-	if err != nil {
-		t.Fatal(err)
+	{
+		f := MustInput(t, "252B8B37.dupsig.asc")
+		defer f.Close()
+		block, err := armor.Decode(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r := packet.NewOpaqueReader(block.Body)
+		var packets []*packet.OpaquePacket
+		for {
+			if op, err := r.Next(); err != nil {
+				break
+			} else {
+				packets = append(packets, op)
+				t.Log("raw:", op)
+			}
+		}
+		sksDigest := sksDigestOpaque(packets, md5.New())
+		assert.Equal(t, sksDigest, "6d57b48c83d6322076d634059bb3b94b")
 	}
-	r := packet.NewOpaqueReader(block.Body)
-	var packets []*packet.OpaquePacket
-	for {
-		if op, err := r.Next(); err != nil {
-			break
-		} else {
+	// Read a key
+	{
+		f := MustInput(t, "252B8B37.dupsig.asc")
+		defer f.Close()
+		block, err := armor.Decode(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var key *Pubkey
+		for keyRead := range readKeys(block.Body) {
+			assert.Nil(t, keyRead.Error)
+			key = keyRead.Pubkey
+		}
+		var packets []*packet.OpaquePacket
+		key.Visit(func(rec PacketRecord) error {
+			op, err := rec.GetOpaquePacket()
+			assert.Nil(t, err)
+			packets = append(packets, op)
+			return err
+		})
+		r := packet.NewOpaqueReader(bytes.NewBuffer(key.Unsupported))
+		for op, err := r.Next(); err == nil; op, err = r.Next() {
 			packets = append(packets, op)
 		}
+		sksDigest := sksDigestOpaque(packets, md5.New())
+		assert.Equal(t, sksDigest, "6d57b48c83d6322076d634059bb3b94b")
 	}
-	sksDigest := sksDigestOpaque(packets, md5.New())
-	assert.Equal(t, sksDigest, "6d57b48c83d6322076d634059bb3b94b")
+	// Now read & resolve
 	key := MustInputAscKey(t, "252B8B37.dupsig.asc")
+	key.Visit(func(rec PacketRecord) error {
+		op, err := rec.GetOpaquePacket()
+		assert.Nil(t, err)
+		t.Log("parsed:", op)
+		return nil
+	})
+	r := packet.NewOpaqueReader(bytes.NewBuffer(key.Unsupported))
+	for op, err := r.Next(); err == nil; op, err = r.Next() {
+		t.Log("parsed:", op)
+	}
 	assert.Equal(t, key.Md5, "6d57b48c83d6322076d634059bb3b94b")
 }
 

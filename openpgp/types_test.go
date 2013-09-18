@@ -18,6 +18,7 @@
 package openpgp
 
 import (
+	//P "code.google.com/p/go.crypto/openpgp/packet"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -47,21 +48,27 @@ func TestVisitor(t *testing.T) {
 
 func TestIterOpaque(t *testing.T) {
 	key := MustInputAscKey(t, "sksdigest.asc")
-	hits := make(map[int]int)
-	for _, tag := range []int{2, 6, 13, 14} {
+	hits := make(map[uint8]int)
+	for _, tag := range []uint8{
+		2, 6, 13, 14} {
+		//P.PacketTypeSignature, P.PacketTypePublicKey,
+		//P.PacketTypeUserId, P.PacketTypePublicSubkey} {
 		hits[tag] = 0
 	}
 	err := key.Visit(func(rec PacketRecord) error {
-		if opkt, err := rec.GetOpaquePacket(); err != nil {
-			hits[int(opkt.Tag)]++
+		if opkt, err := rec.GetOpaquePacket(); err == nil {
+			hits[opkt.Tag]++
 		}
 		return nil
 	})
 	assert.Nil(t, err)
 	t.Log(hits)
-	assert.Equal(t, 2, hits[2])
-	assert.Equal(t, 1, hits[6])
-	assert.Equal(t, 1, hits[13])
-	assert.Equal(t, 1, hits[14])
+	assert.Equal(t, 2, hits[2 /*P.PacketTypeSignature*/])
+	assert.Equal(t, 1, hits[6 /*P.PacketTypePublicKey*/])
+	assert.Equal(t, 1, hits[13 /*P.PacketTypeUserId*/])
+	assert.Equal(t, 1, len(key.userIds))
+	assert.Equal(t, 1, len(key.userIds[0].signatures))
+	assert.Equal(t, 1, hits[14 /*P.PacketTypePublicSubkey*/])
+	assert.Equal(t, 1, len(key.subkeys[0].signatures))
 	assert.Equal(t, 4, len(hits))
 }

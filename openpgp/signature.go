@@ -126,15 +126,23 @@ func (sig *Signature) GetSignature() (packet.Packet, error) {
 	return packet.Read(buf)
 }
 
-func NewSignature(p packet.Packet) (sig *Signature, err error) {
-	sig = new(Signature)
+func NewSignature(op *packet.OpaquePacket) (sig *Signature, err error) {
+	var buf bytes.Buffer
+	if err = op.Serialize(&buf); err != nil {
+		return
+	}
+	sig = &Signature{Packet: buf.Bytes()}
+	var p packet.Packet
+	if p, err = op.Parse(); err != nil {
+		return
+	}
 	if err = sig.setPacket(p); err != nil {
 		return
 	}
 	if sig.Signature != nil {
-		sig.initV4()
+		err = sig.initV4()
 	} else if sig.SignatureV3 != nil {
-		sig.initV3()
+		err = sig.initV3()
 	} else {
 		err = ErrInvalidPacketType
 	}
@@ -142,14 +150,9 @@ func NewSignature(p packet.Packet) (sig *Signature, err error) {
 }
 
 func (sig *Signature) initV3() (err error) {
-	buf := bytes.NewBuffer(nil)
-	if err = sig.Serialize(buf); err != nil {
-		return
-	}
 	sig.Creation = sig.SignatureV3.CreationTime
 	// V3 packets do not have an expiration time
 	sig.Expiration = NeverExpires
-	sig.Packet = buf.Bytes()
 	sig.SigType = int(sig.SignatureV3.SigType)
 	// Extract the issuer key id
 	var issuerKeyId [8]byte
@@ -160,16 +163,11 @@ func (sig *Signature) initV3() (err error) {
 }
 
 func (sig *Signature) initV4() (err error) {
-	buf := bytes.NewBuffer(nil)
-	if err = sig.Signature.Serialize(buf); err != nil {
-		return err
-	}
 	if sig.Signature.IssuerKeyId == nil {
 		return errors.New("Signature missing issuer key ID")
 	}
 	sig.Creation = sig.Signature.CreationTime
 	sig.Expiration = NeverExpires
-	sig.Packet = buf.Bytes()
 	sig.SigType = int(sig.Signature.SigType)
 	// Extract the issuer key id
 	var issuerKeyId [8]byte

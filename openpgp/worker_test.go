@@ -92,8 +92,6 @@ func testRoundTripKey(t *testing.T, testfile string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Log(key1)
-	t.Log(key2)
 	h1 := SksDigest(key1, sha256.New())
 	h2 := SksDigest(key2, sha256.New())
 	assert.Equal(t, h1, h2)
