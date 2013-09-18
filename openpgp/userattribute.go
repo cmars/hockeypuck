@@ -91,8 +91,16 @@ func (uat *UserAttribute) Read() (err error) {
 	return uat.setPacket(p)
 }
 
-func NewUserAttribute(p packet.Packet) (uat *UserAttribute, err error) {
-	uat = new(UserAttribute)
+func NewUserAttribute(op *packet.OpaquePacket) (uat *UserAttribute, err error) {
+	var buf bytes.Buffer
+	if err = op.Serialize(&buf); err != nil {
+		return
+	}
+	uat = &UserAttribute{Packet: buf.Bytes()}
+	var p packet.Packet
+	if p, err = op.Parse(); err != nil {
+		return
+	}
 	if err = uat.setPacket(p); err != nil {
 		return
 	}
@@ -100,11 +108,6 @@ func NewUserAttribute(p packet.Packet) (uat *UserAttribute, err error) {
 }
 
 func (uat *UserAttribute) init() (err error) {
-	buf := bytes.NewBuffer(nil)
-	if err = uat.UserAttribute.Serialize(buf); err != nil {
-		return
-	}
-	uat.Packet = buf.Bytes()
 	uat.Creation = NeverExpires
 	uat.Expiration = time.Unix(0, 0)
 	return
@@ -126,6 +129,10 @@ func (uat *UserAttribute) Visit(visitor PacketVisitor) (err error) {
 
 func (uat *UserAttribute) AddSignature(sig *Signature) {
 	uat.signatures = append(uat.signatures, sig)
+}
+
+func (uat *UserAttribute) RemoveSignature(sig *Signature) {
+	uat.signatures = removeSignature(uat.signatures, sig)
 }
 
 func (uat *UserAttribute) linkSelfSigs(pubkey *Pubkey) {
@@ -189,14 +196,8 @@ func (uat *UserAttribute) linkSelfSigs(pubkey *Pubkey) {
 			}
 		}
 	}
-	// Remove User Attributes without a self-signature
+	// Flag User Attributes without a self-signature
 	if uat.selfSignature == nil {
-		var userAttributes []*UserAttribute
-		for i := range pubkey.userAttributes {
-			if pubkey.userAttributes[i] != uat {
-				userAttributes = append(userAttributes, pubkey.userAttributes[i])
-			}
-		}
-		pubkey.userAttributes = userAttributes
+		uat.State |= PacketStateNoSelfSig
 	}
 }

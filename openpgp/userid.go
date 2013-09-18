@@ -93,8 +93,16 @@ func (uid *UserId) Read() (err error) {
 	return uid.setPacket(p)
 }
 
-func NewUserId(p packet.Packet) (uid *UserId, err error) {
-	uid = new(UserId)
+func NewUserId(op *packet.OpaquePacket) (uid *UserId, err error) {
+	var buf bytes.Buffer
+	if err = op.Serialize(&buf); err != nil {
+		return
+	}
+	uid = &UserId{Packet: buf.Bytes()}
+	var p packet.Packet
+	if p, err = op.Parse(); err != nil {
+		return
+	}
 	if err = uid.setPacket(p); err != nil {
 		return
 	}
@@ -102,11 +110,6 @@ func NewUserId(p packet.Packet) (uid *UserId, err error) {
 }
 
 func (uid *UserId) init() (err error) {
-	var buf bytes.Buffer
-	if err = uid.UserId.Serialize(&buf); err != nil {
-		return
-	}
-	uid.Packet = buf.Bytes()
 	uid.Creation = NeverExpires
 	uid.Expiration = time.Unix(0, 0)
 	uid.Keywords = util.CleanUtf8(uid.UserId.Id)
@@ -129,6 +132,10 @@ func (uid *UserId) Visit(visitor PacketVisitor) (err error) {
 
 func (uid *UserId) AddSignature(sig *Signature) {
 	uid.signatures = append(uid.signatures, sig)
+}
+
+func (uid *UserId) RemoveSignature(sig *Signature) {
+	uid.signatures = removeSignature(uid.signatures, sig)
 }
 
 func (uid *UserId) linkSelfSigs(pubkey *Pubkey) {
@@ -184,7 +191,7 @@ func (uid *UserId) linkSelfSigs(pubkey *Pubkey) {
 					pubkey.PrimaryUid = sql.NullString{uid.ScopedDigest, true}
 					pubkey.primaryUidSig = sig
 				}
-			}
+			} // TODO: else { flag badsig state }
 		}
 	}
 	if uid.revSig != nil {
@@ -198,12 +205,6 @@ func (uid *UserId) linkSelfSigs(pubkey *Pubkey) {
 	}
 	// Remove User Ids without a self-signature
 	if uid.selfSignature == nil {
-		var userIds []*UserId
-		for i := range pubkey.userIds {
-			if pubkey.userIds[i] != uid {
-				userIds = append(userIds, pubkey.userIds[i])
-			}
-		}
-		pubkey.userIds = userIds
+		uid.State |= PacketStateNoSelfSig
 	}
 }

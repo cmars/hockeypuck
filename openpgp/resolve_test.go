@@ -18,41 +18,84 @@
 package openpgp
 
 import (
+	"bytes"
 	"code.google.com/p/go.crypto/openpgp/armor"
 	"code.google.com/p/go.crypto/openpgp/packet"
 	"crypto/md5"
 	"github.com/stretchr/testify/assert"
-	"strings"
 	"testing"
 )
 
 func TestBadSelfSigUid(t *testing.T) {
-	key := MustInputAscKey(t, "badselfsig.asc")
-	Resolve(key)
-	for _, uid := range key.userIds {
-		assert.True(t, !strings.Contains(uid.UserId.Id, "Karneef"))
+	f := MustInput(t, "badselfsig.asc")
+	i := 0
+	for keyRead := range ReadKeys(f) {
+		assert.NotNil(t, keyRead.Error)
+		i++
 	}
+	assert.Equal(t, 1, i)
 }
 
 func TestDupSig(t *testing.T) {
-	f := MustInput(t, "252B8B37.dupsig.asc")
-	defer f.Close()
-	block, err := armor.Decode(f)
-	if err != nil {
-		t.Fatal(err)
+	{
+		f := MustInput(t, "252B8B37.dupsig.asc")
+		defer f.Close()
+		block, err := armor.Decode(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r := packet.NewOpaqueReader(block.Body)
+		var packets []*packet.OpaquePacket
+		for {
+			if op, err := r.Next(); err != nil {
+				break
+			} else {
+				packets = append(packets, op)
+				t.Log("raw:", op)
+			}
+		}
+		sksDigest := sksDigestOpaque(packets, md5.New())
+		assert.Equal(t, sksDigest, "6d57b48c83d6322076d634059bb3b94b")
 	}
-	r := packet.NewOpaqueReader(block.Body)
-	var packets []*packet.OpaquePacket
-	for {
-		if op, err := r.Next(); err != nil {
-			break
-		} else {
+	// Read a key
+	{
+		f := MustInput(t, "252B8B37.dupsig.asc")
+		defer f.Close()
+		block, err := armor.Decode(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var key *Pubkey
+		for keyRead := range readKeys(block.Body) {
+			assert.Nil(t, keyRead.Error)
+			key = keyRead.Pubkey
+		}
+		var packets []*packet.OpaquePacket
+		key.Visit(func(rec PacketRecord) error {
+			op, err := rec.GetOpaquePacket()
+			assert.Nil(t, err)
+			packets = append(packets, op)
+			return err
+		})
+		r := packet.NewOpaqueReader(bytes.NewBuffer(key.Unsupported))
+		for op, err := r.Next(); err == nil; op, err = r.Next() {
 			packets = append(packets, op)
 		}
+		sksDigest := sksDigestOpaque(packets, md5.New())
+		assert.Equal(t, sksDigest, "6d57b48c83d6322076d634059bb3b94b")
 	}
-	sksDigest := sksDigestOpaque(packets, md5.New())
-	assert.Equal(t, sksDigest, "6d57b48c83d6322076d634059bb3b94b")
+	// Now read & resolve
 	key := MustInputAscKey(t, "252B8B37.dupsig.asc")
+	key.Visit(func(rec PacketRecord) error {
+		op, err := rec.GetOpaquePacket()
+		assert.Nil(t, err)
+		t.Log("parsed:", op)
+		return nil
+	})
+	r := packet.NewOpaqueReader(bytes.NewBuffer(key.Unsupported))
+	for op, err := r.Next(); err == nil; op, err = r.Next() {
+		t.Log("parsed:", op)
+	}
 	assert.Equal(t, key.Md5, "6d57b48c83d6322076d634059bb3b94b")
 }
 
@@ -101,7 +144,10 @@ func TestPrimaryUidFallback(t *testing.T) {
 	t.Log(key.PrimaryUid)
 }
 
-func TestUnsupp(t *testing.T) {
+// TestUnsuppIgnored tests parsing key material containing
+// packets which are not normally part of an exported public key --
+// trust packets, in this case.
+func TestUnsuppIgnored(t *testing.T) {
 	f := MustInput(t, "snowcrash.gpg")
 	var key *Pubkey
 	for keyRead := range ReadKeys(f) {
@@ -109,11 +155,7 @@ func TestUnsupp(t *testing.T) {
 		key = keyRead.Pubkey
 	}
 	assert.NotNil(t, key)
-	assert.NotEmpty(t, key.unsupported)
-	for _, unsupp := range key.unsupported {
-		assert.NotEmpty(t, unsupp.PrevDigest)
-		t.Log(unsupp.PrevDigest)
-	}
+	assert.Empty(t, key.Unsupported)
 }
 
 func TestMissingUidFk(t *testing.T) {

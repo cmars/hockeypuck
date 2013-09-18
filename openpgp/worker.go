@@ -437,14 +437,6 @@ WHERE sksig.subkey_uuid = $1`, subkey.RFingerprint)
 			}
 		}
 	}
-	// Retrieve all unsupported records
-	unsupported := []Unsupported{}
-	err = w.db.Select(&unsupported,
-		`SELECT * FROM openpgp_unsupp WHERE pubkey_uuid = $1`, uuid)
-	if err != nil && err != sql.ErrNoRows {
-		return
-	}
-	pubkey.unsupported = toUnsuppPtrSlice(unsupported)
 	Resolve(pubkey)
 	return
 }
@@ -471,13 +463,6 @@ func toUatPtrSlice(recs []UserAttribute) (result []*UserAttribute) {
 }
 
 func toSubkeyPtrSlice(recs []Subkey) (result []*Subkey) {
-	for i := 0; i < len(recs); i++ {
-		result = append(result, &(recs[i]))
-	}
-	return
-}
-
-func toUnsuppPtrSlice(recs []Unsupported) (result []*Unsupported) {
 	for i := 0; i < len(recs); i++ {
 		result = append(result, &(recs[i]))
 	}

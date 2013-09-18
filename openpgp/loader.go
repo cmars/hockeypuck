@@ -64,10 +64,6 @@ func (l *Loader) InsertKey(pubkey *Pubkey) error {
 			if err := l.insertSigRelations(tx, pubkey, signable, r); err != nil {
 				return err
 			}
-		case *Unsupported:
-			if err := l.insertUnsupported(tx, pubkey, r); err != nil {
-				return err
-			}
 		}
 		return nil
 	})
@@ -85,16 +81,16 @@ INSERT INTO openpgp_pubkey (
 	uuid, creation, expiration, state, packet,
 	ctime, mtime,
     md5, sha256, revsig_uuid, primary_uid, primary_uat,
-	algorithm, bit_len)
+	algorithm, bit_len, unsupp)
 VALUES (
 	$1, $2, $3, $4, $5,
 	now(), now(),
     $6, $7, $8, $9, $10,
-	$11, $12)`,
+	$11, $12, $13)`,
 		r.RFingerprint, r.Creation, r.Expiration, r.State, r.Packet,
 		// TODO: use mtime and ctime from record, or use RETURNING to set it
 		r.Md5, r.Sha256, r.RevSigDigest, r.PrimaryUid, r.PrimaryUat,
-		r.Algorithm, r.BitLen)
+		r.Algorithm, r.BitLen, r.Unsupported)
 	return err
 }
 
@@ -134,18 +130,6 @@ VALUES (
 	$6, $7)`,
 		r.ScopedDigest, r.Creation, r.Expiration, r.State, r.Packet,
 		pubkey.RFingerprint, r.RevSigDigest)
-	return err
-}
-
-func (l *Loader) insertUnsupported(tx *sqlx.Tx, pubkey *Pubkey, r *Unsupported) error {
-	var reason string
-	if r.OpaquePacket.Reason != nil {
-		reason = r.OpaquePacket.Reason.Error()
-	}
-	_, err := tx.Execv(`
-INSERT INTO openpgp_unsupp (uuid, creation, packet, pubkey_uuid, prev_uuid, tag, reason)
-VALUES ($1, now(), $2, $3, $4, $5, $6)`, r.ScopedDigest, r.Packet, pubkey.RFingerprint,
-		r.PrevDigest, r.OpaquePacket.Tag, reason)
 	return err
 }
 

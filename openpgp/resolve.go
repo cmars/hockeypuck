@@ -34,38 +34,94 @@ type resolver struct {
 // between the different packet records in the key material.
 func Resolve(pubkey *Pubkey) {
 	r := &resolver{pubkey}
-	pubkey.Visit(r.resolve)
-}
-
-func (r *resolver) resolve(rec PacketRecord) (err error) {
-	switch p := rec.(type) {
-	case *Pubkey:
-		r.setSigScope(p.RFingerprint, p.signatures...)
-		p.linkSelfSigs()
-	case *UserId:
-		p.ScopedDigest = p.calcScopedDigest(r.Pubkey)
-		r.setSigScope(p.ScopedDigest, p.signatures...)
-		p.linkSelfSigs(r.Pubkey)
-		// linkSelfSigs needs to set creation & expiration
-	case *UserAttribute:
-		p.ScopedDigest = p.calcScopedDigest(r.Pubkey)
-		r.setSigScope(p.ScopedDigest, p.signatures...)
-		p.linkSelfSigs(r.Pubkey)
-		// linkSelfSigs needs to set creation & expiration
-	case *Subkey:
-		r.setSigScope(p.RFingerprint, p.signatures...)
-		p.linkSelfSigs(r.Pubkey)
-	case *Unsupported:
-		if p.prevRecord != nil {
-			p.PrevDigest = p.prevRecord.Uuid()
+	var signable Signable
+	scopedPackets := make(map[string]bool)
+	pubkey.Visit(func(rec PacketRecord) error {
+		switch p := rec.(type) {
+		case *Pubkey:
+			r.setSigScope(p.RFingerprint, p.signatures...)
+			p.linkSelfSigs()
+			signable = p
+		case *UserId:
+			p.ScopedDigest = p.calcScopedDigest(r.Pubkey)
+			if _, has := scopedPackets[p.ScopedDigest]; has {
+				r.Pubkey.userIds = removeUserId(r.Pubkey.userIds, p)
+				r.Pubkey.Unsupported = append(r.Pubkey.Unsupported, p.Packet...)
+				r.Pubkey.Unsupported = append(r.Pubkey.Unsupported, concatSigPackets(p.signatures)...)
+				p.signatures = nil
+			} else {
+				scopedPackets[p.ScopedDigest] = true
+				r.setSigScope(p.ScopedDigest, p.signatures...)
+				p.linkSelfSigs(r.Pubkey)
+				signable = p
+				// linkSelfSigs needs to set creation & expiration
+			}
+		case *UserAttribute:
+			p.ScopedDigest = p.calcScopedDigest(r.Pubkey)
+			if _, has := scopedPackets[p.ScopedDigest]; has {
+				r.Pubkey.userAttributes = removeUserAttribute(r.Pubkey.userAttributes, p)
+				r.Pubkey.Unsupported = append(r.Pubkey.Unsupported, p.Packet...)
+				r.Pubkey.Unsupported = append(r.Pubkey.Unsupported, concatSigPackets(p.signatures)...)
+				p.signatures = nil
+			} else {
+				scopedPackets[p.ScopedDigest] = true
+				r.setSigScope(p.ScopedDigest, p.signatures...)
+				p.linkSelfSigs(r.Pubkey)
+				signable = p
+				// linkSelfSigs needs to set creation & expiration
+			}
+		case *Subkey:
+			r.setSigScope(p.RFingerprint, p.signatures...)
+			p.linkSelfSigs(r.Pubkey)
+			signable = p
+		case *Signature:
+			if _, has := scopedPackets[p.ScopedDigest]; has {
+				signable.RemoveSignature(p)
+				r.Pubkey.Unsupported = append(r.Pubkey.Unsupported, p.Packet...)
+			} else {
+				scopedPackets[p.ScopedDigest] = true
+			}
 		}
-		p.ScopedDigest = p.calcScopedDigest(r.Pubkey)
-	}
-	return
+		return nil
+	})
 }
 
 func (r *resolver) setSigScope(scope string, sigs ...*Signature) {
 	for _, sig := range sigs {
 		sig.ScopedDigest = sig.calcScopedDigest(r.Pubkey, scope)
 	}
+}
+
+func removeUserId(uids []*UserId, removeUid *UserId) (result []*UserId) {
+	for _, uid := range uids {
+		if removeUid != uid {
+			result = append(result, uid)
+		}
+	}
+	return
+}
+
+func removeUserAttribute(uats []*UserAttribute, removeUat *UserAttribute) (result []*UserAttribute) {
+	for _, uat := range uats {
+		if removeUat != uat {
+			result = append(result, uat)
+		}
+	}
+	return
+}
+
+func removeSignature(sigs []*Signature, removeSig *Signature) (result []*Signature) {
+	for _, sig := range sigs {
+		if removeSig != sig {
+			result = append(result, sig)
+		}
+	}
+	return
+}
+
+func concatSigPackets(sigs []*Signature) (result []byte) {
+	for _, sig := range sigs {
+		result = append(result, sig.Packet...)
+	}
+	return
 }

@@ -67,3 +67,33 @@ func TestUatRtt(t *testing.T) {
 		}
 	}
 }
+
+func TestReadKey0ff16c87(t *testing.T) {
+	f := MustInput(t, "0ff16c87.asc")
+	block, err := armor.Decode(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var key *Pubkey
+	for keyRead := range ReadKeys(block.Body) {
+		key = keyRead.Pubkey
+	}
+	assert.NotNil(t, key)
+	key.Visit(func(rec PacketRecord) error {
+		_, err = rec.GetOpaquePacket()
+		switch r := rec.(type) {
+		case *Pubkey:
+			assert.NotEmpty(t, r.Packet)
+		case *Subkey:
+			assert.NotEmpty(t, r.Packet)
+		case *Signature:
+			assert.NotEmpty(t, r.Packet)
+		case *UserId:
+			assert.NotEmpty(t, r.Packet)
+		case *UserAttribute:
+			assert.NotEmpty(t, r.Packet)
+		}
+		assert.Nil(t, err)
+		return nil
+	})
+}

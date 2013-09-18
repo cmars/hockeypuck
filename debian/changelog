@@ -121,8 +121,32 @@ hockeypuck (1.0~b1) UNRELEASED; urgency=low
       positive certification overrides a revocation. Tracking the newest
       revocation & self-signatures.
     - Fix timestamp rendering in options=mr.
+  * openpgp/add.go, openpgp/io.go, openpgp/loader.go, openpgp/pubkey.go,
+    openpgp/resolve.go, openpgp/resolve_test.go, openpgp/subkey.go,
+    openpgp/types.go, openpgp/types_test.go, openpgp/unsupp.go,
+    openpgp/userattribute.go, openpgp/userid.go, openpgp/worker.go:
+    - Parse first in blocks of opaque packets delimited by tag=6
+      public key, then interpret.
+    - Reject keyrings missing signatures on syntactic basis like SKS.
+    - Flag invalid selfsigs, but do not remove them, for compatibility
+      with SKS.
+    - Store unsupported key material in openpgp_pubkey.unsupp column.
+  * openpgp/io.go, openpgp/resolve_test.go, openpgp/schema.go:
+    - Fix parsing unit tests wrt latest changes, address corner cases
+      such as missing public key, empty keyring material.
+    - Remove openpgp_unsupp table, constraints from schema.
+  * openpgp/io.go, openpgp/io_test.go, openpgp/pubkey.go,
+    openpgp/resolve.go, openpgp/resolve_test.go, openpgp/signature.go,
+    openpgp/subkey.go, openpgp/testdata/0ff16c87.asc, openpgp/types.go,
+    openpgp/types_test.go, openpgp/userattribute.go, openpgp/userid.go,
+    openpgp/worker_test.go:
+    - Move packet record parsing into each type's creator function.
+    - Store content-duplicate packets as unsupported key material
+      for SKS compatibility.
+    - Validate function now removes packets without any signatures,
+      emulate keyMerge.ml behavior.
 
- -- Casey Marshall <cmars@cmarstech.com>  Sat, 14 Sep 2013 02:12:40 -0500
+ -- Casey Marshall <cmars@snowcrash>  Tue, 17 Sep 2013 22:09:56 -0500
 
 hockeypuck (1.0~a2) precise; urgency=low
 

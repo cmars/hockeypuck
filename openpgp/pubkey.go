@@ -22,13 +22,20 @@ import (
 	"code.google.com/p/go.crypto/openpgp/errors"
 	"code.google.com/p/go.crypto/openpgp/packet"
 	"crypto"
+	"crypto/sha1"
 	"database/sql"
+	"encoding/hex"
 	"hash"
 	"io"
 	"launchpad.net/hockeypuck/util"
 	"log"
 	"strings"
 	"time"
+)
+
+const (
+	PubkeyStateOk      = 0
+	PubkeyStateInvalid = iota
 )
 
 // Pubkey represents an OpenPGP public key packet.
@@ -52,6 +59,7 @@ type Pubkey struct {
 	PrimaryUat   sql.NullString `db:"primary_uat"` // mutable
 	Algorithm    int            `db:"algorithm"`   // immutable
 	BitLen       int            `db:"bit_len"`     // immutable
+	Unsupported  []byte         `db:"unsupp"`      // mutable
 
 	/* Containment references */
 
@@ -59,7 +67,6 @@ type Pubkey struct {
 	subkeys        []*Subkey        `db:"-"`
 	userIds        []*UserId        `db:"-"`
 	userAttributes []*UserAttribute `db:"-"`
-	unsupported    []*Unsupported   `db:"-"`
 
 	/* Cross-references */
 
@@ -137,8 +144,24 @@ func (pubkey *Pubkey) Read() (err error) {
 	return
 }
 
-func NewPubkey(p packet.Packet) (pubkey *Pubkey, err error) {
-	pubkey = new(Pubkey)
+func (pubkey *Pubkey) UnsupportedPackets() (result []*packet.OpaquePacket) {
+	r := packet.NewOpaqueReader(bytes.NewBuffer(pubkey.Unsupported))
+	for op, err := r.Next(); err == nil; op, err = r.Next() {
+		result = append(result, op)
+	}
+	return
+}
+
+func NewPubkey(op *packet.OpaquePacket) (pubkey *Pubkey, err error) {
+	var buf bytes.Buffer
+	if err = op.Serialize(&buf); err != nil {
+		return
+	}
+	pubkey = &Pubkey{Packet: buf.Bytes()}
+	var p packet.Packet
+	if p, err = op.Parse(); err != nil {
+		return pubkey, pubkey.initUnsupported(op)
+	}
 	if err = pubkey.setPacket(p); err != nil {
 		return
 	}
@@ -149,6 +172,17 @@ func NewPubkey(p packet.Packet) (pubkey *Pubkey, err error) {
 	} else {
 		err = ErrInvalidPacketType
 	}
+	return
+}
+
+func (pubkey *Pubkey) initUnsupported(op *packet.OpaquePacket) (err error) {
+	pubkey.State = PacketStateUnsuppPubkey
+	// Calculate opaque fingerprint on unsupported public key packet
+	h := sha1.New()
+	h.Write([]byte{0x99, byte(len(op.Contents) >> 8), byte(len(op.Contents))})
+	h.Write(op.Contents)
+	fpr := hex.EncodeToString(h.Sum(nil))
+	pubkey.RFingerprint = util.Reverse(fpr)
 	return
 }
 
@@ -167,7 +201,6 @@ func (pubkey *Pubkey) initV4() error {
 		log.Println("Expected primary public key packet, got sub-key")
 		return ErrInvalidPacketType
 	}
-	pubkey.Packet = buf.Bytes()
 	pubkey.RFingerprint = util.Reverse(fingerprint)
 	pubkey.Creation = pubkey.PublicKey.CreationTime
 	pubkey.Expiration = NeverExpires
@@ -191,7 +224,6 @@ func (pubkey *Pubkey) initV3() error {
 		log.Println("Expected primary public key packet, got sub-key")
 		return ErrInvalidPacketType
 	}
-	pubkey.Packet = buf.Bytes()
 	pubkey.RFingerprint = util.Reverse(fingerprint)
 	pubkey.Creation = pubkey.PublicKeyV3.CreationTime
 	pubkey.Expiration = NeverExpires
@@ -232,17 +264,15 @@ func (pubkey *Pubkey) Visit(visitor PacketVisitor) (err error) {
 			return
 		}
 	}
-	for _, unsupp := range pubkey.unsupported {
-		err = unsupp.Visit(visitor)
-		if err != nil {
-			return
-		}
-	}
 	return
 }
 
 func (pubkey *Pubkey) AddSignature(sig *Signature) {
 	pubkey.signatures = append(pubkey.signatures, sig)
+}
+
+func (pubkey *Pubkey) RemoveSignature(sig *Signature) {
+	pubkey.signatures = removeSignature(pubkey.signatures, sig)
 }
 
 func (pubkey *Pubkey) linkSelfSigs() {
@@ -358,4 +388,10 @@ func (pubkey *Pubkey) sigSerializeUserAttribute(uat *UserAttribute, hashFunc cry
 	// User attribute contents
 	h.Write(uatOpaque.Contents)
 	return
+}
+
+func (pubkey *Pubkey) AppendUnsupported(opkt *packet.OpaquePacket) {
+	var buf bytes.Buffer
+	opkt.Serialize(&buf)
+	pubkey.Unsupported = append(pubkey.Unsupported, buf.Bytes()...)
 }
