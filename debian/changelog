@@ -150,6 +150,9 @@ hockeypuck (1.0~b1) UNRELEASED; urgency=low
     - Loader and worker now require explicit transaction control.
     - hockeypuck-import supports # of keys per commit into openpgp.
       Prefix tree drop/build support.
+  * cmd/hockeypuck-import/main.go, openpgp/loader.go:
+    - Check for commit error, open new transaction on loader commit
+      or rollback.
 
  -- Casey Marshall <cmars@snowcrash>  Tue, 17 Sep 2013 22:09:56 -0500
 
