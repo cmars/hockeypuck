@@ -153,6 +153,10 @@ hockeypuck (1.0~b1) UNRELEASED; urgency=low
   * cmd/hockeypuck-import/main.go, openpgp/loader.go:
     - Check for commit error, open new transaction on loader commit
       or rollback.
+  * cmd/hockeypuck-import/main.go, openpgp/add.go, openpgp/loader.go,
+    openpgp/worker.go:
+    - Improve transaction management. Support v2/v3 16-byte key
+      lookup.
 
  -- Casey Marshall <cmars@snowcrash>  Tue, 17 Sep 2013 22:09:56 -0500
 
