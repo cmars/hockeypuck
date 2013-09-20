@@ -71,7 +71,7 @@ func main() {
 	}
 	InitLog()
 	keys := make(chan *openpgp.Pubkey)
-	hashes := make(chan *conflux.Zp, 15000)
+	hashes := make(chan *conflux.Zp)
 	var db *openpgp.DB
 	if db, err = openpgp.NewDB(); err != nil {
 		die(err)
@@ -110,7 +110,9 @@ func main() {
 	for i := 0; i < openpgp.Config().NumWorkers(); i++ {
 		go func() {
 			l := openpgp.NewLoader(db)
-			l.Begin()
+			if _, err = l.Begin(); err != nil {
+				panic(err)
+			}
 			defer l.Commit()
 			nkeys := 0
 			var err error
@@ -129,6 +131,9 @@ func main() {
 				}
 				if nkeys%*txnSize == 0 {
 					if err = l.Commit(); err != nil {
+						panic(err)
+					}
+					if _, err = l.Begin(); err != nil {
 						panic(err)
 					}
 				}

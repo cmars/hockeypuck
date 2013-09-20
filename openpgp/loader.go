@@ -39,12 +39,12 @@ func (l *Loader) Commit() (err error) {
 	if err = l.tx.Commit(); err != nil {
 		return
 	}
-	return l.Begin()
+	return
 }
 
 func (l *Loader) Rollback() (err error) {
 	err = l.tx.Rollback()
-	return l.Begin()
+	return
 }
 
 func (l *Loader) InsertKey(pubkey *Pubkey) (err error) {

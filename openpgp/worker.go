@@ -259,6 +259,8 @@ func (w *Worker) lookupKeyidUuids(keyId string) (uuids []string, err error) {
 		compareOp = "LIKE $1 || '________________________________'"
 	case 8:
 		compareOp = "LIKE $1 || '________________________'"
+	case 16:
+		return []string{rKeyId}, nil
 	case 20:
 		return []string{rKeyId}, nil
 	default:

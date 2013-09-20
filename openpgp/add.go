@@ -48,6 +48,10 @@ func (w *Worker) Add(a *hkp.Add) {
 		a.Response() <- &ErrorResponse{err}
 		return
 	}
+	if _, err = w.Begin(); err != nil {
+		a.Response() <- &ErrorResponse{err}
+		return
+	}
 	for readKey := range ReadKeys(armorBlock.Body) {
 		if readKey.Error != nil {
 			readErrors = append(readErrors, readKey)
@@ -56,6 +60,10 @@ func (w *Worker) Add(a *hkp.Add) {
 			w.notifyChange(change)
 			changes = append(changes, change)
 		}
+	}
+	if err = w.Commit(); err != nil {
+		a.Response() <- &ErrorResponse{err}
+		return
 	}
 	a.Response() <- &AddResponse{Changes: changes, Errors: readErrors}
 }
@@ -82,7 +90,13 @@ func (w *Worker) recoverKey(rk *RecoverKey) hkp.Response {
 	} else if len(pubkeys) > 1 {
 		return &ErrorResponse{ErrTooManyResponses}
 	}
+	if _, err = w.Begin(); err != nil {
+		return &ErrorResponse{err}
+	}
 	resp.Change = w.UpsertKey(pubkeys[0])
+	if err = w.Commit(); err != nil {
+		return &ErrorResponse{err}
+	}
 	w.notifyChange(resp.Change)
 	return resp
 }
