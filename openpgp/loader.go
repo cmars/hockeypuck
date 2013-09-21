@@ -19,6 +19,7 @@ package openpgp
 
 import (
 	"github.com/jmoiron/sqlx"
+	"launchpad.net/hockeypuck/util"
 )
 
 type Loader struct {
@@ -125,7 +126,7 @@ VALUES (
 	$1, $2, $3, $4, $5,
 	$6, $7, $8, to_tsvector($8))`,
 		r.ScopedDigest, r.Creation, r.Expiration, r.State, r.Packet,
-		pubkey.RFingerprint, r.RevSigDigest, r.Keywords)
+		pubkey.RFingerprint, r.RevSigDigest, util.CleanUtf8(r.Keywords))
 	return err
 }
 

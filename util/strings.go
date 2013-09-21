@@ -77,11 +77,15 @@ func keywordNormalize(s string) string {
 }
 
 func CleanUtf8(s string) string {
-	runes := []rune(s)
-	for i, r := range runes {
+	var runes []rune
+	for _, r := range s {
 		if r == utf8.RuneError {
-			runes[i] = '?'
+			r = '?'
 		}
+		if r < 0x20 || r == 0x7f {
+			continue
+		}
+		runes = append(runes, r)
 	}
 	return string(runes)
 }

@@ -167,6 +167,9 @@ hockeypuck (1.0~b1ubuntu1) UNRELEASED; urgency=low
       for recon hashing. Flagging them to remove from HKP output.
     - Add testcase for key missing uid signatures.
     - Add transaction Begin and Commit to worker insert test case.
+  * openpgp/loader.go, util/strings.go:
+    - Clean UTF-8 UID keyword string for PostgreSQL compatibility.
+    - Remove non-printable control characters.
 
  -- Casey Marshall <cmars@cmarstech.com>  Sat, 21 Sep 2013 00:09:29 -0500
 
