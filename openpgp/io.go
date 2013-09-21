@@ -278,25 +278,19 @@ func readKeys(r io.Reader) PubkeyChan {
 }
 
 func (pubkey *Pubkey) Validate() {
-	var validUserIds []*UserId
 	for _, uid := range pubkey.userIds {
 		if len(uid.signatures) > 0 {
-			validUserIds = append(validUserIds, uid)
+			uid.State |= PacketStateNoSelfSig
 		}
 	}
-	pubkey.userIds = validUserIds
-	var validUserAttrs []*UserAttribute
 	for _, uat := range pubkey.userAttributes {
 		if len(uat.signatures) > 0 {
-			validUserAttrs = append(validUserAttrs, uat)
+			uat.State |= PacketStateNoSelfSig
 		}
 	}
-	pubkey.userAttributes = validUserAttrs
-	var validSubkeys []*Subkey
 	for _, subkey := range pubkey.subkeys {
 		if len(subkey.signatures) > 0 {
-			validSubkeys = append(validSubkeys, subkey)
+			subkey.State |= PacketStateNoSelfSig
 		}
 	}
-	pubkey.subkeys = validSubkeys
 }

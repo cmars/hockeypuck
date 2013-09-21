@@ -86,7 +86,11 @@ func testRoundTripKey(t *testing.T, testfile string) {
 	defer MustDestroyWorker(t, w)
 	key1 := MustInputAscKey(t, testfile)
 	Resolve(key1)
-	err := w.InsertKey(key1)
+	_, err := w.Begin()
+	assert.Nil(t, err)
+	err = w.InsertKey(key1)
+	assert.Nil(t, err)
+	err = w.Commit()
 	assert.Nil(t, err)
 	key2, err := w.fetchKey(key1.RFingerprint)
 	if err != nil {

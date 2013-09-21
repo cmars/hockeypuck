@@ -25,6 +25,7 @@ import (
 	"crypto/sha1"
 	"database/sql"
 	"encoding/hex"
+	"fmt"
 	"hash"
 	"io"
 	"launchpad.net/hockeypuck/util"
@@ -87,10 +88,16 @@ func (pubkey *Pubkey) Fingerprint() string {
 }
 
 func (pubkey *Pubkey) KeyId() string {
+	if pubkey.PublicKeyV3 != nil {
+		return fmt.Sprintf("%016x", pubkey.PublicKeyV3.KeyId)
+	}
 	return util.Reverse(pubkey.RFingerprint[:16])
 }
 
 func (pubkey *Pubkey) ShortId() string {
+	if pubkey.PublicKeyV3 != nil {
+		return fmt.Sprintf("%08x", uint32(pubkey.PublicKeyV3.KeyId))
+	}
 	return util.Reverse(pubkey.RFingerprint[:8])
 }
 

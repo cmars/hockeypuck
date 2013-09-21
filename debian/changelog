@@ -1,4 +1,4 @@
-hockeypuck (1.0~b1) UNRELEASED; urgency=low
+hockeypuck (1.0~b1ubuntu1) UNRELEASED; urgency=low
 
   [ Casey Marshall ]
   * Opening 1.0~b1 development and a bottle of
@@ -157,8 +157,18 @@ hockeypuck (1.0~b1) UNRELEASED; urgency=low
     openpgp/worker.go:
     - Improve transaction management. Support v2/v3 16-byte key
       lookup.
+  * cmd/hockeypuck-import/main.go, openpgp/io.go, openpgp/pubkey.go,
+    openpgp/resolve_test.go,
+    openpgp/testdata/0xd46b7c827be290fe4d1f9291b1ebc61a.asc,
+    openpgp/worker_test.go:
+    - Wait for prefix tree goroutine to complete before adding
+      constraints during bulk load.
+    - Do not remove packets missing self-signatures. SKS keeps them
+      for recon hashing. Flagging them to remove from HKP output.
+    - Add testcase for key missing uid signatures.
+    - Add transaction Begin and Commit to worker insert test case.
 
- -- Casey Marshall <cmars@snowcrash>  Tue, 17 Sep 2013 22:09:56 -0500
+ -- Casey Marshall <cmars@cmarstech.com>  Sat, 21 Sep 2013 00:09:29 -0500
 
 hockeypuck (1.0~a2) precise; urgency=low
 

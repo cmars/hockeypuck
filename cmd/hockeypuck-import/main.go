@@ -72,6 +72,7 @@ func main() {
 	InitLog()
 	keys := make(chan *openpgp.Pubkey)
 	hashes := make(chan *conflux.Zp)
+	done := make(chan interface{})
 	var db *openpgp.DB
 	if db, err = openpgp.NewDB(); err != nil {
 		die(err)
@@ -91,6 +92,7 @@ func main() {
 			panic(err)
 		}
 		go func() {
+			defer close(done)
 			for {
 				select {
 				case z, ok := <-hashes:
@@ -98,6 +100,7 @@ func main() {
 						err = ptree.Insert(z)
 						if err != nil {
 							log.Printf("Error inserting %x into ptree: %v", z.Bytes(), err)
+							panic(err)
 						}
 					}
 					if !ok {
@@ -156,6 +159,7 @@ func main() {
 	}
 	close(keys)
 	close(hashes)
+	<-done
 	// Ensure uniqueness if we dropped constraints
 	if *dropIndexes {
 		if err = db.DeleteDuplicates(); err != nil {

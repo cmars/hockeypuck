@@ -22,7 +22,10 @@ import (
 	"code.google.com/p/go.crypto/openpgp/armor"
 	"code.google.com/p/go.crypto/openpgp/packet"
 	"crypto/md5"
+	"encoding/binary"
+	"encoding/hex"
 	"github.com/stretchr/testify/assert"
+	"sort"
 	"testing"
 )
 
@@ -161,4 +164,29 @@ func TestUnsuppIgnored(t *testing.T) {
 func TestMissingUidFk(t *testing.T) {
 	key := MustInputAscKey(t, "d7346e26.asc")
 	t.Log(key)
+}
+
+func TestV3NoUidSig(t *testing.T) {
+	key := MustInputAscKey(t, "0xd46b7c827be290fe4d1f9291b1ebc61a.asc")
+	assert.Equal(t, "0005127a8b7da8c32998d7e81dc92540", key.Md5)
+	assert.Equal(t, "0760df64b3d82239", key.KeyId())
+	f := MustInput(t, "0xd46b7c827be290fe4d1f9291b1ebc61a.asc")
+	defer f.Close()
+	block, err := armor.Decode(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var kr *OpaqueKeyring
+	for opkr := range ReadOpaqueKeyrings(block.Body) {
+		kr = opkr
+	}
+	sort.Sort(sksPacketSorter{kr.Packets})
+	h := md5.New()
+	for _, opkt := range kr.Packets {
+		binary.Write(h, binary.BigEndian, int32(opkt.Tag))
+		binary.Write(h, binary.BigEndian, int32(len(opkt.Contents)))
+		h.Write(opkt.Contents)
+	}
+	md5 := hex.EncodeToString(h.Sum(nil))
+	assert.Equal(t, "0005127a8b7da8c32998d7e81dc92540", md5)
 }
