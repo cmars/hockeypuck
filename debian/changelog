@@ -170,6 +170,10 @@ hockeypuck (1.0~b1ubuntu1) UNRELEASED; urgency=low
   * openpgp/loader.go, util/strings.go:
     - Clean UTF-8 UID keyword string for PostgreSQL compatibility.
     - Remove non-printable control characters.
+  * openpgp/io.go, openpgp/io_test.go, openpgp/pubkey.go:
+    - Dump bad key causing panic to tempdir.
+    - Added unit test with unsupported public key algorithm.
+    - Revert to initUnsupported if parsing as V3 or V4 pubkey fails.
 
  -- Casey Marshall <cmars@cmarstech.com>  Sat, 21 Sep 2013 00:09:29 -0500
 

@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"hash"
 	"io"
+	"io/ioutil"
 	"log"
 	"sort"
 	"time"
@@ -192,6 +193,23 @@ func ReadKeys(r io.Reader) PubkeyChan {
 	return c
 }
 
+func dumpBadKey(opkr *OpaqueKeyring) {
+	f, err := ioutil.TempFile("", "hockeypuck-badkey")
+	if err != nil {
+		log.Println("Failed to dump bad key to temp file:", err)
+		return
+	}
+	defer f.Close()
+	for _, pkt := range opkr.Packets {
+		err = pkt.Serialize(f)
+		if err != nil {
+			log.Println("Error writing bad key to temp file:", err)
+			return
+		}
+	}
+	log.Println("Bad key written to", f.Name())
+}
+
 // Read one or more public keys from input.
 func readKeys(r io.Reader) PubkeyChan {
 	c := make(PubkeyChan)
@@ -213,6 +231,8 @@ func readKeys(r io.Reader) PubkeyChan {
 					}
 					if pubkey, err = NewPubkey(opkt); err != nil {
 						log.Println("On (opaque) pubkey:", opkt)
+						log.Println(err)
+						dumpBadKey(opkr)
 						panic("Failed to parse primary pubkey")
 					}
 					signable = pubkey

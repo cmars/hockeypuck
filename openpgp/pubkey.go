@@ -179,6 +179,11 @@ func NewPubkey(op *packet.OpaquePacket) (pubkey *Pubkey, err error) {
 	} else {
 		err = ErrInvalidPacketType
 	}
+	if err != nil {
+		pubkey.PublicKey = nil
+		pubkey.PublicKeyV3 = nil
+		return pubkey, pubkey.initUnsupported(op)
+	}
 	return
 }
 
