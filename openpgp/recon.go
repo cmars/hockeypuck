@@ -23,8 +23,7 @@ import (
 	"fmt"
 	"github.com/cmars/conflux"
 	"github.com/cmars/conflux/recon"
-	"github.com/cmars/conflux/recon/pqptree"
-	"github.com/jmoiron/sqlx"
+	"github.com/cmars/conflux/recon/diskv"
 	"io"
 	"launchpad.net/hockeypuck/hkp"
 	"log"
@@ -47,12 +46,8 @@ type RecoverKey struct {
 }
 
 func NewSksPTree(reconSettings *recon.Settings) (recon.PrefixTree, error) {
-	pqpTreeSettings := pqptree.NewSettings(reconSettings)
-	db, err := sqlx.Connect(Config().Driver(), Config().DSN())
-	if err != nil {
-		return nil, err
-	}
-	return pqptree.New("sks", db, pqpTreeSettings)
+	treeSettings := diskv.NewSettings(reconSettings)
+	return diskv.New(treeSettings)
 }
 
 func NewSksPeer(s *hkp.Service) (*SksPeer, error) {
