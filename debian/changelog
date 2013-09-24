@@ -176,6 +176,8 @@ hockeypuck (1.0~b2) UNRELEASED; urgency=low
     - Revert to initUnsupported if parsing as V3 or V4 pubkey fails.
   * openpgp/recon.go:
     - Use diskv prefix-tree storage for recon.
+  * openpgp/recon.go:
+    - PrefixTree.HasElement has been removed from the conflux API.
 
  -- Casey Marshall <cmars@cmarstech.com>  Mon, 23 Sep 2013 23:28:09 -0500
 

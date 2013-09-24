@@ -86,8 +86,7 @@ func (r *SksPeer) HandleKeyUpdates() {
 			}
 			digest = append(digest, byte(0))
 			digestZp := conflux.Zb(conflux.P_SKS, digest)
-			hasDigest, err := r.Peer.HasElement(digestZp)
-			if keyChange.PreviousMd5 != keyChange.CurrentMd5 || !hasDigest {
+			if keyChange.PreviousMd5 != keyChange.CurrentMd5 {
 				log.Println("Prefix tree: Insert:", hex.EncodeToString(digestZp.Bytes()), keyChange, keyChange.CurrentMd5)
 				err := r.Peer.Insert(digestZp)
 				if err != nil {
