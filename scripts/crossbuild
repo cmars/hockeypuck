@@ -7,7 +7,7 @@
 . $HOME/local/bin/golang-crosscompile
 
 if [ -z "$1" ]; then
-	PLATFORMS="darwin-386 darwin-amd64 freebsd-386 freebsd-amd64 linux-386 linux-amd64"
+	PLATFORMS=$(find $GOROOT/pkg -maxdepth 1 -mindepth 1 -type d -exec basename {} \; | grep '_' | sed 's/_/-/g' | egrep -v 'windows|-race' | xargs)
 else
 	PLATFORMS=$1
 fi
@@ -15,7 +15,7 @@ fi
 GOPATH=$(pwd)/gopath
 rm -rf $GOPATH/bin $GOPATH/pkg
 
-APPS="launchpad.net/hockeypuck/cmd/hockeypuck launchpad.net/hockeypuck/cmd/hockeypuck-load"
+APPS="launchpad.net/hockeypuck/cmd/hockeypuck launchpad.net/hockeypuck/cmd/hockeypuck-import"
 
 for platform in $PLATFORMS;
 do

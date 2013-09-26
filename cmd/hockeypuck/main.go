@@ -19,23 +19,12 @@
 package main
 
 import (
-	"code.google.com/p/gorilla/mux"
-	"flag"
 	"fmt"
+	"launchpad.net/gnuflag"
 	. "launchpad.net/hockeypuck"
-	"launchpad.net/hockeypuck/hkp"
-	"launchpad.net/hockeypuck/openpgp"
-	"net/http"
 	"os"
+"path/filepath"
 )
-
-var showVersion *bool = flag.Bool("version", false, "Display version and exit")
-var configFile *string = flag.String("config", "", "Config file")
-
-func usage() {
-	flag.PrintDefaults()
-	os.Exit(1)
-}
 
 func die(err error) {
 	if err != nil {
@@ -45,47 +34,105 @@ func die(err error) {
 	os.Exit(0)
 }
 
+type cmdHandler interface {
+	Name() string
+	Desc() string
+	Flags() *gnuflag.FlagSet
+	Main()
+}
+
+type subCmd struct {
+	flags *gnuflag.FlagSet
+}
+
+func (c subCmd) Flags() *gnuflag.FlagSet { return c.flags }
+
+var cmds []cmdHandler = []cmdHandler{
+	newRunCmd(),
+	newLoadCmd(),
+	newDropConstraintsCmd(),
+	newCreateConstraintsCmd(),
+	newPbuildCmd(),
+	newHelpCmd(),
+	newVersionCmd()}
+
 func main() {
-	flag.Parse()
-	var err error
-	// Load Hockeypuck config file
-	if *configFile != "" {
-		if err = LoadConfigFile(*configFile); err != nil {
+	if len(os.Args) < 2 {
+		newHelpCmd().Main()
+		return
+	}
+	var cmdArgs []string
+	if len(os.Args) > 2 {
+		cmdArgs = os.Args[2:]
+	}
+	for _, cmd := range cmds {
+		if cmd.Name() == os.Args[1] {
+			if flags := cmd.Flags(); flags != nil {
+				flags.Parse(false, cmdArgs)
+			}
+			cmd.Main()
+			return
+		}
+	}
+	newHelpCmd().Main()
+}
+
+type helpCmd struct {
+	subCmd
+}
+
+func (c *helpCmd) Name() string { return "help" }
+
+func (c *helpCmd) Desc() string { return "Display this help message" }
+
+func (c *helpCmd) Main() {
+	fmt.Printf(`Hockeypuck -- Public Keyserver
+https://launchpad.net/hockeypuck
+
+Hockeypuck is a public keyserver that supports the
+HTTP Keyserver Protocol, as well as peering with SKS.
+
+Basic commands:
+`)
+	for _, cmd := range cmds {
+		fmt.Printf("  %s %s\t\t%s\n", filepath.Base(os.Args[0]), cmd.Name(), cmd.Desc())
+	}
+	os.Exit(1)
+}
+
+func newHelpCmd() *helpCmd {
+	return new(helpCmd)
+}
+
+type versionCmd struct {
+	subCmd
+}
+
+func (c *versionCmd) Name() string { return "version" }
+
+func (c *versionCmd) Desc() string { return "Display Hockeypuck version information" }
+
+func (c *versionCmd) Main() {
+	fmt.Println(Version)
+	os.Exit(0)
+}
+
+func newVersionCmd() *versionCmd {
+	return new(versionCmd)
+}
+
+type configuredCmd struct {
+	subCmd
+	configPath string
+}
+
+func (c configuredCmd) Main() {
+	if c.configPath != "" {
+		if err := LoadConfigFile(c.configPath); err != nil {
 			die(err)
 		}
 	} else {
 		// Fall back on default empty config
 		SetConfig("")
 	}
-	if *showVersion {
-		fmt.Println(Version)
-		os.Exit(0)
-	}
-	InitLog()
-	InitTemplates()
-	hkp.InitTemplates()
-	// Create an HTTP request router
-	r := mux.NewRouter()
-	// Add common static routes
-	NewStaticRouter(r)
-	// Create HKP router
-	hkpRouter := hkp.NewRouter(r)
-	// Create SKS peer
-	sksPeer, err := openpgp.NewSksPeer(hkpRouter.Service)
-	// Launch the OpenPGP workers
-	for i := 0; i < openpgp.Config().NumWorkers(); i++ {
-		w, err := openpgp.NewWorker(hkpRouter.Service, sksPeer)
-		if err != nil {
-			die(err)
-		}
-		// Subscribe SKS to worker's key changes
-		w.SubKeyChanges(sksPeer.KeyChanges)
-		go w.Run()
-	}
-	sksPeer.Start()
-	// Bind the router to the built-in webserver root
-	http.Handle("/", r)
-	// Start the built-in webserver, run forever
-	err = http.ListenAndServe(hkp.Config().HttpBind(), nil)
-	die(err)
 }

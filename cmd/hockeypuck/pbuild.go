@@ -1,0 +1,111 @@
+/*
+   Hockeypuck - OpenPGP key server
+   Copyright (C) 2012, 2013  Casey Marshall
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU Affero General Public License as published by
+   the Free Software Foundation, version 3.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU Affero General Public License for more details.
+
+   You should have received a copy of the GNU Affero General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+// hockeypuck is an OpenPGP keyserver.
+package main
+
+import (
+	"encoding/hex"
+	"github.com/cmars/conflux"
+	"github.com/cmars/conflux/recon"
+	"launchpad.net/gnuflag"
+	. "launchpad.net/hockeypuck"
+	"launchpad.net/hockeypuck/openpgp"
+	"log"
+)
+
+type pbuildCmd struct {
+	configuredCmd
+}
+
+func (c *pbuildCmd) Name() string { return "pbuild" }
+
+func (c *pbuildCmd) Desc() string {
+	return "Build reconciliation prefix tree from public keys in database"
+}
+
+func newPbuildCmd() *pbuildCmd {
+	cmd := new(pbuildCmd)
+	flags := gnuflag.NewFlagSet(cmd.Name(), gnuflag.ExitOnError)
+	flags.StringVar(&cmd.configPath, "config", "", "Hockeypuck configuration file")
+	cmd.flags = flags
+	return cmd
+}
+
+func (c *pbuildCmd) Main() {
+	InitLog()
+	hashes := make(chan *conflux.Zp)
+	done := make(chan interface{})
+	var db *openpgp.DB
+	var err error
+	if db, err = openpgp.NewDB(); err != nil {
+		die(err)
+	}
+	var ptree recon.PrefixTree
+	reconSettings := recon.NewSettings(openpgp.Config().Settings.TomlTree)
+	if ptree, err = openpgp.NewSksPTree(reconSettings); err != nil {
+		die(err)
+	}
+	if err = ptree.Create(); err != nil {
+		panic(err)
+	}
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case z, ok := <-hashes:
+				if z != nil {
+					err = ptree.Insert(z)
+					if err != nil {
+						log.Printf("Error inserting %x into ptree: %v", z.Bytes(), err)
+						panic(err)
+					}
+				}
+				if !ok {
+					return
+				}
+			}
+		}
+	}()
+	readHashes(db, hashes)
+	close(hashes)
+	<-done
+}
+
+func readHashes(db *openpgp.DB, hashes chan *conflux.Zp) {
+	rows, err := db.DB.Query("SELECT md5 FROM openpgp_pubkey")
+	if err != nil {
+		die(err)
+	}
+	for rows.Next() {
+		var md5str string
+		if err = rows.Scan(&md5str); err != nil {
+			die(err)
+		}
+		digest, err := hex.DecodeString(md5str)
+		if err != nil {
+			log.Println("Bad md5:", md5str)
+			continue
+		}
+		digest = append(digest, byte(0))
+		digestZp := conflux.Zb(conflux.P_SKS, digest)
+		hashes <- digestZp
+	}
+	if err = rows.Err(); err != nil {
+		log.Println("Error during hash query:", err)
+	}
+}

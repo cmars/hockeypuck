@@ -20,10 +20,9 @@ package main
 
 import (
 	"encoding/hex"
-	"flag"
-	"fmt"
 	"github.com/cmars/conflux"
 	"github.com/cmars/conflux/recon"
+	"launchpad.net/gnuflag"
 	. "launchpad.net/hockeypuck"
 	"launchpad.net/hockeypuck/openpgp"
 	"log"
@@ -31,49 +30,34 @@ import (
 	"path/filepath"
 )
 
-var load *string = flag.String("load", "", "Load PGP keyring filename or glob pattern")
-var showVersion *bool = flag.Bool("version", false, "Display version and exit")
-var configFile *string = flag.String("config", "", "Config file")
-var dropIndexes *bool = flag.Bool("drop-indexes", true, "Drop constraints and indexes")
-var buildIndexes *bool = flag.Bool("build-indexes", true, "Create constraints and indexes")
-var dropPtree *bool = flag.Bool("drop-ptree", true, "Drop reconciliation prefix tree")
-var buildPtree *bool = flag.Bool("build-ptree", true, "Build reconciliation prefix tree")
-var txnSize *int = flag.Int("txn-size", 5000, "Transaction size (keys loaded per commit)")
-
-func usage() {
-	flag.PrintDefaults()
-	os.Exit(1)
+type loadCmd struct {
+	configuredCmd
+	path    string
+	txnSize int
 }
 
-func die(err error) {
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%s\n", err.Error())
-		os.Exit(1)
-	}
-	os.Exit(0)
+func (c *loadCmd) Name() string { return "load" }
+
+func (c *loadCmd) Desc() string { return "Load OpenPGP keyring files into database" }
+
+func newLoadCmd() *loadCmd {
+	cmd := new(loadCmd)
+	flags := gnuflag.NewFlagSet(cmd.Name(), gnuflag.ExitOnError)
+	flags.StringVar(&cmd.configPath, "config", "", "Hockeypuck configuration file")
+	flags.StringVar(&cmd.path, "path", "", "OpenPGP keyring file path or glob pattern")
+	flags.IntVar(&cmd.txnSize, "txn-size", 5000, "Transaction size; public keys per commit")
+	cmd.flags = flags
+	return cmd
 }
 
-func main() {
-	flag.Parse()
-	var err error
-	// Load Hockeypuck config file
-	if *configFile != "" {
-		if err = LoadConfigFile(*configFile); err != nil {
-			die(err)
-		}
-	} else {
-		// Fall back on default empty config
-		SetConfig("")
-	}
-	if *showVersion {
-		fmt.Println(Version)
-		os.Exit(0)
-	}
+func (c *loadCmd) Main() {
+	c.configuredCmd.Main()
 	InitLog()
 	keys := make(chan *openpgp.Pubkey)
 	hashes := make(chan *conflux.Zp)
 	done := make(chan interface{})
 	var db *openpgp.DB
+	var err error
 	if db, err = openpgp.NewDB(); err != nil {
 		die(err)
 	}
@@ -82,35 +66,28 @@ func main() {
 	if ptree, err = openpgp.NewSksPTree(reconSettings); err != nil {
 		die(err)
 	}
-	if *dropPtree {
-		if err = ptree.Drop(); err != nil {
-			panic(err)
-		}
+	if err = ptree.Create(); err != nil {
+		panic(err)
 	}
-	if *buildPtree {
-		if err = ptree.Create(); err != nil {
-			panic(err)
-		}
-		go func() {
-			defer close(done)
-			for {
-				select {
-				case z, ok := <-hashes:
-					if z != nil {
-						err = ptree.Insert(z)
-						if err != nil {
-							log.Printf("Error inserting %x into ptree: %v", z.Bytes(), err)
-							panic(err)
-						}
-					}
-					if !ok {
-						return
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case z, ok := <-hashes:
+				if z != nil {
+					err = ptree.Insert(z)
+					if err != nil {
+						log.Printf("Error inserting %x into ptree: %v", z.Bytes(), err)
+						panic(err)
 					}
 				}
+				if !ok {
+					return
+				}
 			}
-		}()
-	}
-	for i := 0; i < openpgp.Config().NumWorkers(); i++ {
+		}
+	}()
+	for i := 0; c.path != "" && i < openpgp.Config().NumWorkers(); i++ {
 		go func() {
 			l := openpgp.NewLoader(db)
 			if _, err = l.Begin(); err != nil {
@@ -132,7 +109,7 @@ func main() {
 						return
 					}
 				}
-				if nkeys%*txnSize == 0 {
+				if nkeys%c.txnSize == 0 {
 					if err = l.Commit(); err != nil {
 						panic(err)
 					}
@@ -147,31 +124,11 @@ func main() {
 	if err = db.CreateTables(); err != nil {
 		die(err)
 	}
-	// Drop all constraints
-	if *dropIndexes {
-		if err = db.DropConstraints(); err != nil {
-			die(err)
-		}
-	}
 	// Load any tables if specified
-	if *load != "" {
-		readAllKeys(*load, keys, hashes)
-	}
+	readAllKeys(c.path, keys, hashes)
 	close(keys)
 	close(hashes)
 	<-done
-	// Ensure uniqueness if we dropped constraints
-	if *dropIndexes {
-		if err = db.DeleteDuplicates(); err != nil {
-			die(err)
-		}
-	}
-	// Create all constraints
-	if *buildIndexes {
-		if err = db.CreateConstraints(); err != nil {
-			die(err)
-		}
-	}
 }
 
 func readAllKeys(path string, keys chan *openpgp.Pubkey, hashes chan *conflux.Zp) {
@@ -195,16 +152,14 @@ func readAllKeys(path string, keys chan *openpgp.Pubkey, hashes chan *conflux.Zp
 				continue
 			}
 			keys <- keyRead.Pubkey
-			if *buildPtree {
-				digest, err := hex.DecodeString(keyRead.Pubkey.Md5)
-				if err != nil {
-					log.Println("bad digest:", keyRead.Pubkey.Md5)
-					continue
-				}
-				digest = append(digest, byte(0))
-				digestZp := conflux.Zb(conflux.P_SKS, digest)
-				hashes <- digestZp
+			digest, err := hex.DecodeString(keyRead.Pubkey.Md5)
+			if err != nil {
+				log.Println("bad digest:", keyRead.Pubkey.Md5)
+				continue
 			}
+			digest = append(digest, byte(0))
+			digestZp := conflux.Zb(conflux.P_SKS, digest)
+			hashes <- digestZp
 		}
 	}
 }

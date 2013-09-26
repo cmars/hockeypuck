@@ -178,6 +178,10 @@ hockeypuck (1.0~b2) UNRELEASED; urgency=low
     - Use diskv prefix-tree storage for recon.
   * openpgp/recon.go:
     - PrefixTree.HasElement has been removed from the conflux API.
+  * cmd/hockeypuck/*.go, scripts/*:
+    - Consolidate maintenance functions, utilities and service into
+      a single binary with subcommands.
+    - Reorg build scripts.
 
  -- Casey Marshall <cmars@cmarstech.com>  Mon, 23 Sep 2013 23:28:09 -0500
 

@@ -12,4 +12,4 @@ respawn
 setuid hockeypuck
 
 # Start the process
-exec /usr/bin/hockeypuck
+exec /usr/bin/hockeypuck -config=/etc/hockeypuck/hockeypuck.conf

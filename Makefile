@@ -9,15 +9,13 @@ all:
 	mkdir -p $(GOPATH)/src/launchpad.net
 	([ ! -e "$(GOPATH)/src/launchpad.net/hockeypuck" ] && [ -z "$(DEB_BUILD_ARCH_OS)" ]) && ln -s "$(CURDIR)" "$(GOPATH)/src/launchpad.net/hockeypuck" || true
 	GOPATH="${GOPATH}" $(GO) get launchpad.net/hockeypuck/cmd/hockeypuck
-	GOPATH="${GOPATH}" $(GO) get launchpad.net/hockeypuck/cmd/hockeypuck-load
 	GOPATH="${GOPATH}" $(GO) install launchpad.net/hockeypuck/cmd/hockeypuck
-	GOPATH="${GOPATH}" $(GO) install launchpad.net/hockeypuck/cmd/hockeypuck-load
 
 fmt:
 	gofmt -w=true .
 
 debsrc: debbin clean
-	debuild -S
+	debuild -S -k0x879CF8AA8DDA301A
 
 debbin:
 	debuild -us -uc -i -b

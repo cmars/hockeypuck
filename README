@@ -17,71 +17,42 @@ highly-available manner.
 Portability: The keyserver should run on a reasonably wide variety of server
 operating systems and architectures with minimal hassle and minimal dependencies.
 
-Installation
-============
+Installing on Ubuntu
+====================
 
-Ubuntu Package
---------------
+Add the Hockeypuck PPA to your package sources with:
 
-$ apt-add-repository ppa:hockeypuck/ppa
-$ apt-get update
-$ apt-get install hockeypuck
+$ sudo apt-add-repository ppa:hockeypuck/unstable (pre-1.0 final release)
+$ sudo apt-get update
+$ sudo apt-get install hockeypuck
 
-The Ubuntu package features nice perks like an Upstart job,
-static media file installation and man pages.
-
-Developers
-==========
-Go 1.1 required. Follow instructions at http://golang.org to set up a development environment.
-
-Libraries
----------
-
-$ go get launchpad.net/hockeypuck           # Common routes & configuration
-$ go get launchpad.net/hockeypuck/hkp       # HKP protocol & endpoints
-$ go get launchpad.net/hockeypuck/openpgp   # OpenPGP key processing & services
-
-Programs
---------
-
-# Install the Hockeypuck keyserver to $GOPATH/bin
-$ go get launchpad.net/hockeypuck/cmd/hockeypuck
-$ go install launchpad.net/hockeypuck/cmd/hockeypuck
-
-# Install the HKP loader
-$ go get launchpad.net/hockeypuck/cmd/hockeypuck-load
-$ go install launchpad.net/hockeypuck/cmd/hockeypuck-load
-
-Building Debian Packages
+Installing from Binaries
 ========================
 
-Debian package build creates a $GOPATH in this top-level directory, gopath/,
-which will freeze all the third-party sources used by Hockeypuck.
+Hockeypuck is cross-compiled for most Unix-based OSes and architectures that the
+Go language tools can target, available from: https://launchpad.net/hockeypuck/+download
 
-This enables the creation of a standalone source package.
+The tarball is structured to extract into /.
 
-Build dependencies require Ubuntu 13.10 (which provides Go 1.1). Ubuntu 12.04
-and later distributations can build with Go 1.1 backports installed from
-ppa:james-page/golang-backports.
+I've seen Hockeypuck run on darwin, freebsd and netbsd. I regularly develop and deploy
+to linux/amd64 and occasionally on linux/arm (Chromebook).
 
-Binary Build
-------------
+Installing from Source
+======================
 
-1. make clean && make srcclean
-2. make debbin
+Prerequisites
+-------------
 
-Source Build
-------------
+You'll need to install bzr, git and mercurial. This is necessary so that
+'go get' can provision all of Hockeypuck's source dependencies,
 
-1. make clean && make srcclean
-2. make debsrc
-3. dput <wherever>/ppa ../hockeypuck_x.y.z_source.changes
+Hockeypuck requires Go 1.1 or newer to build. On Ubuntu:
 
-Cross-compile Build
--------------------
+$ sudo apt-add-repository ppa:juju/golang  # Juju's golang PPA is more recent
+$ apt-get update
+$ apt-get install -y bzr mercurial git
 
-1. Set up a Go 1.1 cross-compilation environment. See
-   http://dave.cheney.net/2013/07/09/an-introduction-to-cross-compilation-with-go-1-1.
-2. $ scripts/crossbuild.sh
+Install the Hockeypuck keyserver to $GOPATH/bin
 
-This will create distribution tarballs in dist/.
+$ go get launchpad.net/hockeypuck/cmd/hockeypuck
+$ go install launchpad.net/hockeypuck/cmd/hockeypuck
