@@ -51,6 +51,12 @@ func newLoadCmd() *loadCmd {
 }
 
 func (c *loadCmd) Main() {
+	if c.path == "" {
+		Usage(c, "Load --path is required")
+	}
+	if c.txnSize < 1 {
+		Usage(c, "Invalid --txn-size, must be >= 1")
+	}
 	c.configuredCmd.Main()
 	InitLog()
 	keys := make(chan *openpgp.Pubkey)
@@ -59,6 +65,10 @@ func (c *loadCmd) Main() {
 	var db *openpgp.DB
 	var err error
 	if db, err = openpgp.NewDB(); err != nil {
+		die(err)
+	}
+	// Ensure tables all exist
+	if err = db.CreateTables(); err != nil {
 		die(err)
 	}
 	var ptree recon.PrefixTree
@@ -70,7 +80,6 @@ func (c *loadCmd) Main() {
 		panic(err)
 	}
 	go func() {
-		defer close(done)
 		for {
 			select {
 			case z, ok := <-hashes:
@@ -87,15 +96,24 @@ func (c *loadCmd) Main() {
 			}
 		}
 	}()
-	for i := 0; c.path != "" && i < openpgp.Config().NumWorkers(); i++ {
+	for i := 0; i < openpgp.Config().NumWorkers(); i++ {
 		go func() {
+			var err error
 			l := openpgp.NewLoader(db)
 			if _, err = l.Begin(); err != nil {
 				panic(err)
 			}
-			defer l.Commit()
 			nkeys := 0
-			var err error
+			checkpoint := func() {
+				if err = l.Commit(); err != nil {
+					panic(err)
+				}
+				if _, err = l.Begin(); err != nil {
+					panic(err)
+				}
+			}
+			defer func() { done <- struct{}{} }()
+			defer checkpoint()
 			for {
 				select {
 				case key, ok := <-keys:
@@ -110,12 +128,7 @@ func (c *loadCmd) Main() {
 					}
 				}
 				if nkeys%c.txnSize == 0 {
-					if err = l.Commit(); err != nil {
-						panic(err)
-					}
-					if _, err = l.Begin(); err != nil {
-						panic(err)
-					}
+					checkpoint()
 				}
 			}
 		}()
@@ -126,9 +139,11 @@ func (c *loadCmd) Main() {
 	}
 	// Load any tables if specified
 	readAllKeys(c.path, keys, hashes)
-	close(keys)
 	close(hashes)
-	<-done
+	close(keys)
+	for i := 0; i < openpgp.Config().NumWorkers(); i++ {
+		<-done
+	}
 }
 
 func readAllKeys(path string, keys chan *openpgp.Pubkey, hashes chan *conflux.Zp) {

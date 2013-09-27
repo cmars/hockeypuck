@@ -416,9 +416,10 @@ const dedupTemplate = `
 */}}{{range $i, $colname := .UniqueColumns}}{{if $i}},{{end}}{{$colname}}{{end}}{{/*
 */}}{{end}}{{/*
 */}}{{define "sql"}}{{/*
-*/}}DELETE FROM {{.TableName}}
-WHERE ctid NOT IN (
-	SELECT MIN(t.ctid) FROM {{.TableName}} t GROUP BY {{template "cols" .}}){{/*
+*/}}CREATE TABLE dedup_{{.TableName}} AS
+	SELECT DISTINCT ON ({{template "cols" .}}) * FROM {{.TableName}};
+DROP TABLE {{.TableName}};
+ALTER TABLE dedup_{{.TableName}} RENAME TO {{.TableName}};{{/*
 */}}{{end}}{{template "sql" .}}`
 
 type dedup struct {

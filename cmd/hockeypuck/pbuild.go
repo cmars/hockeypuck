@@ -26,10 +26,15 @@ import (
 	. "launchpad.net/hockeypuck"
 	"launchpad.net/hockeypuck/openpgp"
 	"log"
+	"runtime"
+	"strings"
 )
 
 type pbuildCmd struct {
 	configuredCmd
+	cache      int
+	ignoreDups bool
+	nworkers   int
 }
 
 func (c *pbuildCmd) Name() string { return "pbuild" }
@@ -42,11 +47,17 @@ func newPbuildCmd() *pbuildCmd {
 	cmd := new(pbuildCmd)
 	flags := gnuflag.NewFlagSet(cmd.Name(), gnuflag.ExitOnError)
 	flags.StringVar(&cmd.configPath, "config", "", "Hockeypuck configuration file")
+	flags.IntVar(&cmd.cache, "cache", 64, "Max diskv cache size (MB)")
+	flags.BoolVar(&cmd.ignoreDups, "ignore-dups", false, "Ignore duplicate entries")
+	flags.IntVar(&cmd.nworkers, "nworkers", runtime.NumCPU(), "Number of concurrent ptree writers")
 	cmd.flags = flags
 	return cmd
 }
 
 func (c *pbuildCmd) Main() {
+	if c.cache <= 0 {
+		Usage(c, "Max cache size must be > 0")
+	}
 	InitLog()
 	hashes := make(chan *conflux.Zp)
 	done := make(chan interface{})
@@ -57,20 +68,24 @@ func (c *pbuildCmd) Main() {
 	}
 	var ptree recon.PrefixTree
 	reconSettings := recon.NewSettings(openpgp.Config().Settings.TomlTree)
+	reconSettings.Set("conflux.recon.diskv.cacheSizeMax", 1024*1024*c.cache)
 	if ptree, err = openpgp.NewSksPTree(reconSettings); err != nil {
 		die(err)
 	}
 	if err = ptree.Create(); err != nil {
 		panic(err)
 	}
-	go func() {
-		defer close(done)
+	insertPtree := func() {
+		defer func() { done <- struct{}{} }()
 		for {
 			select {
 			case z, ok := <-hashes:
 				if z != nil {
 					err = ptree.Insert(z)
 					if err != nil {
+						if c.ignoreDups && strings.Contains(err.Error(), "insert duplicate element") {
+							continue
+						}
 						log.Printf("Error inserting %x into ptree: %v", z.Bytes(), err)
 						panic(err)
 					}
@@ -80,10 +95,15 @@ func (c *pbuildCmd) Main() {
 				}
 			}
 		}
-	}()
+	}
+	for i := 0; i < c.nworkers; i++ {
+		go insertPtree()
+	}
 	readHashes(db, hashes)
 	close(hashes)
-	<-done
+	for i := 0; i < c.nworkers; i++ {
+		<-done
+	}
 }
 
 func readHashes(db *openpgp.DB, hashes chan *conflux.Zp) {

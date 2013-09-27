@@ -23,7 +23,7 @@ import (
 	"launchpad.net/gnuflag"
 	. "launchpad.net/hockeypuck"
 	"os"
-"path/filepath"
+	"path/filepath"
 )
 
 func die(err error) {
@@ -47,11 +47,20 @@ type subCmd struct {
 
 func (c subCmd) Flags() *gnuflag.FlagSet { return c.flags }
 
+func Usage(h cmdHandler, msg string) {
+	fmt.Fprintln(os.Stderr, msg)
+	fmt.Fprintf(os.Stderr, "\n  %s %s\t\t%s\n\n",
+		filepath.Base(os.Args[0]), h.Name(), h.Desc())
+	if h.Flags() != nil {
+		h.Flags().PrintDefaults()
+	}
+	os.Exit(1)
+}
+
 var cmds []cmdHandler = []cmdHandler{
 	newRunCmd(),
 	newLoadCmd(),
-	newDropConstraintsCmd(),
-	newCreateConstraintsCmd(),
+	newDbCmd(),
 	newPbuildCmd(),
 	newHelpCmd(),
 	newVersionCmd()}
@@ -86,7 +95,7 @@ func (c *helpCmd) Name() string { return "help" }
 func (c *helpCmd) Desc() string { return "Display this help message" }
 
 func (c *helpCmd) Main() {
-	fmt.Printf(`Hockeypuck -- Public Keyserver
+	fmt.Fprintln(os.Stderr, `Hockeypuck -- Public Keyserver
 https://launchpad.net/hockeypuck
 
 Hockeypuck is a public keyserver that supports the
@@ -95,7 +104,8 @@ HTTP Keyserver Protocol, as well as peering with SKS.
 Basic commands:
 `)
 	for _, cmd := range cmds {
-		fmt.Printf("  %s %s\t\t%s\n", filepath.Base(os.Args[0]), cmd.Name(), cmd.Desc())
+		fmt.Fprintf(os.Stderr, "  %s %s\t\t%s\n",
+			filepath.Base(os.Args[0]), cmd.Name(), cmd.Desc())
 	}
 	os.Exit(1)
 }
