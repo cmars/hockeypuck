@@ -53,6 +53,7 @@ func newDbCmd() *dbCmd {
 }
 
 func (c *dbCmd) Main() {
+	c.configuredCmd.Main()
 	InitLog()
 	var db *openpgp.DB
 	var err error

@@ -26,6 +26,7 @@ func newRunCmd() *runCmd {
 }
 
 func (c *runCmd) Main() {
+	c.configuredCmd.Main()
 	InitLog()
 	InitTemplates()
 	hkp.InitTemplates()

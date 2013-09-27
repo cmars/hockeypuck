@@ -58,6 +58,7 @@ func (c *pbuildCmd) Main() {
 	if c.cache <= 0 {
 		Usage(c, "Max cache size must be > 0")
 	}
+	c.configuredCmd.Main()
 	InitLog()
 	hashes := make(chan *conflux.Zp)
 	done := make(chan interface{})
