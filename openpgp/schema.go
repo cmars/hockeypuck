@@ -489,23 +489,27 @@ var Dr_openpgp_uat_constraints []string = []string{
 
 var Dr_openpgp_pubkey_sig_constraints []string = []string{
 	`ALTER TABLE openpgp_pubkey_sig DROP CONSTRAINT openpgp_pubkey_sig_pk;`,
+	`ALTER TABLE openpgp_pubkey_sig DROP CONSTRAINT openpgp_pubkey_sig_unique;`,
 	`ALTER TABLE openpgp_pubkey_sig DROP CONSTRAINT openpgp_pubkey_sig_pubkey_fk;`,
 	`ALTER TABLE openpgp_pubkey_sig DROP CONSTRAINT openpgp_pubkey_sig_sig_fk;`}
 
 var Dr_openpgp_subkey_sig_constraints []string = []string{
 	`ALTER TABLE openpgp_subkey_sig DROP CONSTRAINT openpgp_subkey_sig_pk;`,
+	`ALTER TABLE openpgp_subkey_sig DROP CONSTRAINT openpgp_subkey_sig_unique;`,
 	`ALTER TABLE openpgp_subkey_sig DROP CONSTRAINT openpgp_subkey_sig_pubkey_fk;`,
 	`ALTER TABLE openpgp_subkey_sig DROP CONSTRAINT openpgp_subkey_sig_subkey_fk;`,
 	`ALTER TABLE openpgp_subkey_sig DROP CONSTRAINT openpgp_subkey_sig_sig_fk;`}
 
 var Dr_openpgp_uid_sig_constraints []string = []string{
 	`ALTER TABLE openpgp_uid_sig DROP CONSTRAINT openpgp_uid_sig_pk;`,
+	`ALTER TABLE openpgp_uid_sig DROP CONSTRAINT openpgp_uid_sig_unique;`,
 	`ALTER TABLE openpgp_uid_sig DROP CONSTRAINT openpgp_uid_sig_pubkey_fk;`,
 	`ALTER TABLE openpgp_uid_sig DROP CONSTRAINT openpgp_uid_sig_uid_fk;`,
 	`ALTER TABLE openpgp_uid_sig DROP CONSTRAINT openpgp_uid_sig_sig_fk;`}
 
 var Dr_openpgp_uat_sig_constraints []string = []string{
 	`ALTER TABLE openpgp_uat_sig DROP CONSTRAINT openpgp_uat_sig_pk;`,
+	`ALTER TABLE openpgp_uat_sig DROP CONSTRAINT openpgp_uat_sig_unique;`,
 	`ALTER TABLE openpgp_uat_sig DROP CONSTRAINT openpgp_uat_sig_pubkey_fk;`,
 	`ALTER TABLE openpgp_uat_sig DROP CONSTRAINT openpgp_uat_sig_uat_fk;`,
 	`ALTER TABLE openpgp_uat_sig DROP CONSTRAINT openpgp_uat_sig_sig_fk;`}

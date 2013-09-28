@@ -20,6 +20,7 @@ package main
 
 import (
 	"encoding/hex"
+	"fmt"
 	"github.com/cmars/conflux"
 	"github.com/cmars/conflux/recon"
 	"launchpad.net/gnuflag"
@@ -28,12 +29,14 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 type loadCmd struct {
 	configuredCmd
-	path    string
-	txnSize int
+	path       string
+	txnSize    int
+	ignoreDups bool
 }
 
 func (c *loadCmd) Name() string { return "load" }
@@ -46,6 +49,7 @@ func newLoadCmd() *loadCmd {
 	flags.StringVar(&cmd.configPath, "config", "", "Hockeypuck configuration file")
 	flags.StringVar(&cmd.path, "path", "", "OpenPGP keyring file path or glob pattern")
 	flags.IntVar(&cmd.txnSize, "txn-size", 5000, "Transaction size; public keys per commit")
+	flags.BoolVar(&cmd.ignoreDups, "ignore-dups", false, "Ignore duplicate entries")
 	cmd.flags = flags
 	return cmd
 }
@@ -86,6 +90,9 @@ func (c *loadCmd) Main() {
 				if z != nil {
 					err = ptree.Insert(z)
 					if err != nil {
+						if c.ignoreDups && strings.Contains(err.Error(), "insert duplicate element") {
+							continue
+						}
 						log.Printf("Error inserting %x into ptree: %v", z.Bytes(), err)
 						panic(err)
 					}
@@ -111,6 +118,7 @@ func (c *loadCmd) Main() {
 				if _, err = l.Begin(); err != nil {
 					panic(err)
 				}
+				fmt.Print("X")
 			}
 			defer func() { done <- struct{}{} }()
 			defer checkpoint()
@@ -143,6 +151,9 @@ func (c *loadCmd) Main() {
 	close(keys)
 	for i := 0; i < openpgp.Config().NumWorkers(); i++ {
 		<-done
+	}
+	if err = ptree.Flush(); err != nil {
+		log.Println("Flush:", err)
 	}
 }
 

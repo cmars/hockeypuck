@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"github.com/cmars/conflux"
 	"github.com/cmars/conflux/recon"
-	"github.com/cmars/conflux/recon/diskv"
+	"github.com/cmars/conflux/recon/gkvlite"
 	"io"
 	"launchpad.net/hockeypuck/hkp"
 	"log"
@@ -46,8 +46,8 @@ type RecoverKey struct {
 }
 
 func NewSksPTree(reconSettings *recon.Settings) (recon.PrefixTree, error) {
-	treeSettings := diskv.NewSettings(reconSettings)
-	return diskv.New(treeSettings)
+	treeSettings := gkvlite.NewSettings(reconSettings)
+	return gkvlite.New(treeSettings)
 }
 
 func NewSksPeer(s *hkp.Service) (*SksPeer, error) {
@@ -74,6 +74,7 @@ func (r *SksPeer) Start() {
 
 func (r *SksPeer) HandleKeyUpdates() {
 	for {
+		r.Peer.PrefixTree.Flush()
 		select {
 		case keyChange, ok := <-r.KeyChanges:
 			if !ok {

@@ -19,6 +19,7 @@
 package main
 
 import (
+	"fmt"
 	"encoding/hex"
 	"github.com/cmars/conflux"
 	"github.com/cmars/conflux/recon"
@@ -78,6 +79,7 @@ func (c *pbuildCmd) Main() {
 	}
 	insertPtree := func() {
 		defer func() { done <- struct{}{} }()
+		n := 0
 		for {
 			select {
 			case z, ok := <-hashes:
@@ -89,6 +91,10 @@ func (c *pbuildCmd) Main() {
 						}
 						log.Printf("Error inserting %x into ptree: %v", z.Bytes(), err)
 						panic(err)
+					}
+					n++
+					if n%1000 == 0 {
+						fmt.Printf(".")
 					}
 				}
 				if !ok {
@@ -104,6 +110,9 @@ func (c *pbuildCmd) Main() {
 	close(hashes)
 	for i := 0; i < c.nworkers; i++ {
 		<-done
+	}
+	if err = ptree.Flush(); err != nil {
+		log.Println("Flush:", err)
 	}
 }
 
