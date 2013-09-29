@@ -307,15 +307,26 @@ func (pubkey *Pubkey) publicKey() *packet.PublicKey     { return pubkey.PublicKe
 func (pubkey *Pubkey) publicKeyV3() *packet.PublicKeyV3 { return pubkey.PublicKeyV3 }
 
 func (pubkey *Pubkey) verifyPublicKeySelfSig(keyrec publicKeyRecord, sig *Signature) (err error) {
+	if !Config().VerifySigs() {
+		return nil
+	}
 	if pubkey.PublicKey != nil && keyrec.publicKey() != nil {
 		if sig.Signature != nil {
-			return pubkey.PublicKey.VerifyKeySignature(keyrec.publicKey(), sig.Signature)
+			err = pubkey.PublicKey.VerifyKeySignature(keyrec.publicKey(), sig.Signature)
+			if err == nil {
+				sig.State |= PacketStateSigOk
+			}
+			return
 		} else {
 			return ErrInvalidPacketType
 		}
 	} else if pubkey.PublicKeyV3 != nil && keyrec.publicKeyV3() != nil {
 		if sig.SignatureV3 != nil {
-			return pubkey.PublicKeyV3.VerifyKeySignatureV3(keyrec.publicKeyV3(), sig.SignatureV3)
+			err = pubkey.PublicKeyV3.VerifyKeySignatureV3(keyrec.publicKeyV3(), sig.SignatureV3)
+			if err == nil {
+				sig.State |= PacketStateSigOk
+			}
+			return
 		} else {
 			return ErrInvalidPacketType
 		}
@@ -324,14 +335,25 @@ func (pubkey *Pubkey) verifyPublicKeySelfSig(keyrec publicKeyRecord, sig *Signat
 }
 
 func (pubkey *Pubkey) verifyUserIdSelfSig(uid *UserId, sig *Signature) (err error) {
+	if !Config().VerifySigs() {
+		return nil
+	}
 	if uid.UserId == nil {
 		return ErrPacketRecordState
 	}
 	if pubkey.PublicKey != nil {
 		if sig.Signature != nil {
-			return pubkey.PublicKey.VerifyUserIdSignature(uid.UserId.Id, sig.Signature)
+			err = pubkey.PublicKey.VerifyUserIdSignature(uid.UserId.Id, sig.Signature)
+			if err == nil {
+				sig.State |= PacketStateSigOk
+			}
+			return
 		} else if sig.SignatureV3 != nil {
-			return pubkey.PublicKey.VerifyUserIdSignatureV3(uid.UserId.Id, sig.SignatureV3)
+			err = pubkey.PublicKey.VerifyUserIdSignatureV3(uid.UserId.Id, sig.SignatureV3)
+			if err == nil {
+				sig.State |= PacketStateSigOk
+			}
+			return
 		} else {
 			return ErrInvalidPacketType
 		}
@@ -346,6 +368,9 @@ func (pubkey *Pubkey) verifyUserIdSelfSig(uid *UserId, sig *Signature) (err erro
 }
 
 func (pubkey *Pubkey) verifyUserAttrSelfSig(uat *UserAttribute, sig *Signature) (err error) {
+	if !Config().VerifySigs() {
+		return nil
+	}
 	if uat.UserAttribute == nil {
 		return ErrPacketRecordState
 	}

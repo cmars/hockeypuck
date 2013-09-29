@@ -27,37 +27,44 @@ import (
 var ErrInvalidPacketType error = errors.New("Invalid packet type")
 var ErrPacketRecordState error = errors.New("Packet record state has not been properly initialized")
 
+// PacketState indicates the validity of the public key material and special
+// policies that may apply to it. The lower 16 bits are either neutral policy
+// or positive validation indicators. The upper 16 bits indicate validation failure
+// that the key material is either invalid, unverifiable or failed to meet some policy
+// criteria.
 type PacketState int
 
 const (
-	// Packet is syntactially valid and parses according to OpenPGP specifications.
-	// No policy or semantic interpretation of the key material has been applied.
-	PacketStateOk = 0
+	// Bits 0-15 indicate positive verification status and public key policies
 
 	// Key material has been registered with Hockeypuck by the key owner,
 	// who has signed a nonced challenge message with the associated private key.
 	PacketStateRegistered = 1 << 0
+
 	// Key material is cloaked. Hockeypuck will respond as if the key does not exist
 	// unless the HKP request has proper authentication.
-	PacketStateCloaked = 1 << 1
+	PacketStateCloaked = 1 << iota
+
+	// Signature has been checked and verified
+	PacketStateSigOk = 1 << iota
+
+	// Bits 16-23 indicate verification failure of the key material.
+
 	// Key material is banned from HKP results unconditionally. Could be signature
 	// graphiti or other unwanted content.
-	PacketStateSpam = 1 << 2
+	PacketStateSpam = 1 << 16
+
 	// Key material is considered to be abandoned according to keyserver policy.
-	PacketStateAbandoned = 1 << 3
-
-	// Bits 4-15 reserved for additional policies.
-
-	// Bits 16-23 indicate signature verification failure on the key material
+	PacketStateAbandoned = 1 << iota
 
 	// Key material lacks a valid, non-expired self-signature
-	PacketStateNoSelfSig = 1 << 16
+	PacketStateNoSelfSig = 1 << iota
 
 	// Subkey material lacks a valid, non-expired binding-signature
-	PacketStateNoBindingSig = 1 << 17
+	PacketStateNoBindingSig = 1 << iota
 
 	// Public key is unsupported (unknown algorithm code, etc.)
-	PacketStateUnsuppPubkey = 1 << 18
+	PacketStateUnsuppPubkey = 1 << iota
 )
 
 type PacketVisitor func(PacketRecord) error

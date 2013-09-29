@@ -20,10 +20,13 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"launchpad.net/gnuflag"
 	. "launchpad.net/hockeypuck"
+	"log"
 	"os"
 	"path/filepath"
+	"runtime/pprof"
 )
 
 func die(err error) {
@@ -74,10 +77,21 @@ func main() {
 	if len(os.Args) > 2 {
 		cmdArgs = os.Args[2:]
 	}
+	var cpuProf bool
 	for _, cmd := range cmds {
 		if cmd.Name() == os.Args[1] {
 			if flags := cmd.Flags(); flags != nil {
+				flags.BoolVar(&cpuProf, "cpuprof", false, "Enable CPU profiling")
 				flags.Parse(false, cmdArgs)
+			}
+			if cpuProf {
+				if f, err := ioutil.TempFile("", "hockeypuck-cpuprof"); err == nil {
+					defer f.Close()
+					pprof.StartCPUProfile(f)
+					defer pprof.StopCPUProfile()
+				} else {
+					log.Println("Warning: Failed to open tempfile for cpuprof:", err)
+				}
 			}
 			cmd.Main()
 			return
