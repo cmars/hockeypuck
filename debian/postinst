@@ -48,6 +48,7 @@ fi
 # Create hockeypuck postgres user & database
 uid=`getent passwd postgres | cut -d ":" -f 3`
 if test "$uid" && test -x "/usr/bin/createdb" && test -x "/usr/bin/createuser"; then
+	invoke-rc.d postgresql start
 	su - postgres -c "createuser --no-superuser --no-createrole -d hockeypuck" || true
 	su - hockeypuck -c "createdb hkp" || true
 fi
@@ -60,8 +61,8 @@ echo $VERSION > /etc/hockeypuck/version
 su - hockeypuck -c "hockeypuck db --create-tables --create-constraints"
 
 # Create conflux prefix tree file, set permissions
-touch /var/lib/hockeypuck/conflux-ptree
-chown hockeypuck:hockeypuck /var/lib/hockeypuck/conflux-ptree
+touch /var/lib/hockeypuck/recon-ptree
+chown hockeypuck:hockeypuck /var/lib/hockeypuck/recon-ptree
 
 # Start Hockeypuck
 invoke-rc.d hockeypuck restart
