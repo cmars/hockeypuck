@@ -1,4 +1,4 @@
-hockeypuck (1.0~b2ubuntu3) UNRELEASED; urgency=low
+hockeypuck (1.0~b2ubuntu4) UNRELEASED; urgency=low
 
   [ Casey Marshall ]
   * Opening 1.0~b1 development and a bottle of
@@ -202,8 +202,12 @@ hockeypuck (1.0~b2ubuntu3) UNRELEASED; urgency=low
       without it.
     - Reconsidered state flag bit allocation. Lower 16 bits for positive
       or neutral status, upper 16 indicate negative/invalid conditions.
+  * cmd/hockeypuck/run.go, debian/postinst, debian/postrm,
+    debian/upstart, instroot/etc/hockeypuck/hockeypuck.conf:
+    - Check for error creating SKS peer.
+    - Updated default configuration, upstart, debian installation scripts.
 
- -- Casey Marshall <cmars@cmarstech.com>  Sun, 29 Sep 2013 16:35:38 -0500
+ -- Casey Marshall <cmars@cmarstech.com>  Sun, 29 Sep 2013 22:31:11 -0500
 
 hockeypuck (1.0~a2) precise; urgency=low
 

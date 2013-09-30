@@ -38,6 +38,9 @@ func (c *runCmd) Main() {
 	hkpRouter := hkp.NewRouter(r)
 	// Create SKS peer
 	sksPeer, err := openpgp.NewSksPeer(hkpRouter.Service)
+	if err != nil {
+		die(err)
+	}
 	// Launch the OpenPGP workers
 	for i := 0; i < openpgp.Config().NumWorkers(); i++ {
 		w, err := openpgp.NewWorker(hkpRouter.Service, sksPeer)

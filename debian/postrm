@@ -1,8 +1,21 @@
 #!/bin/sh -e
 
 if [ "$1" = "purge" ]; then
-    # logs has to be removed according to policy.
+	# Update rc.d links (Debian Policy Manual, section 9.3.3.1)
+   	update-rc.d package remove
+    # Logs have to be removed according to policy.
     rm -rf /var/log/hockeypuck/hockeypuck.log
+	# Drop hockeypuck postgres user & database
+	pg_uid=`getent passwd postgres | cut -d ":" -f 3`
+	if test "$pg_uid" && test -x "/usr/bin/dropdb" && test -x "/usr/bin/dropuser"; then
+		su - hockeypuck -c "dropdb hkp" || true
+		su - postgres -c "dropuser hockeypuck" || true
+	fi
+	# Remove the 'hockeypuck' system user
+	uid=`getent passwd hockeypuck | cut -d ":" -f 3`
+	if test "$uid"; then
+		deluser --system --remove-home hockeypuck
+	fi
 fi
 
 #DEBHELPER#

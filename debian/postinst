@@ -56,6 +56,14 @@ fi
 VERSION=$(gzip -dc /usr/share/doc/hockeypuck/changelog.gz | head -1 | sed 's/.*(//;s/).*//;')
 echo $VERSION > /etc/hockeypuck/version
 
+# Create Hockeypuck database & constraints
+su - hockeypuck -c "hockeypuck db --create-tables --create-constraints"
+
+# Create conflux prefix tree file, set permissions
+touch /var/lib/hockeypuck/conflux-ptree
+chown hockeypuck:hockeypuck /var/lib/hockeypuck/conflux-ptree
+
+# Start Hockeypuck
 invoke-rc.d hockeypuck restart
 
 #DEBHELPER#
