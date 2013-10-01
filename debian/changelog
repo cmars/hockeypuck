@@ -1,4 +1,4 @@
-hockeypuck (1.0~b2ubuntu1) UNRELEASED; urgency=low
+hockeypuck (1.0~b2) raring; urgency=low
 
   [ Casey Marshall ]
   * Opening 1.0~b1 development and a bottle of
@@ -209,8 +209,13 @@ hockeypuck (1.0~b2ubuntu1) UNRELEASED; urgency=low
   * debian/postinst:
     - Start postgresql if detected locally before creating role, db.
     - Fix prefix tree filename.
+  * === added directory doc, Makefile, .bzrignore,
+    debian/control, debian/install, debian/postrm:
+    - Add html documentation, generated with nikola.
+    - Cleanup directories on purge.
+    - Add .bzrignore.
 
- -- Casey Marshall <cmars@cmarstech.com>  Mon, 30 Sep 2013 17:06:05 -0500
+ -- Casey Marshall <cmars@cmarstech.com>  Mon, 30 Sep 2013 17:10:38 -0500
 
 hockeypuck (1.0~a2) precise; urgency=low
 

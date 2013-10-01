@@ -10,6 +10,7 @@ all:
 	([ ! -e "$(GOPATH)/src/launchpad.net/hockeypuck" ] && [ -z "$(DEB_BUILD_ARCH_OS)" ]) && ln -s "$(CURDIR)" "$(GOPATH)/src/launchpad.net/hockeypuck" || true
 	GOPATH="${GOPATH}" $(GO) get launchpad.net/hockeypuck/cmd/hockeypuck
 	GOPATH="${GOPATH}" $(GO) install launchpad.net/hockeypuck/cmd/hockeypuck
+	make -C doc
 
 fmt:
 	gofmt -w=true .

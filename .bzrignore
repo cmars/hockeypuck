@@ -1,0 +1,12 @@
+doc/cache
+doc/output
+gopath
+debian/hockeypuck
+debian/hockeypuck.debhelper.log
+debian/hockeypuck.postinst.debhelper
+debian/hockeypuck.preinst.debhelper
+debian/hockeypuck.prerm.debhelper
+debian/hockeypuck.substvars
+debian/files
+debian/changelog.dch
+doc/.doit.db

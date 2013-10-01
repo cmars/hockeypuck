@@ -1,0 +1,27 @@
+.. title: Community
+.. slug: community
+.. date: 2013/09/25 16:27:08
+.. tags: 
+.. link: 
+.. description: 
+
+Launchpad
+=========
+The `Hockeypuck <https://launchpad.net/hockeypuck>`_ project is hosted in Launchpad.
+
+Source Code
+-----------
+Leading edge development happens in the trunk branch, `lp:hockeypuck <https://code.launchpad.net/~hockeypuck/hockeypuck/trunk>`_. Keeping a stable trunk (building & passing unit tests) is priority.
+
+Branches are created for major releases which might receive maintenance and backport changesets.
+
+Hockeypuck trunk is `mirrored in Github <https://github.com/cmars/hockeypuck>`_ mostly for backup purposes, and may lag the Launchpad trunk. I may not be able to directly merge pull requests through Github. Collaboration through Launchpad is preferred.
+
+Mailing List
+------------
+
+Discuss the project on the `Hockeypuck Developers <https://launchpad.net/~hockeypuck-dev>`_ mailing list. You'll need to join the `hockeypuck-dev team <https://launchpad.net/~hockeypuck-dev>`_ in Launchpad in order to register your email address. A benefit of signing up: you'll also be able to use your Launchpad ID to submit bug reports and merge proposals if you'd like to contribute.
+
+Bug Reports
+-----------
+Report feature ideas and defects to the `Launchpad project bug tracker <https://bugs.launchpad.net/hockeypuck>`_.

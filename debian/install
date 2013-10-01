@@ -1,3 +1,4 @@
 gopath/bin/hockeypuck /usr/bin/
 instroot/etc/hockeypuck /etc/
 instroot/var/lib/hockeypuck/www /var/lib/hockeypuck/
+doc/output/* /usr/share/doc/hockeypuck/

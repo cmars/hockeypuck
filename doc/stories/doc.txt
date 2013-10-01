@@ -1,0 +1,31 @@
+.. title: Documentation
+.. slug: doc
+.. date: 2013/09/25 16:20:10
+.. tags: 
+.. link: 
+.. description: 
+
+Installation
+============
+
+`On Ubuntu </stories/install-ubuntu.html>`_
+---------------------------------------------------
+Hockeypuck packages are available in a Launchpad PPA.
+
+`From a tarball </stories/install-tarball.html>`_
+---------------------------------------------------------
+Hockeypuck static binary builds are available to install on
+most UNIX-like platforms that the Go language targets: Linux,
+Mac OS X, BSD flavors.
+
+`From Source </stories/install-source.html>`_
+-----------------------------------------------------
+Build it yourself.
+
+`Configuration </stories/configuration.html>`_
+==============================================
+Options and settings for the Hockeypuck service.
+
+`Peering </stories/peering.html>`_
+==================================
+Operating Hockeypuck in a distributed, replicating pool of OpenPGP keyservers.
