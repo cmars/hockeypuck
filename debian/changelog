@@ -1,3 +1,10 @@
+hockeypuck (1.0~rc1) UNRELEASED; urgency=low
+
+  [ Casey Marshall ]
+  * Opening 1.0~rc1 development.
+
+ -- Casey Marshall <cmars@cmarstech.com>  Mon, 30 Sep 2013 19:55:02 -0500
+
 hockeypuck (1.0~b2) raring; urgency=low
 
   [ Casey Marshall ]
