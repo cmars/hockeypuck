@@ -20,7 +20,7 @@ Hockeypuck trunk is `mirrored in Github <https://github.com/cmars/hockeypuck>`_ 
 Mailing List
 ------------
 
-Discuss the project on the `Hockeypuck Developers <https://launchpad.net/~hockeypuck-dev>`_ mailing list. You'll need to join the `hockeypuck-dev team <https://launchpad.net/~hockeypuck-dev>`_ in Launchpad in order to register your email address. A benefit of signing up: you'll also be able to use your Launchpad ID to submit bug reports and merge proposals if you'd like to contribute.
+Discuss the project on the `hockeypuck-dev mailing list <https://lists.launchpad.net/hockeypuck-dev/>`_. You'll need to join the `hockeypuck-dev team <https://launchpad.net/~hockeypuck-dev>`_ in Launchpad in order to register your email address. A benefit of signing up: you'll also be able to use your Launchpad ID to submit bug reports and merge proposals if you'd like to contribute.
 
 Bug Reports
 -----------

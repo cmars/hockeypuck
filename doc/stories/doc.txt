@@ -8,12 +8,12 @@
 Installation
 ============
 
-`On Ubuntu </stories/install-ubuntu.html>`_
----------------------------------------------------
+`On Ubuntu Server </stories/install-ubuntu.html>`_
+--------------------------------------------------
 Hockeypuck packages are available in a Launchpad PPA.
 
 `From a tarball </stories/install-tarball.html>`_
----------------------------------------------------------
+-------------------------------------------------
 Hockeypuck static binary builds are available to install on
 most UNIX-like platforms that the Go language targets: Linux,
 Mac OS X, BSD flavors.

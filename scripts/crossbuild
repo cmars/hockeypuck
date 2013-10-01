@@ -44,7 +44,7 @@ do
 	if [[ $platform != $host_platform ]]; then
 		cp -r $GOPATH/bin/$platform_bin/* $BUILD/$platform/usr/bin
 	else
-		cp -r $GOPATH/bin/hockeypuck-* $BUILD/$platform/usr/bin
+		cp -r $GOPATH/bin/hockeypuck $BUILD/$platform/usr/bin
 	fi
 	tar -C $BUILD/$platform -rvf $tarfile ./usr/bin
 	gzip -9f $tarfile
