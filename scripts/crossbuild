@@ -15,7 +15,7 @@ fi
 GOPATH=$(pwd)/gopath
 rm -rf $GOPATH/bin $GOPATH/pkg
 
-APPS="launchpad.net/hockeypuck/cmd/hockeypuck launchpad.net/hockeypuck/cmd/hockeypuck-import"
+APPS="launchpad.net/hockeypuck/cmd/hockeypuck"
 
 for platform in $PLATFORMS;
 do
