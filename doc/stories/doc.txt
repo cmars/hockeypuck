@@ -19,12 +19,16 @@ most UNIX-like platforms that the Go language targets: Linux,
 Mac OS X, BSD flavors.
 
 `From Source </stories/install-source.html>`_
------------------------------------------------------
+---------------------------------------------
 Build it yourself.
 
 `Configuration </stories/configuration.html>`_
 ==============================================
 Options and settings for the Hockeypuck service.
+
+`Pre-Populating </stories/pre-populating.html>`_
+================================================
+How to load a large amount of public key material into Hockeypuck.
 
 `Peering </stories/peering.html>`_
 ==================================
