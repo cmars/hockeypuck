@@ -9,6 +9,11 @@ hockeypuck (1.0~rc1) UNRELEASED; urgency=low
     - Fix crossbuild script.
   * doc/stories/doc.txt, doc/stories/pre-populating.txt:
     - Add page on pre-populating Hockeypuck.
+  * openpgp/responses.go, openpgp/schema.go, openpgp/sort.go:
+    - Use ShortId() instead of fingerprint slice, as v3 keys do not have
+      the same length fingerprint.
+    - Add indexes on pubkey_uuid for subkey, uid and uat tables.
+    - Check for nil selfSignature when sorting uids.
 
  -- Casey Marshall <cmars@cmarstech.com>  Wed, 02 Oct 2013 13:14:40 -0500
 

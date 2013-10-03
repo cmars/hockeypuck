@@ -35,6 +35,13 @@ func (s *uidSorter) Less(i, j int) bool {
 		// the one with the primary comes first.
 		return iPrimary
 	}
+	iMissingSelfSig := s.userIds[i].selfSignature == nil
+	jMissingSelfSig := s.userIds[j].selfSignature == nil
+	if iMissingSelfSig != jMissingSelfSig {
+		return jMissingSelfSig
+	} else if iMissingSelfSig {
+		return false
+	}
 	return s.userIds[i].selfSignature.Creation.Unix() > s.userIds[j].selfSignature.Creation.Unix()
 }
 

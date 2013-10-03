@@ -278,7 +278,7 @@ func (i *IndexResponse) WriteIndex(w io.Writer, key *Pubkey) error {
 				AlgorithmCode(r.Algorithm),
 				r.Fingerprint(),
 				qrEncodeToDataUri(r.Fingerprint()),
-				strings.ToUpper(r.Fingerprint()[32:40]),
+				strings.ToUpper(r.ShortId()),
 				r.Creation.Format("2006-01-02")})
 		case *UserId:
 			hkp.PksIndexTemplate.ExecuteTemplate(w, "uid-index-row", struct {

@@ -320,7 +320,8 @@ var Cr_openpgp_subkey_constraints []string = []string{
 	DEFERRABLE INITIALLY DEFERRED;`,
 	`ALTER TABLE openpgp_subkey ADD CONSTRAINT openpgp_subkey_rev_fk
 	FOREIGN KEY (revsig_uuid) REFERENCES openpgp_sig(uuid)
-	DEFERRABLE INITIALLY DEFERRED;`}
+	DEFERRABLE INITIALLY DEFERRED;`,
+	`CREATE INDEX openpgp_subkey_pubkey ON openpgp_subkey (pubkey_uuid);`}
 
 var Cr_openpgp_uid_constraints []string = []string{
 	`ALTER TABLE openpgp_uid ADD CONSTRAINT openpgp_uid_pk PRIMARY KEY (uuid);`,
@@ -333,6 +334,7 @@ var Cr_openpgp_uid_constraints []string = []string{
 	`ALTER TABLE openpgp_uid ADD CONSTRAINT openpgp_uid_rev_fk
 	FOREIGN KEY (revsig_uuid) REFERENCES openpgp_sig(uuid)
 	DEFERRABLE INITIALLY DEFERRED;`,
+	`CREATE INDEX openpgp_uid_pubkey ON openpgp_uid (pubkey_uuid);`,
 	`CREATE INDEX openpgp_uid_fulltext_idx ON openpgp_uid USING gin(keywords_fulltext);`}
 
 var Cr_openpgp_uat_constraints []string = []string{
@@ -345,7 +347,8 @@ var Cr_openpgp_uat_constraints []string = []string{
 	DEFERRABLE INITIALLY DEFERRED;`,
 	`ALTER TABLE openpgp_uat ADD CONSTRAINT openpgp_uat_rev_fk
 	FOREIGN KEY (revsig_uuid) REFERENCES openpgp_sig(uuid)
-	DEFERRABLE INITIALLY DEFERRED;`}
+	DEFERRABLE INITIALLY DEFERRED;`,
+	`CREATE INDEX openpgp_uat_pubkey ON openpgp_uat (pubkey_uuid);`}
 
 var Cr_openpgp_pubkey_sig_constraints []string = []string{
 	`ALTER TABLE openpgp_pubkey_sig ADD CONSTRAINT openpgp_pubkey_sig_pk PRIMARY KEY (uuid);`,
