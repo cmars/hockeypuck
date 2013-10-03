@@ -43,10 +43,10 @@ const (
 
 	// Key material is cloaked. Hockeypuck will respond as if the key does not exist
 	// unless the HKP request has proper authentication.
-	PacketStateCloaked = 1 << iota
+	PacketStateCloaked = 1 << 1
 
 	// Signature has been checked and verified
-	PacketStateSigOk = 1 << iota
+	PacketStateSigOk = 1 << 2
 
 	// Bits 16-23 indicate verification failure of the key material.
 
@@ -55,16 +55,16 @@ const (
 	PacketStateSpam = 1 << 16
 
 	// Key material is considered to be abandoned according to keyserver policy.
-	PacketStateAbandoned = 1 << iota
+	PacketStateAbandoned = 1 << 17
 
 	// Key material lacks a valid, non-expired self-signature
-	PacketStateNoSelfSig = 1 << iota
+	PacketStateNoSelfSig = 1 << 18
 
 	// Subkey material lacks a valid, non-expired binding-signature
-	PacketStateNoBindingSig = 1 << iota
+	PacketStateNoBindingSig = 1 << 19
 
 	// Public key is unsupported (unknown algorithm code, etc.)
-	PacketStateUnsuppPubkey = 1 << iota
+	PacketStateUnsuppPubkey = 1 << 20
 )
 
 type PacketVisitor func(PacketRecord) error

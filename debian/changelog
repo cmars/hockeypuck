@@ -14,6 +14,8 @@ hockeypuck (1.0~rc1) UNRELEASED; urgency=low
       the same length fingerprint.
     - Add indexes on pubkey_uuid for subkey, uid and uat tables.
     - Check for nil selfSignature when sorting uids.
+  * openpgp/io.go, openpgp/types.go:
+    - Fix state flag values, remove unnecessary validation method.
 
  -- Casey Marshall <cmars@cmarstech.com>  Wed, 02 Oct 2013 13:14:40 -0500
 

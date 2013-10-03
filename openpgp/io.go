@@ -284,8 +284,6 @@ func readKeys(r io.Reader) PubkeyChan {
 				c <- &ReadKeyResult{Error: errors.New("No primary public key found")}
 				continue
 			}
-			// Feed back gross syntactical errors, such as packets with no sigs.
-			pubkey.Validate()
 			// Update the overall public key material digest.
 			pubkey.updateDigests()
 			// Validate signatures and wire-up relationships.
@@ -295,22 +293,4 @@ func readKeys(r io.Reader) PubkeyChan {
 		}
 	}()
 	return c
-}
-
-func (pubkey *Pubkey) Validate() {
-	for _, uid := range pubkey.userIds {
-		if len(uid.signatures) > 0 {
-			uid.State |= PacketStateNoSelfSig
-		}
-	}
-	for _, uat := range pubkey.userAttributes {
-		if len(uat.signatures) > 0 {
-			uat.State |= PacketStateNoSelfSig
-		}
-	}
-	for _, subkey := range pubkey.subkeys {
-		if len(subkey.signatures) > 0 {
-			subkey.State |= PacketStateNoSelfSig
-		}
-	}
 }
