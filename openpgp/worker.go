@@ -267,7 +267,9 @@ func (w *Worker) lookupKeyidUuids(keyId string) (uuids []string, err error) {
 		return nil, ErrInvalidKeyId
 	}
 	rows, err := w.db.Queryx(fmt.Sprintf(`
-SELECT uuid FROM openpgp_pubkey WHERE uuid %s`, compareOp), rKeyId)
+SELECT uuid FROM openpgp_pubkey WHERE uuid %s
+UNION
+SELECT pubkey_uuid FROM openpgp_subkey WHERE uuid %s`, compareOp, compareOp), rKeyId)
 	if err == sql.ErrNoRows {
 		return nil, ErrKeyNotFound
 	} else if err != nil {

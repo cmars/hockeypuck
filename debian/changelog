@@ -1,4 +1,4 @@
-hockeypuck (1.0~rc1) UNRELEASED; urgency=low
+hockeypuck (1.0~rc1ubuntu1) UNRELEASED; urgency=low
 
   [ Casey Marshall ]
   * Opening 1.0~rc1 development.
@@ -16,8 +16,11 @@ hockeypuck (1.0~rc1) UNRELEASED; urgency=low
     - Check for nil selfSignature when sorting uids.
   * openpgp/io.go, openpgp/types.go:
     - Fix state flag values, remove unnecessary validation method.
+  * openpgp/worker.go:
+    - Support subkey fingerprint search w/PostgreSQL backend.
+      LP: #1234774
 
- -- Casey Marshall <cmars@cmarstech.com>  Wed, 02 Oct 2013 13:14:40 -0500
+ -- Casey Marshall <cmars@cmarstech.com>  Fri, 04 Oct 2013 15:15:24 -0500
 
 hockeypuck (1.0~b2) raring; urgency=low
 
