@@ -49,6 +49,8 @@ type UserId struct {
 	UserId *packet.UserId
 }
 
+func (uid *UserId) Signatures() []*Signature { return uid.signatures }
+
 func (uid *UserId) calcScopedDigest(pubkey *Pubkey) string {
 	h := sha256.New()
 	h.Write([]byte(pubkey.RFingerprint))
@@ -165,6 +167,10 @@ func (uid *UserId) linkSelfSigs(pubkey *Pubkey) {
 		}
 		if sig.SigType >= 0x10 && sig.SigType <= 0x13 {
 			if err := pubkey.verifyUserIdSelfSig(uid, sig); err == nil {
+				if sig.Expiration.Unix() == NeverExpires.Unix() && sig.Signature != nil && sig.Signature.KeyLifetimeSecs != nil {
+					sig.Expiration = pubkey.Creation.Add(
+						time.Duration(*sig.Signature.KeyLifetimeSecs) * time.Second)
+				}
 				if uid.selfSignature == nil || sig.Creation.Unix() > uid.selfSignature.Creation.Unix() {
 					// Choose the most-recent self-signature on the uid
 					uid.selfSignature = sig

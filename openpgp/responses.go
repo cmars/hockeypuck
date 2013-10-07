@@ -113,56 +113,6 @@ func (r *RecoverKeyResponse) WriteTo(w http.ResponseWriter) error {
 	return nil
 }
 
-type IndexResponse struct {
-	Lookup  *hkp.Lookup
-	Keys    []*Pubkey
-	Verbose bool
-	Err     error
-}
-
-func (r *IndexResponse) Error() error {
-	return r.Err
-}
-
-func (r *IndexResponse) WriteTo(w http.ResponseWriter) error {
-	err := r.Err
-	var writeFn func(io.Writer, *Pubkey) error = nil
-	if r.Lookup.Option&hkp.MachineReadable != 0 {
-		writeFn = r.WriteMachineReadable
-	} else {
-		writeFn = r.WriteIndex
-	}
-	if r.Lookup.Option&hkp.MachineReadable != 0 {
-		writeFn = r.WriteMachineReadable
-		w.Header().Add("Content-Type", "text/plain")
-		fmt.Fprintf(w, "info:1:%d\n", len(r.Keys))
-	} else {
-		if hkp.PksIndexTemplate == nil {
-			return ErrTemplatePathNotFound
-		}
-		w.Header().Add("Content-Type", "text/html")
-		err = hkp.PksIndexTemplate.ExecuteTemplate(w, "index-top", r.Lookup.Search)
-	}
-	if writeFn == nil {
-		err = ErrUnsupportedOperation
-	}
-	if len(r.Keys) == 0 {
-		err = ErrKeyNotFound
-	}
-	if err == nil {
-		for _, key := range r.Keys {
-			Sort(key)
-			err = writeFn(w, key)
-		}
-	} else {
-		return err
-	}
-	if r.Lookup.Option&hkp.MachineReadable == 0 {
-		hkp.PksIndexTemplate.ExecuteTemplate(w, "index-bottom", nil)
-	}
-	return err
-}
-
 type StatsResponse struct {
 	Lookup *hkp.Lookup
 	Stats  *HkpStats

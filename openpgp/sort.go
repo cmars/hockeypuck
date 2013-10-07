@@ -19,39 +19,38 @@ package openpgp
 
 import (
 	"sort"
+	"strings"
 )
 
 type uidSorter struct {
-	userIds []*UserId
+	*Pubkey
 }
 
 func (s *uidSorter) Len() int { return len(s.userIds) }
 
 func (s *uidSorter) Less(i, j int) bool {
-	iPrimary := hasPrimarySignature(s.userIds[i].signatures)
-	jPrimary := hasPrimarySignature(s.userIds[j].signatures)
-	if iPrimary != jPrimary {
-		// if one uid has a primary sig and the other doesn't,
-		// the one with the primary comes first.
-		return iPrimary
-	}
-	iMissingSelfSig := s.userIds[i].selfSignature == nil
-	jMissingSelfSig := s.userIds[j].selfSignature == nil
-	if iMissingSelfSig != jMissingSelfSig {
-		return jMissingSelfSig
-	} else if iMissingSelfSig {
-		return false
-	}
-	return s.userIds[i].selfSignature.Creation.Unix() > s.userIds[j].selfSignature.Creation.Unix()
+	iSig := maxSelfSig(s.Pubkey, s.userIds[i].signatures)
+	jSig := maxSelfSig(s.Pubkey, s.userIds[j].signatures)
+	return sigLess(iSig, jSig)
 }
 
-func hasPrimarySignature(sigs []*Signature) bool {
+func sigLess(iSig *Signature, jSig *Signature) bool {
+	if iSig != nil && jSig != nil {
+		if iSig.IsPrimary() != jSig.IsPrimary() {
+			return iSig.IsPrimary()
+		}
+		return iSig.Creation.Unix() > jSig.Creation.Unix()
+	}
+	return iSig != nil
+}
+
+func maxSelfSig(pubkey *Pubkey, sigs []*Signature) (recent *Signature) {
 	for _, sig := range sigs {
-		if sig.IsPrimary() {
-			return true
+		if strings.HasPrefix(pubkey.RFingerprint, sig.RIssuerKeyId) && (recent == nil || sig.Creation.Unix() > recent.Creation.Unix()) {
+			recent = sig
 		}
 	}
-	return false
+	return
 }
 
 func (s *uidSorter) Swap(i, j int) {
@@ -59,20 +58,15 @@ func (s *uidSorter) Swap(i, j int) {
 }
 
 type uatSorter struct {
-	userAttributes []*UserAttribute
+	*Pubkey
 }
 
 func (s *uatSorter) Len() int { return len(s.userAttributes) }
 
 func (s *uatSorter) Less(i, j int) bool {
-	iPrimary := hasPrimarySignature(s.userAttributes[i].signatures)
-	jPrimary := hasPrimarySignature(s.userAttributes[j].signatures)
-	if iPrimary != jPrimary {
-		// if one uid has a primary sig and the other doesn't,
-		// the one with the primary comes first.
-		return iPrimary
-	}
-	return s.userAttributes[i].selfSignature.Creation.Unix() > s.userAttributes[j].selfSignature.Creation.Unix()
+	iSig := maxSelfSig(s.Pubkey, s.userAttributes[i].signatures)
+	jSig := maxSelfSig(s.Pubkey, s.userAttributes[j].signatures)
+	return sigLess(iSig, jSig)
 }
 
 func (s *uatSorter) Swap(i, j int) {
@@ -80,7 +74,7 @@ func (s *uatSorter) Swap(i, j int) {
 }
 
 type subkeySorter struct {
-	subkeys []*Subkey
+	*Pubkey
 }
 
 func (s *subkeySorter) Len() int { return len(s.subkeys) }
@@ -123,7 +117,7 @@ func Sort(pubkey *Pubkey) {
 		}
 		return nil
 	})
-	sort.Sort(&uidSorter{pubkey.userIds})
-	sort.Sort(&uatSorter{pubkey.userAttributes})
-	sort.Sort(&subkeySorter{pubkey.subkeys})
+	sort.Sort(&uidSorter{pubkey})
+	sort.Sort(&uatSorter{pubkey})
+	sort.Sort(&subkeySorter{pubkey})
 }

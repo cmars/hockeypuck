@@ -137,6 +137,8 @@ func (l *Lookup) Parse() (err error) {
 	return err
 }
 
+func (l *Lookup) MachineReadable() bool { return l.Option&MachineReadable != 0 }
+
 // parseOptions interprets the "options" parameter (section 3.2.1)
 func parseOptions(options string) Option {
 	var result Option

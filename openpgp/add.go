@@ -292,8 +292,8 @@ UPDATE openpgp_uat SET
 		case *Signature:
 			_, err := w.tx.Execv(`
 UPDATE openpgp_sig SET
-	state = $2, signer_uuid = $3, revsig_uuid = $4 WHERE uuid = $1`,
-				r.ScopedDigest, r.State, r.RIssuerFingerprint, r.RevSigDigest)
+	state = $2, expiration = $3, signer_uuid = $4, revsig_uuid = $5 WHERE uuid = $1`,
+				r.ScopedDigest, r.State, r.Expiration, r.RIssuerFingerprint, r.RevSigDigest)
 			if err == sql.ErrNoRows {
 				err = w.insertSig(pubkey, r)
 			}

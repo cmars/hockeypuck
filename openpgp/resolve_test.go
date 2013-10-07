@@ -135,6 +135,20 @@ func TestSortPrimaryUid(t *testing.T) {
 	}
 }
 
+func TestKeyExpiration(t *testing.T) {
+	key := MustInputAscKey(t, "lp1195901.asc")
+	Resolve(key)
+	Sort(key)
+	key.Visit(func(rec PacketRecord) error {
+		if sig, is := rec.(*Signature); is {
+			if sig.Signature != nil && sig.Signature.KeyLifetimeSecs != nil {
+				t.Logf("Key expiration %d", *sig.Signature.KeyLifetimeSecs)
+			}
+		}
+		return nil
+	})
+}
+
 func TestPrimaryUidFallback(t *testing.T) {
 	f := MustInput(t, "snowcrash.gpg")
 	var key *Pubkey

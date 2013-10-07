@@ -168,6 +168,10 @@ func (uat *UserAttribute) linkSelfSigs(pubkey *Pubkey) {
 		}
 		if sig.SigType >= 0x10 && sig.SigType <= 0x13 {
 			if err := pubkey.verifyUserAttrSelfSig(uat, sig); err == nil {
+				if sig.Expiration.Unix() == NeverExpires.Unix() && sig.Signature != nil && sig.Signature.KeyLifetimeSecs != nil {
+					sig.Expiration = pubkey.Creation.Add(
+						time.Duration(*sig.Signature.KeyLifetimeSecs) * time.Second)
+				}
 				if uat.selfSignature == nil || sig.Creation.Unix() > uat.selfSignature.Creation.Unix() {
 					uat.selfSignature = sig
 				}

@@ -66,6 +66,8 @@ func (subkey *Subkey) ShortId() string {
 	return util.Reverse(subkey.RFingerprint[:8])
 }
 
+func (subkey *Subkey) Signatures() []*Signature { return subkey.signatures }
+
 func (subkey *Subkey) Serialize(w io.Writer) error {
 	_, err := w.Write(subkey.Packet)
 	return err
@@ -214,6 +216,10 @@ func (subkey *Subkey) linkSelfSigs(pubkey *Pubkey) {
 			}
 		} else if sig.SigType == 0x18 && time.Now().Unix() < sig.Expiration.Unix() { // TODO: add packet.SigTypeSubkeyBinding
 			if err := pubkey.verifyPublicKeySelfSig(subkey, sig); err == nil {
+				if sig.Expiration.Unix() == NeverExpires.Unix() && sig.Signature != nil && sig.Signature.KeyLifetimeSecs != nil {
+					sig.Expiration = subkey.Creation.Add(
+						time.Duration(*sig.Signature.KeyLifetimeSecs) * time.Second)
+				}
 				if subkey.bindingSig == nil || sig.Creation.Unix() < subkey.bindingSig.Creation.Unix() {
 					subkey.bindingSig = sig
 					subkey.PubkeyRFP = pubkey.RFingerprint

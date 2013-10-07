@@ -1,4 +1,4 @@
-hockeypuck (1.0~rc1ubuntu1) UNRELEASED; urgency=low
+hockeypuck (1.0~rc1) UNRELEASED; urgency=low
 
   [ Casey Marshall ]
   * Opening 1.0~rc1 development.
@@ -19,6 +19,13 @@ hockeypuck (1.0~rc1ubuntu1) UNRELEASED; urgency=low
   * openpgp/worker.go:
     - Support subkey fingerprint search w/PostgreSQL backend.
       LP: #1234774
+  * hkp/requests.go, openpgp/add.go, openpgp/index.go,
+    openpgp/pubkey.go, openpgp/resolve_test.go, openpgp/responses.go,
+    openpgp/signature.go, openpgp/sort.go, openpgp/subkey.go,
+    openpgp/userattribute.go, openpgp/userid.go, openpgp/worker.go:
+    - SKS-like index & vindex search results page. LP: #1234771
+    - Set signature expiration when linking self sigs.
+    - Update signature expiration on merge.
 
  -- Casey Marshall <cmars@cmarstech.com>  Fri, 04 Oct 2013 15:15:24 -0500
 

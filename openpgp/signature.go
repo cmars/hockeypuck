@@ -56,6 +56,10 @@ func (sig *Signature) IssuerKeyId() string {
 	return util.Reverse(sig.RIssuerKeyId)
 }
 
+func (sig *Signature) IssuerShortId() string {
+	return sig.IssuerKeyId()[8:16]
+}
+
 func (sig *Signature) IssuerFingerprint() string {
 	return util.Reverse(sig.RIssuerFingerprint.String)
 }

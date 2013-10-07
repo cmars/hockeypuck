@@ -136,7 +136,7 @@ func (w *Worker) Lookup(l *hkp.Lookup) {
 	case hkp.HashGet:
 		resp = &KeyringResponse{keys}
 	case hkp.Index:
-		resp = &IndexResponse{Lookup: l, Keys: keys, Verbose: false}
+		resp = &IndexResponse{Lookup: l, Keys: keys}
 	case hkp.Vindex:
 		resp = &IndexResponse{Lookup: l, Keys: keys, Verbose: true}
 	default:

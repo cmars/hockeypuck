@@ -101,6 +101,10 @@ func (pubkey *Pubkey) ShortId() string {
 	return util.Reverse(pubkey.RFingerprint[:8])
 }
 
+func (pubkey *Pubkey) UserIds() []*UserId { return pubkey.userIds }
+
+func (pubkey *Pubkey) Subkeys() []*Subkey { return pubkey.subkeys }
+
 func (pubkey *Pubkey) Serialize(w io.Writer) error {
 	_, err := w.Write(pubkey.Packet)
 	return err
