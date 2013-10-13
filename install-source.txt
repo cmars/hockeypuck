@@ -1,0 +1,66 @@
+.. title: Install from Source
+.. slug: install-source
+.. date: 2013/09/25 15:54:50
+.. tags: 
+.. link: 
+.. description: 
+
+Build Dependencies
+==================
+
+Go
+--
+Install Go 1.1 or newer from `golang.org <http://golang.org/doc/install>`_.
+
+On Ubuntu, the Juju PPA maintains packages for recent versions of Go,
+recommended for building Hockeypuck::
+
+  $ sudo apt-add-repository ppa:juju/golang
+  $ sudo apt-get update
+  $ sudo apt-get install golang-go
+
+Set up your `Go language environment variables <http://golang.org/doc/code.html#GOPATH>`_.
+
+DVCS Clients
+------------
+Go will need these DVCS clients installed in order to provision the source code to Hockeypuck's package dependencies:
+
+* Bazaar
+* Mercurial
+* Git
+
+On Ubuntu::
+
+  $ sudo apt-get install bzr mercurial git
+
+Build
+=====
+
+Check out the Hockeypuck sources, with all its package dependencies into your
+Go development workspace with::
+
+  $ go get launchpad.net/hockeypuck/...
+
+
+Then compile binaries with::
+
+  $ go install launchpad.net/hockeypuck/...
+
+Install
+=======
+
+Binaries
+--------
+Hockeypuck should have been compiled to $GOPATH/bin/hockeypuck in the above step. Hockeypuck can be run from this location.
+
+Media
+-----
+Hockeypuck will need to access the static media files (Go HTML templates, images, CSS, JS and fonts). These files will have been checked out into $GOPATH/src/launchpad.net/hockeypuck/instroot/var/lib/hockeypuck/www in the above steps. If Hockeypuck is run with the same $GOPATH environment variable set, it will be able to automatically locate these files when running the service.
+
+Otherwise, you will need to set the hockeypuck.hkp.webroot configuration setting to the installed location of these files.
+
+Next Steps
+==========
+
+Now you have compiled static Hockeypuck binaries in $GOPATH/bin, you're ready to run. Move on to
+`Configuration </configuration.html>`_ to set up your Hockeypuck service.

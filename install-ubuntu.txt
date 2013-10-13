@@ -1,0 +1,54 @@
+.. title: Install on Ubuntu Server
+.. slug: install-ubuntu
+.. date: 2013/09/30 21:45:00
+.. tags: 
+.. link: 
+.. description: 
+
+Add the Hockeypuck project package repository
+=============================================
+
+PPA prerequisites
+-----------------
+In order to add PPA repositories, you'll need to make sure you have the necessary pacakges installed to manage PPAs on your server. These may already be installed on a desktop Ubuntu distribution, but may not be present on a minimal server image.
+
+Ubuntu 12.04, 12.10
+~~~~~~~~~~~~~~~~~~~
+
+  $ sudo apt-get install python-software-properties
+
+.. title: Install from Source
+.. slug: install-source
+.. date: 2013/09/25 15:54:50
+.. tags: 
+.. link: 
+.. description: 
+
+Ubuntu 13.04
+~~~~~~~~~~~~
+
+  $ sudo apt-get install software-properties-common
+
+Add the Hockeypuck repository
+-----------------------------
+
+  $ sudo apt-add-repository ppa:hockeypuck/ppa
+
+Update the package list
+-----------------------
+
+  $ sudo apt-get update
+
+Installing Hockeypuck
+=====================
+For a standalone Hockeypuck server with its own database, install with the recommended packages:
+
+  $ sudo apt-get install hockeypuck
+
+This will install postgresql, logrotate, and several other packages to install a ready-to-run, working service. If you do not want to install these packages, and want to configure the database and other services yourself, install without recommended packages:
+
+  $ sudo apt-get install --no-install-recommends hockeypuck
+
+Next Steps
+==========
+`Configure </configuration.txt>`_ your Hockeypuck instance.

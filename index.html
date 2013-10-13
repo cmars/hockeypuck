@@ -1,0 +1,116 @@
+<!DOCTYPE html><html lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <meta charset="utf-8">
+    <meta name="title" content="Hockeypuck Public Keyserver | Hockeypuck">
+    <meta name="description" content="">
+    <meta name="author" content="Casey Marshall">
+    <title>Hockeypuck Public Keyserver | Hockeypuck</title>
+    <!-- Le styles -->
+        <link href="assets/css/all.css" rel="stylesheet" type="text/css">
+        <script src="assets/js/all.js" type="text/javascript"></script>
+    <!-- Le HTML5 shim, for IE6-8 support of HTML5 elements -->
+    <!--[if lt IE 9]>
+      <script src="http://html5shim.googlecode.com/svn/trunk/html5.js" type="text/javascript"></script>
+    <![endif]-->
+            <link rel="alternate" type="application/rss+xml" title="RSS (en)" href="rss.xml">
+
+    
+    
+</head>
+<body>
+<!-- Menubar -->
+<div class="navbar navbar-fixed-top">
+    <div class="navbar-inner">
+        <div class="container">
+        
+        <!-- .btn-navbar is used as the toggle for collapsed navbar content -->
+        <a class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+        </a>        
+        
+            <a class="brand" href=".">
+            Hockeypuck
+            </a>
+            <!-- Everything you want hidden at 940px or less, place within here -->
+            <div class="nav-collapse collapse">
+                <ul class="nav">
+                    
+            <li><a href="doc.html">Documentation</a>
+            </li><li><a href="community.html">Community</a>
+
+                </li></ul>
+                <ul class="nav pull-right">
+                
+                
+                
+    <li>
+    <a href="index.txt" id="sourcelink">Source</a>
+    </li>
+
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- End of Menubar -->
+<div class="container-fluid" id="container-fluid">
+    <!--Body content-->
+    <div class="row-fluid">
+    <div class="span2"></div>
+    <div class="span8">
+    
+    <h1>Hockeypuck Public Keyserver</h1>
+    <div><img alt="/gohkp.png" class="align-right" src="gohkp.png">
+<div class="section" id="features">
+<h2>Features</h2>
+<div class="section" id="standards-and-specifications">
+<h3>Standards and Specifications</h3>
+<p>Hockeypuck implements the
+<a class="reference external" href="http://ietfreport.isoc.org/idref/draft-shaw-openpgp-hkp/">HKP draft protocol specification</a>
+as well as several extensions to the protocol supported by <a class="reference external" href="http://sks-keyservers.net/">SKS</a>.</p>
+<p>Hockeypuck stores OpenPGP public key material conforming to <a class="reference external" href="https://tools.ietf.org/html/rfc4880">RFC 4880</a> as well as ECC keys conforming to <a class="reference external" href="https://tools.ietf.org/html/rfc6637">RFC 6637</a>.</p>
+</div>
+<div class="section" id="postgresql-key-database">
+<h3>PostgreSQL Key Database</h3>
+<p>Hockeypuck stores all public key material in a relational database.
+The schema is optimized for performance but also data integrity, cross-referencing
+and search capabilities with judicious use of foreign keys and full-text indexing.</p>
+</div>
+<div class="section" id="sks-reconciliation-protocol">
+<h3>SKS Reconciliation Protocol</h3>
+<p>Hockeypuck is the first keyserver besides SKS capable of gossiping with other
+SKS (and Hockeypuck) peers to synchronize public key material. Recon
+support is provided with the <a class="reference external" href="https://github.com/cmars/conflux">Conflux</a> library,
+developed initially for this purpose.</p>
+</div>
+</div>
+</div>
+
+    </div>
+    </div> 
+    <!--End of body content-->
+</div>
+<div class="footerbox">
+    Contents © 2013 <a href="mailto:hockeypuck@cmarstech.com">Casey Marshall</a> - Powered by <a href="http://nikola.ralsina.com.ar">Nikola</a>
+</div>
+
+    <!-- Social buttons -->
+    <div id="addthisbox" class="addthis_toolbox addthis_peekaboo_style addthis_default_style addthis_label_style addthis_32x32_style">
+    <a class="addthis_button_more">Share</a>
+    <ul><li><a class="addthis_button_facebook"></a></li>
+    <li><a class="addthis_button_google_plusone_share"></a></li>
+    <li><a class="addthis_button_linkedin"></a></li>
+    <li><a class="addthis_button_twitter"></a></li>
+    </ul>
+    </div>
+    <script type="text/javascript" src="http://s7.addthis.com/js/300/addthis_widget.js#pubid=ra-4f7088a56bb93798"></script>
+    <!-- End of social buttons -->
+
+
+    <script type="text/javascript">jQuery("a.image-reference").colorbox({rel:"gal",maxWidth:"80%",maxHeight:"80%",scalePhotos:true});</script>
+</body>
+</html>

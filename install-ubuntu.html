@@ -1,0 +1,138 @@
+<!DOCTYPE html><html lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <meta charset="utf-8">
+    <meta name="title" content="Install on Ubuntu Server | Hockeypuck">
+    <meta name="description" content="">
+    <meta name="author" content="Casey Marshall">
+    <title>Install on Ubuntu Server | Hockeypuck</title>
+    <!-- Le styles -->
+        <link href="assets/css/all.css" rel="stylesheet" type="text/css">
+        <script src="assets/js/all.js" type="text/javascript"></script>
+    <!-- Le HTML5 shim, for IE6-8 support of HTML5 elements -->
+    <!--[if lt IE 9]>
+      <script src="http://html5shim.googlecode.com/svn/trunk/html5.js" type="text/javascript"></script>
+    <![endif]-->
+            <link rel="alternate" type="application/rss+xml" title="RSS (en)" href="rss.xml">
+
+    
+    
+</head>
+<body>
+<!-- Menubar -->
+<div class="navbar navbar-fixed-top">
+    <div class="navbar-inner">
+        <div class="container">
+        
+        <!-- .btn-navbar is used as the toggle for collapsed navbar content -->
+        <a class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+        </a>        
+        
+            <a class="brand" href=".">
+            Hockeypuck
+            </a>
+            <!-- Everything you want hidden at 940px or less, place within here -->
+            <div class="nav-collapse collapse">
+                <ul class="nav">
+                    
+            <li><a href="doc.html">Documentation</a>
+            </li><li><a href="community.html">Community</a>
+
+                </li></ul>
+                <ul class="nav pull-right">
+                
+                
+                
+    <li>
+    <a href="install-ubuntu.txt" id="sourcelink">Source</a>
+    </li>
+
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- End of Menubar -->
+<div class="container-fluid" id="container-fluid">
+    <!--Body content-->
+    <div class="row-fluid">
+    <div class="span2"></div>
+    <div class="span8">
+    
+    <h1>Install on Ubuntu Server</h1>
+    <div><div class="section" id="add-the-hockeypuck-project-package-repository">
+<h2>Add the Hockeypuck project package repository</h2>
+<div class="section" id="ppa-prerequisites">
+<h3>PPA prerequisites</h3>
+<p>In order to add PPA repositories, you'll need to make sure you have the necessary pacakges installed to manage PPAs on your server. These may already be installed on a desktop Ubuntu distribution, but may not be present on a minimal server image.</p>
+<div class="section" id="ubuntu-12-04-12-10">
+<h4>Ubuntu 12.04, 12.10</h4>
+<blockquote>
+$ sudo apt-get install python-software-properties</blockquote>
+<!-- title: Install from Source -->
+<!-- slug: install-source -->
+<!-- date: 2013/09/25 15:54:50 -->
+<!-- tags: -->
+<!-- link: -->
+<!-- description: -->
+</div>
+<div class="section" id="ubuntu-13-04">
+<h4>Ubuntu 13.04</h4>
+<blockquote>
+$ sudo apt-get install software-properties-common</blockquote>
+</div>
+</div>
+<div class="section" id="add-the-hockeypuck-repository">
+<h3>Add the Hockeypuck repository</h3>
+<blockquote>
+$ sudo apt-add-repository ppa:hockeypuck/ppa</blockquote>
+</div>
+<div class="section" id="update-the-package-list">
+<h3>Update the package list</h3>
+<blockquote>
+$ sudo apt-get update</blockquote>
+</div>
+</div>
+<div class="section" id="installing-hockeypuck">
+<h2>Installing Hockeypuck</h2>
+<p>For a standalone Hockeypuck server with its own database, install with the recommended packages:</p>
+<blockquote>
+$ sudo apt-get install hockeypuck</blockquote>
+<p>This will install postgresql, logrotate, and several other packages to install a ready-to-run, working service. If you do not want to install these packages, and want to configure the database and other services yourself, install without recommended packages:</p>
+<blockquote>
+$ sudo apt-get install --no-install-recommends hockeypuck</blockquote>
+</div>
+<div class="section" id="next-steps">
+<h2>Next Steps</h2>
+<p><a class="reference external" href="configuration.txt">Configure</a> your Hockeypuck instance.</p>
+</div>
+</div>
+
+    </div>
+    </div> 
+    <!--End of body content-->
+</div>
+<div class="footerbox">
+    Contents © 2013 <a href="mailto:hockeypuck@cmarstech.com">Casey Marshall</a> - Powered by <a href="http://nikola.ralsina.com.ar">Nikola</a>
+</div>
+
+    <!-- Social buttons -->
+    <div id="addthisbox" class="addthis_toolbox addthis_peekaboo_style addthis_default_style addthis_label_style addthis_32x32_style">
+    <a class="addthis_button_more">Share</a>
+    <ul><li><a class="addthis_button_facebook"></a></li>
+    <li><a class="addthis_button_google_plusone_share"></a></li>
+    <li><a class="addthis_button_linkedin"></a></li>
+    <li><a class="addthis_button_twitter"></a></li>
+    </ul>
+    </div>
+    <script type="text/javascript" src="http://s7.addthis.com/js/300/addthis_widget.js#pubid=ra-4f7088a56bb93798"></script>
+    <!-- End of social buttons -->
+
+
+    <script type="text/javascript">jQuery("a.image-reference").colorbox({rel:"gal",maxWidth:"80%",maxHeight:"80%",scalePhotos:true});</script>
+</body>
+</html>

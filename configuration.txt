@@ -1,0 +1,225 @@
+.. title: Configuration
+.. slug: configuration
+.. date: 2013/09/30 15:00:00
+.. tags: 
+.. link: 
+.. description: 
+
+Format
+======
+Hockeypuck reads a TOML-format configuration file for setting various
+options on the subsystems and features of the service.
+
+Quickstart
+==========
+When run without any configuration, Hockeypuck will assume the following:
+
+* Service HKP requests on port 11371 (all interfaces).
+* SKS and PKS public key synchronization methods are disabled.
+* Default PostgreSQL connection settings:
+
+  - Connect to PostgreSQL via local UNIX domain socket in /var/run/postgresql.
+  - Connect to a database named 'hkp', accessible and modifiable by the user executing Hockeypuck.
+
+* Public key signatures will not be verified on /pks/add or bulk loading.
+* Static media files are expected to be in $GOPATH/src/launchpad.net/hockeypuck/instroot/var/lib/postgresql/www.
+* Log messages written to stderr.
+
+These and other options can be customized as follows.
+
+[hockeypuck]
+============
+General settings for the overall service.
+
+logfile=\ *"/path/to/hockeypuck.log"*
+-------------------------------------
+Path where log messages should be written.
+
+Type
+    Quoted string
+Default
+    Hockeypuck logs messages to standard error.
+
+[hockeypuck.hkp]
+================
+HTTP Keyserver Protocol settings.
+
+bind=\ *"[address]:port"*
+-------------------------
+Listen on address:port for HKP requests. Omit address to accept requests to this port on any interface.
+
+Type
+    Quoted string
+Default
+    ":11371"
+
+webroot=\ *"/path/to/hockeypuck/media/www"*
+-------------------------------------------
+Path to the static media files used to serve Hockeypuck's HTML web UI.
+
+Type
+    Quoted string
+Default
+    "$GOPATH/src/launchpad.net/hockeypuck/instroot/var/lib/hockeypuck/www"
+
+    (Note that environment variables are not evaluated for configured values of webroot.)
+ 
+[hockeypuck.openpgp]
+====================
+OpenPGP service settings.
+
+verifySigs=\ *(boolean value)*
+------------------------------
+When true, Hockeypuck will attempt to verify every self-signed packet
+that it can, and store the status in the signature packet's STATE column.
+This is used to enhance the quality of the keyserver results at the expense of performance.
+Any user of this service must independently verify signatures for security even when enabled.
+
+Type
+    boolean
+Default
+    false
+
+nworkers=\ *(int, > 0)*
+-----------------------
+Number of workers that will concurrently load key material into
+the database & prefix tree.
+
+Type
+    int
+Default
+    # of detected cores
+
+[hockeypuck.openpgp.db]
+=======================
+OpenPGP database connection options.
+
+driver="postgres"
+-----------------
+The only supported database/sql driver is "postgres".
+
+dsn=\ "*(postgres connection string)*"
+--------------------------------------
+PostgreSQL connection string. See https://github.com/lib/pq for more information
+on the format and supported parameters.
+
+Type
+    Quoted string
+Default
+    "dbname=hkp host=/var/run/postgresql sslmode=disable"
+
+    This connects through a local socket to database 'hkp' owned by the effective user)
+
+[conflux.recon]
+===============
+Options for `Conflux <https://github.com/cmars/conflux>`_, which provides SKS reconciliation protocol support for Hockeypuck.
+
+reconPort=\ *(int, port number)*
+--------------------------------
+Listen port for the SKS recon protocol. All interfaces will listen on this address.
+Use this port in a remote SKS membership file to peer SKS with Hockeypuck.
+
+Type
+    int
+Default
+    11370
+
+httpPort=\ *(int, port number)*
+-------------------------------
+HTTP port reported to peer. This must match the port specified for
+hockeypuck.hkp.bind.
+
+Type
+    int
+Default
+    11371
+
+partners=\ *\["addr1:port1","addr2:port2",...,"addrN:portN"\]*
+--------------------------------------------------------------
+List of peers Hockeypuck will gossip with. This is Hockeypuck's
+equivalent to the SKS membership file.
+
+Type
+    List of quoted strings
+Default
+    Empty list
+Example
+    partners=["sks1.cmarstech.com:11370","sks2.cmarstech.com:11370"]
+
+filters=\ *\["filter1","filter2",...,"filterN"\]*
+-------------------------------------------------
+SKS filters, which must match your peers' configuration. Hockeypuck
+doesn't really interpret this setting. De-duplication and key merging
+are not optional filters, they are the only supported mode of operation.
+This setting is currently provided for SKS compatibility purposes only.
+Future filters may be supported by Hockeypuck.
+
+Type
+    List of quoted strings
+Default
+    Empty list
+Example
+    filters=["yminsky.dedup"]
+
+[conflux.recon.gkvlite]
+=======================
+Conflux stores public key digests in a persistent prefix tree data structure.
+
+path=\ *"/path/to/recon-ptree"*
+-------------------------------
+Path to the flat file where the prefix tree is persisted.
+
+Type
+    Quoted string
+Default
+    path="$(pwd)/recon-ptree"
+
+[hockeypuck.openpgp.pks]
+========================
+PKS is an older protocol for public keyserver synchronization over email.
+
+Hockeypuck stores a timestamp per downstream email address.
+Hockeypuck will periodically send all public keys updated since the last downstream send.
+
+to=\ *\["user@pkshost1","user@pkshost2",..."user@pkshostN"\]*
+-------------------------------------------------------------
+Send keys to these downstream PKS servers.
+
+Type
+    List of quoted string
+
+from=\ *"pgp-public-keys@yourhost.yourdomain.com"*
+--------------------------------------------------
+PKS sync *mail from:* address, which should be a valid address upon which
+hockeypuck can receive PKS mail. This address is displayed on the op=stats
+page for peering purposes.
+
+Type
+    Quoted string
+
+[hockeypuck.openpgp.pks.smtp]
+=============================
+Custom SMTP settings for sending PKS mail. The default is to connect locally to an SMTP server on port 25.
+
+host=\ *"address:port"*
+-------------------------
+SMTP server to connect to send outbound PKS mail.
+
+Type
+    Quoted string
+Example
+    host="smtp.google.com:587"
+
+user=\ *"(smtp.username)"*
+--------------------------
+SMTP account username, if necessary.
+
+Type
+    Quoted string
+
+pass=\ *"(smtp password)"*
+--------------------------
+SMTP account password, if necessary.
+
+Type
+    Quoted string

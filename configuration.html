@@ -1,0 +1,326 @@
+<!DOCTYPE html><html lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <meta charset="utf-8">
+    <meta name="title" content="Configuration | Hockeypuck">
+    <meta name="description" content="">
+    <meta name="author" content="Casey Marshall">
+    <title>Configuration | Hockeypuck</title>
+    <!-- Le styles -->
+        <link href="assets/css/all.css" rel="stylesheet" type="text/css">
+        <script src="assets/js/all.js" type="text/javascript"></script>
+    <!-- Le HTML5 shim, for IE6-8 support of HTML5 elements -->
+    <!--[if lt IE 9]>
+      <script src="http://html5shim.googlecode.com/svn/trunk/html5.js" type="text/javascript"></script>
+    <![endif]-->
+            <link rel="alternate" type="application/rss+xml" title="RSS (en)" href="rss.xml">
+
+    
+    
+</head>
+<body>
+<!-- Menubar -->
+<div class="navbar navbar-fixed-top">
+    <div class="navbar-inner">
+        <div class="container">
+        
+        <!-- .btn-navbar is used as the toggle for collapsed navbar content -->
+        <a class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+        </a>        
+        
+            <a class="brand" href=".">
+            Hockeypuck
+            </a>
+            <!-- Everything you want hidden at 940px or less, place within here -->
+            <div class="nav-collapse collapse">
+                <ul class="nav">
+                    
+            <li><a href="doc.html">Documentation</a>
+            </li><li><a href="community.html">Community</a>
+
+                </li></ul>
+                <ul class="nav pull-right">
+                
+                
+                
+    <li>
+    <a href="configuration.txt" id="sourcelink">Source</a>
+    </li>
+
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- End of Menubar -->
+<div class="container-fluid" id="container-fluid">
+    <!--Body content-->
+    <div class="row-fluid">
+    <div class="span2"></div>
+    <div class="span8">
+    
+    <h1>Configuration</h1>
+    <div><div class="section" id="format">
+<h2>Format</h2>
+<p>Hockeypuck reads a TOML-format configuration file for setting various
+options on the subsystems and features of the service.</p>
+</div>
+<div class="section" id="quickstart">
+<h2>Quickstart</h2>
+<p>When run without any configuration, Hockeypuck will assume the following:</p>
+<ul class="simple">
+<li>Service HKP requests on port 11371 (all interfaces).</li>
+<li>SKS and PKS public key synchronization methods are disabled.</li>
+<li>Default PostgreSQL connection settings:<ul>
+<li>Connect to PostgreSQL via local UNIX domain socket in /var/run/postgresql.</li>
+<li>Connect to a database named 'hkp', accessible and modifiable by the user executing Hockeypuck.</li>
+</ul>
+</li>
+<li>Public key signatures will not be verified on /pks/add or bulk loading.</li>
+<li>Static media files are expected to be in $GOPATH/src/launchpad.net/hockeypuck/instroot/var/lib/postgresql/www.</li>
+<li>Log messages written to stderr.</li>
+</ul>
+<p>These and other options can be customized as follows.</p>
+</div>
+<div class="section" id="hockeypuck">
+<h2>[hockeypuck]</h2>
+<p>General settings for the overall service.</p>
+<div class="section" id="logfile-path-to-hockeypuck-log">
+<h3>logfile=<em>"/path/to/hockeypuck.log"</em></h3>
+<p>Path where log messages should be written.</p>
+<dl class="docutils">
+<dt>Type</dt>
+<dd>Quoted string</dd>
+<dt>Default</dt>
+<dd>Hockeypuck logs messages to standard error.</dd>
+</dl>
+</div>
+</div>
+<div class="section" id="hockeypuck-hkp">
+<h2>[hockeypuck.hkp]</h2>
+<p>HTTP Keyserver Protocol settings.</p>
+<div class="section" id="bind-address-port">
+<h3>bind=<em>"[address]:port"</em></h3>
+<p>Listen on address:port for HKP requests. Omit address to accept requests to this port on any interface.</p>
+<dl class="docutils">
+<dt>Type</dt>
+<dd>Quoted string</dd>
+<dt>Default</dt>
+<dd>":11371"</dd>
+</dl>
+</div>
+<div class="section" id="webroot-path-to-hockeypuck-media-www">
+<h3>webroot=<em>"/path/to/hockeypuck/media/www"</em></h3>
+<p>Path to the static media files used to serve Hockeypuck's HTML web UI.</p>
+<dl class="docutils">
+<dt>Type</dt>
+<dd>Quoted string</dd>
+<dt>Default</dt>
+<dd><p class="first">"$GOPATH/src/launchpad.net/hockeypuck/instroot/var/lib/hockeypuck/www"</p>
+<p class="last">(Note that environment variables are not evaluated for configured values of webroot.)</p>
+</dd>
+</dl>
+</div>
+</div>
+<div class="section" id="hockeypuck-openpgp">
+<h2>[hockeypuck.openpgp]</h2>
+<p>OpenPGP service settings.</p>
+<div class="section" id="verifysigs-boolean-value">
+<h3>verifySigs=<em>(boolean value)</em></h3>
+<p>When true, Hockeypuck will attempt to verify every self-signed packet
+that it can, and store the status in the signature packet's STATE column.
+This is used to enhance the quality of the keyserver results at the expense of performance.
+Any user of this service must independently verify signatures for security even when enabled.</p>
+<dl class="docutils">
+<dt>Type</dt>
+<dd>boolean</dd>
+<dt>Default</dt>
+<dd>false</dd>
+</dl>
+</div>
+<div class="section" id="nworkers-int-0">
+<h3>nworkers=<em>(int, &gt; 0)</em></h3>
+<p>Number of workers that will concurrently load key material into
+the database &amp; prefix tree.</p>
+<dl class="docutils">
+<dt>Type</dt>
+<dd>int</dd>
+<dt>Default</dt>
+<dd># of detected cores</dd>
+</dl>
+</div>
+</div>
+<div class="section" id="hockeypuck-openpgp-db">
+<h2>[hockeypuck.openpgp.db]</h2>
+<p>OpenPGP database connection options.</p>
+<div class="section" id="driver-postgres">
+<h3>driver="postgres"</h3>
+<p>The only supported database/sql driver is "postgres".</p>
+</div>
+<div class="section" id="dsn-postgres-connection-string">
+<h3>dsn="<em>(postgres connection string)</em>"</h3>
+<p>PostgreSQL connection string. See <a class="reference external" href="https://github.com/lib/pq">https://github.com/lib/pq</a> for more information
+on the format and supported parameters.</p>
+<dl class="docutils">
+<dt>Type</dt>
+<dd>Quoted string</dd>
+<dt>Default</dt>
+<dd><p class="first">"dbname=hkp host=/var/run/postgresql sslmode=disable"</p>
+<p class="last">This connects through a local socket to database 'hkp' owned by the effective user)</p>
+</dd>
+</dl>
+</div>
+</div>
+<div class="section" id="conflux-recon">
+<h2>[conflux.recon]</h2>
+<p>Options for <a class="reference external" href="https://github.com/cmars/conflux">Conflux</a>, which provides SKS reconciliation protocol support for Hockeypuck.</p>
+<div class="section" id="reconport-int-port-number">
+<h3>reconPort=<em>(int, port number)</em></h3>
+<p>Listen port for the SKS recon protocol. All interfaces will listen on this address.
+Use this port in a remote SKS membership file to peer SKS with Hockeypuck.</p>
+<dl class="docutils">
+<dt>Type</dt>
+<dd>int</dd>
+<dt>Default</dt>
+<dd>11370</dd>
+</dl>
+</div>
+<div class="section" id="httpport-int-port-number">
+<h3>httpPort=<em>(int, port number)</em></h3>
+<p>HTTP port reported to peer. This must match the port specified for
+hockeypuck.hkp.bind.</p>
+<dl class="docutils">
+<dt>Type</dt>
+<dd>int</dd>
+<dt>Default</dt>
+<dd>11371</dd>
+</dl>
+</div>
+<div class="section" id="partners-addr1-port1-addr2-port2-addrn-portn">
+<h3>partners=<em>["addr1:port1","addr2:port2",...,"addrN:portN"]</em></h3>
+<p>List of peers Hockeypuck will gossip with. This is Hockeypuck's
+equivalent to the SKS membership file.</p>
+<dl class="docutils">
+<dt>Type</dt>
+<dd>List of quoted strings</dd>
+<dt>Default</dt>
+<dd>Empty list</dd>
+<dt>Example</dt>
+<dd>partners=["sks1.cmarstech.com:11370","sks2.cmarstech.com:11370"]</dd>
+</dl>
+</div>
+<div class="section" id="filters-filter1-filter2-filtern">
+<h3>filters=<em>["filter1","filter2",...,"filterN"]</em></h3>
+<p>SKS filters, which must match your peers' configuration. Hockeypuck
+doesn't really interpret this setting. De-duplication and key merging
+are not optional filters, they are the only supported mode of operation.
+This setting is currently provided for SKS compatibility purposes only.
+Future filters may be supported by Hockeypuck.</p>
+<dl class="docutils">
+<dt>Type</dt>
+<dd>List of quoted strings</dd>
+<dt>Default</dt>
+<dd>Empty list</dd>
+<dt>Example</dt>
+<dd>filters=["yminsky.dedup"]</dd>
+</dl>
+</div>
+</div>
+<div class="section" id="conflux-recon-gkvlite">
+<h2>[conflux.recon.gkvlite]</h2>
+<p>Conflux stores public key digests in a persistent prefix tree data structure.</p>
+<div class="section" id="path-path-to-recon-ptree">
+<h3>path=<em>"/path/to/recon-ptree"</em></h3>
+<p>Path to the flat file where the prefix tree is persisted.</p>
+<dl class="docutils">
+<dt>Type</dt>
+<dd>Quoted string</dd>
+<dt>Default</dt>
+<dd>path="$(pwd)/recon-ptree"</dd>
+</dl>
+</div>
+</div>
+<div class="section" id="hockeypuck-openpgp-pks">
+<h2>[hockeypuck.openpgp.pks]</h2>
+<p>PKS is an older protocol for public keyserver synchronization over email.</p>
+<p>Hockeypuck stores a timestamp per downstream email address.
+Hockeypuck will periodically send all public keys updated since the last downstream send.</p>
+<div class="section" id="to-user-pkshost1-user-pkshost2-user-pkshostn">
+<h3>to=<em>["user@pkshost1","user@pkshost2",..."user@pkshostN"]</em></h3>
+<p>Send keys to these downstream PKS servers.</p>
+<dl class="docutils">
+<dt>Type</dt>
+<dd>List of quoted string</dd>
+</dl>
+</div>
+<div class="section" id="from-pgp-public-keys-yourhost-yourdomain-com">
+<h3>from=<em>"pgp-public-keys@yourhost.yourdomain.com"</em></h3>
+<p>PKS sync <em>mail from:</em> address, which should be a valid address upon which
+hockeypuck can receive PKS mail. This address is displayed on the op=stats
+page for peering purposes.</p>
+<dl class="docutils">
+<dt>Type</dt>
+<dd>Quoted string</dd>
+</dl>
+</div>
+</div>
+<div class="section" id="hockeypuck-openpgp-pks-smtp">
+<h2>[hockeypuck.openpgp.pks.smtp]</h2>
+<p>Custom SMTP settings for sending PKS mail. The default is to connect locally to an SMTP server on port 25.</p>
+<div class="section" id="host-address-port">
+<h3>host=<em>"address:port"</em></h3>
+<p>SMTP server to connect to send outbound PKS mail.</p>
+<dl class="docutils">
+<dt>Type</dt>
+<dd>Quoted string</dd>
+<dt>Example</dt>
+<dd>host="smtp.google.com:587"</dd>
+</dl>
+</div>
+<div class="section" id="user-smtp-username">
+<h3>user=<em>"(smtp.username)"</em></h3>
+<p>SMTP account username, if necessary.</p>
+<dl class="docutils">
+<dt>Type</dt>
+<dd>Quoted string</dd>
+</dl>
+</div>
+<div class="section" id="pass-smtp-password">
+<h3>pass=<em>"(smtp password)"</em></h3>
+<p>SMTP account password, if necessary.</p>
+<dl class="docutils">
+<dt>Type</dt>
+<dd>Quoted string</dd>
+</dl>
+</div>
+</div>
+</div>
+
+    </div>
+    </div> 
+    <!--End of body content-->
+</div>
+<div class="footerbox">
+    Contents © 2013 <a href="mailto:hockeypuck@cmarstech.com">Casey Marshall</a> - Powered by <a href="http://nikola.ralsina.com.ar">Nikola</a>
+</div>
+
+    <!-- Social buttons -->
+    <div id="addthisbox" class="addthis_toolbox addthis_peekaboo_style addthis_default_style addthis_label_style addthis_32x32_style">
+    <a class="addthis_button_more">Share</a>
+    <ul><li><a class="addthis_button_facebook"></a></li>
+    <li><a class="addthis_button_google_plusone_share"></a></li>
+    <li><a class="addthis_button_linkedin"></a></li>
+    <li><a class="addthis_button_twitter"></a></li>
+    </ul>
+    </div>
+    <script type="text/javascript" src="http://s7.addthis.com/js/300/addthis_widget.js#pubid=ra-4f7088a56bb93798"></script>
+    <!-- End of social buttons -->
+
+
+    <script type="text/javascript">jQuery("a.image-reference").colorbox({rel:"gal",maxWidth:"80%",maxHeight:"80%",scalePhotos:true});</script>
+</body>
+</html>

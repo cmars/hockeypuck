@@ -1,0 +1,155 @@
+<!DOCTYPE html><html lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <meta charset="utf-8">
+    <meta name="title" content="Pre-populating Hockeypuck | Hockeypuck">
+    <meta name="description" content="">
+    <meta name="author" content="Casey Marshall">
+    <title>Pre-populating Hockeypuck | Hockeypuck</title>
+    <!-- Le styles -->
+        <link href="assets/css/all.css" rel="stylesheet" type="text/css">
+        <script src="assets/js/all.js" type="text/javascript"></script>
+    <!-- Le HTML5 shim, for IE6-8 support of HTML5 elements -->
+    <!--[if lt IE 9]>
+      <script src="http://html5shim.googlecode.com/svn/trunk/html5.js" type="text/javascript"></script>
+    <![endif]-->
+            <link rel="alternate" type="application/rss+xml" title="RSS (en)" href="rss.xml">
+
+    
+    
+</head>
+<body>
+<!-- Menubar -->
+<div class="navbar navbar-fixed-top">
+    <div class="navbar-inner">
+        <div class="container">
+        
+        <!-- .btn-navbar is used as the toggle for collapsed navbar content -->
+        <a class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+        </a>        
+        
+            <a class="brand" href=".">
+            Hockeypuck
+            </a>
+            <!-- Everything you want hidden at 940px or less, place within here -->
+            <div class="nav-collapse collapse">
+                <ul class="nav">
+                    
+            <li><a href="doc.html">Documentation</a>
+            </li><li><a href="community.html">Community</a>
+
+                </li></ul>
+                <ul class="nav pull-right">
+                
+                
+                
+    <li>
+    <a href="pre-populating.txt" id="sourcelink">Source</a>
+    </li>
+
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- End of Menubar -->
+<div class="container-fluid" id="container-fluid">
+    <!--Body content-->
+    <div class="row-fluid">
+    <div class="span2"></div>
+    <div class="span8">
+    
+    <h1>Pre-populating Hockeypuck</h1>
+    <div><p>If you want Hockeypuck to peer with other keyservers, you will need
+to pre-populate your Hockeypuck instance with as many of the public keys contained
+in the prospective peers as possible ahead of time.</p>
+<p>The SKS reconciliation protocol is very efficient for synchronizing
+large databases with relatively small differences. However, as these differences
+become larger, the protocol creates queries and re-transmissions of
+redundant key material and will spend a significant amount of CPU and I/O in
+traversing the prefix trees to isolate these differences.</p>
+<p>In extreme cases where the iterative descent takes a long time, SKS
+reconciliation can time out and the keyservers will fail to ever get in
+sync. They will just generate a lot of wasted network traffic.</p>
+<p>This is why it is best to start keyserver reconciliation as close as possible. The
+best way to do this is to start pre-populated with a keydump from the keyserver
+pool that you wish to join.</p>
+<p>In Hockeypuck testing and development, I've used the sources listed at <a class="reference external" href="https://bitbucket.org/skskeyserver/sks-keyserver/wiki/KeydumpSources">https://bitbucket.org/skskeyserver/sks-keyserver/wiki/KeydumpSources</a>.</p>
+<div class="section" id="hockeypuck-postgresql-concerns">
+<h2>Hockeypuck &amp; PostgreSQL Concerns</h2>
+<p>The Hockeypuck database stores and indexes rich relationships between OpenPGP packets. The schema is optimized for queries: exploring the web of trust, searching user IDs, determining the validity of key material, and presenting reliable public key information in a nice UI or easy-to-consume HTTP API.</p>
+<p>These indexes and constraints pose a problem for bulk loading of millions of keys in a short amount of time. Initial benchmarking during the development of Hockeypuck revealed that loading millions of public keys with all indexes and constraints enabled is too resource intensive to complete in any reasonable amount of time.</p>
+<p>The bulk load process has been optimized, based on recommendations from the PostgreSQL documentation, <a class="reference external" href="http://www.postgresql.org/docs/current/interactive/populate.html">14.4. Populating a Database</a>. You may be able to further improve performance from these recommendations by re-configuring your PostgreSQL database during pre-population.</p>
+</div>
+<div class="section" id="time-estimates">
+<h2>Time Estimates</h2>
+<p>On a Rackspace cloud instance with 1xCPU &amp; 1GB ram, Hockeypuck completed loading a full key dump of 3.4M keys in about 12-18 hours. This included the row de-duplication and constraint creation described below.</p>
+<p>The uncompressed key dump files (about 3.4M keys) occupy 6.1G of disk space. The size of the Hockeypuck PostgreSQL database after loading them is 17.3G. The prefix tree grew to about 191M.</p>
+<p>In general, expect about a factor of 3-4x disk space usage for a given amount of key material to load. Allow for additional peak disk usage during row de-duplication, as each table is copied and then the original dropped.</p>
+</div>
+<div class="section" id="process">
+<h2>Process</h2>
+<div class="section" id="drop-all-database-constraints">
+<h3>Drop all database constraints</h3>
+<p>Use the Hockeypuck database utility to drop all indexes and constraints:</p>
+<pre class="literal-block">
+$ hockeypuck db --drop-constraints
+</pre>
+</div>
+<div class="section" id="load-the-public-key-dump-files">
+<h3>Load the public key dump files</h3>
+<p>The key dump files contain public key material in RFC 4880 format. Load them into the database:</p>
+<pre class="literal-block">
+$ hockeypuck load --config /path/to/hockeypuck.conf --path /path/to/sks-dump-\*.pgp
+</pre>
+<p>A couple of notes on loading.</p>
+<div class="section" id="prefix-tree">
+<h4>Prefix Tree</h4>
+<p>If you don't specify a configuration file to 'hockeypuck load', the recon-ptree will be created in the current working directory. You may need to relocate this file and fix permissions after loading. The prefix tree must match the <a class="reference external" href="configuration.html">configuration</a>.</p>
+<p>If you're adding keys to an existing prefix tree database, use the '--ignore-dups' option, or the load will fail on prefix tree key collision.</p>
+</div>
+<div class="section" id="using-a-glob-pattern-in-path">
+<h4>Using a glob pattern in --path</h4>
+<p>The --path option supports wildcard glob patterns, but you must escape these so that they are interpreted by hockeypuck, and not automatically expanded by the shell.</p>
+</div>
+</div>
+<div class="section" id="de-duplicate-the-postgresql-database-create-constraints">
+<h3>De-duplicate the PostgreSQL database &amp; Create constraints</h3>
+<p>Since the tables were loaded with constraints off, we need to make sure there are no duplicate rows before attempting to create them again:</p>
+<pre class="literal-block">
+$ hockeypuck db --dedup --create-constraints
+</pre>
+<p>For each OpenPGP table, Hockeypuck will create an entirely new table with de-duplicated rows using a CREATE TABLE ... AS SELECT DISTINCT ... statement. Then the original table is dropped and the new de-duplicated table is renamed to the original. This has been found to be much faster than attempting to delete only the duplicate rows. However, it requires more peak disk space.</p>
+<p>After the de-duplication step completes, the above command will create the indexes, primary key, unique and foreign-key constraints.</p>
+</div>
+</div>
+</div>
+
+    </div>
+    </div> 
+    <!--End of body content-->
+</div>
+<div class="footerbox">
+    Contents © 2013 <a href="mailto:hockeypuck@cmarstech.com">Casey Marshall</a> - Powered by <a href="http://nikola.ralsina.com.ar">Nikola</a>
+</div>
+
+    <!-- Social buttons -->
+    <div id="addthisbox" class="addthis_toolbox addthis_peekaboo_style addthis_default_style addthis_label_style addthis_32x32_style">
+    <a class="addthis_button_more">Share</a>
+    <ul><li><a class="addthis_button_facebook"></a></li>
+    <li><a class="addthis_button_google_plusone_share"></a></li>
+    <li><a class="addthis_button_linkedin"></a></li>
+    <li><a class="addthis_button_twitter"></a></li>
+    </ul>
+    </div>
+    <script type="text/javascript" src="http://s7.addthis.com/js/300/addthis_widget.js#pubid=ra-4f7088a56bb93798"></script>
+    <!-- End of social buttons -->
+
+
+    <script type="text/javascript">jQuery("a.image-reference").colorbox({rel:"gal",maxWidth:"80%",maxHeight:"80%",scalePhotos:true});</script>
+</body>
+</html>
