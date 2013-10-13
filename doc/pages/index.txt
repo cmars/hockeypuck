@@ -9,11 +9,11 @@
 
 Hockeypuck is an OpenPGP `public keyserver <https://en.wikipedia.org/wiki/Key_server_(cryptographic)>`_.
 
-Hockeypuck implements the
+This keyserver implements the
 `HKP draft protocol specification <http://ietfreport.isoc.org/idref/draft-shaw-openpgp-hkp/>`_
 as well as several extensions to the protocol supported by `SKS <http://sks-keyservers.net/>`_.
 
-Hockeypuck stores OpenPGP public key material conforming to `RFC 4880 <https://tools.ietf.org/html/rfc4880>`_ as well as ECC keys conforming to `RFC 6637 <https://tools.ietf.org/html/rfc6637>`_.
+Public key material conforming to `RFC 4880 <https://tools.ietf.org/html/rfc4880>`_ are supported by the service, as are `RFC 6637 <https://tools.ietf.org/html/rfc6637>`_ ECC keys.
 
 Go Language
 -----------

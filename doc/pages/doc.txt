@@ -22,10 +22,16 @@ including Mac OS X.
 ---------------------------------------------
 Build it yourself.
 
+Next Steps
+==========
+
 `Configuration </configuration.html>`_
-==============================================
+--------------------------------------
 Options and settings for the Hockeypuck service.
 
 `Pre-Populating </pre-populating.html>`_
-================================================
+----------------------------------------
 How to load a large amount of public key material into Hockeypuck.
+
+`Credits </credits.html>`_
+==========================
