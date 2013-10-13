@@ -9,19 +9,21 @@ Launchpad
 =========
 The `Hockeypuck <https://launchpad.net/hockeypuck>`_ project is hosted in Launchpad.
 
+Post feature ideas, defects and questions to the `Launchpad project bug tracker <https://bugs.launchpad.net/hockeypuck>`_.
+
 Source Code
 -----------
 Leading edge development happens in the trunk branch, `lp:hockeypuck <https://code.launchpad.net/~hockeypuck/hockeypuck/trunk>`_. Keeping a stable trunk (building & passing unit tests) is priority.
 
-Branches are created for major releases which might receive maintenance and backport changesets.
+To contribute a patch, push to a local branch with your changes, for example::
 
-Hockeypuck trunk is `mirrored in Github <https://github.com/cmars/hockeypuck>`_ mostly for backup purposes, and may lag the Launchpad trunk. I may not be able to directly merge pull requests through Github. Collaboration through Launchpad is preferred.
+  $ bzr push lp:~user/hockeypuck/my-contribution
+
+Then create a request to merge the branch to lp:hockeypuck (or release target branch). This is similar to a pull request in Github.
+
+Hockeypuck trunk is `mirrored in Github <https://github.com/cmars/hockeypuck>`_ mostly for backup purposes, and may lag the Launchpad trunk. I may not be able to directly merge pull requests through Github. Collaboration through Launchpad is certainly preferred.
 
 Mailing List
 ------------
 
-Discuss the project on the `hockeypuck-dev mailing list <https://lists.launchpad.net/hockeypuck-dev/>`_. You'll need to join the `hockeypuck-dev team <https://launchpad.net/~hockeypuck-dev>`_ in Launchpad in order to register your email address. A benefit of signing up: you'll also be able to use your Launchpad ID to submit bug reports and merge proposals if you'd like to contribute.
-
-Bug Reports
------------
-Report feature ideas and defects to the `Launchpad project bug tracker <https://bugs.launchpad.net/hockeypuck>`_.
+Discuss the project on the `hockeypuck-dev mailing list <https://lists.launchpad.net/hockeypuck-dev/>`_. You'll need to join the open `hockeypuck-dev team <https://launchpad.net/~hockeypuck-dev>`_ in Launchpad in order to register your email address.
