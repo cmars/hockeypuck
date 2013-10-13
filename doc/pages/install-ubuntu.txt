@@ -10,7 +10,7 @@ Add the Hockeypuck project package repository
 
 PPA prerequisites
 -----------------
-In order to add PPA repositories, you'll need to make sure you have the necessary pacakges installed to manage PPAs on your server.
+In order to add PPA repositories, you'll need to make sure you have the necessary pacakges installed to manage PPAs on your server. These may already be installed on a desktop Ubuntu distribution, but may not be present on a minimal server image.
 
 Ubuntu 12.04, 12.10
 ~~~~~~~~~~~~~~~~~~~
@@ -29,10 +29,8 @@ Ubuntu 13.04
 
   $ sudo apt-get install software-properties-common
 
-This package is commonly installed by default on a desktop Ubuntu, but may not be installed on a minimal server image.
-
-Add the repository
-------------------
+Add the Hockeypuck repository
+-----------------------------
 
   $ sudo apt-add-repository ppa:hockeypuck/ppa
 
@@ -50,3 +48,7 @@ For a standalone Hockeypuck server with its own database, install with the recom
 This will install postgresql, logrotate, and several other packages to install a ready-to-run, working service. If you do not want to install these packages, and want to configure the database and other services yourself, install without recommended packages:
 
   $ sudo apt-get install --no-install-recommends hockeypuck
+
+Next Steps
+==========
+`Configure </configuration.txt>`_ your Hockeypuck instance.

@@ -14,9 +14,9 @@ Quickstart
 ==========
 When run without any configuration, Hockeypuck will assume the following:
 
-* Serve HKP on port 11371 (all interfaces).
+* Service HKP requests on port 11371 (all interfaces).
 * SKS and PKS public key synchronization methods are disabled.
-* PostgreSQL:
+* Default PostgreSQL connection settings:
 
   - Connect to PostgreSQL via local UNIX domain socket in /var/run/postgresql.
   - Connect to a database named 'hkp', accessible and modifiable by the user executing Hockeypuck.

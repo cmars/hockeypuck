@@ -28,5 +28,4 @@ The Hockeypuck binary archive distributions could be a useful starting point to 
 
 Next Steps
 ==========
-
-Now you have installed static Hockeypuck binaries and the starting point example configuration, move on to `Configuration </stories/configuration.html>`_ to set up your Hockeypuck service.
+Now you have installed static Hockeypuck binaries and the starting point example configuration, move on to `Configuration </configuration.html>`_ to set up your Hockeypuck service.

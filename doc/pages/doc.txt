@@ -8,28 +8,24 @@
 Installation
 ============
 
-`On Ubuntu Server </stories/install-ubuntu.html>`_
+`On Ubuntu Server </install-ubuntu.html>`_
 --------------------------------------------------
 Hockeypuck packages are available in a Launchpad PPA.
 
-`From a tarball </stories/install-tarball.html>`_
+`From a tarball </install-tarball.html>`_
 -------------------------------------------------
 Hockeypuck static binary builds are available to install on
-most UNIX-like platforms that the Go language targets: Linux,
-Mac OS X, BSD flavors.
+most platforms that the Go language targets: Linux and BSD variants,
+including Mac OS X.
 
-`From Source </stories/install-source.html>`_
+`From Source </install-source.html>`_
 ---------------------------------------------
 Build it yourself.
 
-`Configuration </stories/configuration.html>`_
+`Configuration </configuration.html>`_
 ==============================================
 Options and settings for the Hockeypuck service.
 
-`Pre-Populating </stories/pre-populating.html>`_
+`Pre-Populating </pre-populating.html>`_
 ================================================
 How to load a large amount of public key material into Hockeypuck.
-
-`Peering </stories/peering.html>`_
-==================================
-Operating Hockeypuck in a distributed, replicating pool of OpenPGP keyservers.

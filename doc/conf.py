@@ -11,8 +11,8 @@ import time
 
 # Data about this site
 BLOG_AUTHOR = "Casey Marshall"
-BLOG_TITLE = "Hockeypuck Public Keyserver"
-BLOG_URL = "http://hockeypuck.cmarstech.com"
+BLOG_TITLE = "Hockeypuck"
+BLOG_URL = "http://hockeypuck.github.io"
 BLOG_EMAIL = "hockeypuck@cmarstech.com"
 BLOG_DESCRIPTION = "Project homepage for the Hockeypuck public keyserver project."
 
@@ -51,9 +51,9 @@ TRANSLATIONS = {
 # You should provide a key-value pair for each used language.
 SIDEBAR_LINKS = {
     DEFAULT_LANG: (
-        ('/stories/doc.html', 'Documentation'),
-        ('/stories/community.html', 'Community'),
-        ('/archive.html', 'Archives'),
+        ('/doc.html', 'Documentation'),
+        ('/community.html', 'Community'),
+        #('/archive.html', 'Archives'),
         #('/categories/index.html', 'Tags'),
     ),
 }
@@ -86,14 +86,13 @@ SIDEBAR_LINKS = {
 #
 
 post_pages = (
-    ("posts/*.txt", "posts", "post.tmpl", True),
-    ("stories/*.txt", "stories", "story.tmpl", False),
+	("pages/*.txt", "", "story.tmpl", False),
 )
 
 # One or more folders containing files to be copied as-is into the output.
 # The format is a dictionary of "source" "relative destination".
 # Default is:
-# FILES_FOLDERS = {'files': '' }
+FILES_FOLDERS = {'files': '' }
 # Which means copy 'files' into 'output'
 
 # A mapping of languages to file-extensions that represent that language.
@@ -128,7 +127,7 @@ post_compilers = {
 # TAG_PAGES_ARE_INDEXES = True
 
 # Final location is output / TRANSLATION[lang] / INDEX_PATH / index-*.html
-# INDEX_PATH = ""
+INDEX_PATH = "blog"
 # Final locations for the archives are:
 # output / TRANSLATION[lang] / ARCHIVE_PATH / ARCHIVE_FILENAME
 # output / TRANSLATION[lang] / ARCHIVE_PATH / YEAR / index.html

@@ -63,4 +63,4 @@ Next Steps
 ==========
 
 Now you have compiled static Hockeypuck binaries in $GOPATH/bin, you're ready to run. Move on to
-`Configuration </stories/configuration.html>`_ to set up your Hockeypuck service.
+`Configuration </configuration.html>`_ to set up your Hockeypuck service.

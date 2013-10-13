@@ -1,0 +1,32 @@
+.. title: Hockeypuck Public Keyserver
+.. slug: index
+.. date: 2013/10/12 22:19:17
+.. tags:
+.. link:
+
+.. image:: /gohkp.png
+   :align: right
+
+Features
+========
+
+Standards and Specifications
+----------------------------
+Hockeypuck implements the
+`HKP draft protocol specification <http://ietfreport.isoc.org/idref/draft-shaw-openpgp-hkp/>`_
+as well as several extensions to the protocol supported by `SKS <http://sks-keyservers.net/>`_.
+
+Hockeypuck stores OpenPGP public key material conforming to `RFC 4880 <https://tools.ietf.org/html/rfc4880>`_ as well as ECC keys conforming to `RFC 6637 <https://tools.ietf.org/html/rfc6637>`_.
+
+PostgreSQL Key Database
+-----------------------
+Hockeypuck stores all public key material in a relational database.
+The schema is optimized for performance but also data integrity, cross-referencing
+and search capabilities with judicious use of foreign keys and full-text indexing.
+
+SKS Reconciliation Protocol
+---------------------------
+Hockeypuck is the first keyserver besides SKS capable of gossiping with other
+SKS (and Hockeypuck) peers to synchronize public key material. Recon
+support is provided with the `Conflux <https://github.com/cmars/conflux>`_ library,
+developed initially for this purpose.
