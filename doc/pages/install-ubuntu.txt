@@ -44,4 +44,4 @@ This will install postgresql, logrotate, and several other packages to install a
 
 Next Steps
 ==========
-`Configure </configuration.txt>`_ your Hockeypuck instance.
+`Configure </configuration.html>`_ your Hockeypuck instance.
