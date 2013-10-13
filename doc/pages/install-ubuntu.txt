@@ -17,13 +17,6 @@ Ubuntu 12.04, 12.10
 
   $ sudo apt-get install python-software-properties
 
-.. title: Install from Source
-.. slug: install-source
-.. date: 2013/09/25 15:54:50
-.. tags: 
-.. link: 
-.. description: 
-
 Ubuntu 13.04
 ~~~~~~~~~~~~
 

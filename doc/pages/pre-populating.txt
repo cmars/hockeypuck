@@ -7,8 +7,8 @@
 
 
 If you want Hockeypuck to peer with other keyservers, you will need
-to pre-populate your Hockeypuck instance with as many of the public keys contained
-in the prospective peers as possible ahead of time.
+to pre-populate your Hockeypuck instance to share as many public keys 
+with prospective peers as possible before joining a pool of synchronizing key servers.
 
 The SKS reconciliation protocol is very efficient for synchronizing
 large databases with relatively small differences. However, as these differences
@@ -16,15 +16,11 @@ become larger, the protocol creates queries and re-transmissions of
 redundant key material and will spend a significant amount of CPU and I/O in
 traversing the prefix trees to isolate these differences.
 
-In extreme cases where the iterative descent takes a long time, SKS
+In extreme cases where the iterative descent of the prefix tree is very deep and time-consuming, SKS
 reconciliation can time out and the keyservers will fail to ever get in
-sync. They will just generate a lot of wasted network traffic.
+sync. They will just generate a lot of wasted effort and network traffic.
 
-This is why it is best to start keyserver reconciliation as close as possible. The
-best way to do this is to start pre-populated with a keydump from the keyserver
-pool that you wish to join.
-
-In Hockeypuck testing and development, I've used the sources listed at https://bitbucket.org/skskeyserver/sks-keyserver/wiki/KeydumpSources.
+In Hockeypuck development and testing, I've used the sources listed at https://bitbucket.org/skskeyserver/sks-keyserver/wiki/KeydumpSources.
 
 Hockeypuck & PostgreSQL Concerns
 ================================
@@ -34,8 +30,8 @@ These indexes and constraints pose a problem for bulk loading of millions of key
 
 The bulk load process has been optimized, based on recommendations from the PostgreSQL documentation, `14.4. Populating a Database <http://www.postgresql.org/docs/current/interactive/populate.html>`_. You may be able to further improve performance from these recommendations by re-configuring your PostgreSQL database during pre-population.
 
-Time Estimates
-==============
+Resource Estimates
+==================
 
 On a Rackspace cloud instance with 1xCPU & 1GB ram, Hockeypuck completed loading a full key dump of 3.4M keys in about 12-18 hours. This included the row de-duplication and constraint creation described below.
 

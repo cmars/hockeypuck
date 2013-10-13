@@ -29,6 +29,11 @@ hockeypuck (1.0~rc1) UNRELEASED; urgency=low
   * === added directory doc/files, doc/conf.py, doc/files/gohkp.png,
     renamed directory doc/stories => doc/pages:
     - Revised & restructured documentation.
+  * doc/Makefile, doc/deploy.sh, doc/pages/index.txt, doc/pages/install-
+    source.txt, doc/pages/install-ubuntu.txt, doc/pages/pre-
+    populating.txt:
+    - Revised documentation, add http://hockeypuck.github.io doc deploy
+      script.
 
  -- Casey Marshall <cmars@cmarstech.com>  Fri, 04 Oct 2013 15:15:24 -0500
 
