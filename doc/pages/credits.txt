@@ -16,7 +16,7 @@ I made several improvements to the Go language implementation of OpenPGP
 in `go.crypto <https://code.google.com/p/go.crypto>`_ to support Hockeypuck needs,
 mostly with regards to OpenPGP parsing. The review process improved my Go
 programming habits and was generally quick and easy. Go is an enjoyable project to
-contribute to! Also, Rietveld is awesome.
+contribute to! Also, rietveld is awesome.
 
 sks-devel
 =========
