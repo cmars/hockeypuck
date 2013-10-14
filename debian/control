@@ -10,6 +10,8 @@ Package: hockeypuck
 Architecture: i386 amd64
 Depends: ${shlibs:Depends}, ${misc:Depends}, adduser
 Recommends:
- logrotate, postgresql, upstart, fonts-droid
+ logrotate, upstart, fonts-droid
+Suggests:
+ postgresql
 Description: OpenPGP Key Server
  Hockeypuck is an OpenPGP Key Server implementing the HTTP Keyserver Protocol.

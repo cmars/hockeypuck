@@ -14,33 +14,39 @@ In order to add PPA repositories, you'll need to make sure you have the necessar
 
 Ubuntu 12.04, 12.10
 ~~~~~~~~~~~~~~~~~~~
+::
 
   $ sudo apt-get install python-software-properties
 
 Ubuntu 13.04
 ~~~~~~~~~~~~
+::
 
   $ sudo apt-get install software-properties-common
 
 Add the Hockeypuck repository
 -----------------------------
+::
 
   $ sudo apt-add-repository ppa:hockeypuck/ppa
 
 Update the package list
 -----------------------
+::
 
   $ sudo apt-get update
 
+Install PostgreSQL
+==================
+If you want to run the PostgreSQL database on the same server as Hockeypuck, install it now::
+
+  $ sudo apt-get install postgresql
+
 Installing Hockeypuck
 =====================
-For a standalone Hockeypuck server with its own database, install with the recommended packages:
+Install Hockeypuck with::
 
   $ sudo apt-get install hockeypuck
-
-This will install postgresql, logrotate, and several other packages to install a ready-to-run, working service. If you do not want to install these packages, and want to configure the database and other services yourself, install without recommended packages:
-
-  $ sudo apt-get install --no-install-recommends hockeypuck
 
 Next Steps
 ==========
