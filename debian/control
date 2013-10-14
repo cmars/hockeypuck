@@ -2,7 +2,7 @@ Source: hockeypuck
 Section: net
 Priority: optional
 Maintainer: Casey Marshall <casey.marshall@gmail.com>
-Build-Depends: debhelper (>= 8.0.0), golang-go (>= 2:1.1), nikola (>= 5.0) |
+Build-Depends: debhelper (>= 8.0.0), golang-go (>= 2:1.1), nikola (>= 5.0) | build-essential
 Standards-Version: 3.9.4
 Homepage: http://launchpad.net/hockeypuck
 

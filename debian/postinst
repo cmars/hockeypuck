@@ -57,14 +57,28 @@ chown hockeypuck:hockeypuck /var/lib/hockeypuck/recon-ptree
 uid=`getent passwd postgres | cut -d ":" -f 3`
 if test "$uid" && test -x "/usr/bin/createdb" && test -x "/usr/bin/createuser"; then
 	invoke-rc.d postgresql start
-	su - postgres -c "createuser --no-superuser --no-createrole -d hockeypuck" || true
-	su - hockeypuck -c "createdb hkp" || true
 
-	# Create Hockeypuck database & constraints
-	su - hockeypuck -c "hockeypuck db --create-tables --create-constraints"
+	echo "Waiting for PostgreSQL to start..."
+	for i in {1..10}; do
+		sleep 1
+		pgpid=$(cat /var/run/postgresql/*.pid)
+		[ -e "/proc/$pgpid/net/unix" ] && break
+	done
+	if [ -e "/proc/$pgpid/net/unix" ]; then
+		echo "PostgreSQL started. Setting up Hockeypuck DB..."
 
-	# Start Hockeypuck
-	invoke-rc.d hockeypuck restart
+		# Create role and database
+		su - postgres -c "createuser --no-superuser --no-createrole -d hockeypuck" || true
+		su - hockeypuck -c "createdb hkp" || true
+
+		# Create Hockeypuck database & constraints
+		su - hockeypuck -c "hockeypuck db --create-tables --create-constraints"
+
+		# Start Hockeypuck
+		invoke-rc.d hockeypuck restart
+	else
+		echo "PostgreSQL did not start. Run 'dpkg-reconfigure hockeypuck' after it is running."
+	fi
 fi
 
 #DEBHELPER#
