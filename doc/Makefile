@@ -1,8 +1,6 @@
 
-all: output/index.html
-
-output/index.html:
-	nikola build
+all:
+	./build.sh
 
 deploy: output/index.html
 	./deploy.sh
