@@ -142,7 +142,7 @@ func sigWarn(sig *Signature) bool {
 func sigLabel(sig *Signature) string {
 	sigName := "sig"
 	if time.Now().Unix() > sig.Expiration.Unix() {
-		sigName = "exp"
+		return "exp"
 	}
 	switch sig.SigType {
 	case 0x10:
