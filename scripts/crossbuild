@@ -12,6 +12,12 @@ else
 	PLATFORMS=$1
 fi
 
+make -C doc
+DOCROOT=$(mktemp -d)
+mkdir -p $DOCROOT/usr/share/doc
+cp -r doc/output $DOCROOT/usr/share/doc/hockeypuck
+trap "rm -rf $DOCROOT" EXIT
+
 GOPATH=$(pwd)/gopath
 rm -rf $GOPATH/bin $GOPATH/pkg
 
@@ -40,6 +46,7 @@ do
 	tarfile=$DIST/hockeypuck-$version.0$(bzr revno)-$platform.tar
 	tar -C instroot -cvf $tarfile .
 	tar -C instroot-extra -rvf $tarfile .
+	tar -C $DOCROOT -rvf $tarfile .
 	mkdir -p $BUILD/$platform/usr/bin
 	if [[ $platform != $host_platform ]]; then
 		cp -r $GOPATH/bin/$platform_bin/* $BUILD/$platform/usr/bin
