@@ -21,9 +21,6 @@ import (
 	"code.google.com/p/gorilla/mux"
 	"flag"
 	"go/build"
-	"html/template"
-	Errors "launchpad.net/hockeypuck/errors"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -82,45 +79,11 @@ func (sr *StaticRouter) HandleAll() {
 	sr.HandleCss()
 }
 
-// MainTemplate is the base template for all Hockeypuck HTML pages.
-var MainTemplate *template.Template
-
-// InitTemplates parses all templates used in this package.
-func InitTemplates() {
-	var err error
-	MainTemplate, err = newMainTemplate()
-	if err != nil {
-		log.Println(err)
-		MainTemplate = nil
-	}
-}
-
-func newMainTemplate() (*template.Template, error) {
-	files, err := filepath.Glob(
-		filepath.Join(Config().Webroot(), "templates", "*.tmpl"))
-	// For now, default to OpenPGP search page.
-	files = append(files, filepath.Join(
-		Config().Webroot(), "templates", "hkp", "index", "search_form.tmpl"))
-	if err != nil {
-		return nil, err
-	}
-	return template.ParseFiles(files...)
-}
-
 // HandleMainPage handles the "/" top-level request.
 func (sr *StaticRouter) HandleMainPage() {
 	sr.HandleFunc("/",
 		func(resp http.ResponseWriter, req *http.Request) {
-			var err error
-			if MainTemplate == nil {
-				err = Errors.ErrTemplatePathNotFound
-			} else {
-				err = MainTemplate.ExecuteTemplate(resp, "layout", nil)
-			}
-			if err != nil {
-				log.Println(err)
-				http.Error(resp, APPLICATION_ERROR, 500)
-			}
+			http.Redirect(resp, req, "/openpgp/lookup", http.StatusMovedPermanently)
 		})
 }
 

@@ -28,8 +28,6 @@ func newRunCmd() *runCmd {
 func (c *runCmd) Main() {
 	c.configuredCmd.Main()
 	InitLog()
-	InitTemplates()
-	hkp.InitTemplates()
 	// Create an HTTP request router
 	r := mux.NewRouter()
 	// Add common static routes

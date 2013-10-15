@@ -74,7 +74,7 @@ pub  {{ .BitLen }}{{ .Algorithm | algocode }}/<a href="/pks/lookup?op=get&amp;se
 
 <strong>uid</strong> <span class="uid">{{ $uid.Keywords }}</span>{{/*
 */}}{{ range $i, $sig := $uid.Signatures }}
-sig <span {{ if $sig|sigWarn }}class='warn'{{ end }}>{{ $sig|sigLabel }}</span>  <a href="/pks/lookup?op=get&amp;search=0x{{ $sig.IssuerKeyId|upper }}">{{ $sig.IssuerShortId|upper }}</a> {{ $sig.Creation|date }} {{ if equal ($key.KeyId) ($sig.IssuerKeyId) }}__________ {{ $sig.Expiration|date|blank }} [selfsig]{{ else }}{{ $sig.Expiration|date|blank }} __________ {{ $sig.IssuerShortId|upper }}{{ end }}{{ end }}{{/*
+sig <span {{ if $sig|sigWarn }}class='warn'{{ end }}>{{ $sig|sigLabel }}</span>  <a href="/pks/lookup?op=get&amp;search=0x{{ $sig.IssuerKeyId|upper }}">{{ $sig.IssuerShortId|upper }}</a> {{ $sig.Creation|date }} {{ if equal ($key.KeyId) ($sig.IssuerKeyId) }}__________ {{ $sig.Expiration|date|blank }} [selfsig]{{ else }}{{ $sig.Expiration|date|blank }} __________ <a href="/pks/lookup?op=vindex&amp;search=0x{{ $sig.IssuerKeyId|upper }}">{{ $sig.IssuerKeyId|upper }}</a>{{ end }}{{ end }}{{/*
 */}}{{ end }}{{/* range $key.UserIds
 */}}{{ range $i, $subkey := $key.Subkeys }}
 
@@ -142,7 +142,7 @@ func sigWarn(sig *Signature) bool {
 func sigLabel(sig *Signature) string {
 	sigName := "sig"
 	if time.Now().Unix() > sig.Expiration.Unix() {
-		return "exp"
+		return " exp "
 	}
 	switch sig.SigType {
 	case 0x10:
