@@ -39,6 +39,8 @@ hockeypuck (1.0~rc1) UNRELEASED; urgency=low
     instroot/var/lib/hockeypuck/www/templates, router.go:
     - Moved templates into string constants. Make webroot optional for
       CSS and fonts, but not essential to running the service.
+  * instroot/usr/share/man/man1/hockeypuck.1:
+    - Update man page to match new subcommand CLI.
 
  -- Casey Marshall <cmars@cmarstech.com>  Fri, 04 Oct 2013 15:15:24 -0500
 

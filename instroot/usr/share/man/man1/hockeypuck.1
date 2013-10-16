@@ -3,9 +3,8 @@
 \fBhockeypuck\fP \- OpenPGP Key Server
 
 .SH SYNOPSIS
-\fBhockeypuck\fP [-http=<IP>:PORT] [-workers=NUM_WORKERS]
-               [-www-root=WWW_PATH] [-logfile=LOG_PATH]
-               [-server=MONGODB_IP:PORT]
+
+\fBhockeypuck\fP COMMAND COMMAND_OPTIONS
 
 .SH DESCRIPTION
 
@@ -13,33 +12,76 @@
 (HTTP Keyserver Protocol) for serving OpenPGP public keys. Other
 PKIs may be supported in upcoming releases.
 
-Options and modes for running hockeypuck are described below:
+.SH COMMANDS
+Options and modes for the supported hockeypuck commands are described below.
 
-.SH OPTIONS
+.SH hockeypuck run
+Run the Hockeypuck HKP and public key synchronization services.
 .TP
-\fB-http=BIND_ADDRESS\fP
-Listen for HTTP keyserver requests on interface and port.
-
-BIND_ADDRESS may be specified as IP:PORT, or :PORT to listen on all IPv4 interfaces.
-
-If not specified, hockeypuck will listen on the HKP standard port for all interfaces,
--http=":11371".
-
+\fB--config\fP (= "")
+    Hockeypuck configuration file
 .TP
-\fB-workers=NUM_WORKERS\fP
-Number of worker goroutines to run. The workers fulfill client requests from Go's built in HTTP request handling by connecting to the database and performing OpenPGP keyring operations. If not specified, the default is GOMAXPROCS.
+\fB--cpuprof\fP (= false)
+    Enable CPU profiling
 
+.SH hockeypuck load
+Load public key material from files in RFC 4880 binary keyring
+format into the Hockeypuck database.
 .TP
-\fB-www-path=WWW_PATH\fP
-Path to the static files served by Hockeypuck's web interface. This is a small collection of HTML templates and static assets that serve a simple web interface to Hockeypuck. The default is the Debian package installation location, /var/lib/hockeypuck/www. If you're running Hockeypuck from source, use the path to hockeypuck/www.
+\fB--config\fP (= "")
+    Hockeypuck configuration file
+.TP
+\fB--cpuprof\fP  (= false)
+    Enable CPU profiling
+.TP
+\fB--ignore-dups\fP  (= false)
+    Ignore duplicate entries
+.TP
+\fB--path\fP (= "")
+    OpenPGP keyring file path or glob pattern
+.TP
+\fB--txn-size\fP  (= 5000)
+    Transaction size; public keys per commit
 
+.SH hockeypuck db
+Manage Hockeypuck relational database and prefix tree file.
 .TP
-\fB-logfile=LOG_PATH\fP
-Path hockeypuck should write its log to. If not specified, hockeypuck logs to os.Stderr.
+\fB--config\fP (= "")
+    Hockeypuck configuration file
+.TP
+\fB--cpuprof\fP  (= false)
+    Enable CPU profiling
+.TP
+\fB--create-constraints\fP  (= false)
+    Create primary key, unique and foreign key constraints
+.TP
+\fB--create-tables\fP  (= true)
+    Create tables if they don't exist
+.TP
+\fB--dedup\fP  (= false)
+    De-duplicate primary key and unique constraint columns
+.TP
+\fB--drop-constraints\fP  (= false)
+    Drop all primary key, unique and foreign key constraints
 
+.SH hockeypuck pbuild
+Rebuild the prefix tree data file from the public keys contained
+in the relational database.
 .TP
-\fB-server=MONGODB_SERVER\fP
-Connect to MONGODB_SERVER, creating databases and indexes as needed. Hockeypuck depends on a MongoDB server for data storage and retrieval.
+\fB--cache\fP  (= 64)
+    Max diskv cache size (MB)
+.TP
+\fB--config\fP (= "")
+    Hockeypuck configuration file
+.TP
+\fB--cpuprof\fP  (= false)
+    Enable CPU profiling
+.TP
+\fB--ignore-dups\fP  (= false)
+    Ignore duplicate entries
+.TP
+\fB--nworkers\fP  (= GOMAXPROCS)
+    Number of concurrent ptree writers
 
 .SH BUGS
 Bugs, known issues and features in development are tracked at \fBhttps://bugs.launchpad.net/hockeypuck\fP.
@@ -47,12 +89,11 @@ Bugs, known issues and features in development are tracked at \fBhttps://bugs.la
 .SH SEE ALSO
 .PD 0
 .TP
-The OpenPGP HTTP Keyserver Protocol (HKP)
-http://ietfreport.isoc.org/all-ids/draft-shaw-openpgp-hkp-00.txt
+RFC 4880, RFC 6637, the OpenPGP HTTP Keyserver Protocol (HKP) draft specification
+(http://ietfreport.isoc.org/all-ids/draft-shaw-openpgp-hkp-00.txt).
 .TP
-\fBgpg\fP(1), \fIhttps://launchpad.net/hockeypuck\fP
+\fBgpg\fP(1), \fIhttps://launchpad.net/hockeypuck\fP, \fIhttp://hockeypuck.github.io\fP
 .PD
 
 .SH AUTHOR
-Casey Marshall <casey.marshall@gmail.com>
-
+Casey Marshall <cmars@cmarstech.com>
