@@ -111,8 +111,8 @@ func (c *pbuildCmd) Main() {
 	for i := 0; i < c.nworkers; i++ {
 		<-done
 	}
-	if err = ptree.Flush(); err != nil {
-		log.Println("Flush:", err)
+	if err = ptree.Close(); err != nil {
+		log.Println("Close:", err)
 	}
 }
 

@@ -152,8 +152,8 @@ func (c *loadCmd) Main() {
 	for i := 0; i < openpgp.Config().NumWorkers(); i++ {
 		<-done
 	}
-	if err = ptree.Flush(); err != nil {
-		log.Println("Flush:", err)
+	if err = ptree.Close(); err != nil {
+		log.Println("Close:", err)
 	}
 }
 
