@@ -1,4 +1,4 @@
-#!/bin/sh -ex
+#!/bin/bash -ex
 
 # Get our current and last built revision
 REVNO=$(bzr log | grep -m1 "^revno: " | awk '{print $2}')
@@ -18,6 +18,13 @@ DEVBUILD=$(head -1 debian/changelog | grep \~ && echo true)
 for d in $DISTS; do
 	# Revert any changes (ie, debian/changelog)
 	bzr revert debian/changelog
+	bzr revert debian/control
+
+	# Remove nikola from Build-Depends on distros lacking backports
+	if [[ "$d" =~ ^(precise|quantal)$ ]]; then
+		sed -i 's/, nikola.*//' debian/control
+	fi
+
 	if [ -n "$DEVBUILD" ]; then
 		# Append bzr revision and release distro info
 		sed -i -e "s/) [a-zA-Z0-9].*;/~bzr$REVNO~$d) $d;/i" debian/changelog
