@@ -97,15 +97,3 @@ func TestReadKey0ff16c87(t *testing.T) {
 		return nil
 	})
 }
-
-func TestUnsuppPublicKeyAlgo(t *testing.T) {
-	f := MustInput(t, "hockeypuck-badkey260776708")
-	defer f.Close()
-	var key *Pubkey
-	for keyRead := range ReadKeys(f) {
-		if keyRead.Pubkey != nil {
-			key = keyRead.Pubkey
-		}
-	}
-	t.Log(key)
-}

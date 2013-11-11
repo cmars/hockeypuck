@@ -41,6 +41,14 @@ hockeypuck (1.0~rc1) UNRELEASED; urgency=low
       CSS and fonts, but not essential to running the service.
   * instroot/usr/share/man/man1/hockeypuck.1:
     - Update man page to match new subcommand CLI.
+  * cmd/hockeypuck/delete.go, cmd/hockeypuck/load.go,
+    cmd/hockeypuck/main.go, dependencies.tsv, Makefile, openpgp/add.go,
+    openpgp/db.go, openpgp/io_test.go, openpgp/loader.go,
+    openpgp/merge.go, openpgp/merge_test.go:
+    - Fixed a defect in MergeKey where signatures were not merged.
+    - Added 'hockeypuck delete' subcommand.
+    - Using godeps to freeze dependencies.
+    - Insert if not exists for non-bulk loading key inserts.
 
  -- Casey Marshall <cmars@cmarstech.com>  Fri, 04 Oct 2013 15:15:24 -0500
 

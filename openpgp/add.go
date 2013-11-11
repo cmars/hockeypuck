@@ -21,7 +21,6 @@ import (
 	"bytes"
 	"code.google.com/p/go.crypto/openpgp/armor"
 	"crypto/rand"
-	"database/sql"
 	"encoding/ascii85"
 	"errors"
 	"fmt"
@@ -57,6 +56,10 @@ func (w *Worker) Add(a *hkp.Add) {
 			readErrors = append(readErrors, readKey)
 		} else {
 			change := w.UpsertKey(readKey.Pubkey)
+			if change.Error != nil {
+				log.Printf("Error updating key [%s]: %v\n", readKey.Pubkey.Fingerprint(),
+					change.Error)
+			}
 			w.notifyChange(change)
 			changes = append(changes, change)
 		}
@@ -225,12 +228,16 @@ func (w *Worker) UpsertKey(key *Pubkey) (change *KeyChange) {
 		lastKey.Mtime = time.Now()
 		if change.Error = w.UpdateKey(lastKey); change.Error == nil {
 			w.UpdateKeyRelations(lastKey)
+		} else {
+			log.Println(change.Error)
 		}
 	case KeyAdded:
 		key.Ctime = time.Now()
 		key.Mtime = key.Ctime
 		if change.Error = w.InsertKey(key); change.Error == nil {
 			w.UpdateKeyRelations(key)
+		} else {
+			log.Println(change.Error)
 		}
 	}
 	if change.Type != KeyNotChanged {
@@ -241,26 +248,25 @@ func (w *Worker) UpsertKey(key *Pubkey) (change *KeyChange) {
 
 // UpdateKey updates the database to the contents of the given public key.
 func (w *Worker) UpdateKey(pubkey *Pubkey) (err error) {
+	if err = w.InsertKey(pubkey); err != nil {
+		return err
+	}
 	var signable PacketRecord
 	err = pubkey.Visit(func(rec PacketRecord) (err error) {
 		switch r := rec.(type) {
 		case *Pubkey:
-			if _, err := w.db.Execv(`
+			_, err := w.db.Execv(`
 UPDATE openpgp_pubkey SET
-	expiration = $2, state = $3, mtime = $4, md5 = $5, sha256 = $6,
-	revsig_uuid = $7, primary_uid = $8, primary_uat = $9
-WHERE uuid = $1`, r.RFingerprint, r.Expiration, r.State, r.Mtime, r.Md5, r.Sha256,
-				r.RevSigDigest, r.PrimaryUid, r.PrimaryUat); err != nil {
+	expiration = $2, state = $3, mtime = $4, md5 = $5, sha256 = $6
+WHERE uuid = $1`, r.RFingerprint, r.Expiration, r.State, r.Mtime, r.Md5, r.Sha256)
+			if err != nil {
 				return err
 			}
 			signable = r
 		case *Subkey:
 			_, err := w.tx.Execv(`
-UPDATE openpgp_subkey SET expiration = $2, state = $3, revsig_uuid = $4 WHERE uuid = $1`,
-				r.RFingerprint, r.Expiration, r.State, r.RevSigDigest)
-			if err == sql.ErrNoRows {
-				err = w.insertSubkey(pubkey, r)
-			}
+UPDATE openpgp_subkey SET expiration = $2, state = $3 WHERE uuid = $1`,
+				r.RFingerprint, r.Expiration, r.State)
 			if err != nil {
 				return err
 			}
@@ -268,11 +274,8 @@ UPDATE openpgp_subkey SET expiration = $2, state = $3, revsig_uuid = $4 WHERE uu
 		case *UserId:
 			_, err := w.tx.Execv(`
 UPDATE openpgp_uid SET
-	creation = $2, expiration = $3, state = $4, revsig_uuid = $5 WHERE uuid = $1`,
-				r.ScopedDigest, r.Creation, r.Expiration, r.State, r.RevSigDigest)
-			if err == sql.ErrNoRows {
-				err = w.insertUid(pubkey, r)
-			}
+	creation = $2, expiration = $3, state = $4 WHERE uuid = $1`,
+				r.ScopedDigest, r.Creation, r.Expiration, r.State)
 			if err != nil {
 				return err
 			}
@@ -280,11 +283,8 @@ UPDATE openpgp_uid SET
 		case *UserAttribute:
 			_, err := w.tx.Execv(`
 UPDATE openpgp_uat SET
-	creation = $2, expiration = $3, state = $4, revsig_uuid = $5 WHERE uuid = $1`,
-				r.ScopedDigest, r.Creation, r.Expiration, r.State, r.RevSigDigest)
-			if err == sql.ErrNoRows {
-				err = w.insertUat(pubkey, r)
-			}
+	creation = $2, expiration = $3, state = $4 WHERE uuid = $1`,
+				r.ScopedDigest, r.Creation, r.Expiration, r.State)
 			if err != nil {
 				return err
 			}
@@ -292,11 +292,8 @@ UPDATE openpgp_uat SET
 		case *Signature:
 			_, err := w.tx.Execv(`
 UPDATE openpgp_sig SET
-	state = $2, expiration = $3, signer_uuid = $4, revsig_uuid = $5 WHERE uuid = $1`,
-				r.ScopedDigest, r.State, r.Expiration, r.RIssuerFingerprint, r.RevSigDigest)
-			if err == sql.ErrNoRows {
-				err = w.insertSig(pubkey, r)
-			}
+	state = $2, expiration = $3, signer_uuid = $4 WHERE uuid = $1`,
+				r.ScopedDigest, r.State, r.Expiration, r.RIssuerFingerprint)
 			if err != nil {
 				return err
 			}

@@ -134,7 +134,7 @@ func (ec *loadCmd) insertDbKeys(db *openpgp.DB, inStat <-chan *loadStatus) (done
 	go func() {
 		defer close(done)
 		var err error
-		l := openpgp.NewLoader(db)
+		l := openpgp.NewLoader(db, true)
 		if _, err = l.Begin(); err != nil {
 			panic(err)
 		}

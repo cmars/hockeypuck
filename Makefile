@@ -13,7 +13,7 @@ all:
 	make -C doc
 
 fmt:
-	gofmt -w=true .
+	gofmt -w=true ./...
 
 debsrc: debbin clean
 	debuild -S -k0x879CF8AA8DDA301A
@@ -21,7 +21,14 @@ debsrc: debbin clean
 debbin:
 	debuild -us -uc -i -b
 
+get-deps:
+	godeps $(go list launchpad.net/hockeypuck/...) > dependencies.tsv
+
+set-deps:
+	godeps -u dependencies.tsv
+
 clean:
+	go clean ./...
 	$(RM) -r $(GOPATH)/bin $(GOPATH)/pkg
 
 srcclean:

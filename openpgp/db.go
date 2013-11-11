@@ -58,6 +58,18 @@ func (db *DB) DeleteDuplicates() (err error) {
 	return
 }
 
+func isDuplicate(err error) bool {
+	if pgerr, is := err.(pq.PGError); is {
+		switch pgerr.Get('C') {
+		case "23000":
+			return true
+		case "23505":
+			return true
+		}
+	}
+	return false
+}
+
 func isDuplicateConstraint(err error) bool {
 	if pgerr, is := err.(pq.PGError); is {
 		switch pgerr.Get('C') {

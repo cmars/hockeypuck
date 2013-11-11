@@ -41,7 +41,7 @@ func GetUuid(rec PacketRecord) string {
 	return ""
 }
 
-func (m PacketRecordMap) visit(rec PacketRecord) error {
+func (m PacketRecordMap) Add(rec PacketRecord) error {
 	uuid := GetUuid(rec)
 	if uuid == "" {
 		return ErrMissingUuid
@@ -54,7 +54,7 @@ func (m PacketRecordMap) visit(rec PacketRecord) error {
 // Map a tree of packet objects by strong hash.
 func MapKey(pubkey *Pubkey) PacketRecordMap {
 	m := make(PacketRecordMap)
-	m.visit(pubkey)
+	pubkey.Visit(m.Add)
 	return m
 }
 
@@ -68,9 +68,6 @@ func MergeKey(dstKey *Pubkey, srcKey *Pubkey) {
 	srcKey.Visit(func(srcObj PacketRecord) error {
 		// Match in destination tree
 		_, dstHas := dstObjects[GetUuid(srcObj)]
-		if dstHas {
-			return nil // We already have it
-		}
 		switch so := srcObj.(type) {
 		case *Pubkey:
 			srcSignable = so
@@ -98,4 +95,6 @@ func MergeKey(dstKey *Pubkey, srcKey *Pubkey) {
 		}
 		return nil
 	})
+	dstKey.updateDigests()
+	Resolve(dstKey)
 }

@@ -62,6 +62,7 @@ func Usage(h cmdHandler, msg string) {
 
 var cmds []cmdHandler = []cmdHandler{
 	newRunCmd(),
+	newDeleteCmd(),
 	newLoadCmd(),
 	newRecoverCmd(),
 	newDbCmd(),
