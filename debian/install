@@ -1,4 +1,5 @@
-gopath/bin/hockeypuck /usr/bin/
+build/bin/hockeypuck /usr/bin/
 instroot/etc/hockeypuck /etc/
+instroot/etc/init.d/hockeypuck /etc/init.d/
 instroot/var/lib/hockeypuck/www /var/lib/hockeypuck/
 doc/output/* /usr/share/doc/hockeypuck/
