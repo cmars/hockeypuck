@@ -33,5 +33,14 @@ Options and settings for the Hockeypuck service.
 ----------------------------------------
 How to load a large amount of public key material into Hockeypuck.
 
+`Running </running.html>`_
+--------------------------
+How to run and operate the Hockeypuck OpenPGP keyserver.
+
+`Catching Up </catchup.html>`_
+------------------------------
+If your Hockeypuck instance gets too far behind its peers, some tips
+on getting caught up to rejoin a reconciliation pool.
+
 `Credits </credits.html>`_
 ==========================

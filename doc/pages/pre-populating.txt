@@ -39,7 +39,7 @@ The uncompressed key dump files (about 3.4M keys) occupy 6.1G of disk space. The
 
 In general, expect about a factor of 3-4x disk space usage for a given amount of key material to load. Allow for additional peak disk usage during row de-duplication, as each table is copied and then the original dropped.
 
-Process
+Loading
 =======
 
 Drop all database constraints

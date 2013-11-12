@@ -38,19 +38,22 @@ Build
 Check out the Hockeypuck sources, with all its package dependencies into your
 Go development workspace with::
 
-  $ go get launchpad.net/hockeypuck/...
+  $ go get launchpad.net/hockeypuck
 
+Hockeypuck uses `godeps <https://launchpad.net/godeps>`_ to manage package
+dependencies, setting them to a known good revision against which Hockeypuck
+has been tested. Use the Makefile for a proper, production-worthy build::
 
-Then compile binaries with::
+  $ make build
 
-  $ go install launchpad.net/hockeypuck/...
+This will compile hockeypuck to build/bin/hockeypuck.
 
 Install
 =======
 
 Binaries
 --------
-Hockeypuck should have been compiled to $GOPATH/bin/hockeypuck in the above step. Hockeypuck can be run from this location.
+Copy the Hockeypuck binary, build/bin/hockeypuck, into your $PATH.
 
 Media
 -----

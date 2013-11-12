@@ -9,6 +9,10 @@ compile:
 	go install launchpad.net/hockeypuck/...
 	make -C doc
 
+build:
+	GOPATH=$(shell pwd)/build go get launchpad.net/hockeypuck/...
+	GOPATH=$(shell pwd)/build make godeps compile
+
 godeps: require-godeps apply-godeps
 
 fmt:
@@ -33,7 +37,7 @@ apply-godeps: require-godeps
 	${GOPATH}/bin/godeps -u dependencies.tsv
 
 require-godeps:
-	go get ${GODEPS}
+	go get -u ${GODEPS}
 	go install ${GODEPS}
 
 clean:
@@ -45,4 +49,4 @@ src-clean:
 pkg-clean:
 	rm -f ../hockeypuck_*.deb ../hockeypuck_*.dsc ../hockeypuck_*.changes ../hockeypuck_*.build ../hockeypuck_*.tar.gz 
 
-.PHONY: all compile godeps fmt debs debsrc debbin freeze-build freeze-godeps apply-godeps require-godeps clean src-clean pkg-clean
+.PHONY: all compile godeps fmt debs debsrc debbin freeze-build freeze-godeps apply-godeps require-godeps clean src-clean pkg-clean build

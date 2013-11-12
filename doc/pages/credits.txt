@@ -20,8 +20,8 @@ contribute to! Also, rietveld is awesome.
 
 sks-devel
 =========
-sks-devel has offered great advice on Hockeypuck, and helped me understand
-the SKS reconciliation algorithms and other implementation details.
+`sks-devel <https://lists.gnu.org/archive/html/sks-devel/>`_ has given me great advice, direction and feedback on Hockeypuck,
+and helped me quite a bit with understanding the SKS reconciliation algorithms and other implementation details.
 
 Third-party Libraries
 =====================
