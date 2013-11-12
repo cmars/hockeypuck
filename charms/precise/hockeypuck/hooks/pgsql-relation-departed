@@ -1,0 +1,15 @@
+#!/bin/bash -e
+
+service hockeypuck stop || true
+
+cat >/etc/hockeypuck/hockeypuck.conf.d/02-db <<EOF
+
+### PostgreSQL relation departed or broken:
+#[hockeypuck.openpgp.db]
+#driver="postgres"
+#dsn="dbname=$(relation-get database) host=$(relation-get host) port=$(relation-get port) user=$(relation-get user) password=$(relation-get password)"
+
+EOF
+
+cat /etc/hockeypuck/hockeypuck.conf.d/* > /etc/hockeypuck/hockeypuck.conf
+

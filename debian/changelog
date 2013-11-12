@@ -49,6 +49,8 @@ hockeypuck (1.0~rc1) UNRELEASED; urgency=low
     - Added 'hockeypuck delete' subcommand.
     - Using godeps to freeze dependencies.
     - Insert if not exists for non-bulk loading key inserts.
+  * === added directory charms:
+    - Add juju charms for hockeypuck & sks. LP: #1233812
 
  -- Casey Marshall <cmars@cmarstech.com>  Fri, 04 Oct 2013 15:15:24 -0500
 

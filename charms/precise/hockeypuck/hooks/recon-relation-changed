@@ -1,0 +1,17 @@
+#!/bin/bash -e
+
+service hockeypuck stop || true
+
+cat >/etc/hockeypuck/hockeypuck.conf.d/03-recon <<EOF
+
+[conflux.recon]
+reconPort=11370
+httpPort=11371
+partners=["$(relation-list | tr '\n' ',' | sed 's/,/:11370","/g'):11370"]
+filters=["yminsky.dedup"]
+
+EOF
+
+cat /etc/hockeypuck/hockeypuck.conf.d/* > /etc/hockeypuck/hockeypuck.conf
+
+service hockeypuck start

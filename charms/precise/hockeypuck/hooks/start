@@ -1,0 +1,6 @@
+#!/bin/bash -e
+
+service hockeypuck restart
+
+open-port 11371
+open-port 11370
