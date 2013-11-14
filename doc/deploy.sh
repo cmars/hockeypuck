@@ -13,5 +13,6 @@ git init
 git remote add origin git@github.com:hockeypuck/hockeypuck.github.io.git
 git add *
 git commit -m "Generated Hockeypuck documentation at $(date '+%y%m%d-%H%M%S')"
-#git push -f origin gh-pages
+git checkout -b gh-pages
+git push -f origin gh-pages
 git push -f origin master
