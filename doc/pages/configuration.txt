@@ -161,13 +161,13 @@ Default
 Example
     filters=["yminsky.dedup"]
 
-[conflux.recon.gkvlite]
+[conflux.recon.leveldb]
 =======================
 Conflux stores public key digests in a persistent prefix tree data structure.
 
 path=\ *"/path/to/recon-ptree"*
 -------------------------------
-Path to the flat file where the prefix tree is persisted.
+Path to the directory containing the prefix tree data.
 
 Type
     Quoted string
