@@ -10,9 +10,14 @@ categories:
 requires:
   pgsql:
     interface: pgsql
+  gossip:
+    interface: recon
+    optional: true
 provides:
   keyserver:
     interface: hkp
+  peer:
+    interface: recon
 peers:
-  recon:
+  cluster:
     interface: recon

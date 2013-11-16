@@ -7,9 +7,15 @@ description: |
  over a reconciliation gossip protocol.
 categories:
 - applications
+requires:
+  gossip:
+    interface: recon
+    optional: true
 provides:
   keyserver:
     interface: hkp
+  peer:
+    interface: recon
 peers:
-  recon:
+  cluster:
     interface: recon
