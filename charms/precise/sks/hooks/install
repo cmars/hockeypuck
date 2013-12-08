@@ -18,6 +18,11 @@ hkp_port: 11371
 
 recon_address: 0.0.0.0
 recon_port: 11370
+
+pagesize: 128
+ptree_pagesize: 16
+cache: 64
+diskptree:
 EOF
 
 if [ ! -d "/var/lib/sks/DB" ]; then

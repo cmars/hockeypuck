@@ -151,6 +151,7 @@ func (w *Worker) HashQuery(hq *hkp.HashQuery) {
 	for _, digest := range hq.Digests {
 		uuid, err := w.lookupMd5Uuid(digest)
 		if err != nil {
+			log.Println("Hashquery lookup failed:", err)
 			hq.Response() <- &ErrorResponse{err}
 		}
 		uuids = append(uuids, uuid)
@@ -225,7 +226,8 @@ func (w *Worker) lookupPubkeyUuids(search string, limit int) (uuids []string, er
 }
 
 func (w *Worker) lookupMd5Uuid(hash string) (uuid string, err error) {
-	rows, err := w.db.Queryx(`SELECT uuid FROM openpgp_pubkey WHERE md5 = $1`, hash)
+	rows, err := w.db.Queryx(`SELECT uuid FROM openpgp_pubkey WHERE md5 = $1`,
+		strings.ToLower(hash))
 	if err == sql.ErrNoRows {
 		return "", ErrKeyNotFound
 	} else if err != nil {

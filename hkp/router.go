@@ -63,6 +63,9 @@ func (r *Router) Respond(w http.ResponseWriter, req Request) {
 	}
 	r.Requests <- req
 	resp := <-req.Response()
+	if resp.Error() != nil {
+		log.Println("Error in response:", resp.Error())
+	}
 	err = resp.WriteTo(w)
 	if err != nil {
 		log.Println(resp, err)

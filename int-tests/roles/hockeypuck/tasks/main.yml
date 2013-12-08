@@ -1,0 +1,11 @@
+---
+- name: Stop Hockeypuck
+  service: name=hockeypuck state=stopped
+- name: Drop database constraints
+  shell: hockeypuck db --config /etc/hockeypuck/hockeypuck.conf --drop-constraints
+- name: Load dump files
+  shell: hockeypuck load --config /etc/hockeypuck/hockeypuck.conf --path {{int_data}}/*
+- name: Rebuild database constraints
+  shell: hockeypuck db --config /etc/hockeypuck/hockeypuck.conf --dedup --create-constraints
+- name: Start Hockeypuck
+  service: name=hockeypuck state=started

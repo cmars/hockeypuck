@@ -18,12 +18,14 @@
 package openpgp
 
 import (
-	_ "code.google.com/p/go.crypto/md4"
-	_ "code.google.com/p/go.crypto/ripemd160"
 	_ "crypto/md5"
 	_ "crypto/sha1"
 	_ "crypto/sha256"
 	_ "crypto/sha512"
+	"database/sql"
+
+	_ "code.google.com/p/go.crypto/md4"
+	_ "code.google.com/p/go.crypto/ripemd160"
 )
 
 type resolver struct {
@@ -88,6 +90,26 @@ func Resolve(pubkey *Pubkey) {
 		}
 		return nil
 	})
+	Sort(pubkey)
+	// Designate first UID / UAT as primary
+	if len(pubkey.userIds) > 0 {
+		pubkey.primaryUid = pubkey.userIds[0]
+		pubkey.primaryUidSig = pubkey.primaryUid.selfSignature
+		pubkey.PrimaryUid = sql.NullString{pubkey.primaryUid.ScopedDigest, true}
+	} else {
+		pubkey.primaryUid = nil
+		pubkey.primaryUidSig = nil
+		pubkey.PrimaryUid = sql.NullString{"", false}
+	}
+	if len(pubkey.userAttributes) > 0 {
+		pubkey.primaryUat = pubkey.userAttributes[0]
+		pubkey.primaryUatSig = pubkey.primaryUat.selfSignature
+		pubkey.PrimaryUat = sql.NullString{pubkey.primaryUat.ScopedDigest, true}
+	} else {
+		pubkey.primaryUat = nil
+		pubkey.primaryUatSig = nil
+		pubkey.PrimaryUat = sql.NullString{"", false}
+	}
 }
 
 func (r *resolver) setSigScope(scope string, sigs ...*Signature) {

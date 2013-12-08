@@ -19,8 +19,8 @@
 package main
 
 import (
-	"fmt"
 	"encoding/hex"
+	"fmt"
 	"github.com/cmars/conflux"
 	"github.com/cmars/conflux/recon"
 	"launchpad.net/gnuflag"

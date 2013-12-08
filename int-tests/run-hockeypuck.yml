@@ -1,0 +1,6 @@
+---
+- hosts: hockeypuck
+  sudo: yes
+  roles:
+    - common
+    - hockeypuck

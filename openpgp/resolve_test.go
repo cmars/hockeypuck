@@ -127,8 +127,8 @@ func TestSortPrimaryUid(t *testing.T) {
 	expect := []string{
 		"Phil Pennock <phil.pennock@spodhuis.org>",
 		"Phil Pennock <phil.pennock@globnix.org>",
-		"Phil Pennock <pdp@spodhuis.org>",
 		"Phil Pennock <pdp@exim.org>",
+		"Phil Pennock <pdp@spodhuis.org>",
 		"Phil Pennock <pdp@spodhuis.demon.nl>"}
 	for i := range key.userIds {
 		assert.Equal(t, expect[i], key.userIds[i].Keywords)

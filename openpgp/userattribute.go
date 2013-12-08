@@ -149,15 +149,6 @@ func (uat *UserAttribute) linkSelfSigs(pubkey *Pubkey) {
 			}
 		}
 	}
-	if uat.revSig != nil {
-		// Check for existing primary that was revoked.
-		if pubkey.PrimaryUat.String == uat.ScopedDigest {
-			pubkey.PrimaryUat = sql.NullString{"", false}
-			pubkey.primaryUat = nil
-			pubkey.primaryUatSig = nil
-		}
-		return
-	}
 	for _, sig := range uat.signatures {
 		if !strings.HasPrefix(pubkey.RFingerprint, sig.RIssuerKeyId) {
 			continue
@@ -179,23 +170,6 @@ func (uat *UserAttribute) linkSelfSigs(pubkey *Pubkey) {
 					// A self-certification more recent than a revocation effectively cancels it.
 					uat.revSig = nil
 					uat.RevSigDigest = sql.NullString{"", false}
-				}
-				var replace bool
-				if pubkey.primaryUatSig == nil {
-					// If we don't have a prior primary, let's start with this one
-					replace = true
-				} else if sig.Creation.Unix() > pubkey.primaryUatSig.Creation.Unix() {
-					// If this uat signature is newer than the current primary candidate,
-					// and its either signed as primary, or we haven't yet found a primary
-					// user attribute, prefer this one.
-					if sig.IsPrimary() || !pubkey.primaryUatSig.IsPrimary() {
-						replace = true
-					}
-				}
-				if replace {
-					pubkey.primaryUat = uat
-					pubkey.PrimaryUat = sql.NullString{uat.ScopedDigest, true}
-					pubkey.primaryUatSig = sig
 				}
 			}
 		}

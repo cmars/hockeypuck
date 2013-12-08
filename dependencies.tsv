@@ -1,7 +1,7 @@
 code.google.com/p/go.crypto	hg	6478cc9340cbbe6c04511280c5007722269108e9	184
 code.google.com/p/gorilla	hg	75a547f433ad6a0e8e4c1d6c1e287c18737dbf72	351
 code.google.com/p/snappy-go	hg	12e4b4183793ac4b061921e7980845e750679fd0	14
-github.com/cmars/conflux	git	d2f7de6160d2b8e4a9bc46d434ece81f926b19bf	
+github.com/cmars/conflux	git	963864d0b0af97044ccf8f021c12a55cb5e19bbf	
 github.com/jmoiron/sqlx	git	dab5bd9ced30aca12c77b004314b9bd4c41083da	
 github.com/lib/pq	git	faae944327048ae177e748c535b857392959e874	
 github.com/pelletier/go-toml	git	34d60ec92f3fa0b142bc9318f125411a6495ca8d	

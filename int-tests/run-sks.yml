@@ -1,0 +1,6 @@
+---
+- hosts: sks
+  sudo: yes
+  roles:
+    - common
+    - sks
