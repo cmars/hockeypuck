@@ -21,14 +21,17 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
-	"github.com/cmars/conflux"
-	"github.com/cmars/conflux/recon"
-	"github.com/cmars/conflux/recon/leveldb"
 	"io"
-	"launchpad.net/hockeypuck/hkp"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"time"
+
+	"github.com/cmars/conflux"
+	"github.com/cmars/conflux/recon"
+	"github.com/cmars/conflux/recon/leveldb"
+
+	"launchpad.net/hockeypuck/hkp"
 )
 
 type SksPeer struct {
@@ -200,46 +203,56 @@ func (r *SksPeer) requestRecovered(rcvr *recon.Recover, elements *conflux.ZSet) 
 	var remoteAddr string
 	remoteAddr, err = rcvr.HkpAddr()
 	if err != nil {
-		return
+		return err
 	}
 	// Make an sks hashquery request
 	hqBuf := bytes.NewBuffer(nil)
 	err = recon.WriteInt(hqBuf, elements.Len())
 	if err != nil {
-		return
+		return err
 	}
 	for _, z := range elements.Items() {
 		zb := z.Bytes()
 		err = recon.WriteInt(hqBuf, len(zb))
 		if err != nil {
-			return
+			return err
 		}
 		_, err = hqBuf.Write(zb)
 		if err != nil {
-			return
+			return err
 		}
 	}
 	resp, err := http.Post(fmt.Sprintf("http://%s/pks/hashquery", remoteAddr),
 		"sks/hashquery", bytes.NewReader(hqBuf.Bytes()))
 	if err != nil {
-		return
+		return err
 	}
-	defer resp.Body.Close()
+	// Store response in memory. Connection may timeout if we
+	// read directly from it while loading.
+	var body *bytes.Buffer
+	{
+		defer resp.Body.Close()
+		bodyBuf, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		body = bytes.NewBuffer(bodyBuf)
+	}
 	var nkeys, keyLen int
-	nkeys, err = recon.ReadInt(resp.Body)
+	nkeys, err = recon.ReadInt(body)
 	if err != nil {
-		return
+		return err
 	}
 	log.Println("Response from server:", nkeys, " keys found")
 	for i := 0; i < nkeys; i++ {
-		keyLen, err = recon.ReadInt(resp.Body)
+		keyLen, err = recon.ReadInt(body)
 		if err != nil {
-			return
+			return err
 		}
 		keyBuf := bytes.NewBuffer(nil)
-		_, err = io.CopyN(keyBuf, resp.Body, int64(keyLen))
+		_, err = io.CopyN(keyBuf, body, int64(keyLen))
 		if err != nil {
-			return
+			return err
 		}
 		log.Println("Key#", i+1, ":", keyLen, "bytes")
 		// Merge locally
@@ -257,7 +270,7 @@ func (r *SksPeer) requestRecovered(rcvr *recon.Recover, elements *conflux.ZSet) 
 		}
 	}
 	// Read last two bytes (CRLF, why?), or SKS will complain.
-	resp.Body.Read(make([]byte, 2))
+	body.Read(make([]byte, 2))
 	return
 }
 

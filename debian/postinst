@@ -49,9 +49,12 @@ fi
 VERSION=$(gzip -dc /usr/share/doc/hockeypuck/changelog.gz | head -1 | sed 's/.*(//;s/).*//;')
 echo $VERSION > /etc/hockeypuck/version
 
-# Create conflux prefix tree file, set permissions
-mkdir -p /var/lib/hockeypuck/recon-ptree
-chown hockeypuck:hockeypuck /var/lib/hockeypuck/recon-ptree
+# Create conflux prefix tree dir, set permissions
+PTREE_DIR=/var/lib/hockeypuck/recon-ptree
+if [ ! -d "$PTREE_DIR" ]; then
+	mkdir -p $PTREE_DIR
+fi
+chown hockeypuck:hockeypuck $PTREE_DIR
 
 # Create hockeypuck postgres user & database if PostgreSQL is installed
 uid=`getent passwd postgres | cut -d ":" -f 3`

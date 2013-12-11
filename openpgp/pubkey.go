@@ -149,6 +149,9 @@ func (pubkey *Pubkey) Read() (err error) {
 	buf := bytes.NewBuffer(pubkey.Packet)
 	var p packet.Packet
 	if p, err = packet.Read(buf); err != nil {
+		if pubkey.State&PacketStateUnsuppPubkey != 0 {
+			return nil
+		}
 		return err
 	}
 	err = pubkey.setPacket(p)
