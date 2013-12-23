@@ -1,0 +1,6 @@
+---
+- hosts: hockeypuck
+  user: root
+  roles:
+    - dump-ptree-common
+    - dump-ptree-hockeypuck

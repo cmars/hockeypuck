@@ -1,0 +1,5 @@
+---
+- shell: mkdir -p {{ int_data }}
+- name: Upload key material for integration tests
+  copy: src=/home/cmars/gocode/src/github.com/cmars/conflux/testing/split_test.pgp dest={{ int_data }}/split_test.pgp mode=644
+  #copy: src=/home/cmars/gocode/src/github.com/cmars/conflux/testing/split_test.pgp dest={{ int_data }}/sks-dump-0194.pgp mode=644

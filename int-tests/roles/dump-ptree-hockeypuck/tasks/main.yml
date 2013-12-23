@@ -1,0 +1,13 @@
+---
+- name: Stop Hockeypuck
+  service: name=hockeypuck state=stopped
+- name: Development rebuild of dump-leveldb
+  local_action: shell go build -o files/dump-leveldb github.com/cmars/conflux/cmd/dump-leveldb
+- name: Install dump-leveldb
+  copy: src=files/dump-leveldb dest=/usr/bin/dump-leveldb mode=0755
+- name: Dump the leveldb
+  shell: /usr/bin/dump-leveldb /var/lib/hockeypuck/recon-ptree > /tmp/hockeypuck-recon-ptree.txt
+- name: Fetch the dump
+  fetch: src=/tmp/hockeypuck-recon-ptree.txt dest=dumps/hockeypuck-recon-ptree.txt flat=yes
+- name: Start Hockeypuck
+  service: name=hockeypuck state=started
