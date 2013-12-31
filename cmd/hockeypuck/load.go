@@ -199,7 +199,7 @@ func (ec *loadCmd) readAllKeys(path string) chan *loadStatus {
 					log.Println("bad digest:", keyRead.Pubkey.Md5)
 					continue
 				}
-				digest = append(digest, byte(0))
+				digest = recon.PadSksElement(digest)
 				digestZp := conflux.Zb(conflux.P_SKS, digest)
 				c <- &loadStatus{ReadKeyResult: keyRead, z: digestZp}
 			}
