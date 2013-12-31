@@ -1,4 +1,4 @@
 #!/bin/bash -x
 
-juju deploy --repository=. local:precise/sks
+juju deploy --repository=. local:saucy/sks
 juju expose sks
