@@ -214,6 +214,8 @@ func (r *SksPeer) requestRecovered(rcvr *recon.Recover, elements *ZSet) (err err
 	for _, z := range elements.Items() {
 		zb := z.Bytes()
 		zb = recon.PadSksElement(zb)
+		// Hashquery elements are 16 bytes (length_of(P_SKS)-1)
+		zb = zb[:len(zb)-1]
 		err = recon.WriteInt(hqBuf, len(zb))
 		if err != nil {
 			return err
