@@ -58,7 +58,8 @@ func (r *Router) HandleAll() {
 func (r *Router) Respond(w http.ResponseWriter, req Request) {
 	err := req.Parse()
 	if err != nil {
-		r.RespondError(w, err)
+		log.Println("Error parsing request:", err)
+		http.Error(w, hockeypuck.APPLICATION_ERROR, 400)
 		return
 	}
 	r.Requests <- req
@@ -72,13 +73,6 @@ func (r *Router) Respond(w http.ResponseWriter, req Request) {
 		// Try to respond with an error
 		http.Error(w, hockeypuck.APPLICATION_ERROR, 500)
 	}
-}
-
-func (r *Router) RespondError(w http.ResponseWriter, err error) error {
-	log.Println("Bad request:", err)
-	w.WriteHeader(http.StatusBadRequest)
-	_, writeErr := w.Write([]byte(err.Error()))
-	return writeErr
 }
 
 func (r *Router) HandlePksLookup() {

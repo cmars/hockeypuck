@@ -18,12 +18,15 @@
 package hkp
 
 import (
+	"bytes"
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/cmars/conflux/recon"
 	"net/http"
 	"strings"
+	"io/ioutil"
+
+	"github.com/cmars/conflux/recon"
 )
 
 // ErrorMissingParam constructs an informative error when a
@@ -213,20 +216,28 @@ func (hq *HashQuery) Parse() error {
 		return ErrorInvalidMethod(hq.Method)
 	}
 	hq.responseChan = make(ResponseChan)
+	var body *bytes.Buffer
+	{
+		defer hq.Body.Close()
+		buf, err := ioutil.ReadAll(hq.Body)
+		if err != nil {
+			return err
+		}
+		body = bytes.NewBuffer(buf)
+	}
 	// Parse hashquery POST data
-	defer hq.Body.Close()
-	n, err := recon.ReadInt(hq.Body)
+	n, err := recon.ReadInt(body)
 	if err != nil {
 		return err
 	}
 	hq.Digests = make([]string, n)
 	for i := 0; i < n; i++ {
-		hashlen, err := recon.ReadInt(hq.Body)
+		hashlen, err := recon.ReadInt(body)
 		if err != nil {
 			return err
 		}
 		hash := make([]byte, hashlen)
-		_, err = hq.Body.Read(hash)
+		_, err = body.Read(hash)
 		if err != nil {
 			return err
 		}
