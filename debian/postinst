@@ -54,7 +54,7 @@ PTREE_DIR=/var/lib/hockeypuck/recon-ptree
 if [ ! -d "$PTREE_DIR" ]; then
 	mkdir -p $PTREE_DIR
 fi
-chown hockeypuck:hockeypuck $PTREE_DIR
+chown -R hockeypuck:hockeypuck $PTREE_DIR
 
 # Create hockeypuck postgres user & database if PostgreSQL is installed
 uid=`getent passwd postgres | cut -d ":" -f 3`
