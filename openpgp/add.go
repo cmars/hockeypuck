@@ -214,7 +214,7 @@ func (w *Worker) UpsertKey(key *Pubkey) (change *KeyChange) {
 		MergeKey(lastKey, key)
 		change.CurrentMd5 = lastKey.Md5
 		change.CurrentSha256 = lastKey.Sha256
-		if change.PreviousSha256 == change.CurrentSha256 {
+		if change.PreviousMd5 == change.CurrentMd5 && change.PreviousSha256 == change.CurrentSha256 {
 			change.Type = KeyNotChanged
 		} else {
 			change.Type = KeyModified
@@ -257,8 +257,9 @@ func (w *Worker) UpdateKey(pubkey *Pubkey) (err error) {
 		case *Pubkey:
 			_, err := w.db.Execv(`
 UPDATE openpgp_pubkey SET
-	expiration = $2, state = $3, mtime = $4, md5 = $5, sha256 = $6
-WHERE uuid = $1`, r.RFingerprint, r.Expiration, r.State, r.Mtime, r.Md5, r.Sha256)
+	expiration = $2, state = $3, mtime = $4, md5 = $5, sha256 = $6, unsupp = $7
+WHERE uuid = $1`, r.RFingerprint, r.Expiration, r.State, r.Mtime, r.Md5, r.Sha256,
+				  r.Unsupported)
 			if err != nil {
 				return err
 			}

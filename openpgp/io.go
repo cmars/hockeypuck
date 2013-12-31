@@ -59,13 +59,25 @@ func FingerprintV3(pubkey *packet.PublicKeyV3) string {
 }
 
 func WritePackets(w io.Writer, root PacketRecord) error {
-	return root.Visit(func(rec PacketRecord) error {
+	err := root.Visit(func(rec PacketRecord) error {
 		op, err := rec.GetOpaquePacket()
 		if err != nil {
 			return err
 		}
 		return op.Serialize(w)
 	})
+	if err != nil {
+		return err
+	}
+	// Dump unsupported packets at the end.
+	pubkey := root.(*Pubkey)
+	for _, op := range pubkey.UnsupportedPackets() {
+		err = op.Serialize(w)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func WriteArmoredPackets(w io.Writer, root PacketRecord) error {
