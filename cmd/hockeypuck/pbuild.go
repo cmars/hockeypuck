@@ -131,7 +131,7 @@ func readHashes(db *openpgp.DB, hashes chan *conflux.Zp) {
 			log.Println("Bad md5:", md5str)
 			continue
 		}
-		digest = append(digest, byte(0))
+		digest = recon.PadSksElement(digest)
 		digestZp := conflux.Zb(conflux.P_SKS, digest)
 		hashes <- digestZp
 	}

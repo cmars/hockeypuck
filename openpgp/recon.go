@@ -27,7 +27,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cmars/conflux"
+	. "github.com/cmars/conflux"
 	"github.com/cmars/conflux/recon"
 	"github.com/cmars/conflux/recon/leveldb"
 
@@ -43,7 +43,7 @@ type SksPeer struct {
 
 type RecoverKey struct {
 	Keytext    []byte
-	RecoverSet *conflux.ZSet
+	RecoverSet *ZSet
 	Source     string
 	response   hkp.ResponseChan
 }
@@ -87,8 +87,8 @@ func (r *SksPeer) HandleKeyUpdates() {
 				log.Println("bad digest:", keyChange.CurrentMd5)
 				continue
 			}
-			digest = append(digest, byte(0))
-			digestZp := conflux.Zb(conflux.P_SKS, digest)
+			digest = recon.PadSksElement(digest)
+			digestZp := Zb(P_SKS, digest)
 			if keyChange.PreviousMd5 != keyChange.CurrentMd5 {
 				log.Println("Prefix tree: Insert:", hex.EncodeToString(digestZp.Bytes()), keyChange, keyChange.CurrentMd5)
 				err := r.Peer.Insert(digestZp)
@@ -102,8 +102,8 @@ func (r *SksPeer) HandleKeyUpdates() {
 						log.Println("bad digest:", keyChange.PreviousMd5)
 						continue
 					}
-					prevDigest = append(prevDigest, byte(0))
-					prevDigestZp := conflux.Zb(conflux.P_SKS, prevDigest)
+					prevDigest = recon.PadSksElement(prevDigest)
+					prevDigestZp := Zb(P_SKS, prevDigest)
 					log.Println("Prefix Tree: Remove:", prevDigestZp)
 					err = r.Peer.Remove(prevDigestZp)
 					if err != nil {
@@ -147,10 +147,10 @@ func (r *SksPeer) HandleRecovery() {
 }
 
 type workRecoveredReady chan interface{}
-type workRecoveredWork chan *conflux.ZSet
+type workRecoveredWork chan *ZSet
 
 func (r *SksPeer) handleRemoteRecovery(rcvr *recon.Recover, rcvrChan chan *recon.Recover) {
-	recovered := conflux.NewZSet()
+	recovered := NewZSet()
 	ready := make(workRecoveredReady)
 	work := make(workRecoveredWork)
 	defer close(work)
@@ -171,7 +171,7 @@ func (r *SksPeer) handleRemoteRecovery(rcvr *recon.Recover, rcvrChan chan *recon
 				return
 			}
 			work <- recovered
-			recovered = conflux.NewZSet()
+			recovered = NewZSet()
 		}
 	}
 }
@@ -199,7 +199,7 @@ func (r *SksPeer) workRecovered(rcvr *recon.Recover, ready workRecoveredReady, w
 	}
 }
 
-func (r *SksPeer) requestRecovered(rcvr *recon.Recover, elements *conflux.ZSet) (err error) {
+func (r *SksPeer) requestRecovered(rcvr *recon.Recover, elements *ZSet) (err error) {
 	var remoteAddr string
 	remoteAddr, err = rcvr.HkpAddr()
 	if err != nil {
@@ -213,6 +213,7 @@ func (r *SksPeer) requestRecovered(rcvr *recon.Recover, elements *conflux.ZSet) 
 	}
 	for _, z := range elements.Items() {
 		zb := z.Bytes()
+		zb = recon.PadSksElement(zb)
 		err = recon.WriteInt(hqBuf, len(zb))
 		if err != nil {
 			return err
