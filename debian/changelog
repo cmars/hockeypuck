@@ -1,4 +1,4 @@
-hockeypuck (1.0~rc1) UNRELEASED; urgency=low
+hockeypuck (1.0~rc1~bzr267~precise) precise; urgency=low
 
   [ Casey Marshall ]
   * Opening 1.0~rc1 development.
@@ -54,7 +54,7 @@ hockeypuck (1.0~rc1) UNRELEASED; urgency=low
 
  -- Casey Marshall <cmars@cmarstech.com>  Fri, 04 Oct 2013 15:15:24 -0500
 
-hockeypuck (1.0~b2) raring; urgency=low
+hockeypuck (1.0~b2~bzr267~precise) precise; urgency=low
 
   [ Casey Marshall ]
   * Opening 1.0~b1 development and a bottle of
@@ -273,7 +273,7 @@ hockeypuck (1.0~b2) raring; urgency=low
 
  -- Casey Marshall <cmars@cmarstech.com>  Mon, 30 Sep 2013 17:10:38 -0500
 
-hockeypuck (1.0~a2) precise; urgency=low
+hockeypuck (1.0~a2~bzr267~precise) precise; urgency=low
 
   [ Casey Marshall ]
   * Opening 1.0~a2 development
@@ -324,7 +324,7 @@ hockeypuck (1.0~a2) precise; urgency=low
 
  -- Casey Marshall <casey.marshall@gmail.com>  Sat, 03 Aug 2013 10:15:11 -0500
 
-hockeypuck (1.0~a1) precise; urgency=low
+hockeypuck (1.0~a1~bzr267~precise) precise; urgency=low
 
   [ Casey Marshall ]
   * Opening 1.0~a1 development
@@ -405,7 +405,7 @@ hockeypuck (1.0~a1) precise; urgency=low
 
  -- Casey Marshall <casey.marshall@gmail.com>  Wed, 31 Jul 2013 00:38:10 -0500
 
-hockeypuck (0.9) precise; urgency=low
+hockeypuck (0.9~bzr267~precise) precise; urgency=low
 
   [ Casey Marshall ]
   * hkp_types.go, mgo/worker.go, responses.go, server.go,
@@ -499,7 +499,7 @@ hockeypuck (0.9) precise; urgency=low
 
  -- Casey Marshall <casey.marshall@gmail.com>  Wed, 20 Mar 2013 22:54:03 -0500
 
-hockeypuck (0.8.1) precise; urgency=low
+hockeypuck (0.8.1~bzr267~precise) precise; urgency=low
 
   [ Casey Marshall ]
   * mgo/worker.go, mgo/worker_test.go, pgp.go, pgp_types.go,
@@ -514,7 +514,7 @@ hockeypuck (0.8.1) precise; urgency=low
 
  -- Casey Marshall <casey.marshall@gmail.com>  Tue, 22 Jan 2013 21:10:03 -0600
 
-hockeypuck (0.8) precise; urgency=low
+hockeypuck (0.8~bzr267~precise) precise; urgency=low
 
   [ Casey Marshall ]
   * Opening 0.8 milestone.
@@ -536,7 +536,7 @@ hockeypuck (0.8) precise; urgency=low
 
  -- Casey Marshall <casey.marshall@gmail.com>  Tue, 22 Jan 2013 11:00:00 -0600
 
-hockeypuck (0.7) precise; urgency=low
+hockeypuck (0.7~bzr267~precise) precise; urgency=low
 
   [ Casey Marshall ]
   * Opening 0.7 milestone.
@@ -600,7 +600,7 @@ hockeypuck (0.7) precise; urgency=low
 
  -- Casey Marshall <casey.marshall@gmail.com>  Thu, 13 Dec 2012 21:39:31 -0600
 
-hockeypuck (0.6) precise; urgency=low
+hockeypuck (0.6~bzr267~precise) precise; urgency=low
 
   [ Casey Marshall ]
   * Opening 0.6 milestone.
@@ -639,7 +639,7 @@ hockeypuck (0.6) precise; urgency=low
 
  -- Casey Marshall <casey.marshall@gmail.com>  Thu, 15 Nov 2012 22:56:28 -0600
 
-hockeypuck (0.5) precise; urgency=low
+hockeypuck (0.5~bzr267~precise) precise; urgency=low
 
   [ Casey Marshall ]
   * cmd/hockeypuck/main.go, debian/control, errors.go, mgo/worker.go,
@@ -711,7 +711,7 @@ hockeypuck (0.5) precise; urgency=low
 
  -- Casey Marshall <casey.marshall@gmail.com>  Wed, 31 Oct 2012 00:10:27 -0500
 
-hockeypuck (0.1~alpha1) precise; urgency=low
+hockeypuck (0.1~alpha1~bzr267~precise) precise; urgency=low
 
   [ Casey Marshall ]
   * === added directory debian, cmd/hockeypuck/main.go,

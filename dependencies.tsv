@@ -7,4 +7,4 @@ github.com/qpliu/qrencode-go	git	2afd23ce9daa8d28218612c03addf57069ee5800
 github.com/syndtr/goleveldb	git	308aa7a00bdf82a2a0595f14b634e6012fb7fe17	
 launchpad.net/gnuflag	bzr	roger.peppe@canonical.com-20121003093437-zcyyw0lpvj2nifpk	12
 github.com/pelletier/go-toml	git	2ba6587bf359b35209f71f6602cdf6be99ba3497	
-github.com/cmars/conflux	git	20635ec2d9a547be6a4a4d0a5172711ec70bf412	
+github.com/cmars/conflux	git	6e15c72b7ef0ae50d0b6668f308eac3e735eb644	
