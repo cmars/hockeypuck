@@ -23,17 +23,5 @@ import (
 	"strings"
 )
 
-// System installed path to Hockeypuck version file.
-const VERSION_PATH = "/etc/hockeypuck/version"
-
-// Default version string.
-var Version string = "DEVELOPMENT"
-
-func init() {
-	if f, err := os.Open(VERSION_PATH); err == nil {
-		version, err := ioutil.ReadAll(f)
-		if err == nil && len(version) > 0 {
-			Version = strings.TrimSpace(string(version))
-		}
-	}
-}
+// Version is set by the build process.
+var Version string
