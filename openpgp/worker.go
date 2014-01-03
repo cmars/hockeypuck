@@ -21,7 +21,6 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
-	"flag"
 	"fmt"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
@@ -46,7 +45,6 @@ type Worker struct {
 }
 
 // Number of workers to spawn
-func init() { flag.Int("openpgp.nworkers", runtime.NumCPU(), "Number of OpenPGP workers") }
 func (s *Settings) NumWorkers() int {
 	return s.GetIntDefault("hockeypuck.openpgp.nworkers", runtime.NumCPU())
 }

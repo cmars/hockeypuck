@@ -21,11 +21,9 @@ package hockeypuck
 
 import (
 	"bytes"
-	"flag"
 	"fmt"
 	"github.com/pelletier/go-toml"
 	"io"
-	"log"
 	"strconv"
 )
 
@@ -147,7 +145,6 @@ func LoadConfig(r io.Reader) (err error) {
 		return
 	}
 	config = &Settings{tree}
-	config.loadFlagOverrides()
 	return
 }
 
@@ -158,17 +155,5 @@ func LoadConfigFile(path string) (err error) {
 		return
 	}
 	config = &Settings{tree}
-	config.loadFlagOverrides()
 	return
-}
-
-func (config *Settings) loadFlagOverrides() {
-	flag.Parse()
-	flag.VisitAll(func(f *flag.Flag) {
-		if config.Get(f.Name) == nil {
-			config.Set("hockeypuck."+f.Name, f.Value.String())
-		} else if f.Value.String() != f.DefValue {
-			log.Println("Warning: Config file taking precedence over command-line flag:", f.Name)
-		}
-	})
 }

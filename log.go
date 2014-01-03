@@ -18,7 +18,6 @@
 package hockeypuck
 
 import (
-	"flag"
 	"io"
 	"log"
 	"os"
@@ -28,7 +27,6 @@ import (
 )
 
 // Logfile option
-func init() { flag.String("logfile", "", "Logfile (default stderr)") }
 func (s *Settings) LogFile() string {
 	return s.GetString("hockeypuck.logfile")
 }
@@ -72,11 +70,10 @@ func openLog() {
 		var err error
 		logOut, err = os.OpenFile(Config().LogFile(), os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 		if err != nil {
-			logOut = os.Stderr
-		}
-		log.SetOutput(logOut)
-		if err != nil {
 			log.Println("Failed to open logfile", err)
+			logOut = os.Stderr
+		} else {
+			log.SetOutput(logOut)
 		}
 	} else {
 		log.SetOutput(os.Stderr)
