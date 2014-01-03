@@ -17,11 +17,5 @@
 
 package hockeypuck
 
-import (
-	"io/ioutil"
-	"os"
-	"strings"
-)
-
 // Version is set by the build process.
 var Version string

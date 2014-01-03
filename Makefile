@@ -6,8 +6,7 @@ VERSION=$(shell head -1 debian/changelog | sed 's/.*(//;s/).*//;')
 all: compile
 
 compile:
-	go build -X hockeypuck.Version=${VERSION} launchpad.net/hockeypuck/...
-	go install launchpad.net/hockeypuck/...
+	GOPATH=$(shell pwd)/build go install -ldflags "-X launchpad.net/hockeypuck.Version ${VERSION}" launchpad.net/hockeypuck/cmd/hockeypuck
 	make -C doc
 
 build:
