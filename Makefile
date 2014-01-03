@@ -1,12 +1,12 @@
 
 #GODEPS=launchpad.net/godeps
 GODEPS=github.com/cmars/godeps
+VERSION=$(shell head -1 debian/changelog | sed 's/.*(//;s/).*//;')
 
 all: compile
 
 compile:
-	go build launchpad.net/hockeypuck/...
-	go install launchpad.net/hockeypuck/...
+	GOPATH=$(shell pwd)/build go install -ldflags "-X launchpad.net/hockeypuck.Version ${VERSION}" launchpad.net/hockeypuck/cmd/hockeypuck
 	make -C doc
 
 build:
