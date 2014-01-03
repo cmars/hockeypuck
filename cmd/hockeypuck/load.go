@@ -20,14 +20,16 @@ package main
 
 import (
 	"encoding/hex"
-	"github.com/cmars/conflux"
-	"github.com/cmars/conflux/recon"
-	"launchpad.net/gnuflag"
-	. "launchpad.net/hockeypuck"
-	"launchpad.net/hockeypuck/openpgp"
 	"log"
 	"os"
 	"path/filepath"
+
+	"github.com/cmars/conflux"
+	"github.com/cmars/conflux/recon"
+	"github.com/lib/pq"
+	"launchpad.net/gnuflag"
+	. "launchpad.net/hockeypuck"
+	"launchpad.net/hockeypuck/openpgp"
 )
 
 type loadCmd struct {
@@ -162,6 +164,14 @@ func (ec *loadCmd) insertDbKeys(db *openpgp.DB, inStat <-chan *loadStatus) (done
 			// Load key into relational database
 			if err = l.InsertKey(key); err != nil {
 				log.Println("Error inserting key:", key.Fingerprint(), ":", err)
+				if _, is := err.(pq.PGError); is {
+					log.Println("Rolling back current transaction. Some keys in the prefix tree might not be loaded. Rebuilding it with pbuild is recommended.")
+					if err = l.Rollback(); err != nil {
+						log.Println("Rollback error:", err)
+					}
+					nkeys = 0
+					continue
+				}
 			}
 			nkeys++
 			if nkeys%ec.txnSize == 0 {
