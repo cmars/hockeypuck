@@ -2,5 +2,4 @@
 - hosts: hockeypuck
   sudo: yes
   roles:
-    - load-common
     - load-hockeypuck

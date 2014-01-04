@@ -8,7 +8,7 @@
 Front-page Graphic
 ==================
 The "gopher bringing the keys" graphic on the `front page </index.html>`_
-is of course a basic remix of `Go Language Gopher mascot <http://golang.org/doc/faq#Whats_the_origin_of_the_mascot>`_. The keys were from an open-source SVG I found. When I find the source, I'll add it here.
+is of course a basic remix of `Go Language Gopher mascot <http://golang.org/doc/faq#Whats_the_origin_of_the_mascot>`_. The keys are from `Openclipart <http://openclipart.org/detail/12889/keyring-by-anonymous-12889>`_.
 
 go.crypto/openpgp
 =================
@@ -20,8 +20,8 @@ contribute to! Also, rietveld is awesome.
 
 sks-devel
 =========
-`sks-devel <https://lists.gnu.org/archive/html/sks-devel/>`_ has given me great advice, direction and feedback on Hockeypuck,
-and helped me quite a bit with understanding the SKS reconciliation algorithms and other implementation details.
+The `sks-devel <https://lists.gnu.org/archive/html/sks-devel/>`_ community has given me great advice, direction and feedback on Hockeypuck,
+and helped me quite a bit with understanding the SKS reconciliation algorithm and other implementation details.
 
 Third-party Libraries
 =====================

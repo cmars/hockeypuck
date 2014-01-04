@@ -1,4 +1,0 @@
----
-- shell: mkdir -p {{ int_data }}
-- name: Upload key material for integration tests
-  copy: src=/var/data/sks-dump/sks-dump-0194.pgp dest={{ int_data }}/sks-dump-0194.pgp mode=644
