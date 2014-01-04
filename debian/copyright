@@ -1,10 +1,10 @@
 Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: Hockeypuck
-Upstream-Contact: Casey Marshall <casey.marshall@gmail.com>
+Upstream-Contact: Casey Marshall <cmars@cmarstech.com>
 Source: https://launchpad.net/hockeypuck
 
 Files: *
-Copyright: 2012, 2013 Casey Marshall <casey.marshall@gmail.com>
+Copyright: 2012-2014 Casey Marshall <cmars@cmarstech.com>
 License: AGPL-3
  This program is free software: you can redistribute it and/or modify
  it under the terms of the GNU Affero General Public License as published by
@@ -18,7 +18,7 @@ License: AGPL-3
  You should have received a copy of the GNU Affero General Public License
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-Files: gopath/src/code.google.com/p/gorilla/*
+Files: build/src/code.google.com/p/gorilla/*
 Copyright: 2012 Rodrigo Moraes. All rights reserved.
 License: BSD-3-Clause
  Redistribution and use in source and binary forms, with or without
@@ -47,7 +47,7 @@ License: BSD-3-Clause
  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-Files: gopath/src/code.google.com/p/go.crypto/*
+Files: build/src/code.google.com/p/go.crypto/*
 Copyright: 2009 The Go Authors. All rights reserved.
 License: BSD-3-Clause
  Redistribution and use in source and binary forms, with or without
@@ -76,7 +76,7 @@ License: BSD-3-Clause
  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-Files: gopath/src/github.com/qpliu/qrencode-go/*
+Files: build/src/github.com/qpliu/qrencode-go/*
 Copyright: 2012, Q P Liu
 License: LGPL-3.0
  GNU LESSER GENERAL PUBLIC LICENSE
@@ -248,7 +248,7 @@ License: LGPL-3.0
  License version 3 can be found in the file
  `/usr/share/common-licenses/LGPL-3'.
 
-Files: gopath/src/github.com/pelletier/go-toml/*
+Files: build/src/github.com/pelletier/go-toml/*
 Copyright: 2013, Thomas Pelletier
 License: Expat
  Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
@@ -257,7 +257,7 @@ License: Expat
  .
  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-Files: gopath/src/github.com/lib/pq/*
+Files: build/src/github.com/lib/pq/*
 Copyright: 2011-2013, 'pq' Contributors
            2011, Blake Mizerany
 License: Expat
@@ -267,8 +267,8 @@ License: Expat
  .
  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-Files: gopath/src/github.com/cmars/conflux/*
-Copyright: 2012-2013, Casey Marshall <casey.marshall@gmail.com>
+Files: build/src/github.com/cmars/conflux/*
+Copyright: 2012-2014, Casey Marshall <cmars@cmarstech.com>
 License: GPL-3
  This program is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -283,8 +283,8 @@ License: GPL-3
  You should have received a copy of the GNU General Public License
  along with this program. If not, see <http://www.gnu.org/licenses/>. 
 
-Files: gopath/src/github.com/cmars/conflux/recon/*
-Copyright: 2012-2013, Casey Marshall <casey.marshall@gmail.com>
+Files: build/src/github.com/cmars/conflux/recon/*
+Copyright: 2012-2014, Casey Marshall <cmars@cmarstech.com>
 License: AGPL-3
  This program is free software: you can redistribute it and/or modify
  it under the terms of the GNU Affero General Public License as published by
@@ -298,7 +298,33 @@ License: AGPL-3
  You should have received a copy of the GNU Affero General Public License
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-Files: gopath/src/github.com/jmoiron/sqlx/*
+Files: build/src/github.com/syndtr/goleveldb/*
+Copyright: 2012 Suryandaru Triandana <syndtr@gmail.com>. All rights reserved.
+License: BSD-2-Clause
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are
+ met:
+ .
+ * Redistributions of source code must retain the above copyright
+ notice, this list of conditions and the following disclaimer.
+ * Redistributions in binary form must reproduce the above
+ copyright notice, this list of conditions and the following disclaimer
+ in the documentation and/or other materials provided with the
+ distribution.
+ .
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+Files: build/src/github.com/jmoiron/sqlx/*
 Copyright: 2013, Jason Moiron
 License: Expat
  Permission is hereby granted, free of charge, to any person
@@ -323,7 +349,7 @@ License: Expat
  OTHER DEALINGS IN THE SOFTWARE.
 
 Files: debian/*
-Copyright: 2012,2013, Casey Marshall <casey.marshall@gmail.com>
+Copyright: 2012-2014, Casey Marshall <cmars@cmarstech.com>
            2013, Dustin Kirkland <dustin.kirkland@gazzang.com>
 License: AGPL-3
  This program is free software: you can redistribute it and/or modify
