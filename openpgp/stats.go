@@ -114,5 +114,6 @@ func (s *HkpStats) fetchKeyStats() (err error) {
 }
 
 func (s *HkpStats) fetchTotalKeys() (err error) {
-	return s.db.Get(s, "SELECT COUNT(*) AS total_keys FROM openpgp_pubkey")
+	return s.db.Get(s, `
+SELECT CAST(reltuples AS INTEGER) AS total_keys FROM pg_class WHERE relname = 'openpgp_pubkey'`)
 }
