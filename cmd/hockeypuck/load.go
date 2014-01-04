@@ -20,14 +20,18 @@ package main
 
 import (
 	"encoding/hex"
-	"github.com/cmars/conflux"
-	"github.com/cmars/conflux/recon"
-	"launchpad.net/gnuflag"
-	. "launchpad.net/hockeypuck"
-	"launchpad.net/hockeypuck/openpgp"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+
+	"github.com/cmars/conflux"
+	"github.com/cmars/conflux/recon"
+	"github.com/lib/pq"
+	"launchpad.net/gnuflag"
+
+	. "launchpad.net/hockeypuck"
+	"launchpad.net/hockeypuck/openpgp"
 )
 
 type loadCmd struct {
@@ -84,11 +88,11 @@ func (ec *loadCmd) Main() {
 	}
 	// Create the prefix tree (if not exists)
 	if err = ptree.Create(); err != nil {
-		panic(err)
+		die(fmt.Errorf("Unable to create prefix tree: %v", err))
 	}
 	// Ensure tables all exist
 	if err = db.CreateTables(); err != nil {
-		die(err)
+		die(fmt.Errorf("Unable to create database tables: %v", err))
 	}
 	// Read all keys from input material
 	pending := ec.readAllKeys(ec.path)
@@ -136,7 +140,7 @@ func (ec *loadCmd) insertDbKeys(db *openpgp.DB, inStat <-chan *loadStatus) (done
 		var err error
 		l := openpgp.NewLoader(db, true)
 		if _, err = l.Begin(); err != nil {
-			panic(err)
+			die(fmt.Errorf("Error starting new transaction: %v", err))
 		}
 		nkeys := 0
 		defer func() {
@@ -144,10 +148,10 @@ func (ec *loadCmd) insertDbKeys(db *openpgp.DB, inStat <-chan *loadStatus) (done
 		}()
 		checkpoint := func() {
 			if err = l.Commit(); err != nil {
-				panic(err)
+				die(fmt.Errorf("Error committing transaction: %v", err))
 			}
 			if _, err = l.Begin(); err != nil {
-				panic(err)
+				die(fmt.Errorf("Error starting new transaction: %v", err))
 			}
 		}
 		defer checkpoint()
@@ -162,6 +166,9 @@ func (ec *loadCmd) insertDbKeys(db *openpgp.DB, inStat <-chan *loadStatus) (done
 			// Load key into relational database
 			if err = l.InsertKey(key); err != nil {
 				log.Println("Error inserting key:", key.Fingerprint(), ":", err)
+				if _, is := err.(pq.Error); is {
+					die(fmt.Errorf("Unable to load due to database errors."))
+				}
 			}
 			nkeys++
 			if nkeys%ec.txnSize == 0 {
