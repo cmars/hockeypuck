@@ -18,9 +18,10 @@
 package openpgp
 
 import (
+	"log"
+
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
-	"log"
 )
 
 type DB struct {

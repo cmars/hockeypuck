@@ -19,13 +19,15 @@ package openpgp
 
 import (
 	"bytes"
-	"code.google.com/p/go.crypto/openpgp/packet"
 	"database/sql"
 	"io"
-	"launchpad.net/hockeypuck/util"
 	"log"
 	"strings"
 	"time"
+
+	"code.google.com/p/go.crypto/openpgp/packet"
+
+	"launchpad.net/hockeypuck/util"
 )
 
 type Subkey struct {

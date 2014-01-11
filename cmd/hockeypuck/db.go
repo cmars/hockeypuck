@@ -20,6 +20,7 @@ package main
 
 import (
 	"launchpad.net/gnuflag"
+
 	. "launchpad.net/hockeypuck"
 	"launchpad.net/hockeypuck/openpgp"
 )

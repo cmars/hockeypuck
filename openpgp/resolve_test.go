@@ -19,14 +19,15 @@ package openpgp
 
 import (
 	"bytes"
-	"code.google.com/p/go.crypto/openpgp/armor"
-	"code.google.com/p/go.crypto/openpgp/packet"
 	"crypto/md5"
 	"encoding/binary"
 	"encoding/hex"
-	"github.com/stretchr/testify/assert"
 	"sort"
 	"testing"
+
+	"code.google.com/p/go.crypto/openpgp/armor"
+	"code.google.com/p/go.crypto/openpgp/packet"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestBadSelfSigUid(t *testing.T) {

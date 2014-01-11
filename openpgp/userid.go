@@ -19,13 +19,15 @@ package openpgp
 
 import (
 	"bytes"
-	"code.google.com/p/go.crypto/openpgp/packet"
 	"crypto/sha256"
 	"database/sql"
 	"io"
-	"launchpad.net/hockeypuck/util"
 	"strings"
 	"time"
+
+	"code.google.com/p/go.crypto/openpgp/packet"
+
+	"launchpad.net/hockeypuck/util"
 )
 
 type UserId struct {

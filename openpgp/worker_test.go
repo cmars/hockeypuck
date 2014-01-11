@@ -18,13 +18,15 @@
 package openpgp
 
 import (
-	"code.google.com/p/go.crypto/openpgp/armor"
 	"crypto/sha256"
 	"fmt"
+	"testing"
+
+	"code.google.com/p/go.crypto/openpgp/armor"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
+
 	"launchpad.net/hockeypuck"
-	"testing"
 )
 
 func connectString() string {

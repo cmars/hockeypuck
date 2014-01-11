@@ -19,16 +19,18 @@ package openpgp
 
 import (
 	"bytes"
-	"code.google.com/p/go.crypto/openpgp/armor"
 	"crypto/rand"
 	"encoding/ascii85"
 	"errors"
 	"fmt"
 	"io"
-	. "launchpad.net/hockeypuck/errors"
-	"launchpad.net/hockeypuck/hkp"
 	"log"
 	"time"
+
+	"code.google.com/p/go.crypto/openpgp/armor"
+
+	. "launchpad.net/hockeypuck/errors"
+	"launchpad.net/hockeypuck/hkp"
 )
 
 // KeyChangeChan channels are used for sending and receiving

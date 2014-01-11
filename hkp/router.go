@@ -18,11 +18,13 @@
 package hkp
 
 import (
-	"code.google.com/p/gorilla/mux"
-	"launchpad.net/hockeypuck"
-	Errors "launchpad.net/hockeypuck/errors"
 	"log"
 	"net/http"
+
+	"code.google.com/p/gorilla/mux"
+
+	"launchpad.net/hockeypuck"
+	Errors "launchpad.net/hockeypuck/errors"
 )
 
 func (s *Settings) HttpBind() string {

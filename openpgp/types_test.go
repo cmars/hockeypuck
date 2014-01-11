@@ -18,9 +18,9 @@
 package openpgp
 
 import (
-	//P "code.google.com/p/go.crypto/openpgp/packet"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestVisitor(t *testing.T) {

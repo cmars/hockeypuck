@@ -18,12 +18,13 @@
 package hockeypuck
 
 import (
-	"code.google.com/p/gorilla/mux"
 	"flag"
 	"go/build"
 	"net/http"
 	"os"
 	"path/filepath"
+
+	"code.google.com/p/gorilla/mux"
 )
 
 // System installed location for static files.

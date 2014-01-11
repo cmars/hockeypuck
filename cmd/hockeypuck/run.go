@@ -1,12 +1,14 @@
 package main
 
 import (
+	"net/http"
+
 	"code.google.com/p/gorilla/mux"
 	"launchpad.net/gnuflag"
+
 	. "launchpad.net/hockeypuck"
 	"launchpad.net/hockeypuck/hkp"
 	"launchpad.net/hockeypuck/openpgp"
-	"net/http"
 )
 
 type runCmd struct {

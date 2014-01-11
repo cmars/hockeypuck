@@ -21,14 +21,16 @@ package main
 import (
 	"encoding/hex"
 	"fmt"
-	"github.com/cmars/conflux"
-	"github.com/cmars/conflux/recon"
-	"launchpad.net/gnuflag"
-	. "launchpad.net/hockeypuck"
-	"launchpad.net/hockeypuck/openpgp"
 	"log"
 	"runtime"
 	"strings"
+
+	"github.com/cmars/conflux"
+	"github.com/cmars/conflux/recon"
+	"launchpad.net/gnuflag"
+
+	. "launchpad.net/hockeypuck"
+	"launchpad.net/hockeypuck/openpgp"
 )
 
 type pbuildCmd struct {

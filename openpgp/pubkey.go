@@ -19,8 +19,6 @@ package openpgp
 
 import (
 	"bytes"
-	"code.google.com/p/go.crypto/openpgp/errors"
-	"code.google.com/p/go.crypto/openpgp/packet"
 	"crypto"
 	"crypto/sha1"
 	"database/sql"
@@ -28,10 +26,14 @@ import (
 	"fmt"
 	"hash"
 	"io"
-	"launchpad.net/hockeypuck/util"
 	"log"
 	"strings"
 	"time"
+
+	"code.google.com/p/go.crypto/openpgp/errors"
+	"code.google.com/p/go.crypto/openpgp/packet"
+
+	"launchpad.net/hockeypuck/util"
 )
 
 const (

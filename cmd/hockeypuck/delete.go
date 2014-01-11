@@ -20,12 +20,15 @@ package main
 
 import (
 	"encoding/hex"
+
+	"log"
+
 	"github.com/cmars/conflux"
 	"github.com/cmars/conflux/recon"
+
 	"launchpad.net/gnuflag"
 	. "launchpad.net/hockeypuck"
 	"launchpad.net/hockeypuck/openpgp"
-	"log"
 )
 
 type deleteCmd struct {

@@ -28,6 +28,7 @@ import (
 
 	"github.com/cmars/conflux/recon"
 	"github.com/stretchr/testify/assert"
+
 	"launchpad.net/hockeypuck/hkp"
 )
 

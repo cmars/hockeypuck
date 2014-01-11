@@ -19,12 +19,13 @@ package openpgp
 
 import (
 	"bytes"
-	"code.google.com/p/go.crypto/openpgp/packet"
 	"crypto/sha256"
 	"database/sql"
 	"io"
 	"strings"
 	"time"
+
+	"code.google.com/p/go.crypto/openpgp/packet"
 )
 
 type UserAttribute struct {

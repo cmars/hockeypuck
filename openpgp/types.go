@@ -19,9 +19,10 @@ package openpgp
 
 import (
 	"bytes"
-	"code.google.com/p/go.crypto/openpgp/packet"
 	"errors"
 	"io"
+
+	"code.google.com/p/go.crypto/openpgp/packet"
 )
 
 var ErrInvalidPacketType error = errors.New("Invalid packet type")

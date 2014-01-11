@@ -19,10 +19,11 @@ package openpgp
 
 import (
 	"bytes"
+	"testing"
+
 	"code.google.com/p/go.crypto/openpgp/armor"
 	"code.google.com/p/go.crypto/openpgp/packet"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestVerifyUserAttributeSig(t *testing.T) {

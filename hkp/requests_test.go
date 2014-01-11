@@ -19,10 +19,11 @@ package hkp
 
 import (
 	"bytes"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/url"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 /*

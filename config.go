@@ -22,9 +22,10 @@ package hockeypuck
 import (
 	"bytes"
 	"fmt"
-	"github.com/pelletier/go-toml"
 	"io"
 	"strconv"
+
+	"github.com/pelletier/go-toml"
 )
 
 var config *Settings

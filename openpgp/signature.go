@@ -19,7 +19,6 @@ package openpgp
 
 import (
 	"bytes"
-	"code.google.com/p/go.crypto/openpgp/packet"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/ascii85"
@@ -27,8 +26,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
-	"launchpad.net/hockeypuck/util"
 	"time"
+
+	"code.google.com/p/go.crypto/openpgp/packet"
+
+	"launchpad.net/hockeypuck/util"
 )
 
 type Signature struct {

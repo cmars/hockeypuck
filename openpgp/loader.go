@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/jmoiron/sqlx"
+
 	"launchpad.net/hockeypuck/util"
 )
 

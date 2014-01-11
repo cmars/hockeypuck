@@ -21,12 +21,13 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
-	"launchpad.net/gnuflag"
-	. "launchpad.net/hockeypuck"
 	"log"
 	"os"
 	"path/filepath"
 	"runtime/pprof"
+
+	"launchpad.net/gnuflag"
+	. "launchpad.net/hockeypuck"
 )
 
 func die(err error) {

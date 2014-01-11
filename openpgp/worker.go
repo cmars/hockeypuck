@@ -22,17 +22,19 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/jmoiron/sqlx"
-	_ "github.com/lib/pq"
 	"io"
-	. "launchpad.net/hockeypuck/errors"
-	"launchpad.net/hockeypuck/hkp"
-	"launchpad.net/hockeypuck/util"
 	"log"
 	"os"
 	"os/user"
 	"runtime"
 	"strings"
+
+	"github.com/jmoiron/sqlx"
+	_ "github.com/lib/pq"
+
+	. "launchpad.net/hockeypuck/errors"
+	"launchpad.net/hockeypuck/hkp"
+	"launchpad.net/hockeypuck/util"
 )
 
 const LOOKUP_RESULT_LIMIT = 100

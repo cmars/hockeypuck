@@ -18,11 +18,12 @@
 package openpgp
 
 import (
-	"launchpad.net/hockeypuck/hkp"
 	"log"
 	"net"
 	"strconv"
 	"time"
+
+	"launchpad.net/hockeypuck/hkp"
 )
 
 func (w *Worker) Stats(l *hkp.Lookup) {
