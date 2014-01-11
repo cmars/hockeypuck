@@ -259,7 +259,7 @@ func (w *Worker) UpdateKey(pubkey *Pubkey) (err error) {
 UPDATE openpgp_pubkey SET
 	expiration = $2, state = $3, mtime = $4, md5 = $5, sha256 = $6, unsupp = $7
 WHERE uuid = $1`, r.RFingerprint, r.Expiration, r.State, r.Mtime, r.Md5, r.Sha256,
-				  r.Unsupported)
+				r.Unsupported)
 			if err != nil {
 				return err
 			}

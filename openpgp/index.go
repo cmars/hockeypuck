@@ -20,11 +20,14 @@ package openpgp
 import (
 	"fmt"
 	ht "html/template"
-	"launchpad.net/hockeypuck/hkp"
 	"net/http"
 	"strings"
 	tt "text/template"
 	"time"
+
+	"code.google.com/p/go.crypto/openpgp/packet"
+
+	"launchpad.net/hockeypuck/hkp"
 )
 
 const indexPageTmplSrc = `{{/*
@@ -58,7 +61,12 @@ pub  {{ .BitLen }}{{ .Algorithm | algocode }}/<a href="/pks/lookup?op=get&amp;se
 */}}{{ template "IndexColHeader" }}{{/*
 */}}{{ range $i, $key := .Keys }}{{ template "IndexPubkey" $key }}{{/*
 */}}{{ if $lookup.Fingerprint }}{{/*
-*/}}	 Fingerprint={{ $key.Fingerprint | fpformat | upper }}{{ end }}{{/*
+*/}}	 Fingerprint={{ $key.Fingerprint | fpformat | upper }}
+{{ end }}{{/*
+*/}}{{ if $lookup.Hash }}{{/*
+*/}}	 MD5={{ $key.Md5 | upper }}
+	 SHA256={{ $key.Sha256 | upper }}
+{{ end }}{{/*
 */}}</pre>{{ end }}{{/*
 */}}{{ template "PageFooter" }}{{ end }}{{/*
 
@@ -67,20 +75,24 @@ pub  {{ .BitLen }}{{ .Algorithm | algocode }}/<a href="/pks/lookup?op=get&amp;se
 
 */}}{{ define "VindexPage" }}{{ template "PageHeader" . }}{{ $lookup := .Lookup }}{{/*
 */}}{{ template "VindexColHeader" . }}{{/*
-*/}}{{ range $i, $key := .Keys }}<hr /><pre><strong>pub</strong>  {{ .BitLen }}{{ .Algorithm | algocode }}/<a href="/pks/lookup?op=get&amp;search=0x{{ .Fingerprint }}">{{ .ShortId | upper }}</a> {{ .Creation | date }}{{/*
-*/}}{{ if $lookup.Fingerprint }}
-	 Fingerprint={{ $key.Fingerprint | fpformat | upper }}{{ end }}{{/*
-*/}}{{ range $i, $uid := $key.UserIds }}
-
+*/}}{{ range $i, $key := .Keys }}<hr /><pre><strong>pub</strong>  {{ .BitLen }}{{ .Algorithm | algocode }}/<a href="/pks/lookup?op=get&amp;search=0x{{ .Fingerprint }}">{{ .ShortId | upper }}</a> {{ .Creation | date }}
+{{ if $lookup.Fingerprint }}{{/*
+*/}}	 Fingerprint={{ $key.Fingerprint | fpformat | upper }}
+{{ end }}{{/*
+*/}}{{ if $lookup.Hash }}{{/*
+*/}}	 MD5={{ $key.Md5 | upper }}
+	 SHA256={{ $key.Sha256 | upper }}
+{{ end }}{{ range $i, $uid := $key.UserIds }}
 <strong>uid</strong> <span class="uid">{{ $uid.Keywords }}</span>{{/*
 */}}{{ range $i, $sig := $uid.Signatures }}
 sig <span {{ if $sig|sigWarn }}class='warn'{{ end }}>{{ $sig|sigLabel }}</span>  <a href="/pks/lookup?op=get&amp;search=0x{{ $sig.IssuerKeyId|upper }}">{{ $sig.IssuerShortId|upper }}</a> {{ $sig.Creation|date }} {{ if equal ($key.KeyId) ($sig.IssuerKeyId) }}__________ {{ $sig.Expiration|date|blank }} [selfsig]{{ else }}{{ $sig.Expiration|date|blank }} __________ <a href="/pks/lookup?op=vindex&amp;search=0x{{ $sig.IssuerKeyId|upper }}">{{ $sig.IssuerKeyId|upper }}</a>{{ end }}{{ end }}{{/*
-*/}}{{ end }}{{/* range $key.UserIds
+*/}}
+{{ end }}{{/* range $key.UserIds
 */}}{{ range $i, $subkey := $key.Subkeys }}
-
 <strong>sub</strong>  {{ .BitLen }}{{ .Algorithm | algocode }}/{{ .ShortId | upper }} {{ .Creation | date }}{{ range $i, $sig := $subkey.Signatures }}
 sig <span {{ if $sig|sigWarn }}class='warn'{{ end }}>{{ $sig|sigLabel }}</span>  <a href="/pks/lookup?op=get&amp;search=0x{{ $sig.IssuerKeyId|upper }}">{{ $sig.IssuerShortId|upper }}</a> {{ $sig.Creation|date }} {{ if equal ($key.KeyId) ($sig.IssuerKeyId) }}__________ {{ $sig.Expiration|date|blank }} []{{ else }}{{ $sig.Expiration|date|blank }} __________ {{ $sig.IssuerShortId|upper }}{{ end }}{{ end }}{{/*
-*/}}{{ end }}{{/* range .$key.Subkeys
+*/}}
+{{ end }}{{/* range .$key.Subkeys
 */}}{{ end }}{{/* range .Keys
 */}}{{ template "PageFooter" }}{{ end }}{{/*
 */}}{{ if .Verbose }}{{ template "VindexPage" . }}{{ else }}{{ template "IndexPage" . }}{{ end }}`
@@ -161,6 +173,18 @@ func sigLabel(sig *Signature) string {
 		return "revok"
 	}
 	return sigName
+}
+
+func AlgorithmCode(algorithm int) string {
+	switch packet.PublicKeyAlgorithm(algorithm) {
+	case packet.PubKeyAlgoRSA, packet.PubKeyAlgoRSAEncryptOnly, packet.PubKeyAlgoRSASignOnly:
+		return "R"
+	case packet.PubKeyAlgoElGamal:
+		return "g"
+	case packet.PubKeyAlgoDSA:
+		return "D"
+	}
+	return fmt.Sprintf("[%d]", algorithm)
 }
 
 func init() {

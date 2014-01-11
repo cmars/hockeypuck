@@ -22,9 +22,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"strings"
-	"io/ioutil"
 
 	"github.com/cmars/conflux/recon"
 )
@@ -87,6 +87,7 @@ type Lookup struct {
 	Option       Option
 	Fingerprint  bool
 	Exact        bool
+	Hash         bool
 	responseChan ResponseChan
 }
 
@@ -135,6 +136,8 @@ func (l *Lookup) Parse() (err error) {
 	l.Option = parseOptions(l.Form.Get("options"))
 	// Parse the "fingerprint" variable (section 3.2.2)
 	l.Fingerprint = l.Form.Get("fingerprint") == "on"
+	// Parse the "hash" variable (SKS convention)
+	l.Hash = l.Form.Get("hash") == "on"
 	// Parse the "exact" variable (section 3.2.3)
 	l.Exact = l.Form.Get("exact") == "on"
 	return err

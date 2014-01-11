@@ -19,24 +19,19 @@ package openpgp
 
 import (
 	"bytes"
-	"code.google.com/p/go.crypto/openpgp/packet"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"path/filepath"
+
 	"github.com/cmars/conflux/recon"
-	"github.com/qpliu/qrencode-go/qrencode"
-	"image/png"
-	"io"
+
 	"launchpad.net/hockeypuck"
 	. "launchpad.net/hockeypuck/errors"
 	"launchpad.net/hockeypuck/hkp"
-	"log"
-	"net/http"
-	"net/url"
-	"os"
-	"path/filepath"
-	"strings"
 )
 
 type ErrorResponse struct {
@@ -176,121 +171,6 @@ func (r *StatsResponse) WriteTo(w http.ResponseWriter) (err error) {
 		err = hkp.StatsTemplate.ExecuteTemplate(w, "layout", r.Stats)
 	}
 	return
-}
-
-func AlgorithmCode(algorithm int) string {
-	switch packet.PublicKeyAlgorithm(algorithm) {
-	case packet.PubKeyAlgoRSA, packet.PubKeyAlgoRSAEncryptOnly, packet.PubKeyAlgoRSASignOnly:
-		return "R"
-	case packet.PubKeyAlgoElGamal:
-		return "g"
-	case packet.PubKeyAlgoDSA:
-		return "D"
-	}
-	return fmt.Sprintf("[%d]", algorithm)
-}
-
-func qrEncodeToDataUri(s string) string {
-	var err error
-	grid, err := qrencode.Encode(s, qrencode.ECLevelQ)
-	if err != nil {
-		return ""
-	}
-	img := grid.Image(3)
-	pngbuf := bytes.NewBuffer([]byte{})
-	err = png.Encode(pngbuf, img)
-	if err != nil {
-		return ""
-	}
-	return encodeToDataUri(pngbuf.Bytes())
-}
-
-func encodeToDataUri(data []byte) string {
-	return url.QueryEscape(base64.StdEncoding.EncodeToString(data))
-}
-
-func (i *IndexResponse) WriteIndex(w io.Writer, key *Pubkey) error {
-	if hkp.PksIndexTemplate == nil {
-		return ErrTemplatePathNotFound
-	}
-	key.Visit(func(rec PacketRecord) error {
-		switch r := rec.(type) {
-		case *Pubkey:
-			hkp.PksIndexTemplate.ExecuteTemplate(w, "pub-index-row", struct {
-				KeyLength    int
-				AlgoCode     string
-				Fingerprint  string
-				FpQrCode     string
-				ShortId      string
-				CreationTime string
-			}{
-				r.BitLen,
-				AlgorithmCode(r.Algorithm),
-				r.Fingerprint(),
-				qrEncodeToDataUri(r.Fingerprint()),
-				strings.ToUpper(r.ShortId()),
-				r.Creation.Format("2006-01-02")})
-		case *UserId:
-			hkp.PksIndexTemplate.ExecuteTemplate(w, "uid-index-row", struct {
-				Fingerprint string
-				Id          string
-			}{
-				key.Fingerprint(),
-				r.Keywords})
-		case *Signature:
-			if i.Verbose {
-				hkp.PksIndexTemplate.ExecuteTemplate(w, "sig-vindex-row", struct {
-					LongId  string
-					ShortId string
-					SigTime string
-					Uid     string
-				}{
-					r.IssuerKeyId(),
-					r.IssuerKeyId()[8:16],
-					r.Creation.Format("2006-01-02"), ""}) // TODO: use issuer primary UID
-			}
-		case *UserAttribute:
-			for _, imageData := range r.UserAttribute.ImageData() {
-				hkp.PksIndexTemplate.ExecuteTemplate(w, "uattr-image-row", struct {
-					ImageData string
-				}{
-					encodeToDataUri(imageData)})
-			}
-		}
-		return nil
-	})
-	return nil
-}
-
-func (i *IndexResponse) WriteMachineReadable(w io.Writer, key *Pubkey) error {
-	key.Visit(func(rec PacketRecord) error {
-		switch r := rec.(type) {
-		case *Pubkey:
-			fmt.Fprintf(w, "pub:%s:%d:%d:%d:%s:\n",
-				strings.ToUpper(r.Fingerprint()),
-				r.Algorithm, r.BitLen,
-				r.Creation.Unix(),
-				r.Expiration.Unix())
-		case *UserId:
-			fmt.Fprintf(w, "uid:%s:%d:%d:\n",
-				r.Keywords, r.Creation.Unix(), r.Expiration.Unix())
-		case *Signature:
-			if i.Verbose {
-				fmt.Fprintf(w, "sig:%d:%d:%s\n",
-					r.Creation.Unix(), r.Expiration.Unix(), r.IssuerKeyId())
-			}
-		case *UserAttribute:
-			fmt.Fprintf(w, "uat::::\n")
-		case *Subkey:
-			fmt.Fprintf(w, "sub:%s:%d:%d:%d:%s:\n",
-				strings.ToUpper(r.Fingerprint()),
-				r.Algorithm, r.BitLen,
-				r.Creation.Unix(),
-				r.Expiration.Unix())
-		}
-		return nil
-	})
-	return nil
 }
 
 type KeyringResponse struct {
