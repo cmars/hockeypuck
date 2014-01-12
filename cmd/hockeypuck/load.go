@@ -39,6 +39,12 @@ type loadCmd struct {
 	path       string
 	txnSize    int
 	ignoreDups bool
+
+	db            *openpgp.DB
+	l             *openpgp.Loader
+	ptree         recon.PrefixTree
+	nkeys         int
+	inTransaction bool
 }
 
 func (ec *loadCmd) Name() string { return "load" }
@@ -56,13 +62,6 @@ func newLoadCmd() *loadCmd {
 	return cmd
 }
 
-type loadStatus struct {
-	*openpgp.ReadKeyResult
-	z          *conflux.Zp
-	ptreeError error
-	dbError    error
-}
-
 func (ec *loadCmd) Main() {
 	if ec.path == "" {
 		Usage(ec, "--path is required")
@@ -72,145 +71,108 @@ func (ec *loadCmd) Main() {
 	}
 	ec.configuredCmd.Main()
 	InitLog()
-	var db *openpgp.DB
 	var err error
-	if db, err = openpgp.NewDB(); err != nil {
+	if ec.db, err = openpgp.NewDB(); err != nil {
 		die(err)
 	}
+	ec.l = openpgp.NewLoader(ec.db, true)
 	// Ensure tables all exist
-	if err = db.CreateTables(); err != nil {
+	if err = ec.db.CreateTables(); err != nil {
 		die(err)
 	}
-	var ptree recon.PrefixTree
 	reconSettings := recon.NewSettings(openpgp.Config().Settings.TomlTree)
-	if ptree, err = openpgp.NewSksPTree(reconSettings); err != nil {
+	if ec.ptree, err = openpgp.NewSksPTree(reconSettings); err != nil {
 		die(err)
 	}
 	// Create the prefix tree (if not exists)
-	if err = ptree.Create(); err != nil {
+	if err = ec.ptree.Create(); err != nil {
 		die(fmt.Errorf("Unable to create prefix tree: %v", err))
 	}
 	// Ensure tables all exist
-	if err = db.CreateTables(); err != nil {
+	if err = ec.db.CreateTables(); err != nil {
 		die(fmt.Errorf("Unable to create database tables: %v", err))
 	}
-	// Read all keys from input material
-	pending := ec.readAllKeys(ec.path)
-	// Try inserting into prefix tree
-	ptreeLoaded, ptreeDone := ec.insertPtreeKeys(ptree, pending)
-	// Keys that inserted into prefix tree are new, load into openpgp db
-	dbDone := ec.insertDbKeys(db, ptreeLoaded)
-	// Wait for loader to finish
-	<-dbDone
-	<-ptreeDone
+	// Load all keys from input material
+	ec.loadAllKeys(ec.path)
 	// Close the prefix tree
-	if err = ptree.Close(); err != nil {
-		log.Println("Close:", err)
+	if err = ec.ptree.Close(); err != nil {
+		log.Println("Close ptree:", err)
+	}
+	// Close the database connection
+	if err = ec.db.Close(); err != nil {
+		log.Println("Close database:", err)
 	}
 }
 
-func (ec *loadCmd) insertPtreeKeys(ptree recon.PrefixTree, inStat <-chan *loadStatus) (chan *loadStatus, chan interface{}) {
-	done := make(chan interface{})
-	c := make(chan *loadStatus)
-	go func() {
-		defer close(done)
-		nkeys := 0
-		defer close(c)
-		defer func() {
-			log.Println("Loaded", nkeys, "keys into prefix tree database")
-		}()
-		for st := range inStat {
-			if st.ReadKeyResult.Error != nil {
-				continue
-			}
-			// Load key into prefix tree
-			if st.ptreeError = ptree.Insert(st.z); st.ptreeError == nil {
-				c <- st
-				nkeys++
-			}
+func (ec *loadCmd) flushDb() {
+	if ec.inTransaction {
+		log.Println("Loaded", ec.nkeys, "keys")
+		if err := ec.l.Commit(); err != nil {
+			die(fmt.Errorf("Error committing transaction: %v", err))
 		}
-	}()
-	return c, done
+		ec.inTransaction = false
+		ec.nkeys = 0
+	}
 }
 
-func (ec *loadCmd) insertDbKeys(db *openpgp.DB, inStat <-chan *loadStatus) (done chan interface{}) {
-	done = make(chan interface{})
-	go func() {
-		defer close(done)
-		var err error
-		l := openpgp.NewLoader(db, true)
-		if _, err = l.Begin(); err != nil {
+func (ec *loadCmd) insertKey(keyRead *openpgp.ReadKeyResult) error {
+	var err error
+	if ec.nkeys%ec.txnSize == 0 {
+		ec.flushDb()
+		if _, err = ec.l.Begin(); err != nil {
 			die(fmt.Errorf("Error starting new transaction: %v", err))
 		}
-		nkeys := 0
-		defer func() {
-			log.Println("Loaded", nkeys, "keys into OpenPGP database")
-		}()
-		checkpoint := func() {
-			if err = l.Commit(); err != nil {
-				die(fmt.Errorf("Error committing transaction: %v", err))
-			}
-			if _, err = l.Begin(); err != nil {
-				die(fmt.Errorf("Error starting new transaction: %v", err))
-			}
+		ec.inTransaction = true
+	}
+	// Load key into relational database
+	if err = ec.l.InsertKey(keyRead.Pubkey); err != nil {
+		log.Println("Error inserting key:", keyRead.Pubkey.Fingerprint(), ":", err)
+		if _, is := err.(pq.Error); is {
+			die(fmt.Errorf("Unable to load due to database errors."))
 		}
-		defer checkpoint()
-		for st := range inStat {
-			if st.ReadKeyResult.Error != nil {
-				continue
-			}
-			if st.ptreeError != nil {
-				continue
-			}
-			key := st.ReadKeyResult.Pubkey
-			// Load key into relational database
-			if err = l.InsertKey(key); err != nil {
-				log.Println("Error inserting key:", key.Fingerprint(), ":", err)
-				if _, is := err.(pq.Error); is {
-					die(fmt.Errorf("Unable to load due to database errors."))
-				}
-			}
-			nkeys++
-			if nkeys%ec.txnSize == 0 {
-				checkpoint()
-			}
-		}
-	}()
-	return
+	}
+	ec.nkeys++
+	return err
 }
 
-func (ec *loadCmd) readAllKeys(path string) chan *loadStatus {
-	c := make(chan *loadStatus)
+func (ec *loadCmd) loadAllKeys(path string) {
 	keyfiles, err := filepath.Glob(path)
 	if err != nil {
 		die(err)
 	}
-	go func() {
-		defer close(c)
-		for _, keyfile := range keyfiles {
-			var f *os.File
-			if f, err = os.Open(keyfile); err != nil {
-				log.Println("Failed to open", keyfile, ":", err)
+	for _, keyfile := range keyfiles {
+		var f *os.File
+		if f, err = os.Open(keyfile); err != nil {
+			log.Println("Failed to open", keyfile, ":", err)
+			continue
+		}
+		defer f.Close()
+		log.Println("Loading keys from", keyfile)
+		defer ec.flushDb()
+		for keyRead := range openpgp.ReadKeys(f) {
+			if keyRead.Error != nil {
+				log.Println("Error reading key:", keyRead.Error)
 				continue
-			} else {
-				defer f.Close()
-				log.Println("Loading keys from", keyfile)
 			}
-			for keyRead := range openpgp.ReadKeys(f) {
-				if keyRead.Error != nil {
-					log.Println("Error reading key:", keyRead.Error)
-					continue
-				}
-				digest, err := hex.DecodeString(keyRead.Pubkey.Md5)
-				if err != nil {
-					log.Println("bad digest:", keyRead.Pubkey.Md5)
-					continue
-				}
-				digest = recon.PadSksElement(digest)
-				digestZp := conflux.Zb(conflux.P_SKS, digest)
-				c <- &loadStatus{ReadKeyResult: keyRead, z: digestZp}
+			digest, err := hex.DecodeString(keyRead.Pubkey.Md5)
+			if err != nil {
+				log.Println("bad digest:", keyRead.Pubkey.Md5)
+				continue
+			}
+			digest = recon.PadSksElement(digest)
+			digestZp := conflux.Zb(conflux.P_SKS, digest)
+			err = ec.ptree.Insert(digestZp)
+			if err != nil {
+				log.Println("Error inserting digest ", keyRead.Pubkey.Md5, ":", err)
+				continue
+			}
+			err = ec.insertKey(keyRead)
+			if err != nil {
+				log.Println("Error inserting key", keyRead.Pubkey.Md5, "into database:", err)
+				// Attempt to remove digest from ptree, since it was not successfully loaded
+				ec.ptree.Remove(digestZp)
+				continue
 			}
 		}
-	}()
-	return c
+	}
 }

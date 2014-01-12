@@ -9,6 +9,6 @@
 - name: Stop SKS
   shell: name=sks state=stopped
 - name: Load dump files
-  shell: su - debian-sks -c 'cd /var/lib/sks; /usr/sbin/sks merge -pagesize 128 -ptree_pagesize 16 -n 2 -cache 64 {{int_data}}/*'
+  shell: su - debian-sks -c 'cd /var/lib/sks; /usr/sbin/sks merge -pagesize 128 -ptree_pagesize 16 -n 2 -cache 64 {{int_data}}/*.pgp'
 - name: Start SKS
   service: name=sks state=started
