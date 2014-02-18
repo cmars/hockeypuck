@@ -1,6 +1,5 @@
 ---
 - hosts: hockeypuck
-  user: ubuntu
   sudo: yes
   tasks:
   - name: Stop Hockeypuck
@@ -9,6 +8,6 @@
     local_action: shell go build -o files/hockeypuck launchpad.net/hockeypuck/cmd/hockeypuck
     sudo: no
   - name: Replace Hockeypuck binary
-    copy: src=files/hockeypuck dest=/usr/bin/hockeypuck mode=0755
+    copy: src=files/hockeypuck dest=/usr/bin/hockeypuck mode=0755 force=yes
   - name: Start Hockeypuck
     service: name=hockeypuck state=started

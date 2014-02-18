@@ -1,0 +1,100 @@
+#!/bin/bash
+
+###
+#
+# gpg-grep - grep for PGP keyring files.
+#
+# Usage:
+#
+#	gpg-grep [-a] [-l] KEYID KEYFILE [KEYFILE2 .. KEYFILEn]
+#
+#   With no option switches, gpg-grep will export keyring material
+#   to standard output for each public key matching KEYID in the
+#   given keyring KEYFILE(s).
+#
+#   gpg-grep also supports the following options:
+#
+#   -a  Export matching keys with ASCII armor
+#
+#   -l  List matching key information instead of exporting key material
+#
+###
+
+CMD=$0
+
+function usage {
+	echo "Usage: $CMD [-a] [-l] KEYID KEYFILE"
+	exit 1
+}
+
+A_FLG=
+L_FLG=
+
+set -- $(getopt nal "$@")
+while [ $# -gt 0 ]; do
+	case $1 in
+		(-a)
+			A_FLG=1
+			;;
+		(-l)
+			L_FLG=1
+			;;
+		(--)
+			shift
+			break
+			;;
+		(-*)
+			usage
+			;;	
+		(*)
+			break
+			;;
+	esac
+	shift
+done
+
+KEYID=$1
+shift
+KEYFILE=$1
+
+if [[ -z "$KEYID" || -z "$KEYFILE" ]]; then
+	usage
+fi
+
+SHOW_FILENAME=
+GPG_ARMOR=
+if [ -n "$A_FLG" ]; then
+	GPG_ARMOR=-a
+
+	if [ -n "$2" ]; then
+		SHOW_FILENAME=1
+	fi
+fi
+
+GPG_ACTION=--export
+if [ -n "$L_FLG" ]; then
+	GPG_ACTION=--list-key
+fi
+
+TMPDIR=$(mktemp -d)
+trap 'rm -rf $TMPDIR' EXIT
+
+chmod 700 $TMPDIR
+
+# Suppress gpg messages about pubring created, etc.
+_NOP=$(gpg --homedir $TMPDIR --list-keys 2>&1 >/dev/null)
+
+RC=1 # Not found
+while [ -n "$KEYFILE" ]; do
+	if [ -n "$SHOW_FILENAME" ]; then
+		echo $KEYFILE:
+	fi
+	gpg --homedir $TMPDIR --keyring $KEYFILE $GPG_ARMOR $GPG_ACTION $KEYID 2>/dev/null
+	if [ "$?" = "0" ]; then
+		RC=0
+	fi
+	shift
+	KEYFILE=$1
+done
+
+exit $RC

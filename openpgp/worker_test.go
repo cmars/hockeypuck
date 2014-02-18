@@ -18,7 +18,7 @@
 package openpgp
 
 import (
-	"crypto/sha256"
+	"crypto/md5"
 	"fmt"
 	"testing"
 
@@ -77,8 +77,7 @@ func TestValidateKey(t *testing.T) {
 func TestRoundTripKeys(t *testing.T) {
 	for _, testfile := range []string{
 		"sksdigest.asc", "alice_signed.asc", "alice_unsigned.asc",
-		"uat.asc", "tails.asc"} {
-		t.Log(testfile)
+		"uat.asc", "tails.asc", "fece664e.asc", "weasel.asc"} {
 		testRoundTripKey(t, testfile)
 	}
 }
@@ -90,15 +89,17 @@ func testRoundTripKey(t *testing.T, testfile string) {
 	Resolve(key1)
 	_, err := w.Begin()
 	assert.Nil(t, err)
-	err = w.InsertKey(key1)
-	assert.Nil(t, err)
+	keyChange := w.UpsertKey(key1)
+	assert.Nil(t, keyChange.Error)
 	err = w.Commit()
 	assert.Nil(t, err)
 	key2, err := w.fetchKey(key1.RFingerprint)
 	if err != nil {
 		t.Fatal(err)
 	}
-	h1 := SksDigest(key1, sha256.New())
-	h2 := SksDigest(key2, sha256.New())
+	h1 := SksDigest(key1, md5.New())
+	h2 := SksDigest(key2, md5.New())
 	assert.Equal(t, h1, h2)
+	assert.Equal(t, key1.Md5, h1)
+	assert.Equal(t, key2.Md5, h1)
 }

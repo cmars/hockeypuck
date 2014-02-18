@@ -1,11 +1,7 @@
 ---
 - shell: mkdir -p {{ int_data }}
 - name: Upload key material for integration tests
-  copy: src=/var/data/sks-dump/{{ item }} dest={{ int_data }}/{{ item }} mode=644
-  with_items:
-    - sks-dump-0000.pgp
-    - sks-dump-0003.pgp
-    - sks-dump-0004.pgp
+  copy: src=/var/data/sks-dump/{{ data_file }} dest={{ int_data }}/{{ data_file }} mode=644
 - name: Stop SKS
   shell: name=sks state=stopped
 - name: Load dump files

@@ -72,8 +72,6 @@ func (r *Router) Respond(w http.ResponseWriter, req Request) {
 	err = resp.WriteTo(w)
 	if err != nil {
 		log.Println(resp, err)
-		// Try to respond with an error
-		http.Error(w, hockeypuck.APPLICATION_ERROR, 500)
 	}
 }
 

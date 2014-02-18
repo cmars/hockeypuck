@@ -133,6 +133,17 @@ state INTEGER NOT NULL DEFAULT 0,
 -- Binary contents of the OpenPGP packet
 packet bytea NOT NULL,
 -----------------------------------------------------------------------
+-- Primary public key scope in which the signature occurs
+pubkey_uuid TEXT NOT NULL,
+-- Subkey signature target, if any
+subkey_uuid TEXT,
+-- User ID signature target, if any
+uid_uuid TEXT,
+-- User attribute signature target, if any
+uat_uuid TEXT,
+-- Other signature target, if any
+sig_uuid TEXT,
+-----------------------------------------------------------------------
 -- Signature type, RFC 4880, Section 5.2.1
 sig_type INTEGER NOT NULL,
 -- Key ID (16-character prefix of the public key rfingerprint)
@@ -215,56 +226,6 @@ pubkey_uuid TEXT,
 revsig_uuid TEXT
 )`
 
-const Cr_openpgp_pubkey_sig = `
-CREATE TABLE IF NOT EXISTS openpgp_pubkey_sig (
------------------------------------------------------------------------
--- Universally-unique identifer
-uuid TEXT NOT NULL,
--- Public key that is signed
-pubkey_uuid TEXT NOT NULL,
--- Signature
-sig_uuid TEXT NOT NULL
-)`
-
-const Cr_openpgp_subkey_sig = `
-CREATE TABLE IF NOT EXISTS openpgp_subkey_sig (
------------------------------------------------------------------------
--- Universally-unique identifer
-uuid TEXT NOT NULL,
--- Public key to which the subkey belongs
-pubkey_uuid TEXT NOT NULL,
--- Sub key that is signed
-subkey_uuid TEXT NOT NULL,
--- Signature
-sig_uuid TEXT NOT NULL
-)`
-
-const Cr_openpgp_uid_sig = `
-CREATE TABLE IF NOT EXISTS openpgp_uid_sig (
------------------------------------------------------------------------
--- Universally-unique identifer
-uuid TEXT NOT NULL,
--- Public key to which the UID
-pubkey_uuid TEXT NOT NULL,
--- User ID that is signed
-uid_uuid TEXT NOT NULL,
--- Signature
-sig_uuid TEXT NOT NULL
-)`
-
-const Cr_openpgp_uat_sig = `
-CREATE TABLE IF NOT EXISTS openpgp_uat_sig (
------------------------------------------------------------------------
--- Universally-unique identifer
-uuid TEXT NOT NULL,
--- Public key to which the UID
-pubkey_uuid TEXT NOT NULL,
--- UID that is signed
-uat_uuid TEXT NOT NULL,
--- Signature
-sig_uuid TEXT NOT NULL
-)`
-
 const Cr_pks_stat = `
 CREATE TABLE IF NOT EXISTS pks_status (
 -----------------------------------------------------------------------
@@ -292,47 +253,27 @@ var CreateTablesSql []string = []string{
 	Cr_openpgp_subkey,
 	Cr_openpgp_uid,
 	Cr_openpgp_uat,
-	Cr_openpgp_pubkey_sig,
-	Cr_openpgp_subkey_sig,
-	Cr_openpgp_uid_sig,
-	Cr_openpgp_uat_sig,
-	Cr_pks_stat}
+	Cr_pks_stat,
+}
 
 var Cr_openpgp_pubkey_constraints []string = []string{
 	`ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_pk PRIMARY KEY (uuid);`,
 	`ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_md5 UNIQUE (md5);`,
-	`ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_sha256 UNIQUE (sha256);`}
-
-var Cr_openpgp_sig_constraints []string = []string{
-	`ALTER TABLE openpgp_sig ADD CONSTRAINT openpgp_sig_pk PRIMARY KEY (uuid);`,
-	`ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_revsig_fk
-	FOREIGN KEY (revsig_uuid) REFERENCES openpgp_sig(uuid)
-	DEFERRABLE INITIALLY DEFERRED;`,
-	`ALTER TABLE openpgp_sig ADD CONSTRAINT openpgp_sig_signer_fk FOREIGN KEY (signer_uuid)
-	REFERENCES openpgp_pubkey(uuid) DEFERRABLE INITIALLY DEFERRED;`,
-	`ALTER TABLE openpgp_sig ADD CONSTRAINT openpgp_sig_rev_fk FOREIGN KEY (revsig_uuid)
-	REFERENCES openpgp_sig(uuid) DEFERRABLE INITIALLY DEFERRED;`}
+	`ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_sha256 UNIQUE (sha256);`,
+}
 
 var Cr_openpgp_subkey_constraints []string = []string{
 	`ALTER TABLE openpgp_subkey ADD CONSTRAINT openpgp_subkey_pk PRIMARY KEY (uuid);`,
 	`ALTER TABLE openpgp_subkey ADD CONSTRAINT openpgp_subkey_pubkey_fk
 	FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid)
 	DEFERRABLE INITIALLY DEFERRED;`,
-	`ALTER TABLE openpgp_subkey ADD CONSTRAINT openpgp_subkey_rev_fk
-	FOREIGN KEY (revsig_uuid) REFERENCES openpgp_sig(uuid)
-	DEFERRABLE INITIALLY DEFERRED;`,
-	`CREATE INDEX openpgp_subkey_pubkey ON openpgp_subkey (pubkey_uuid);`}
+	`CREATE INDEX openpgp_subkey_pubkey ON openpgp_subkey (pubkey_uuid);`,
+}
 
 var Cr_openpgp_uid_constraints []string = []string{
 	`ALTER TABLE openpgp_uid ADD CONSTRAINT openpgp_uid_pk PRIMARY KEY (uuid);`,
 	`ALTER TABLE openpgp_uid ADD CONSTRAINT openpgp_uid_pubkey_fk
 	FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid)
-	DEFERRABLE INITIALLY DEFERRED;`,
-	`ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_primary_uid_fk
-	FOREIGN KEY (primary_uid) REFERENCES openpgp_uid(uuid)
-	DEFERRABLE INITIALLY DEFERRED;`,
-	`ALTER TABLE openpgp_uid ADD CONSTRAINT openpgp_uid_rev_fk
-	FOREIGN KEY (revsig_uuid) REFERENCES openpgp_sig(uuid)
 	DEFERRABLE INITIALLY DEFERRED;`,
 	`CREATE INDEX openpgp_uid_pubkey ON openpgp_uid (pubkey_uuid);`,
 	`CREATE INDEX openpgp_uid_fulltext_idx ON openpgp_uid USING gin(keywords_fulltext);`}
@@ -342,77 +283,65 @@ var Cr_openpgp_uat_constraints []string = []string{
 	`ALTER TABLE openpgp_uat ADD CONSTRAINT openpgp_uat_pubkey_fk
 	FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid)
 	DEFERRABLE INITIALLY DEFERRED;`,
+	`CREATE INDEX openpgp_uat_pubkey ON openpgp_uat (pubkey_uuid);`,
+}
+
+var Cr_openpgp_sig_constraints []string = []string{
+	`ALTER TABLE openpgp_sig ADD CONSTRAINT openpgp_sig_pk PRIMARY KEY (uuid);`,
+	`ALTER TABLE openpgp_sig ADD CONSTRAINT openpgp_sig_signer_fk FOREIGN KEY (signer_uuid)
+	REFERENCES openpgp_pubkey(uuid) DEFERRABLE INITIALLY DEFERRED;`,
+	`ALTER TABLE openpgp_sig ADD CONSTRAINT openpgp_sig_pubkey_fk
+	FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid)
+	DEFERRABLE INITIALLY DEFERRED;`,
+	`ALTER TABLE openpgp_sig ADD CONSTRAINT openpgp_sig_subkey_fk
+	FOREIGN KEY (subkey_uuid) REFERENCES openpgp_subkey(uuid)
+	DEFERRABLE INITIALLY DEFERRED;`,
+	`ALTER TABLE openpgp_sig ADD CONSTRAINT openpgp_sig_uid_fk
+	FOREIGN KEY (uid_uuid) REFERENCES openpgp_uid(uuid)
+	DEFERRABLE INITIALLY DEFERRED;`,
+	`ALTER TABLE openpgp_sig ADD CONSTRAINT openpgp_sig_uat_fk
+	FOREIGN KEY (uat_uuid) REFERENCES openpgp_uat(uuid)
+	DEFERRABLE INITIALLY DEFERRED;`,
+	`ALTER TABLE openpgp_sig ADD CONSTRAINT openpgp_sig_sig_fk
+	FOREIGN KEY (sig_uuid) REFERENCES openpgp_sig(uuid)
+	DEFERRABLE INITIALLY DEFERRED;`,
+}
+
+var Cr_openpgp_primary_constraints []string = []string{
+	`ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_primary_uid_fk
+	FOREIGN KEY (primary_uid) REFERENCES openpgp_uid(uuid)
+	DEFERRABLE INITIALLY DEFERRED;`,
 	`ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_primary_uat_fk
 	FOREIGN KEY (primary_uat) REFERENCES openpgp_uat(uuid)
 	DEFERRABLE INITIALLY DEFERRED;`,
-	`ALTER TABLE openpgp_uat ADD CONSTRAINT openpgp_uat_rev_fk
+}
+
+var Cr_openpgp_revsig_constraints []string = []string{
+	`ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_revsig_fk
 	FOREIGN KEY (revsig_uuid) REFERENCES openpgp_sig(uuid)
 	DEFERRABLE INITIALLY DEFERRED;`,
-	`CREATE INDEX openpgp_uat_pubkey ON openpgp_uat (pubkey_uuid);`}
-
-var Cr_openpgp_pubkey_sig_constraints []string = []string{
-	`ALTER TABLE openpgp_pubkey_sig ADD CONSTRAINT openpgp_pubkey_sig_pk PRIMARY KEY (uuid);`,
-	`ALTER TABLE openpgp_pubkey_sig ADD CONSTRAINT openpgp_pubkey_sig_unique
-	UNIQUE (pubkey_uuid, sig_uuid);`,
-	`ALTER TABLE openpgp_pubkey_sig ADD CONSTRAINT openpgp_pubkey_sig_pubkey_fk
-	FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid)
+	`ALTER TABLE openpgp_subkey ADD CONSTRAINT openpgp_subkey_revsig_fk
+	FOREIGN KEY (revsig_uuid) REFERENCES openpgp_sig(uuid)
 	DEFERRABLE INITIALLY DEFERRED;`,
-	`ALTER TABLE openpgp_pubkey_sig ADD CONSTRAINT openpgp_pubkey_sig_sig_fk
-	FOREIGN KEY (sig_uuid) REFERENCES openpgp_sig(uuid)
-	DEFERRABLE INITIALLY DEFERRED;`}
-
-var Cr_openpgp_subkey_sig_constraints []string = []string{
-	`ALTER TABLE openpgp_subkey_sig ADD CONSTRAINT openpgp_subkey_sig_pk PRIMARY KEY (uuid);`,
-	`ALTER TABLE openpgp_subkey_sig ADD CONSTRAINT openpgp_subkey_sig_unique
-	UNIQUE (subkey_uuid, sig_uuid);`,
-	`ALTER TABLE openpgp_subkey_sig ADD CONSTRAINT openpgp_subkey_sig_pubkey_fk
-	FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid)
+	`ALTER TABLE openpgp_uid ADD CONSTRAINT openpgp_uid_revsig_fk
+	FOREIGN KEY (revsig_uuid) REFERENCES openpgp_sig(uuid)
 	DEFERRABLE INITIALLY DEFERRED;`,
-	`ALTER TABLE openpgp_subkey_sig ADD CONSTRAINT openpgp_subkey_sig_subkey_fk
-	FOREIGN KEY (subkey_uuid) REFERENCES openpgp_subkey(uuid)
+	`ALTER TABLE openpgp_uat ADD CONSTRAINT openpgp_uat_revsig_fk
+	FOREIGN KEY (revsig_uuid) REFERENCES openpgp_sig(uuid)
 	DEFERRABLE INITIALLY DEFERRED;`,
-	`ALTER TABLE openpgp_subkey_sig ADD CONSTRAINT openpgp_subkey_sig_sig_fk
-	FOREIGN KEY (sig_uuid) REFERENCES openpgp_sig(uuid)
-	DEFERRABLE INITIALLY DEFERRED;`}
-
-var Cr_openpgp_uid_sig_constraints []string = []string{
-	`ALTER TABLE openpgp_uid_sig ADD CONSTRAINT openpgp_uid_sig_pk PRIMARY KEY (uuid);`,
-	`ALTER TABLE openpgp_uid_sig ADD CONSTRAINT openpgp_uid_sig_unique
-	UNIQUE (uid_uuid, sig_uuid);`,
-	`ALTER TABLE openpgp_uid_sig ADD CONSTRAINT openpgp_uid_sig_pubkey_fk
-	FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid)
-	DEFERRABLE INITIALLY DEFERRED;`,
-	`ALTER TABLE openpgp_uid_sig ADD CONSTRAINT openpgp_uid_sig_uid_fk
-	FOREIGN KEY (uid_uuid) REFERENCES openpgp_uid(uuid)
-	DEFERRABLE INITIALLY DEFERRED;`,
-	`ALTER TABLE openpgp_uid_sig ADD CONSTRAINT openpgp_uid_sig_sig_fk
-	FOREIGN KEY (sig_uuid) REFERENCES openpgp_sig(uuid)
-	DEFERRABLE INITIALLY DEFERRED;`}
-
-var Cr_openpgp_uat_sig_constraints []string = []string{
-	`ALTER TABLE openpgp_uat_sig ADD CONSTRAINT openpgp_uat_sig_pk PRIMARY KEY (uuid);`,
-	`ALTER TABLE openpgp_uat_sig ADD CONSTRAINT openpgp_uat_sig_unique
-	UNIQUE (uat_uuid, sig_uuid);`,
-	`ALTER TABLE openpgp_uat_sig ADD CONSTRAINT openpgp_uat_sig_pubkey_fk
-	FOREIGN KEY (pubkey_uuid) REFERENCES openpgp_pubkey(uuid)
-	DEFERRABLE INITIALLY DEFERRED;`,
-	`ALTER TABLE openpgp_uat_sig ADD CONSTRAINT openpgp_uat_sig_uat_fk
-	FOREIGN KEY (uat_uuid) REFERENCES openpgp_uat(uuid)
-	DEFERRABLE INITIALLY DEFERRED;`,
-	`ALTER TABLE openpgp_uat_sig ADD CONSTRAINT openpgp_uat_sig_sig_fk
-	FOREIGN KEY (sig_uuid) REFERENCES openpgp_sig(uuid)
-	DEFERRABLE INITIALLY DEFERRED;`}
+	`ALTER TABLE openpgp_sig ADD CONSTRAINT openpgp_sig_revsig_fk FOREIGN KEY (revsig_uuid)
+	REFERENCES openpgp_sig(uuid) DEFERRABLE INITIALLY DEFERRED;`,
+}
 
 var CreateConstraintsSql [][]string = [][]string{
 	Cr_openpgp_pubkey_constraints,
-	Cr_openpgp_sig_constraints,
 	Cr_openpgp_subkey_constraints,
 	Cr_openpgp_uid_constraints,
 	Cr_openpgp_uat_constraints,
-	Cr_openpgp_pubkey_sig_constraints,
-	Cr_openpgp_subkey_sig_constraints,
-	Cr_openpgp_uid_sig_constraints,
-	Cr_openpgp_uat_sig_constraints}
+	Cr_openpgp_sig_constraints,
+	Cr_openpgp_primary_constraints,
+	Cr_openpgp_revsig_constraints,
+}
 
 const dedupTemplate = `
 {{define "cols"}}{{/*
@@ -431,19 +360,12 @@ type dedup struct {
 }
 
 var dedups []dedup = []dedup{
-	dedup{"openpgp_pubkey", []string{"uuid"}},
 	dedup{"openpgp_sig", []string{"uuid"}},
-	dedup{"openpgp_subkey", []string{"uuid"}},
-	dedup{"openpgp_uid", []string{"uuid"}},
 	dedup{"openpgp_uat", []string{"uuid"}},
-	dedup{"openpgp_pubkey_sig", []string{"uuid"}},
-	dedup{"openpgp_pubkey_sig", []string{"pubkey_uuid", "sig_uuid"}},
-	dedup{"openpgp_subkey_sig", []string{"uuid"}},
-	dedup{"openpgp_subkey_sig", []string{"subkey_uuid", "sig_uuid"}},
-	dedup{"openpgp_uid_sig", []string{"uuid"}},
-	dedup{"openpgp_uid_sig", []string{"uid_uuid", "sig_uuid"}},
-	dedup{"openpgp_uat_sig", []string{"uuid"}},
-	dedup{"openpgp_uat_sig", []string{"uat_uuid", "sig_uuid"}}}
+	dedup{"openpgp_uid", []string{"uuid"}},
+	dedup{"openpgp_subkey", []string{"uuid"}},
+	dedup{"openpgp_pubkey", []string{"uuid"}},
+}
 
 var DeleteDuplicatesSql []string
 
@@ -465,65 +387,56 @@ var Dr_openpgp_pubkey_constraints []string = []string{
 	`ALTER TABLE openpgp_pubkey DROP CONSTRAINT openpgp_pubkey_pk;`,
 	`ALTER TABLE openpgp_pubkey DROP CONSTRAINT openpgp_pubkey_md5;`,
 	`ALTER TABLE openpgp_pubkey DROP CONSTRAINT openpgp_pubkey_sha256;`,
-	`ALTER TABLE openpgp_pubkey DROP CONSTRAINT openpgp_pubkey_primary_uid_fk;`,
-	`ALTER TABLE openpgp_pubkey DROP CONSTRAINT openpgp_pubkey_primary_uat_fk;`,
-	`ALTER TABLE openpgp_pubkey DROP CONSTRAINT openpgp_pubkey_revsig_fk;`}
-
-var Dr_openpgp_sig_constraints []string = []string{
-	`ALTER TABLE openpgp_sig DROP CONSTRAINT openpgp_sig_pk;`,
-	`ALTER TABLE openpgp_sig DROP CONSTRAINT openpgp_sig_signer_fk;`,
-	`ALTER TABLE openpgp_sig DROP CONSTRAINT openpgp_sig_rev_fk;`}
+}
 
 var Dr_openpgp_subkey_constraints []string = []string{
 	`ALTER TABLE openpgp_subkey DROP CONSTRAINT openpgp_subkey_pk;`,
 	`ALTER TABLE openpgp_subkey DROP CONSTRAINT openpgp_subkey_pubkey_fk;`,
-	`ALTER TABLE openpgp_subkey DROP CONSTRAINT openpgp_subkey_rev_fk;`}
+	`DROP INDEX openpgp_subkey_pubkey;`,
+}
 
 var Dr_openpgp_uid_constraints []string = []string{
 	`ALTER TABLE openpgp_uid DROP CONSTRAINT openpgp_uid_pk;`,
 	`ALTER TABLE openpgp_uid DROP CONSTRAINT openpgp_uid_pubkey_fk;`,
-	`ALTER TABLE openpgp_uid DROP CONSTRAINT openpgp_uid_rev_fk;`,
-	`DROP INDEX openpgp_uid_fulltext_idx;`}
+	`DROP INDEX openpgp_uid_pubkey;`,
+	`DROP INDEX openpgp_uid_fulltext_idx;`,
+}
 
 var Dr_openpgp_uat_constraints []string = []string{
 	`ALTER TABLE openpgp_uat DROP CONSTRAINT openpgp_uat_pk;`,
 	`ALTER TABLE openpgp_uat DROP CONSTRAINT openpgp_uat_pubkey_fk;`,
-	`ALTER TABLE openpgp_uat DROP CONSTRAINT openpgp_uat_rev_fk;`}
+	`DROP INDEX openpgp_uat_pubkey;`,
+}
 
-var Dr_openpgp_pubkey_sig_constraints []string = []string{
-	`ALTER TABLE openpgp_pubkey_sig DROP CONSTRAINT openpgp_pubkey_sig_pk;`,
-	`ALTER TABLE openpgp_pubkey_sig DROP CONSTRAINT openpgp_pubkey_sig_unique;`,
-	`ALTER TABLE openpgp_pubkey_sig DROP CONSTRAINT openpgp_pubkey_sig_pubkey_fk;`,
-	`ALTER TABLE openpgp_pubkey_sig DROP CONSTRAINT openpgp_pubkey_sig_sig_fk;`}
+var Dr_openpgp_sig_constraints []string = []string{
+	`ALTER TABLE openpgp_sig DROP CONSTRAINT openpgp_sig_signer_fk;`,
+	`ALTER TABLE openpgp_sig DROP CONSTRAINT openpgp_sig_pubkey_fk;`,
+	`ALTER TABLE openpgp_sig DROP CONSTRAINT openpgp_sig_subkey_fk;`,
+	`ALTER TABLE openpgp_sig DROP CONSTRAINT openpgp_sig_uid_fk;`,
+	`ALTER TABLE openpgp_sig DROP CONSTRAINT openpgp_sig_uat_fk;`,
+	`ALTER TABLE openpgp_sig DROP CONSTRAINT openpgp_sig_sig_fk;`,
+	`ALTER TABLE openpgp_sig DROP CONSTRAINT openpgp_sig_pk;`,
+}
 
-var Dr_openpgp_subkey_sig_constraints []string = []string{
-	`ALTER TABLE openpgp_subkey_sig DROP CONSTRAINT openpgp_subkey_sig_pk;`,
-	`ALTER TABLE openpgp_subkey_sig DROP CONSTRAINT openpgp_subkey_sig_unique;`,
-	`ALTER TABLE openpgp_subkey_sig DROP CONSTRAINT openpgp_subkey_sig_pubkey_fk;`,
-	`ALTER TABLE openpgp_subkey_sig DROP CONSTRAINT openpgp_subkey_sig_subkey_fk;`,
-	`ALTER TABLE openpgp_subkey_sig DROP CONSTRAINT openpgp_subkey_sig_sig_fk;`}
+var Dr_openpgp_primary_constraints []string = []string{
+	`ALTER TABLE openpgp_pubkey DROP CONSTRAINT openpgp_pubkey_primary_uid_fk;`,
+	`ALTER TABLE openpgp_pubkey DROP CONSTRAINT openpgp_pubkey_primary_uat_fk;`,
+}
 
-var Dr_openpgp_uid_sig_constraints []string = []string{
-	`ALTER TABLE openpgp_uid_sig DROP CONSTRAINT openpgp_uid_sig_pk;`,
-	`ALTER TABLE openpgp_uid_sig DROP CONSTRAINT openpgp_uid_sig_unique;`,
-	`ALTER TABLE openpgp_uid_sig DROP CONSTRAINT openpgp_uid_sig_pubkey_fk;`,
-	`ALTER TABLE openpgp_uid_sig DROP CONSTRAINT openpgp_uid_sig_uid_fk;`,
-	`ALTER TABLE openpgp_uid_sig DROP CONSTRAINT openpgp_uid_sig_sig_fk;`}
-
-var Dr_openpgp_uat_sig_constraints []string = []string{
-	`ALTER TABLE openpgp_uat_sig DROP CONSTRAINT openpgp_uat_sig_pk;`,
-	`ALTER TABLE openpgp_uat_sig DROP CONSTRAINT openpgp_uat_sig_unique;`,
-	`ALTER TABLE openpgp_uat_sig DROP CONSTRAINT openpgp_uat_sig_pubkey_fk;`,
-	`ALTER TABLE openpgp_uat_sig DROP CONSTRAINT openpgp_uat_sig_uat_fk;`,
-	`ALTER TABLE openpgp_uat_sig DROP CONSTRAINT openpgp_uat_sig_sig_fk;`}
+var Dr_openpgp_revsig_constraints []string = []string{
+	`ALTER TABLE openpgp_pubkey DROP CONSTRAINT openpgp_pubkey_revsig_fk;`,
+	`ALTER TABLE openpgp_subkey DROP CONSTRAINT openpgp_subkey_revsig_fk;`,
+	`ALTER TABLE openpgp_uid DROP CONSTRAINT openpgp_uid_revsig_fk;`,
+	`ALTER TABLE openpgp_uat DROP CONSTRAINT openpgp_uat_revsig_fk;`,
+	`ALTER TABLE openpgp_sig DROP CONSTRAINT openpgp_sig_revsig_fk;`,
+}
 
 var DropConstraintsSql [][]string = [][]string{
-	Dr_openpgp_pubkey_constraints,
+	Dr_openpgp_revsig_constraints,
+	Dr_openpgp_primary_constraints,
 	Dr_openpgp_sig_constraints,
-	Dr_openpgp_subkey_constraints,
-	Dr_openpgp_uid_constraints,
 	Dr_openpgp_uat_constraints,
-	Dr_openpgp_pubkey_sig_constraints,
-	Dr_openpgp_subkey_sig_constraints,
-	Dr_openpgp_uid_sig_constraints,
-	Dr_openpgp_uat_sig_constraints}
+	Dr_openpgp_uid_constraints,
+	Dr_openpgp_subkey_constraints,
+	Dr_openpgp_pubkey_constraints,
+}

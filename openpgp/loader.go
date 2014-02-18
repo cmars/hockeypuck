@@ -77,10 +77,7 @@ func (l *Loader) InsertKey(pubkey *Pubkey) (err error) {
 			}
 			signable = r
 		case *Signature:
-			if err := l.insertSig(pubkey, r); err != nil {
-				return err
-			}
-			if err := l.insertSigRelations(pubkey, signable, r); err != nil {
+			if err := l.insertSig(pubkey, signable, r); err != nil {
 				return err
 			}
 		}
@@ -157,53 +154,53 @@ SELECT $1, $2, $3, $4, $5,
 	return err
 }
 
-func (l *Loader) insertSig(pubkey *Pubkey, r *Signature) error {
-	_, err := l.tx.Execv(l.insertSelectFrom(`
+func (l *Loader) insertSig(pubkey *Pubkey, signable PacketRecord, r *Signature) error {
+	baseSql := `
 INSERT INTO openpgp_sig (
 	uuid, creation, expiration, state, packet,
-	sig_type, signer, signer_uuid)
-SELECT $1, $2, $3, $4, $5, $6, $7, $8`,
-		"openpgp_sig", "uuid = $1"),
+	sig_type, signer, signer_uuid%s)
+SELECT $1, $2, $3, $4, $5, $6, $7, $8%s`
+	matchSql := "uuid = $1"
+	args := []interface{}{
 		r.ScopedDigest, r.Creation, r.Expiration, r.State, r.Packet,
-		r.SigType, r.RIssuerKeyId, r.RIssuerFingerprint)
-	// TODO: use RETURNING to update matched issuer fingerprint
-	return err
-}
-
-func (l *Loader) insertSigRelations(pubkey *Pubkey, signable PacketRecord, r *Signature) error {
-	sigRelationUuid, err := NewUuid()
-	if err != nil {
-		return err
+		r.SigType, r.RIssuerKeyId, r.RIssuerFingerprint,
 	}
-	// Add signature relation to other packets
+	var sql string
 	switch signed := signable.(type) {
 	case *Pubkey:
-		_, err = l.tx.Execv(l.insertSelectFrom(`
-INSERT INTO openpgp_pubkey_sig (uuid, pubkey_uuid, sig_uuid)
-SELECT $1, $2, $3`,
-			"openpgp_pubkey_sig", "pubkey_uuid = $2 AND sig_uuid = $3"),
-			sigRelationUuid, signed.RFingerprint, r.ScopedDigest)
+		sql = fmt.Sprintf(baseSql,
+			", pubkey_uuid",
+			", $9")
+		args = append(args, signed.RFingerprint)
+		matchSql += " AND pubkey_uuid = $9"
 	case *Subkey:
-		_, err = l.tx.Execv(l.insertSelectFrom(`
-INSERT INTO openpgp_subkey_sig (uuid, pubkey_uuid, subkey_uuid, sig_uuid)
-SELECT $1, $2, $3, $4`,
-			"openpgp_subkey_sig", "pubkey_uuid = $2 AND subkey_uuid = $3 AND sig_uuid = $4"),
-			sigRelationUuid, pubkey.RFingerprint,
-			signed.RFingerprint, r.ScopedDigest)
+		sql = fmt.Sprintf(baseSql,
+			", pubkey_uuid, subkey_uuid",
+			", $9, $10")
+		args = append(args, pubkey.RFingerprint, signed.RFingerprint)
+		matchSql += " AND pubkey_uuid = $9 AND subkey_uuid = $10"
 	case *UserId:
-		_, err = l.tx.Execv(l.insertSelectFrom(`
-INSERT INTO openpgp_uid_sig (uuid, pubkey_uuid, uid_uuid, sig_uuid)
-SELECT $1, $2, $3, $4`,
-			"openpgp_uid_sig", "pubkey_uuid = $2 AND uid_uuid = $3 AND sig_uuid = $4"),
-			sigRelationUuid, pubkey.RFingerprint,
-			signed.ScopedDigest, r.ScopedDigest)
+		sql = fmt.Sprintf(baseSql,
+			", pubkey_uuid, uid_uuid",
+			", $9, $10")
+		args = append(args, pubkey.RFingerprint, signed.ScopedDigest)
+		matchSql += " AND pubkey_uuid = $9 AND uid_uuid = $10"
 	case *UserAttribute:
-		_, err = l.tx.Execv(l.insertSelectFrom(`
-INSERT INTO openpgp_uat_sig (uuid, pubkey_uuid, uat_uuid, sig_uuid)
-SELECT $1, $2, $3, $4`,
-			"openpgp_uat_sig", "pubkey_uuid = $2 AND uat_uuid = $3 AND sig_uuid = $4"),
-			sigRelationUuid, pubkey.RFingerprint,
-			signed.ScopedDigest, r.ScopedDigest)
+		sql = fmt.Sprintf(baseSql,
+			", pubkey_uuid, uat_uuid",
+			", $9, $10")
+		args = append(args, pubkey.RFingerprint, signed.ScopedDigest)
+		matchSql += " AND pubkey_uuid = $9 AND uat_uuid = $10"
+	case *Signature:
+		sql = fmt.Sprintf(baseSql,
+			", pubkey_uuid, sig_uuid",
+			", $9, $10")
+		args = append(args, pubkey.RFingerprint, signed.ScopedDigest)
+		matchSql += " AND pubkey_uuid = $9 AND sig_uuid = $10"
+	default:
+		return fmt.Errorf("Unsupported packet record type: %v", signed)
 	}
+	_, err := l.tx.Execv(l.insertSelectFrom(sql, "openpgp_sig", matchSql), args...)
+	// TODO: use RETURNING to update matched issuer fingerprint
 	return err
 }

@@ -44,9 +44,17 @@ type Signature struct {
 	RIssuerFingerprint sql.NullString `db:"signer_uuid"` // mutable
 	RevSigDigest       sql.NullString `db:"revsig_uuid"` // mutable
 
+	/* Containment references */
+
+	PubkeyUuid sql.NullString `db:"pubkey_uuid"`
+	SubkeyUuid sql.NullString `db:"subkey_uuid"`
+	UidUuid    sql.NullString `db:"uid_uuid"`
+	UatUuid    sql.NullString `db:"uat_uuid"`
+	SigUuid    sql.NullString `db:"sig_uuid"`
+
 	/* Cross-references */
 
-	revSig *Signature `db:"-"`
+	revSig *Signature
 
 	/* Parsed packet data */
 

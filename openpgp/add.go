@@ -21,13 +21,13 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/ascii85"
-	"errors"
 	"fmt"
 	"io"
 	"log"
 	"time"
 
 	"code.google.com/p/go.crypto/openpgp/armor"
+	"github.com/juju/errgo/errors"
 
 	. "launchpad.net/hockeypuck/errors"
 	"launchpad.net/hockeypuck/hkp"
@@ -251,7 +251,7 @@ func (w *Worker) UpsertKey(key *Pubkey) (change *KeyChange) {
 // UpdateKey updates the database to the contents of the given public key.
 func (w *Worker) UpdateKey(pubkey *Pubkey) (err error) {
 	if err = w.InsertKey(pubkey); err != nil {
-		return err
+		return errors.Mask(err)
 	}
 	var signable PacketRecord
 	err = pubkey.Visit(func(rec PacketRecord) (err error) {
@@ -259,46 +259,69 @@ func (w *Worker) UpdateKey(pubkey *Pubkey) (err error) {
 		case *Pubkey:
 			_, err := w.db.Execv(`
 UPDATE openpgp_pubkey SET
-	expiration = $2, state = $3, mtime = $4, md5 = $5, sha256 = $6, unsupp = $7
-WHERE uuid = $1`, r.RFingerprint, r.Expiration, r.State, r.Mtime, r.Md5, r.Sha256,
-				r.Unsupported)
+	creation = $2, expiration = $3, state = $4, packet = $5,
+	ctime = $6, mtime = $7, md5 = $5, sha256 = $6,
+	revsig_uuid = $7, primary_uid = $8, primary_uat = $9,
+	algorithm = $10, bit_len = $11, unsupp = $12
+WHERE uuid = $1`, r.RFingerprint,
+				r.Creation, r.Expiration, r.State, r.Packet,
+				r.Ctime, r.Mtime, r.Md5, r.Sha256,
+				r.RevSigDigest, r.PrimaryUid, r.PrimaryUat,
+				r.Algorithm, r.BitLen, r.Unsupported)
 			if err != nil {
-				return err
+				return errors.Mask(err)
 			}
 			signable = r
 		case *Subkey:
 			_, err := w.tx.Execv(`
-UPDATE openpgp_subkey SET expiration = $2, state = $3 WHERE uuid = $1`,
-				r.RFingerprint, r.Expiration, r.State)
+UPDATE openpgp_subkey SET
+	creation = $2, expiration = $3, state = $4, packet = $5,
+	pubkey_uuid = $6, revsig_uuid = $7, algorithm = $8, bit_len = $9
+WHERE uuid = $1`,
+				r.RFingerprint,
+				r.Creation, r.Expiration, r.State, r.Packet,
+				r.PubkeyRFP, r.RevSigDigest, r.Algorithm, r.BitLen)
 			if err != nil {
-				return err
+				return errors.Mask(err)
 			}
 			signable = r
 		case *UserId:
 			_, err := w.tx.Execv(`
 UPDATE openpgp_uid SET
-	creation = $2, expiration = $3, state = $4 WHERE uuid = $1`,
-				r.ScopedDigest, r.Creation, r.Expiration, r.State)
+	creation = $2, expiration = $3, state = $4, packet = $5,
+	pubkey_uuid = $6, revsig_uuid = $7, keywords = $8
+WHERE uuid = $1`,
+				r.ScopedDigest,
+				r.Creation, r.Expiration, r.State, r.Packet,
+				r.PubkeyRFP, r.RevSigDigest, r.Keywords)
 			if err != nil {
-				return err
+				return errors.Mask(err)
 			}
 			signable = r
 		case *UserAttribute:
 			_, err := w.tx.Execv(`
 UPDATE openpgp_uat SET
-	creation = $2, expiration = $3, state = $4 WHERE uuid = $1`,
-				r.ScopedDigest, r.Creation, r.Expiration, r.State)
+	creation = $2, expiration = $3, state = $4, packet = $5,
+	pubkey_uuid = $6, revsig_uuid = $7
+WHERE uuid = $1`,
+				r.ScopedDigest,
+				r.Creation, r.Expiration, r.State, r.Packet,
+				r.PubkeyRFP, r.RevSigDigest)
 			if err != nil {
-				return err
+				return errors.Mask(err)
 			}
 			signable = r
 		case *Signature:
 			_, err := w.tx.Execv(`
 UPDATE openpgp_sig SET
-	state = $2, expiration = $3, signer_uuid = $4 WHERE uuid = $1`,
-				r.ScopedDigest, r.State, r.Expiration, r.RIssuerFingerprint)
+	creation = $2, expiration = $3, state = $4, packet = $5,
+	sig_type = $6, signer = $7, signer_uuid = $8, revsig_uuid = $9
+WHERE uuid = $1`,
+				r.ScopedDigest,
+				r.Creation, r.Expiration, r.State, r.Packet,
+				r.SigType, r.RIssuerKeyId, r.RIssuerFingerprint, r.RevSigDigest)
 			if err != nil {
-				return err
+				return errors.Mask(err)
 			}
 		}
 		return nil
@@ -364,7 +387,7 @@ func (w *Worker) updatePubkeyRevsig(pubkey *Pubkey, r *Signature) error {
 		if _, err := w.tx.Execv(`
 UPDATE openpgp_pubkey SET revsig_uuid = $1 WHERE uuid = $2`,
 			r.ScopedDigest, pubkey.RFingerprint); err != nil {
-			return err
+			return errors.Mask(err)
 		}
 	}
 	return nil
@@ -375,7 +398,7 @@ func (w *Worker) updateSubkeyRevsig(subkey *Subkey, r *Signature) error {
 		if _, err := w.tx.Execv(`
 UPDATE openpgp_subkey SET revsig_uuid = $1 WHERE uuid = $2`,
 			r.ScopedDigest, subkey.RFingerprint); err != nil {
-			return err
+			return errors.Mask(err)
 		}
 	}
 	return nil
@@ -386,7 +409,7 @@ func (w *Worker) updateUidRevsig(uid *UserId, r *Signature) error {
 		if _, err := w.tx.Execv(`
 UPDATE openpgp_uid SET revsig_uuid = $1 WHERE uuid = $2`,
 			r.ScopedDigest, uid.ScopedDigest); err != nil {
-			return err
+			return errors.Mask(err)
 		}
 	}
 	return nil
@@ -397,7 +420,7 @@ func (w *Worker) updateUatRevsig(uat *UserAttribute, r *Signature) error {
 		if _, err := w.tx.Execv(`
 UPDATE openpgp_uat SET revsig_uuid = $1 WHERE uuid = $2`,
 			r.ScopedDigest, uat.ScopedDigest); err != nil {
-			return err
+			return errors.Mask(err)
 		}
 	}
 	return nil
@@ -408,7 +431,7 @@ func (w *Worker) updatePrimaryUid(pubkey *Pubkey, r *UserId) error {
 		if _, err := w.tx.Execv(`
 UPDATE openpgp_pubkey SET primary_uid = $1 WHERE uuid = $2`,
 			r.ScopedDigest, pubkey.RFingerprint); err != nil {
-			return err
+			return errors.Mask(err)
 		}
 	}
 	return nil
@@ -419,7 +442,7 @@ func (w *Worker) updatePrimaryUat(pubkey *Pubkey, r *UserAttribute) error {
 		if _, err := w.tx.Execv(`
 UPDATE openpgp_pubkey SET primary_uat = $1 WHERE uuid = $2`,
 			r.ScopedDigest, pubkey.RFingerprint); err != nil {
-			return err
+			return errors.Mask(err)
 		}
 	}
 	return nil
