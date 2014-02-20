@@ -51,6 +51,11 @@ hockeypuck (1.0~rc1) precise; urgency=low
     - Insert if not exists for non-bulk loading key inserts.
   * === added directory charms:
     - Add juju charms for hockeypuck & sks. LP: #1233812
+  * - Denormalized signatures in schema.
+    - Improve delete command to lookup by fingerprint.
+    - Introduced errgo for improved error tracing.
+    - Parameterized upload dump file load playbooks in int-tests.
+    - More openpgp round-trip db test cases.
 
  -- Casey Marshall <cmars@cmarstech.com>  Fri, 04 Oct 2013 15:15:24 -0500
 
