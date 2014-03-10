@@ -55,7 +55,7 @@ chown -R hockeypuck:hockeypuck /var/lib/hockeypuck
 # Create hockeypuck postgres user & database if PostgreSQL is installed
 uid=`getent passwd postgres | cut -d ":" -f 3`
 if test "$uid" && test -x "/usr/bin/createdb" && test -x "/usr/bin/createuser"; then
-	invoke-rc.d postgresql start
+	invoke-rc.d postgresql start || true
 
 	echo "Waiting for PostgreSQL to start..."
 	for i in {1..10}; do

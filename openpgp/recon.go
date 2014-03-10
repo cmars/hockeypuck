@@ -25,6 +25,9 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	. "github.com/cmars/conflux"
@@ -34,18 +37,19 @@ import (
 	"launchpad.net/hockeypuck/hkp"
 )
 
+const RequestChunkSize = 100
+
 type SksPeer struct {
 	*recon.Peer
 	Service    *hkp.Service
-	RecoverKey chan *RecoverKey
+	RecoverKey chan RecoverKey
 	KeyChanges KeyChangeChan
 }
 
 type RecoverKey struct {
-	Keytext    []byte
-	RecoverSet *ZSet
-	Source     string
-	response   hkp.ResponseChan
+	Keytext  []byte
+	Source   string
+	response hkp.ResponseChan
 }
 
 func NewSksPTree(reconSettings *recon.Settings) (recon.PrefixTree, error) {
@@ -63,13 +67,24 @@ func NewSksPeer(s *hkp.Service) (*SksPeer, error) {
 	sksPeer := &SksPeer{
 		Peer:       peer,
 		Service:    s,
-		KeyChanges: make(KeyChangeChan, reconSettings.SplitThreshold()),
-		RecoverKey: make(chan *RecoverKey)}
+		KeyChanges: make(KeyChangeChan, Config().NumWorkers()*4),
+		RecoverKey: make(chan RecoverKey, Config().NumWorkers()*4),
+	}
 	return sksPeer, nil
 }
 
 func (r *SksPeer) Start() {
 	r.Peer.PrefixTree.Create()
+
+	sigChan := make(chan os.Signal)
+	signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
+	go func() {
+		select {
+		case _ = <-sigChan:
+			r.Peer.Stop()
+		}
+	}()
+
 	go r.HandleRecovery()
 	go r.HandleKeyUpdates()
 	go r.Peer.Start()
@@ -89,27 +104,25 @@ func (r *SksPeer) HandleKeyUpdates() {
 			}
 			digest = recon.PadSksElement(digest)
 			digestZp := Zb(P_SKS, digest)
-			if keyChange.PreviousMd5 != keyChange.CurrentMd5 {
-				log.Println("Prefix tree: Insert:", hex.EncodeToString(digestZp.Bytes()), keyChange, keyChange.CurrentMd5)
-				err := r.Peer.Insert(digestZp)
+			log.Println("Prefix tree: Insert:", hex.EncodeToString(digestZp.Bytes()), keyChange, keyChange.CurrentMd5)
+			err = r.Peer.Insert(digestZp)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+			if keyChange.PreviousMd5 != "" && keyChange.PreviousMd5 != keyChange.CurrentMd5 {
+				prevDigest, err := hex.DecodeString(keyChange.PreviousMd5)
+				if err != nil {
+					log.Println("bad digest:", keyChange.PreviousMd5)
+					continue
+				}
+				prevDigest = recon.PadSksElement(prevDigest)
+				prevDigestZp := Zb(P_SKS, prevDigest)
+				log.Println("Prefix Tree: Remove:", prevDigestZp)
+				err = r.Peer.Remove(prevDigestZp)
 				if err != nil {
 					log.Println(err)
 					continue
-				}
-				if keyChange.PreviousMd5 != "" && keyChange.PreviousMd5 != keyChange.CurrentMd5 {
-					prevDigest, err := hex.DecodeString(keyChange.PreviousMd5)
-					if err != nil {
-						log.Println("bad digest:", keyChange.PreviousMd5)
-						continue
-					}
-					prevDigest = recon.PadSksElement(prevDigest)
-					prevDigestZp := Zb(P_SKS, prevDigest)
-					log.Println("Prefix Tree: Remove:", prevDigestZp)
-					err = r.Peer.Remove(prevDigestZp)
-					if err != nil {
-						log.Println(err)
-						continue
-					}
 				}
 			}
 		}
@@ -164,7 +177,7 @@ func (r *SksPeer) handleRemoteRecovery(rcvr *recon.Recover, rcvrChan chan *recon
 			// Aggregate recovered IDs
 			recovered.AddSlice(rcvr.RemoteElements)
 			log.Println("Recovery from", rcvr.RemoteAddr.String(), ":", recovered.Len(), "pending")
-			r.Peer.Pause()
+			r.Peer.Disable()
 		case _, ok := <-ready:
 			// Recovery worker is ready for more
 			if !ok {
@@ -191,7 +204,7 @@ func (r *SksPeer) workRecovered(rcvr *recon.Recover, ready workRecoveredReady, w
 				log.Println(err)
 			}
 			timer.Reset(time.Duration(r.Peer.GossipIntervalSecs()) * time.Second)
-			r.Peer.Resume()
+			r.Peer.Enable()
 		case <-timer.C:
 			timer.Stop()
 			ready <- new(interface{})
@@ -200,6 +213,24 @@ func (r *SksPeer) workRecovered(rcvr *recon.Recover, ready workRecoveredReady, w
 }
 
 func (r *SksPeer) requestRecovered(rcvr *recon.Recover, elements *ZSet) (err error) {
+	items := elements.Items()
+	for len(items) > 0 {
+		// Chunk requests to keep the hashquery message size and peer load reasonable.
+		chunksize := RequestChunkSize
+		if chunksize > len(items) {
+			chunksize = len(items)
+		}
+		chunk := items[:chunksize]
+		items = items[chunksize:]
+		err = r.requestChunk(rcvr, chunk)
+		if err != nil {
+			log.Println(err)
+		}
+	}
+	return
+}
+
+func (r *SksPeer) requestChunk(rcvr *recon.Recover, chunk []*Zp) (err error) {
 	var remoteAddr string
 	remoteAddr, err = rcvr.HkpAddr()
 	if err != nil {
@@ -207,11 +238,11 @@ func (r *SksPeer) requestRecovered(rcvr *recon.Recover, elements *ZSet) (err err
 	}
 	// Make an sks hashquery request
 	hqBuf := bytes.NewBuffer(nil)
-	err = recon.WriteInt(hqBuf, elements.Len())
+	err = recon.WriteInt(hqBuf, len(chunk))
 	if err != nil {
 		return err
 	}
-	for _, z := range elements.Items() {
+	for _, z := range chunk {
 		zb := z.Bytes()
 		zb = recon.PadSksElement(zb)
 		// Hashquery elements are 16 bytes (length_of(P_SKS)-1)
@@ -259,11 +290,10 @@ func (r *SksPeer) requestRecovered(rcvr *recon.Recover, elements *ZSet) (err err
 		}
 		log.Println("Key#", i+1, ":", keyLen, "bytes")
 		// Merge locally
-		recoverKey := &RecoverKey{
-			Keytext:    keyBuf.Bytes(),
-			RecoverSet: elements,
-			Source:     rcvr.RemoteAddr.String(),
-			response:   make(chan hkp.Response)}
+		recoverKey := RecoverKey{
+			Keytext:  keyBuf.Bytes(),
+			Source:   rcvr.RemoteAddr.String(),
+			response: make(chan hkp.Response)}
 		go func() {
 			r.RecoverKey <- recoverKey
 		}()

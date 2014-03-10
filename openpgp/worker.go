@@ -99,7 +99,7 @@ func (w *Worker) Run() {
 			if !ok {
 				return
 			}
-			resp := w.recoverKey(r)
+			resp := w.recoverKey(&r)
 			log.Println(resp)
 			r.response <- resp
 		}

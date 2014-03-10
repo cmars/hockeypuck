@@ -1,10 +1,19 @@
 #!/bin/bash -e
 
-# Install Go language tools to provision Hockeypuck from source
-apt-get install -q -y python-software-properties
-apt-add-repository ppa:hockeypuck/unstable
-apt-get update
-apt-get install -q -y hockeypuck
+CWD=$(pwd)
+
+# Install the binary
+install -m 0755 files/hockeypuck /usr/bin/hockeypuck
+
+# Install the package files
+(cd /; tar xzvf $CWD/files/instroot.tar.gz)
+rm /etc/init.d/hockeypuck  # Remove the sysvinit script, use upstart instead
+
+# Fake some debian packaging stuff
+DEBDIR=$(mktemp -d)
+(cd $DEBDIR; tar xzvf $CWD/files/debian.tar.gz)
+install -m 0644 $DEBDIR/upstart /etc/init/hockeypuck.conf
+$DEBDIR/postinst
 
 rm -rf /var/lib/hockeypuck/recon-ptree
 mkdir -p /var/lib/hockeypuck/recon-ptree

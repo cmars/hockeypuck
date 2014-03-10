@@ -62,7 +62,7 @@ func (w *Worker) Add(a *hkp.Add) {
 				log.Printf("Error updating key [%s]: %v\n", readKey.Pubkey.Fingerprint(),
 					change.Error)
 			}
-			w.notifyChange(change)
+			go w.notifyChange(change)
 			changes = append(changes, change)
 		}
 	}

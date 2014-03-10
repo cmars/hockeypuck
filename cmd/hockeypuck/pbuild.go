@@ -22,7 +22,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
-	"runtime"
 	"strings"
 
 	"github.com/cmars/conflux"
@@ -37,7 +36,6 @@ type pbuildCmd struct {
 	configuredCmd
 	cache      int
 	ignoreDups bool
-	nworkers   int
 }
 
 func (c *pbuildCmd) Name() string { return "pbuild" }
@@ -52,7 +50,6 @@ func newPbuildCmd() *pbuildCmd {
 	flags.StringVar(&cmd.configPath, "config", "", "Hockeypuck configuration file")
 	flags.IntVar(&cmd.cache, "cache", 64, "Max diskv cache size (MB)")
 	flags.BoolVar(&cmd.ignoreDups, "ignore-dups", false, "Ignore duplicate entries")
-	flags.IntVar(&cmd.nworkers, "nworkers", runtime.NumCPU(), "Number of concurrent ptree writers")
 	cmd.flags = flags
 	return cmd
 }
@@ -63,8 +60,6 @@ func (c *pbuildCmd) Main() {
 	}
 	c.configuredCmd.Main()
 	InitLog()
-	hashes := make(chan *conflux.Zp)
-	done := make(chan interface{})
 	var db *openpgp.DB
 	var err error
 	if db, err = openpgp.NewDB(); err != nil {
@@ -79,65 +74,51 @@ func (c *pbuildCmd) Main() {
 	if err = ptree.Create(); err != nil {
 		panic(err)
 	}
-	insertPtree := func() {
-		defer func() { done <- struct{}{} }()
-		n := 0
-		for {
-			select {
-			case z, ok := <-hashes:
-				if z != nil {
-					err = ptree.Insert(z)
-					if err != nil {
-						if c.ignoreDups && strings.Contains(err.Error(), "insert duplicate element") {
-							continue
-						}
-						log.Printf("Error inserting %x into ptree: %v", z.Bytes(), err)
-						panic(err)
-					}
-					n++
-					if n%1000 == 0 {
-						fmt.Printf(".")
-					}
-				}
-				if !ok {
-					return
-				}
+	n := 0
+	for z := range readHashes(db) {
+		err = ptree.Insert(z)
+		if err != nil {
+			if c.ignoreDups && strings.Contains(err.Error(), "insert duplicate element") {
+				continue
 			}
+			log.Printf("Error inserting %x into ptree: %v", z.Bytes(), err)
+			panic(err)
 		}
-	}
-	for i := 0; i < c.nworkers; i++ {
-		go insertPtree()
-	}
-	readHashes(db, hashes)
-	close(hashes)
-	for i := 0; i < c.nworkers; i++ {
-		<-done
+		n++
+		if n%1000 == 0 {
+			fmt.Printf(".")
+		}
 	}
 	if err = ptree.Close(); err != nil {
 		log.Println("Close:", err)
 	}
 }
 
-func readHashes(db *openpgp.DB, hashes chan *conflux.Zp) {
-	rows, err := db.DB.Query("SELECT md5 FROM openpgp_pubkey")
-	if err != nil {
-		die(err)
-	}
-	for rows.Next() {
-		var md5str string
-		if err = rows.Scan(&md5str); err != nil {
+func readHashes(db *openpgp.DB) chan *conflux.Zp {
+	hashes := make(chan *conflux.Zp)
+	go func() {
+		defer close(hashes)
+		rows, err := db.DB.Query("SELECT md5 FROM openpgp_pubkey")
+		if err != nil {
 			die(err)
 		}
-		digest, err := hex.DecodeString(md5str)
-		if err != nil {
-			log.Println("Bad md5:", md5str)
-			continue
+		for rows.Next() {
+			var md5str string
+			if err = rows.Scan(&md5str); err != nil {
+				die(err)
+			}
+			digest, err := hex.DecodeString(md5str)
+			if err != nil {
+				log.Println("Bad md5:", md5str)
+				continue
+			}
+			digest = recon.PadSksElement(digest)
+			digestZp := conflux.Zb(conflux.P_SKS, digest)
+			hashes <- digestZp
 		}
-		digest = recon.PadSksElement(digest)
-		digestZp := conflux.Zb(conflux.P_SKS, digest)
-		hashes <- digestZp
-	}
-	if err = rows.Err(); err != nil {
-		log.Println("Error during hash query:", err)
-	}
+		if err = rows.Err(); err != nil {
+			log.Println("Error during hash query:", err)
+		}
+	}()
+	return hashes
 }
