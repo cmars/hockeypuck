@@ -22,8 +22,8 @@ import (
 	"log"
 
 	"launchpad.net/gnuflag"
-	. "launchpad.net/hockeypuck"
-	"launchpad.net/hockeypuck/openpgp"
+	. "github.com/cmars/hockeypuck"
+	"github.com/cmars/hockeypuck/openpgp"
 
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/storage"

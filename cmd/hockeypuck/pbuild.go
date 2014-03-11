@@ -28,8 +28,8 @@ import (
 	"github.com/cmars/conflux/recon"
 	"launchpad.net/gnuflag"
 
-	. "launchpad.net/hockeypuck"
-	"launchpad.net/hockeypuck/openpgp"
+	. "github.com/cmars/hockeypuck"
+	"github.com/cmars/hockeypuck/openpgp"
 )
 
 type pbuildCmd struct {

@@ -31,9 +31,9 @@ import (
 	"github.com/juju/errgo/errors"
 	_ "github.com/lib/pq"
 
-	. "launchpad.net/hockeypuck/errors"
-	"launchpad.net/hockeypuck/hkp"
-	"launchpad.net/hockeypuck/util"
+	. "github.com/cmars/hockeypuck/errors"
+	"github.com/cmars/hockeypuck/hkp"
+	"github.com/cmars/hockeypuck/util"
 )
 
 const LOOKUP_RESULT_LIMIT = 100

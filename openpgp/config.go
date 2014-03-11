@@ -18,7 +18,7 @@
 package openpgp
 
 import (
-	"launchpad.net/hockeypuck"
+	"github.com/cmars/hockeypuck"
 )
 
 type Settings struct {

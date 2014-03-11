@@ -23,7 +23,7 @@
 package hkp
 
 import (
-	"launchpad.net/hockeypuck"
+	"github.com/cmars/hockeypuck"
 )
 
 // Settings stores HKP-specific settings for Hockeypuck.

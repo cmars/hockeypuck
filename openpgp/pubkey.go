@@ -33,7 +33,7 @@ import (
 	"code.google.com/p/go.crypto/openpgp/errors"
 	"code.google.com/p/go.crypto/openpgp/packet"
 
-	"launchpad.net/hockeypuck/util"
+	"github.com/cmars/hockeypuck/util"
 )
 
 const (
