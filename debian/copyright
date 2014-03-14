@@ -1,7 +1,7 @@
 Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: Hockeypuck
 Upstream-Contact: Casey Marshall <cmars@cmarstech.com>
-Source: https://launchpad.net/hockeypuck
+Source: https://github.com/hockeypuck/hockeypuck
 
 Files: *
 Copyright: 2012-2014 Casey Marshall <cmars@cmarstech.com>

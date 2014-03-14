@@ -5,7 +5,7 @@
   - name: Stop Hockeypuck
     service: name=hockeypuck state=stopped
   - name: Development rebuild
-    local_action: shell go build -o files/hockeypuck launchpad.net/hockeypuck/cmd/hockeypuck
+    local_action: shell go build -o files/hockeypuck github.com/hockeypuck/hockeypuck/cmd/hockeypuck
     sudo: no
   - name: Replace Hockeypuck binary
     copy: src=files/hockeypuck dest=/usr/bin/hockeypuck mode=0755 force=yes

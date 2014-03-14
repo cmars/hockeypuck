@@ -22,7 +22,7 @@ When run without any configuration, Hockeypuck will assume the following:
   - Connect to a database named 'hkp', accessible and modifiable by the user executing Hockeypuck.
 
 * Public key signatures will not be verified on /pks/add or bulk loading.
-* Static media files are expected to be in $GOPATH/src/launchpad.net/hockeypuck/instroot/var/lib/postgresql/www.
+* Static media files are expected to be in $GOPATH/src/github.com/hockeypuck/hockeypuck/instroot/var/lib/postgresql/www.
 * Log messages written to stderr.
 
 These and other options can be customized as follows.
@@ -60,7 +60,7 @@ Path to the static media files used to serve Hockeypuck's HTML web UI.
 Type
     Quoted string
 Default
-    "$GOPATH/src/launchpad.net/hockeypuck/instroot/var/lib/hockeypuck/www"
+    "$GOPATH/src/github.com/hockeypuck/hockeypuck/instroot/var/lib/hockeypuck/www"
 
     (Note that environment variables are not evaluated for configured values of webroot.)
  

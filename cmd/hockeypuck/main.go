@@ -113,7 +113,7 @@ func (c *helpCmd) Desc() string { return "Display this help message" }
 
 func (c *helpCmd) Main() {
 	fmt.Fprintln(os.Stderr, `Hockeypuck -- Public Keyserver
-https://launchpad.net/hockeypuck
+http://hockeypuck.github.io/
 
 Hockeypuck is a public keyserver that supports the
 HTTP Keyserver Protocol, as well as peering with SKS.

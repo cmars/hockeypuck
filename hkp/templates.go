@@ -26,7 +26,7 @@ import (
 const footerTmplSrc = `
 {{define "page_footer"}}
 <div id="footer">
-<div id="copyright"><a href="https://launchpad.net/hockeypuck">Hockeypuck OpenPGP Key Server</a> - Copyright (C) 2012 <a href="/pks/lookup?op=vindex&search=0x44A2D1DB">Casey Marshall</a> and Hockeypuck contributors.</div>
+<div id="copyright"><a href="http://hockeypuck.github.io/">Hockeypuck OpenPGP Key Server</a> - Copyright (C) 2012 <a href="/pks/lookup?op=vindex&search=0x44A2D1DB">Casey Marshall</a> and Hockeypuck contributors.</div>
 <div id="copyleft">This program is free software: you can redistribute it and/or modify
   it under the terms of the
   <a href="https://www.gnu.org/licenses/agpl-3.0.html">GNU Affero General Public License</a>
@@ -53,7 +53,7 @@ const headerTmplSrc = `
 		<li><span class="menu-label">Machines:</span></li>
 		<li><span class="todo-link">SSH</span></li>
 		<li><span class="todo-link">SSL/TLS</span></li>
-		<li class="about"><a href="https://launchpad.net/hockeypuck">Project Home</a></li>
+		<li class="about"><a href="http://hockeypuck.github.io/">Project Home</a></li>
 	</ul>
 </div>
 </div>

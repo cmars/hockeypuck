@@ -21,7 +21,7 @@ trap "rm -rf $DOCROOT" EXIT
 GOPATH=$(pwd)/gopath
 rm -rf $GOPATH/bin $GOPATH/pkg
 
-APPS="launchpad.net/hockeypuck/cmd/hockeypuck"
+APPS="github.com/hockeypuck/hockeypuck/cmd/hockeypuck"
 
 for platform in $PLATFORMS;
 do

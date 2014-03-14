@@ -1,6 +1,6 @@
 
 PACKAGE=github.com/hockeypuck/hockeypuck
-GODEPS=github.com/cmars/godeps
+GODEPS=launchpad.net/godeps
 VERSION=$(shell head -1 debian/changelog | sed 's/.*(//;s/).*//;')
 
 all: compile

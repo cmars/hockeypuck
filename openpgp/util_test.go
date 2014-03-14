@@ -25,7 +25,7 @@ import (
 
 	"code.google.com/p/go.crypto/openpgp/armor"
 
-	"launchpad.net/hockeypuck"
+	"github.com/hockeypuck/hockeypuck"
 )
 
 func init() {

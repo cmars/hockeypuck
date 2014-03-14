@@ -38,7 +38,7 @@ Build
 Check out the Hockeypuck sources, with all its package dependencies into your
 Go development workspace with::
 
-  $ go get launchpad.net/hockeypuck
+  $ go get github.com/hockeypuck/hockeypuck
 
 Hockeypuck uses `godeps <https://launchpad.net/godeps>`_ to manage package
 dependencies, setting them to a known good revision against which Hockeypuck
@@ -57,7 +57,7 @@ Copy the Hockeypuck binary, build/bin/hockeypuck, into your $PATH.
 
 Media
 -----
-Hockeypuck will need to access the static media files (Go HTML templates, images, CSS, JS and fonts). These files will have been checked out into $GOPATH/src/launchpad.net/hockeypuck/instroot/var/lib/hockeypuck/www in the above steps. If Hockeypuck is run with the same $GOPATH environment variable set, it will be able to automatically locate these files when running the service.
+Hockeypuck will need to access the static media files (Go HTML templates, images, CSS, JS and fonts). These files will have been checked out into $GOPATH/src/github.com/hockeypuck/hockeypuck/instroot/var/lib/hockeypuck/www in the above steps. If Hockeypuck is run with the same $GOPATH environment variable set, it will be able to automatically locate these files when running the service.
 
 Otherwise, you will need to set the hockeypuck.hkp.webroot configuration setting to the installed location of these files.
 

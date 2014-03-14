@@ -29,7 +29,7 @@ import (
 	"github.com/cmars/conflux/recon"
 	"github.com/stretchr/testify/assert"
 
-	"launchpad.net/hockeypuck/hkp"
+	"github.com/hockeypuck/hockeypuck/hkp"
 )
 
 func TestHashqueryResponse(t *testing.T) {

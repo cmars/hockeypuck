@@ -31,7 +31,7 @@ import (
 const INSTALL_WEBROOT = "/var/lib/hockeypuck/www"
 
 // Hockeypuck package, used to locate static files when running from source.
-const HOCKEYPUCK_PKG = "launchpad.net/hockeypuck" // Any way to introspect?
+const HOCKEYPUCK_PKG = "github.com/hockeypuck/hockeypuck" // Any way to introspect?
 
 // Response for HTTP 500.
 const APPLICATION_ERROR = "APPLICATION ERROR"
