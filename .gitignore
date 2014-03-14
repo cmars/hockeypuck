@@ -1,1 +1,4 @@
 hockeypuck
+build/
+doc/output/
+.*.swp

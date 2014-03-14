@@ -1,16 +1,16 @@
 
-#GODEPS=launchpad.net/godeps
+PACKAGE=github.com/hockeypuck/hockeypuck
 GODEPS=github.com/cmars/godeps
 VERSION=$(shell head -1 debian/changelog | sed 's/.*(//;s/).*//;')
 
 all: compile
 
 compile:
-	GOPATH=$(shell pwd)/build go install -ldflags "-X launchpad.net/hockeypuck.Version ${VERSION}" launchpad.net/hockeypuck/cmd/hockeypuck
+	GOPATH=$(shell pwd)/build go install -ldflags "-X ${PACKAGE}.Version ${VERSION}" ${PACKAGE}/cmd/hockeypuck
 	make -C doc
 
 build:
-	GOPATH=$(shell pwd)/build go get launchpad.net/hockeypuck/...
+	GOPATH=$(shell pwd)/build go get ${PACKAGE}/...
 	GOPATH=$(shell pwd)/build make godeps compile
 
 godeps: require-godeps apply-godeps
@@ -27,11 +27,11 @@ debbin: freeze-build
 	debuild -us -uc -i -b
 
 freeze-build:
-	GOPATH=$(shell pwd)/build go get launchpad.net/hockeypuck/...
+	GOPATH=$(shell pwd)/build go get ${PACKAGE}/...
 	GOPATH=$(shell pwd)/build make apply-godeps
 
 freeze-godeps: require-godeps
-	${GOPATH}/bin/godeps $(go list launchpad.net/hockeypuck/...) > dependencies.tsv
+	${GOPATH}/bin/godeps $(go list ${PACKAGE}/...) > dependencies.tsv
 
 apply-godeps: require-godeps
 	${GOPATH}/bin/godeps -u dependencies.tsv

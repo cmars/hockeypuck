@@ -1,7 +1,11 @@
 #!/bin/bash -ex
 
+function revert_debfiles(){
+	git checkout ./debian
+}
+
 # Get our current and last built revision
-REVNO=$(bzr log | grep -m1 "^revno: " | awk '{print $2}')
+REVNO=$(date '+%Y%m%d%H%M')$(git rev-parse --short HEAD)
 
 if [ -z "$1" ]; then
 	DISTS=$(distro-info --supported | egrep -v 'hardy|lucid|oneiric')
@@ -9,7 +13,7 @@ else
 	DISTS=$1
 fi
 
-bzr revert debian/changelog
+revert_debfiles
 
 # Detect whether this is a development build or production release
 DEVBUILD=$(head -1 debian/changelog | grep \~ && echo true)
@@ -17,8 +21,7 @@ DEVBUILD=$(head -1 debian/changelog | grep \~ && echo true)
 # Build for each supported Ubuntu version
 for d in $DISTS; do
 	# Revert any changes (ie, debian/changelog)
-	bzr revert debian/changelog
-	bzr revert debian/control
+	revert_debfiles
 
 	# Remove nikola from Build-Depends on distros lacking backports
 	if [[ "$d" =~ ^(precise|quantal)$ ]]; then
@@ -27,10 +30,10 @@ for d in $DISTS; do
 
 	if [ -n "$DEVBUILD" ]; then
 		# Append bzr revision and release distro info
-		sed -i -e "s/) [a-zA-Z0-9].*;/~bzr$REVNO~$d) $d;/i" debian/changelog
+		sed -i -e "s/) \([a-zA-Z0-9].*\);/$1~$REVNO~$d) $d;/i" debian/changelog
 	else
 		# Append release distro info
-		sed -i -e "s/) [a-zA-Z0-9].*;/.0${REVNO}~$d) $d;/i" debian/changelog
+		sed -i -e "s/) \([a-zA-Z0-9].*\);/\1~$d) $d;/i" debian/changelog
 	fi
 	# Build source package
 	make debsrc
@@ -38,4 +41,4 @@ for d in $DISTS; do
 	dch -r ""
 done
 
-bzr revert debian/changelog
+revert_debfiles
