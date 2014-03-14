@@ -29,8 +29,8 @@ import (
 	"code.google.com/p/go.crypto/openpgp/armor"
 	"github.com/juju/errgo/errors"
 
-	. "github.com/cmars/hockeypuck/errors"
-	"github.com/cmars/hockeypuck/hkp"
+	. "github.com/hockeypuck/hockeypuck/errors"
+	"github.com/hockeypuck/hockeypuck/hkp"
 )
 
 // KeyChangeChan channels are used for sending and receiving

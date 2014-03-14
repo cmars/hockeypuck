@@ -28,7 +28,7 @@ import (
 	"code.google.com/p/go.crypto/openpgp/packet"
 	"github.com/juju/errgo/errors"
 
-	"github.com/cmars/hockeypuck/hkp"
+	"github.com/hockeypuck/hockeypuck/hkp"
 )
 
 const indexPageTmplSrc = `{{/*

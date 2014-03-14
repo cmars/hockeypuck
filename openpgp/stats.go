@@ -23,7 +23,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/cmars/hockeypuck/hkp"
+	"github.com/hockeypuck/hockeypuck/hkp"
 )
 
 func (w *Worker) Stats(l *hkp.Lookup) {

@@ -34,7 +34,7 @@ import (
 	"github.com/cmars/conflux/recon"
 	"github.com/cmars/conflux/recon/leveldb"
 
-	"github.com/cmars/hockeypuck/hkp"
+	"github.com/hockeypuck/hockeypuck/hkp"
 )
 
 const RequestChunkSize = 100

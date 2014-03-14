@@ -30,7 +30,7 @@ import (
 
 	"code.google.com/p/go.crypto/openpgp/packet"
 
-	"github.com/cmars/hockeypuck/util"
+	"github.com/hockeypuck/hockeypuck/util"
 )
 
 type Signature struct {

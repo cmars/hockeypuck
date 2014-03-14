@@ -23,7 +23,7 @@
 package hkp
 
 import (
-	"github.com/cmars/hockeypuck"
+	"github.com/hockeypuck/hockeypuck"
 )
 
 // Settings stores HKP-specific settings for Hockeypuck.
