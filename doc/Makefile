@@ -2,9 +2,12 @@
 all:
 	./build.sh
 
-deploy: all
+deploy: all output/index.html
 	./deploy.sh
+
+output/index.html: all
 
 clean:
 	$(RM) -r output
 
+.PHONY: all deploy clean
