@@ -1,4 +1,4 @@
-hockeypuck
+cmd/hockeypuck/hockeypuck
 build/
 doc/output/
 .*.swp

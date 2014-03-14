@@ -1,0 +1,6 @@
+[submodule "charms/precise/hockeypuck"]
+	path = charms/precise/hockeypuck
+	url = https://github.com/hockeypuck/hockeypuck-charm.git
+[submodule "charms/precise/sks"]
+	path = charms/precise/sks
+	url = https://github.com/hockeypuck/sks-charm.git
