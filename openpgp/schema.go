@@ -305,6 +305,7 @@ var Cr_openpgp_sig_constraints []string = []string{
 	`ALTER TABLE openpgp_sig ADD CONSTRAINT openpgp_sig_sig_fk
 	FOREIGN KEY (sig_uuid) REFERENCES openpgp_sig(uuid)
 	DEFERRABLE INITIALLY DEFERRED;`,
+	`CREATE INDEX openpgp_sig_idx ON openpgp_sig (pubkey_uuid, subkey_uuid, uid_uuid, uat_uuid);`,
 }
 
 var Cr_openpgp_primary_constraints []string = []string{
@@ -409,6 +410,7 @@ var Dr_openpgp_uat_constraints []string = []string{
 }
 
 var Dr_openpgp_sig_constraints []string = []string{
+	`DROP INDEX openpgp_sig_idx;`,
 	`ALTER TABLE openpgp_sig DROP CONSTRAINT openpgp_sig_signer_fk;`,
 	`ALTER TABLE openpgp_sig DROP CONSTRAINT openpgp_sig_pubkey_fk;`,
 	`ALTER TABLE openpgp_sig DROP CONSTRAINT openpgp_sig_subkey_fk;`,
