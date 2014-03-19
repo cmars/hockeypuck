@@ -260,9 +260,9 @@ func (w *Worker) UpdateKey(pubkey *Pubkey) (err error) {
 			_, err := w.db.Execv(`
 UPDATE openpgp_pubkey SET
 	creation = $2, expiration = $3, state = $4, packet = $5,
-	ctime = $6, mtime = $7, md5 = $5, sha256 = $6,
-	revsig_uuid = $7, primary_uid = $8, primary_uat = $9,
-	algorithm = $10, bit_len = $11, unsupp = $12
+	ctime = $6, mtime = $7,	md5 = $8, sha256 = $9,
+	revsig_uuid = $10, primary_uid = $11, primary_uat = $12,
+	algorithm = $13, bit_len = $14, unsupp = $15
 WHERE uuid = $1`, r.RFingerprint,
 				r.Creation, r.Expiration, r.State, r.Packet,
 				r.Ctime, r.Mtime, r.Md5, r.Sha256,
