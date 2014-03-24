@@ -30,10 +30,10 @@ for d in $DISTS; do
 
 	if [ -n "$DEVBUILD" ]; then
 		# Append bzr revision and release distro info
-		sed -i -e "s/) \([a-zA-Z0-9].*\);/$1~$REVNO~$d) $d;/i" debian/changelog
+		sed -i -e "s/) \([a-zA-Z0-9].*\);/$1~dev$REVNO~$d) $d;/i" debian/changelog
 	else
 		# Append release distro info
-		sed -i -e "s/) \([a-zA-Z0-9].*\);/\1~$d) $d;/i" debian/changelog
+		sed -i -e "s/) \([a-zA-Z0-9].*\);/$1.$d) $d;/i" debian/changelog
 	fi
 	# Build source package
 	make debsrc
