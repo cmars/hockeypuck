@@ -150,9 +150,8 @@ func (w *Worker) HashQuery(hq *hkp.HashQuery) {
 	for _, digest := range hq.Digests {
 		uuid, err := w.lookupMd5Uuid(digest)
 		if err != nil {
-			log.Println("Hashquery lookup failed:", err)
-			hq.Response() <- &ErrorResponse{err}
-			return
+			log.Printf("Hashquery lookup [%s] failed: %q\n", digest, err)
+			continue
 		}
 		uuids = append(uuids, uuid)
 	}

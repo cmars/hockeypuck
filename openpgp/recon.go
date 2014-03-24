@@ -108,7 +108,6 @@ func (r *SksPeer) HandleKeyUpdates() {
 			err = r.Peer.Insert(digestZp)
 			if err != nil {
 				log.Println(err)
-				continue
 			}
 			if keyChange.PreviousMd5 != "" && keyChange.PreviousMd5 != keyChange.CurrentMd5 {
 				prevDigest, err := hex.DecodeString(keyChange.PreviousMd5)
@@ -122,7 +121,6 @@ func (r *SksPeer) HandleKeyUpdates() {
 				err = r.Peer.Remove(prevDigestZp)
 				if err != nil {
 					log.Println(err)
-					continue
 				}
 			}
 		}
@@ -196,6 +194,8 @@ func (r *SksPeer) workRecovered(rcvr *recon.Recover, ready workRecoveredReady, w
 	for {
 		select {
 		case recovered, ok := <-work:
+		{
+			defer r.Peer.Enable()
 			if !ok {
 				return
 			}
@@ -204,7 +204,7 @@ func (r *SksPeer) workRecovered(rcvr *recon.Recover, ready workRecoveredReady, w
 				log.Println(err)
 			}
 			timer.Reset(time.Duration(r.Peer.GossipIntervalSecs()) * time.Second)
-			r.Peer.Enable()
+	}
 		case <-timer.C:
 			timer.Stop()
 			ready <- new(interface{})
