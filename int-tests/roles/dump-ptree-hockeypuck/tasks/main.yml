@@ -3,6 +3,7 @@
   service: name=hockeypuck state=stopped
 - name: Development rebuild of dump-leveldb
   local_action: shell go build -o files/dump-leveldb github.com/cmars/conflux/cmd/dump-leveldb
+  sudo: no
 - name: Install dump-leveldb
   copy: src=files/dump-leveldb dest=/usr/bin/dump-leveldb mode=0755
 - name: Dump the leveldb

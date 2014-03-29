@@ -1,6 +1,6 @@
 ---
 - hosts: hockeypuck
-  user: root
+  sudo: yes
   roles:
     - dump-ptree-common
     - dump-ptree-hockeypuck

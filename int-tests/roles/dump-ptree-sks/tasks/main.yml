@@ -5,6 +5,7 @@
   apt: update_cache=yes pkg=db-util state=present
 - name: Development rebuild of sks-dump-ptree
   local_action: shell go build -o files/sks-dump-ptree github.com/cmars/conflux/cmd/sks-dump-ptree
+  sudo: no
 - name: Install sks-dump-ptree
   copy: src=files/sks-dump-ptree dest=/usr/bin/sks-dump-ptree mode=0755
 - name: Dump the ptree
