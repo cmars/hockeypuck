@@ -49,20 +49,28 @@ func (w *Worker) Add(a *hkp.Add) {
 		a.Response() <- &ErrorResponse{err}
 		return
 	}
-	if _, err = w.Begin(); err != nil {
-		a.Response() <- &ErrorResponse{err}
-		return
-	}
 	for readKey := range ReadKeys(armorBlock.Body) {
 		if readKey.Error != nil {
 			readErrors = append(readErrors, readKey)
 		} else {
+			if _, err = w.Begin(); err != nil {
+				a.Response() <- &ErrorResponse{err}
+				return
+			}
 			change := w.UpsertKey(readKey.Pubkey)
+			if change.Error == nil {
+				change.Error = w.Commit()
+			} else {
+				if err = w.Rollback(); err != nil {
+					log.Printf("Rollback: %q", err)
+				}
+			}
 			if change.Error != nil {
 				log.Printf("Error updating key [%s]: %v\n", readKey.Pubkey.Fingerprint(),
 					change.Error)
+			} else {
+				go w.notifyChange(change)
 			}
-			go w.notifyChange(change)
 			changes = append(changes, change)
 		}
 	}
@@ -99,7 +107,15 @@ func (w *Worker) recoverKey(rk *RecoverKey) hkp.Response {
 		return &ErrorResponse{err}
 	}
 	resp.Change = w.UpsertKey(pubkeys[0])
-	if err = w.Commit(); err != nil {
+	if resp.Change.Error != nil {
+		err = w.Rollback()
+		if err != nil {
+			return &ErrorResponse{err}
+		}
+		return &ErrorResponse{resp.Change.Error}
+	}
+	err = w.Commit()
+	if err != nil {
 		return &ErrorResponse{err}
 	}
 	w.notifyChange(resp.Change)
