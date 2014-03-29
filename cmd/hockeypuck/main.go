@@ -26,8 +26,8 @@ import (
 	"path/filepath"
 	"runtime/pprof"
 
-	"launchpad.net/gnuflag"
 	. "github.com/hockeypuck/hockeypuck"
+	"launchpad.net/gnuflag"
 )
 
 func die(err error) {

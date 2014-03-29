@@ -194,17 +194,17 @@ func (r *SksPeer) workRecovered(rcvr *recon.Recover, ready workRecoveredReady, w
 	for {
 		select {
 		case recovered, ok := <-work:
-		{
-			defer r.Peer.Enable()
-			if !ok {
-				return
+			{
+				defer r.Peer.Enable()
+				if !ok {
+					return
+				}
+				err := r.requestRecovered(rcvr, recovered)
+				if err != nil {
+					log.Println(err)
+				}
+				timer.Reset(time.Duration(r.Peer.GossipIntervalSecs()) * time.Second)
 			}
-			err := r.requestRecovered(rcvr, recovered)
-			if err != nil {
-				log.Println(err)
-			}
-			timer.Reset(time.Duration(r.Peer.GossipIntervalSecs()) * time.Second)
-	}
 		case <-timer.C:
 			timer.Stop()
 			ready <- new(interface{})
