@@ -39,11 +39,17 @@ import (
 
 const RequestChunkSize = 100
 
+const MaxKeyRecoveryAttempts = 3
+
+type KeyRecoveryCounter map[string]int
+
 type SksPeer struct {
 	*recon.Peer
 	Service    *hkp.Service
 	RecoverKey chan RecoverKey
 	KeyChanges KeyChangeChan
+
+	recoverAttempts KeyRecoveryCounter
 }
 
 type RecoverKey struct {
@@ -69,6 +75,8 @@ func NewSksPeer(s *hkp.Service) (*SksPeer, error) {
 		Service:    s,
 		KeyChanges: make(KeyChangeChan, Config().NumWorkers()*4),
 		RecoverKey: make(chan RecoverKey, Config().NumWorkers()*4),
+
+		recoverAttempts: make(KeyRecoveryCounter),
 	}
 	return sksPeer, nil
 }
@@ -90,6 +98,15 @@ func (r *SksPeer) Start() {
 	go r.Peer.Start()
 }
 
+func DigestZp(digest string) (*Zp, error) {
+	buf, err := hex.DecodeString(digest)
+	if err != nil {
+		return nil, err
+	}
+	buf = recon.PadSksElement(buf)
+	return Zb(P_SKS, buf), nil
+}
+
 func (r *SksPeer) HandleKeyUpdates() {
 	for {
 		select {
@@ -97,26 +114,24 @@ func (r *SksPeer) HandleKeyUpdates() {
 			if !ok {
 				return
 			}
-			digest, err := hex.DecodeString(keyChange.CurrentMd5)
+			digestZp, err := DigestZp(keyChange.CurrentMd5)
 			if err != nil {
 				log.Println("bad digest:", keyChange.CurrentMd5)
 				continue
 			}
-			digest = recon.PadSksElement(digest)
-			digestZp := Zb(P_SKS, digest)
 			log.Println("Prefix tree: Insert:", hex.EncodeToString(digestZp.Bytes()), keyChange, keyChange.CurrentMd5)
 			err = r.Peer.Insert(digestZp)
 			if err != nil {
 				log.Println(err)
+			} else {
+				delete(r.recoverAttempts, digestZp.String())
 			}
 			if keyChange.PreviousMd5 != "" && keyChange.PreviousMd5 != keyChange.CurrentMd5 {
-				prevDigest, err := hex.DecodeString(keyChange.PreviousMd5)
+				prevDigestZp, err := DigestZp(keyChange.PreviousMd5)
 				if err != nil {
 					log.Println("bad digest:", keyChange.PreviousMd5)
 					continue
 				}
-				prevDigest = recon.PadSksElement(prevDigest)
-				prevDigestZp := Zb(P_SKS, prevDigest)
 				log.Println("Prefix Tree: Remove:", prevDigestZp)
 				err = r.Peer.Remove(prevDigestZp)
 				if err != nil {
@@ -194,7 +209,7 @@ func (r *SksPeer) workRecovered(rcvr *recon.Recover, ready workRecoveredReady, w
 	for {
 		select {
 		case recovered, ok := <-work:
-			{
+			go func() {
 				defer r.Peer.Enable()
 				if !ok {
 					return
@@ -204,7 +219,7 @@ func (r *SksPeer) workRecovered(rcvr *recon.Recover, ready workRecoveredReady, w
 					log.Println(err)
 				}
 				timer.Reset(time.Duration(r.Peer.GossipIntervalSecs()) * time.Second)
-			}
+			}()
 		case <-timer.C:
 			timer.Stop()
 			ready <- new(interface{})
@@ -222,12 +237,27 @@ func (r *SksPeer) requestRecovered(rcvr *recon.Recover, elements *ZSet) (err err
 		}
 		chunk := items[:chunksize]
 		items = items[chunksize:]
+		r.countChunk(chunk)
 		err = r.requestChunk(rcvr, chunk)
 		if err != nil {
 			log.Println(err)
 		}
 	}
 	return
+}
+
+func (r *SksPeer) countChunk(chunk []*Zp) {
+	for _, z := range chunk {
+		r.recoverAttempts[z.String()] = r.recoverAttempts[z.String()] + 1
+		n := r.recoverAttempts[z.String()]
+		if n > MaxKeyRecoveryAttempts {
+			log.Println("giving up on key", z, ": failed to recover after", n, " recovery attempts")
+			err := r.Insert(z)
+			if err != nil {
+				log.Println("failed to insert", z, "into prefix tree to prevent further attempts")
+			}
+		}
+	}
 }
 
 func (r *SksPeer) requestChunk(rcvr *recon.Recover, chunk []*Zp) (err error) {
@@ -298,8 +328,14 @@ func (r *SksPeer) requestChunk(rcvr *recon.Recover, chunk []*Zp) (err error) {
 			r.RecoverKey <- recoverKey
 		}()
 		resp := <-recoverKey.response
-		if resp != nil && resp.Error() != nil {
+		if resp, ok := resp.(*RecoverKeyResponse); ok {
+			if resp.Error() != nil {
+				log.Println("Error adding key:", resp.Error())
+			}
+		} else if resp != nil {
 			log.Println("Error adding key:", resp.Error())
+		} else {
+			log.Println("Empty response from recovering key!")
 		}
 	}
 	// Read last two bytes (CRLF, why?), or SKS will complain.
