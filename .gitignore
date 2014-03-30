@@ -1,4 +1,5 @@
 cmd/hockeypuck/hockeypuck
+int-tests/files/hockeypuck
 build/
 doc/output/
 .*.swp
