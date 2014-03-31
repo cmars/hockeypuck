@@ -151,6 +151,20 @@ func (w *Worker) HashQuery(hq *hkp.HashQuery) {
 		uuid, err := w.lookupMd5Uuid(digest)
 		if err != nil {
 			log.Printf("Hashquery lookup [%s] failed: %q\n", digest, err)
+			if err == ErrKeyNotFound {
+				// I guess we *don't* have this digest. Try to remove from prefix tree.
+				z, err := DigestZp(digest)
+				if err != nil {
+					log.Printf("bad digest %q: %q", z.String(), err)
+				} else {
+					err = w.Peer.Remove(z)
+					if err != nil {
+						log.Printf("failed to remove %q: %q", z.String(), err)
+					} else {
+						log.Printf("removed %q from prefix tree")
+					}
+				}
+			}
 			continue
 		}
 		uuids = append(uuids, uuid)
