@@ -161,7 +161,7 @@ func (w *Worker) HashQuery(hq *hkp.HashQuery) {
 					if err != nil {
 						log.Printf("failed to remove %q: %q", z.String(), err)
 					} else {
-						log.Printf("removed %q from prefix tree")
+						log.Printf("removed %q from prefix tree", z.String())
 					}
 				}
 			}
