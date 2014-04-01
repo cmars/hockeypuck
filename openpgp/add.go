@@ -266,12 +266,12 @@ func (w *Worker) UpsertKey(key *Pubkey) (change *KeyChange) {
 
 // UpdateKey updates the database to the contents of the given public key.
 func (w *Worker) UpdateKey(pubkey *Pubkey) (err error) {
-	err := w.InsertKey(pubkey)
+	err = w.InsertKey(pubkey)
 	if err != nil {
 		return errors.Mask(err)
 	}
 
-	err = w.db.Begin()
+	_, err = w.db.Begin()
 	if err != nil {
 		return errors.Mask(err)
 	}
