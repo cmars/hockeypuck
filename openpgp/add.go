@@ -266,14 +266,21 @@ func (w *Worker) UpsertKey(key *Pubkey) (change *KeyChange) {
 
 // UpdateKey updates the database to the contents of the given public key.
 func (w *Worker) UpdateKey(pubkey *Pubkey) (err error) {
-	if err = w.InsertKey(pubkey); err != nil {
+	err := w.InsertKey(pubkey)
+	if err != nil {
 		return errors.Mask(err)
 	}
+
+	err = w.db.Begin()
+	if err != nil {
+		return errors.Mask(err)
+	}
+
 	var signable PacketRecord
 	err = pubkey.Visit(func(rec PacketRecord) (err error) {
 		switch r := rec.(type) {
 		case *Pubkey:
-			_, err := w.db.Execv(`
+			_, err := w.tx.Execv(`
 UPDATE openpgp_pubkey SET
 	creation = $2, expiration = $3, state = $4, packet = $5,
 	ctime = $6, mtime = $7,	md5 = $8, sha256 = $9,
@@ -342,6 +349,11 @@ WHERE uuid = $1`,
 		}
 		return nil
 	})
+	if err != nil {
+		w.tx.Rollback()
+	} else {
+		return w.tx.Commit()
+	}
 	return
 }
 

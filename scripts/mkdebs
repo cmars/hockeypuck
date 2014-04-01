@@ -5,7 +5,7 @@ function revert_debfiles(){
 }
 
 # Get our current and last built revision
-REVNO=$(date '+%Y%m%d%H%M')$(git rev-parse --short HEAD)
+REVNO=$(date '+%Y%m%d')+$(git rev-parse --short HEAD)
 
 if [ -z "$1" ]; then
 	DISTS=$(distro-info --supported | egrep -v 'hardy|lucid|oneiric')
@@ -33,7 +33,7 @@ for d in $DISTS; do
 		sed -i -e "s/) \([a-zA-Z0-9].*\);/$1~dev$REVNO~$d) $d;/i" debian/changelog
 	else
 		# Append release distro info
-		sed -i -e "s/) \([a-zA-Z0-9].*\);/$1.$d) $d;/i" debian/changelog
+		sed -i -e "s/) \([a-zA-Z0-9].*\);/$1~r$REVNO~$d) $d;/i" debian/changelog
 	fi
 	# Build source package
 	make debsrc
