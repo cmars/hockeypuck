@@ -53,18 +53,7 @@ func (w *Worker) Add(a *hkp.Add) {
 		if readKey.Error != nil {
 			readErrors = append(readErrors, readKey)
 		} else {
-			if _, err = w.Begin(); err != nil {
-				a.Response() <- &ErrorResponse{err}
-				return
-			}
 			change := w.UpsertKey(readKey.Pubkey)
-			if change.Error == nil {
-				change.Error = w.Commit()
-			} else {
-				if err = w.Rollback(); err != nil {
-					log.Printf("Rollback: %q", err)
-				}
-			}
 			if change.Error != nil {
 				log.Printf("Error updating key [%s]: %v\n", readKey.Pubkey.Fingerprint(),
 					change.Error)
@@ -73,10 +62,6 @@ func (w *Worker) Add(a *hkp.Add) {
 			}
 			changes = append(changes, change)
 		}
-	}
-	if err = w.Commit(); err != nil {
-		a.Response() <- &ErrorResponse{err}
-		return
 	}
 	a.Response() <- &AddResponse{Changes: changes, Errors: readErrors}
 }
@@ -103,20 +88,9 @@ func (w *Worker) recoverKey(rk *RecoverKey) hkp.Response {
 	} else if len(pubkeys) > 1 {
 		return &ErrorResponse{ErrTooManyResponses}
 	}
-	if _, err = w.Begin(); err != nil {
-		return &ErrorResponse{err}
-	}
 	resp.Change = w.UpsertKey(pubkeys[0])
 	if resp.Change.Error != nil {
-		err = w.Rollback()
-		if err != nil {
-			return &ErrorResponse{err}
-		}
 		return &ErrorResponse{resp.Change.Error}
-	}
-	err = w.Commit()
-	if err != nil {
-		return &ErrorResponse{err}
 	}
 	w.notifyChange(resp.Change)
 	return resp
@@ -284,12 +258,10 @@ func (w *Worker) UpdateKey(pubkey *Pubkey) (err error) {
 UPDATE openpgp_pubkey SET
 	creation = $2, expiration = $3, state = $4, packet = $5,
 	ctime = $6, mtime = $7,	md5 = $8, sha256 = $9,
-	revsig_uuid = $10, primary_uid = $11, primary_uat = $12,
-	algorithm = $13, bit_len = $14, unsupp = $15
+	algorithm = $10, bit_len = $11, unsupp = $12
 WHERE uuid = $1`, r.RFingerprint,
 				r.Creation, r.Expiration, r.State, r.Packet,
 				r.Ctime, r.Mtime, r.Md5, r.Sha256,
-				r.RevSigDigest, r.PrimaryUid, r.PrimaryUat,
 				r.Algorithm, r.BitLen, r.Unsupported)
 			if err != nil {
 				return errors.Mask(err)
@@ -299,11 +271,11 @@ WHERE uuid = $1`, r.RFingerprint,
 			_, err := w.tx.Execv(`
 UPDATE openpgp_subkey SET
 	creation = $2, expiration = $3, state = $4, packet = $5,
-	pubkey_uuid = $6, revsig_uuid = $7, algorithm = $8, bit_len = $9
+	algorithm = $6, bit_len = $7
 WHERE uuid = $1`,
 				r.RFingerprint,
 				r.Creation, r.Expiration, r.State, r.Packet,
-				r.PubkeyRFP, r.RevSigDigest, r.Algorithm, r.BitLen)
+				r.Algorithm, r.BitLen)
 			if err != nil {
 				return errors.Mask(err)
 			}
@@ -312,11 +284,11 @@ WHERE uuid = $1`,
 			_, err := w.tx.Execv(`
 UPDATE openpgp_uid SET
 	creation = $2, expiration = $3, state = $4, packet = $5,
-	pubkey_uuid = $6, revsig_uuid = $7, keywords = $8
+	keywords = $6
 WHERE uuid = $1`,
 				r.ScopedDigest,
 				r.Creation, r.Expiration, r.State, r.Packet,
-				r.PubkeyRFP, r.RevSigDigest, r.Keywords)
+				r.Keywords)
 			if err != nil {
 				return errors.Mask(err)
 			}
@@ -324,12 +296,11 @@ WHERE uuid = $1`,
 		case *UserAttribute:
 			_, err := w.tx.Execv(`
 UPDATE openpgp_uat SET
-	creation = $2, expiration = $3, state = $4, packet = $5,
-	pubkey_uuid = $6, revsig_uuid = $7
+	creation = $2, expiration = $3, state = $4, packet = $5
 WHERE uuid = $1`,
 				r.ScopedDigest,
 				r.Creation, r.Expiration, r.State, r.Packet,
-				r.PubkeyRFP, r.RevSigDigest)
+			)
 			if err != nil {
 				return errors.Mask(err)
 			}
@@ -338,11 +309,11 @@ WHERE uuid = $1`,
 			_, err := w.tx.Execv(`
 UPDATE openpgp_sig SET
 	creation = $2, expiration = $3, state = $4, packet = $5,
-	sig_type = $6, signer = $7, signer_uuid = $8, revsig_uuid = $9
+	sig_type = $6, signer = $7
 WHERE uuid = $1`,
 				r.ScopedDigest,
 				r.Creation, r.Expiration, r.State, r.Packet,
-				r.SigType, r.RIssuerKeyId, r.RIssuerFingerprint, r.RevSigDigest)
+				r.SigType, r.RIssuerKeyId)
 			if err != nil {
 				return errors.Mask(err)
 			}
@@ -380,6 +351,11 @@ func NewUuid() (string, error) {
 // matching public key packet records to represent the state of the
 // given public key.
 func (w *Worker) UpdateKeyRelations(pubkey *Pubkey) (err error) {
+	_, err = w.db.Begin()
+	if err != nil {
+		return errors.Mask(err)
+	}
+
 	var signable PacketRecord
 	err = pubkey.Visit(func(rec PacketRecord) error {
 		switch r := rec.(type) {
@@ -407,6 +383,11 @@ func (w *Worker) UpdateKeyRelations(pubkey *Pubkey) (err error) {
 		}
 		return nil
 	})
+	if err != nil {
+		w.tx.Rollback()
+	} else {
+		return w.tx.Commit()
+	}
 	return
 }
 

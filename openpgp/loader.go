@@ -53,6 +53,11 @@ func (l *Loader) Rollback() (err error) {
 }
 
 func (l *Loader) InsertKey(pubkey *Pubkey) (err error) {
+	_, err = l.db.Begin()
+	if err != nil {
+		return err
+	}
+
 	var signable PacketRecord
 	err = pubkey.Visit(func(rec PacketRecord) error {
 		switch r := rec.(type) {
@@ -83,6 +88,11 @@ func (l *Loader) InsertKey(pubkey *Pubkey) (err error) {
 		}
 		return nil
 	})
+	if err != nil {
+		l.tx.Rollback()
+	} else {
+		return l.tx.Commit()
+	}
 	return err
 }
 
