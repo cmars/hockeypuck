@@ -27,7 +27,6 @@ import (
 
 type Loader struct {
 	db   *DB
-	tx   *sqlx.Tx
 	bulk bool
 }
 
@@ -35,63 +34,66 @@ func NewLoader(db *DB, bulk bool) *Loader {
 	return &Loader{db: db, bulk: bulk}
 }
 
-func (l *Loader) Begin() (_ *sqlx.Tx, err error) {
-	l.tx, err = l.db.Beginx()
-	return l.tx, err
+func (l *Loader) Begin() (*sqlx.Tx, error) {
+	return l.db.Beginx()
 }
 
-func (l *Loader) Commit() (err error) {
-	if err = l.tx.Commit(); err != nil {
+func (l *Loader) Commit(tx *sqlx.Tx) (err error) {
+	if err = tx.Commit(); err != nil {
 		return
 	}
 	return
 }
 
-func (l *Loader) Rollback() (err error) {
-	err = l.tx.Rollback()
+func (l *Loader) Rollback(tx *sqlx.Tx) (err error) {
+	err = tx.Rollback()
 	return
 }
 
-func (l *Loader) InsertKey(pubkey *Pubkey) (err error) {
-	_, err = l.db.Begin()
+func (l *Loader) InsertKey(pubkey *Pubkey) error {
+	tx, err := l.Begin()
 	if err != nil {
 		return err
 	}
 
+	return l.InsertKeyTx(tx, pubkey)
+}
+
+func (l *Loader) InsertKeyTx(tx *sqlx.Tx, pubkey *Pubkey) error {
 	var signable PacketRecord
-	err = pubkey.Visit(func(rec PacketRecord) error {
+	err := pubkey.Visit(func(rec PacketRecord) error {
 		switch r := rec.(type) {
 		case *Pubkey:
-			if err := l.insertPubkey(r); err != nil {
+			if err := l.insertPubkey(tx, r); err != nil {
 				return err
 			}
 			signable = r
 		case *Subkey:
-			if err := l.insertSubkey(pubkey, r); err != nil {
+			if err := l.insertSubkey(tx, pubkey, r); err != nil {
 				return err
 			}
 			signable = r
 		case *UserId:
-			if err := l.insertUid(pubkey, r); err != nil {
+			if err := l.insertUid(tx, pubkey, r); err != nil {
 				return err
 			}
 			signable = r
 		case *UserAttribute:
-			if err := l.insertUat(pubkey, r); err != nil {
+			if err := l.insertUat(tx, pubkey, r); err != nil {
 				return err
 			}
 			signable = r
 		case *Signature:
-			if err := l.insertSig(pubkey, signable, r); err != nil {
+			if err := l.insertSig(tx, pubkey, signable, r); err != nil {
 				return err
 			}
 		}
 		return nil
 	})
 	if err != nil {
-		l.tx.Rollback()
+		tx.Rollback()
 	} else {
-		return l.tx.Commit()
+		return tx.Commit()
 	}
 	return err
 }
@@ -106,8 +108,8 @@ func (l *Loader) insertSelectFrom(sql, table, where string) string {
 	return sql
 }
 
-func (l *Loader) insertPubkey(r *Pubkey) error {
-	_, err := l.tx.Execv(l.insertSelectFrom(`
+func (l *Loader) insertPubkey(tx *sqlx.Tx, r *Pubkey) error {
+	_, err := tx.Execv(l.insertSelectFrom(`
 INSERT INTO openpgp_pubkey (
 	uuid, creation, expiration, state, packet,
 	ctime, mtime,
@@ -125,8 +127,8 @@ SELECT $1, $2, $3, $4, $5,
 	return err
 }
 
-func (l *Loader) insertSubkey(pubkey *Pubkey, r *Subkey) error {
-	_, err := l.tx.Execv(l.insertSelectFrom(`
+func (l *Loader) insertSubkey(tx *sqlx.Tx, pubkey *Pubkey, r *Subkey) error {
+	_, err := tx.Execv(l.insertSelectFrom(`
 INSERT INTO openpgp_subkey (
 	uuid, creation, expiration, state, packet,
 	pubkey_uuid, revsig_uuid, algorithm, bit_len)
@@ -138,8 +140,8 @@ SELECT $1, $2, $3, $4, $5,
 	return err
 }
 
-func (l *Loader) insertUid(pubkey *Pubkey, r *UserId) error {
-	_, err := l.tx.Execv(l.insertSelectFrom(`
+func (l *Loader) insertUid(tx *sqlx.Tx, pubkey *Pubkey, r *UserId) error {
+	_, err := tx.Execv(l.insertSelectFrom(`
 INSERT INTO openpgp_uid (
 	uuid, creation, expiration, state, packet,
 	pubkey_uuid, revsig_uuid, keywords, keywords_fulltext)
@@ -151,8 +153,8 @@ SELECT $1, $2, $3, $4, $5,
 	return err
 }
 
-func (l *Loader) insertUat(pubkey *Pubkey, r *UserAttribute) error {
-	_, err := l.tx.Execv(l.insertSelectFrom(`
+func (l *Loader) insertUat(tx *sqlx.Tx, pubkey *Pubkey, r *UserAttribute) error {
+	_, err := tx.Execv(l.insertSelectFrom(`
 INSERT INTO openpgp_uat (
 	uuid, creation, expiration, state, packet,
 	pubkey_uuid, revsig_uuid)
@@ -164,7 +166,7 @@ SELECT $1, $2, $3, $4, $5,
 	return err
 }
 
-func (l *Loader) insertSig(pubkey *Pubkey, signable PacketRecord, r *Signature) error {
+func (l *Loader) insertSig(tx *sqlx.Tx, pubkey *Pubkey, signable PacketRecord, r *Signature) error {
 	baseSql := `
 INSERT INTO openpgp_sig (
 	uuid, creation, expiration, state, packet,
@@ -210,7 +212,7 @@ SELECT $1, $2, $3, $4, $5, $6, $7, $8%s`
 	default:
 		return fmt.Errorf("Unsupported packet record type: %v", signed)
 	}
-	_, err := l.tx.Execv(l.insertSelectFrom(sql, "openpgp_sig", matchSql), args...)
+	_, err := tx.Execv(l.insertSelectFrom(sql, "openpgp_sig", matchSql), args...)
 	// TODO: use RETURNING to update matched issuer fingerprint
 	return err
 }

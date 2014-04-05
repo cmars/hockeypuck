@@ -81,10 +81,12 @@ func main() {
 		cmdArgs = os.Args[2:]
 	}
 	var cpuProf bool
+	var memProf bool
 	for _, cmd := range cmds {
 		if cmd.Name() == os.Args[1] {
 			if flags := cmd.Flags(); flags != nil {
 				flags.BoolVar(&cpuProf, "cpuprof", false, "Enable CPU profiling")
+				flags.BoolVar(&memProf, "memprof", false, "Enable memory profiling")
 				flags.Parse(false, cmdArgs)
 			}
 			if cpuProf {
@@ -92,6 +94,14 @@ func main() {
 					defer f.Close()
 					pprof.StartCPUProfile(f)
 					defer pprof.StopCPUProfile()
+				} else {
+					log.Println("Warning: Failed to open tempfile for cpuprof:", err)
+				}
+			}
+			if memProf {
+				if f, err := ioutil.TempFile("", "hockeypuck-memprof"); err == nil {
+					defer f.Close()
+					defer pprof.WriteHeapProfile(f)
 				} else {
 					log.Println("Warning: Failed to open tempfile for cpuprof:", err)
 				}

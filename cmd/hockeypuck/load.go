@@ -27,6 +27,7 @@ import (
 
 	"github.com/cmars/conflux"
 	"github.com/cmars/conflux/recon"
+	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 	"launchpad.net/gnuflag"
 
@@ -40,11 +41,11 @@ type loadCmd struct {
 	txnSize    int
 	ignoreDups bool
 
-	db            *openpgp.DB
-	l             *openpgp.Loader
-	ptree         recon.PrefixTree
-	nkeys         int
-	inTransaction bool
+	db    *openpgp.DB
+	l     *openpgp.Loader
+	ptree recon.PrefixTree
+	nkeys int
+	tx    *sqlx.Tx
 }
 
 func (ec *loadCmd) Name() string { return "load" }
@@ -105,12 +106,12 @@ func (ec *loadCmd) Main() {
 }
 
 func (ec *loadCmd) flushDb() {
-	if ec.inTransaction {
+	if ec.tx != nil {
 		log.Println("Loaded", ec.nkeys, "keys")
-		if err := ec.l.Commit(); err != nil {
+		if err := ec.tx.Commit(); err != nil {
 			die(fmt.Errorf("Error committing transaction: %v", err))
 		}
-		ec.inTransaction = false
+		ec.tx = nil
 		ec.nkeys = 0
 	}
 }
@@ -119,13 +120,12 @@ func (ec *loadCmd) insertKey(keyRead *openpgp.ReadKeyResult) error {
 	var err error
 	if ec.nkeys%ec.txnSize == 0 {
 		ec.flushDb()
-		if _, err = ec.l.Begin(); err != nil {
+		if ec.tx, err = ec.l.Begin(); err != nil {
 			die(fmt.Errorf("Error starting new transaction: %v", err))
 		}
-		ec.inTransaction = true
 	}
 	// Load key into relational database
-	if err = ec.l.InsertKey(keyRead.Pubkey); err != nil {
+	if err = ec.l.InsertKeyTx(ec.tx, keyRead.Pubkey); err != nil {
 		log.Println("Error inserting key:", keyRead.Pubkey.Fingerprint(), ":", err)
 		if _, is := err.(pq.Error); is {
 			die(fmt.Errorf("Unable to load due to database errors."))
