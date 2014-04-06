@@ -18,9 +18,11 @@
 package openpgp
 
 import (
+	"encoding/base64"
 	"fmt"
 	ht "html/template"
 	"net/http"
+	"net/url"
 	"strings"
 	tt "text/template"
 	"time"
@@ -56,7 +58,11 @@ pub  {{ .BitLen }}{{ .Algorithm | algocode }}/<a href="/pks/lookup?op=get&amp;se
 */}}{{ range $i, $uid := .UserIds }}{{/*
 */}}{{ if $i }}                               {{ $uid.Keywords }}{{/*
 */}}{{ else }}<a href="/pks/lookup?op=vindex&amp;fingerprint=on&amp;search=0x{{ $fp }}">{{ $uid.Keywords }}</a>{{ end }}
-{{ end }}{{ end }}{{/*
+{{ end }}{{/*
+*/}}{{ range $i, $uat := .UserAttributes }}{{ range $imgnum, $imgdat := $uat.UserAttribute.ImageData }}{{/*
+*/}}                               <img src="data:image/jpeg;base64,{{ $imgdat | imgsrcdata }}"></img>{{/*
+*/}}{{ end }}{{ end }}{{/*
+*/}}{{ end }}{{/*
 
 */}}{{ define "IndexPage" }}{{ template "PageHeader" . }}{{ $lookup := .Lookup }}{{/*
 */}}{{ template "IndexColHeader" }}{{/*
@@ -89,6 +95,12 @@ pub  {{ .BitLen }}{{ .Algorithm | algocode }}/<a href="/pks/lookup?op=get&amp;se
 sig <span {{ if $sig|sigWarn }}class='warn'{{ end }}>{{ $sig|sigLabel }}</span>  <a href="/pks/lookup?op=get&amp;search=0x{{ $sig.IssuerKeyId|upper }}">{{ $sig.IssuerShortId|upper }}</a> {{ $sig.Creation|date }} {{ if equal ($key.KeyId) ($sig.IssuerKeyId) }}__________ {{ $sig.Expiration|date|blank }} [selfsig]{{ else }}{{ $sig.Expiration|date|blank }} __________ <a href="/pks/lookup?op=vindex&amp;search=0x{{ $sig.IssuerKeyId|upper }}">{{ $sig.IssuerKeyId|upper }}</a>{{ end }}{{ end }}{{/*
 */}}
 {{ end }}{{/* range $key.UserIds
+*/}}{{ range $i, $uat := $key.UserAttributes }}
+<strong>uat</strong> <span class="uid">{{ range $imgnum, $imgdat := $uat.UserAttribute.ImageData }}{{/*
+*/}}<img src="data:image/jpeg;base64,{{ $imgdat | imgsrcdata }}"></img>{{ end }}</span>{{/*
+*/}}{{ range $i, $sig := $uat.Signatures }}
+sig <span {{ if $sig|sigWarn }}class='warn'{{ end }}>{{ $sig|sigLabel }}</span>  <a href="/pks/lookup?op=get&amp;search=0x{{ $sig.IssuerKeyId|upper }}">{{ $sig.IssuerShortId|upper }}</a> {{ $sig.Creation|date }} {{ if equal ($key.KeyId) ($sig.IssuerKeyId) }}__________ {{ $sig.Expiration|date|blank }} [selfsig]{{ else }}{{ $sig.Expiration|date|blank }} __________ <a href="/pks/lookup?op=vindex&amp;search=0x{{ $sig.IssuerKeyId|upper }}">{{ $sig.IssuerKeyId|upper }}</a>{{ end }}{{ end }}
+{{ end }}{{/* range $key.UserAttributes
 */}}{{ range $i, $subkey := $key.Subkeys }}
 <strong>sub</strong>  {{ .BitLen }}{{ .Algorithm | algocode }}/{{ .ShortId | upper }} {{ .Creation | date }}{{ range $i, $sig := $subkey.Signatures }}
 sig <span {{ if $sig|sigWarn }}class='warn'{{ end }}>{{ $sig|sigLabel }}</span>  <a href="/pks/lookup?op=get&amp;search=0x{{ $sig.IssuerKeyId|upper }}">{{ $sig.IssuerShortId|upper }}</a> {{ $sig.Creation|date }} {{ if equal ($key.KeyId) ($sig.IssuerKeyId) }}__________ {{ $sig.Expiration|date|blank }} []{{ else }}{{ $sig.Expiration|date|blank }} __________ {{ $sig.IssuerShortId|upper }}{{ end }}{{ end }}{{/*
@@ -215,7 +227,11 @@ func init() {
 				return ""
 			}
 			return t.Format("2006-01-02")
-		}}
+		},
+		"imgsrcdata": func(data []byte) string {
+			return url.QueryEscape(base64.StdEncoding.EncodeToString(data))
+		},
+	}
 	indexPageTmpl = ht.Must(ht.New("indexPage").Funcs(funcs).Parse(indexPageTmplSrc))
 	indexMrTmpl = tt.Must(tt.New("indexPage").Funcs(funcs).Parse(indexMrTmplSrc))
 }

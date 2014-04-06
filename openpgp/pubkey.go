@@ -105,6 +105,8 @@ func (pubkey *Pubkey) ShortId() string {
 
 func (pubkey *Pubkey) UserIds() []*UserId { return pubkey.userIds }
 
+func (pubkey *Pubkey) UserAttributes() []*UserAttribute { return pubkey.userAttributes }
+
 func (pubkey *Pubkey) Subkeys() []*Subkey { return pubkey.subkeys }
 
 func (pubkey *Pubkey) Serialize(w io.Writer) error {

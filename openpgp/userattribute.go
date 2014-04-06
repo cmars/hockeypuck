@@ -48,6 +48,8 @@ type UserAttribute struct {
 	UserAttribute *packet.UserAttribute
 }
 
+func (uat *UserAttribute) Signatures() []*Signature { return uat.signatures }
+
 func (uat *UserAttribute) calcScopedDigest(pubkey *Pubkey) string {
 	h := sha256.New()
 	h.Write([]byte(pubkey.RFingerprint))
