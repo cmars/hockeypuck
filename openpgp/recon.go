@@ -89,7 +89,11 @@ func (r *SksPeer) Start() {
 	go func() {
 		select {
 		case _ = <-sigChan:
-			r.Peer.Stop()
+			log.Print("Closing prefix tree...")
+			r.PrefixTree.Close()
+			log.Println("DONE")
+			signal.Stop(sigChan)
+			os.Exit(0)
 		}
 	}()
 
