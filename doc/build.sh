@@ -5,6 +5,5 @@ rm -rf output
 if [ -x "/usr/bin/nikola" ]; then
 	nikola build
 else
-	mkdir output
-	cp -r pages/* output
+	$(dirname $0)/fakebuild.sh
 fi

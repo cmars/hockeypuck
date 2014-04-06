@@ -2,6 +2,9 @@
 all:
 	./build.sh
 
+fakebuild:
+	./fakebuild.sh
+
 deploy: all output/index.html
 	./deploy.sh
 

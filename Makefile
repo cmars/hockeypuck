@@ -7,7 +7,7 @@ all: compile
 
 compile:
 	GOPATH=$(shell pwd)/build go install -ldflags "-X ${PACKAGE}.Version ${VERSION}" ${PACKAGE}/cmd/hockeypuck
-	make -C doc
+	make -C doc fakebuild
 
 build:
 	GOPATH=$(shell pwd)/build go get ${PACKAGE}/...
@@ -42,6 +42,7 @@ require-godeps:
 
 clean:
 	rm -rf build/bin build/pkg
+	make -C doc clean
 
 src-clean:
 	rm -rf build
