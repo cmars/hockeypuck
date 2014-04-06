@@ -1,0 +1,11 @@
+Missing source files
+--------------------
+
+The Debian Free Software Guidelines requires the source code of everything that
+is shipped in Debian. All the source code to Hockeypuck is included; the
+following files were not automatically found by lintian and so are enumerated
+here.
+
+Files: cmd/hockeypuck/hockeypuck
+Source: build/src/github.com/hockeypuck/hockeypuck/main.go
+URL: https://github.com/hockeypuck/hockeypuck
