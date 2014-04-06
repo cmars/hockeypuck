@@ -317,3 +317,6 @@ DISQUS_FORUM = False
 # Put in global_context things you want available on all your templates.
 # It can be anything, data, functions, modules, etc.
 GLOBAL_CONTEXT = {}
+
+# Get rid of the social button crap by setting this to an empty string.
+SOCIAL_BUTTONS_CODE=""
