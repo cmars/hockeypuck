@@ -28,7 +28,6 @@ import (
 	"strings"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/juju/errgo/errors"
 	_ "github.com/lib/pq"
 
 	. "github.com/hockeypuck/hockeypuck/errors"
@@ -272,7 +271,7 @@ WHERE keywords_fulltext @@ to_tsquery($1) LIMIT $2`, search, limit)
 	return flattenUuidRows(rows)
 }
 
-var ErrInternalKeyInvalid error = errors.New("Internal integrity error matching key")
+var ErrInternalKeyInvalid error = fmt.Errorf("Internal integrity error matching key")
 
 func (w *Worker) LookupKey(keyid string) (pubkey *Pubkey, err error) {
 	uuids, err := w.lookupKeyidUuids(keyid)

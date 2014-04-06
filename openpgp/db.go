@@ -21,7 +21,6 @@ import (
 	"log"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/juju/errgo/errors"
 	"github.com/lib/pq"
 )
 
@@ -37,7 +36,7 @@ func NewDB() (db *DB, err error) {
 
 func (db *DB) CreateSchema() (err error) {
 	if err = db.CreateTables(); err != nil {
-		return errors.Mask(err)
+		return err
 	}
 	return db.CreateConstraints()
 }
@@ -96,7 +95,7 @@ func (db *DB) CreateConstraints() (err error) {
 				if isDuplicateConstraint(err) {
 					err = nil
 				} else {
-					return errors.NoteMask(err, crSql)
+					return err
 				}
 			}
 		}

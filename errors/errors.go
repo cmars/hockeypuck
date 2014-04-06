@@ -18,30 +18,30 @@
 package errors
 
 import (
-	errgo "github.com/juju/errgo/errors"
+	"fmt"
 )
 
 // Lookup key was not found in the database.
-var ErrKeyNotFound = errgo.New("Key not found.")
+var ErrKeyNotFound = fmt.Errorf("Key not found.")
 
 // An internal inconsistency between the stored key material and our indexing was detected.
-var ErrInconsistentKey = errgo.New("Stored key is internally inconsistent.")
+var ErrInconsistentKey = fmt.Errorf("Stored key is internally inconsistent.")
 
 // Key ID is invalid.
-var ErrInvalidKeyId = errgo.New("Invalid key ID.")
+var ErrInvalidKeyId = fmt.Errorf("Invalid key ID.")
 
 // Key hash is invalid.
-var ErrInvalidKeyHash = errgo.New("Invalid key hash.")
+var ErrInvalidKeyHash = fmt.Errorf("Invalid key hash.")
 
 // A lookup with a short key ID found a collision.
 // This is quite possible with short key IDs, remotely possibly with long IDs.
-var ErrKeyIdCollision = errgo.New("Key ID matches multiple public keys. Try again with a longer key ID.")
+var ErrKeyIdCollision = fmt.Errorf("Key ID matches multiple public keys. Try again with a longer key ID.")
 
 // A query resulted in more responses than we'd care to respond with.
-var ErrTooManyResponses = errgo.New("Too many responses.")
+var ErrTooManyResponses = fmt.Errorf("Too many responses.")
 
 // Something was attempted that isn't fully baked yet.
-var ErrUnsupportedOperation = errgo.New("Unsupported operation.")
+var ErrUnsupportedOperation = fmt.Errorf("Unsupported operation.")
 
 // Template path was not found. Installation or configuration problem.
-var ErrTemplatePathNotFound = errgo.New("Could not find templates. Check your installation and configuration.")
+var ErrTemplatePathNotFound = fmt.Errorf("Could not find templates. Check your installation and configuration.")

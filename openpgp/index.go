@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"code.google.com/p/go.crypto/openpgp/packet"
-	"github.com/juju/errgo/errors"
 
 	"github.com/hockeypuck/hockeypuck/hkp"
 )
@@ -253,10 +252,10 @@ func (r *IndexResponse) WriteTo(w http.ResponseWriter) error {
 	}
 	if r.Lookup.MachineReadable() {
 		w.Header().Add("Content-Type", "text/plain")
-		r.Err = errors.Mask(indexMrTmpl.Execute(w, r))
+		r.Err = indexMrTmpl.Execute(w, r)
 	} else {
 		w.Header().Add("Content-Type", "text/html")
-		r.Err = errors.Mask(indexPageTmpl.Execute(w, r))
+		r.Err = indexPageTmpl.Execute(w, r)
 	}
 	return r.Err
 }

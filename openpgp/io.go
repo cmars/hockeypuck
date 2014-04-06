@@ -32,13 +32,12 @@ import (
 	"code.google.com/p/go.crypto/openpgp"
 	"code.google.com/p/go.crypto/openpgp/armor"
 	"code.google.com/p/go.crypto/openpgp/packet"
-	"github.com/juju/errgo/errors"
 )
 
 // Comparable time flag for "never expires"
 var NeverExpires time.Time
 
-var ErrMissingSignature = errors.New("Key material missing an expected signature")
+var ErrMissingSignature = fmt.Errorf("Key material missing an expected signature")
 
 func init() {
 	t, err := time.Parse("2006-01-02 15:04:05 -0700", "9999-12-31 23:59:59 +0000")
@@ -62,9 +61,9 @@ func WritePackets(w io.Writer, root PacketRecord) error {
 	err := root.Visit(func(rec PacketRecord) error {
 		op, err := rec.GetOpaquePacket()
 		if err != nil {
-			return errors.Mask(err)
+			return err
 		}
-		return errors.Mask(op.Serialize(w))
+		return op.Serialize(w)
 	})
 	if err != nil {
 		return err
@@ -74,7 +73,7 @@ func WritePackets(w io.Writer, root PacketRecord) error {
 	for _, op := range pubkey.UnsupportedPackets() {
 		err = op.Serialize(w)
 		if err != nil {
-			return errors.Mask(err)
+			return err
 		}
 	}
 	return nil
@@ -84,7 +83,7 @@ func WriteArmoredPackets(w io.Writer, root PacketRecord) error {
 	armw, err := armor.Encode(w, openpgp.PublicKeyType, nil)
 	defer armw.Close()
 	if err != nil {
-		return errors.Mask(err)
+		return err
 	}
 	return WritePackets(armw, root)
 }
@@ -119,10 +118,10 @@ func (ok *OpaqueKeyring) Parse() (*Pubkey, error) {
 		var badPacket *packet.OpaquePacket
 		if opkt.Tag == 6 { //packet.PacketTypePublicKey:
 			if pubkey != nil {
-				return nil, errors.New("Multiple public keys in keyring")
+				return nil, fmt.Errorf("Multiple public keys in keyring")
 			}
 			if pubkey, err = NewPubkey(opkt); err != nil {
-				return nil, errors.New("Failed to parse primary public key")
+				return nil, fmt.Errorf("Failed to parse primary public key")
 			}
 			signable = pubkey
 		} else if pubkey != nil {
@@ -173,7 +172,7 @@ func (ok *OpaqueKeyring) Parse() (*Pubkey, error) {
 		}
 	}
 	if pubkey == nil {
-		return nil, errors.New("No primary public key found")
+		return nil, fmt.Errorf("No primary public key found")
 	}
 	// Update the overall public key material digest.
 	pubkey.updateDigests()
@@ -274,7 +273,7 @@ func (r ReadKeyResults) GoodKeys() (result []*Pubkey) {
 type PubkeyChan chan *ReadKeyResult
 
 func ErrReadKeys(msg string) *ReadKeyResult {
-	return &ReadKeyResult{Error: errors.New(msg)}
+	return &ReadKeyResult{Error: fmt.Errorf(msg)}
 }
 
 func (pubkey *Pubkey) updateDigests() {
