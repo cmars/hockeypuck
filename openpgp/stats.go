@@ -85,24 +85,34 @@ var selectHourlyStats string = `
 SELECT SUM(created) AS created, SUM(modified) AS modified, hour AS start
 FROM (
 	SELECT COUNT(*) AS created, 0 AS modified, date_trunc('hour', ctime) AS hour
-	FROM openpgp_pubkey WHERE ctime > date_trunc('day', now() - interval '1 day')
+	FROM (
+		SELECT uuid, ctime FROM openpgp_pubkey WHERE ctime > date_trunc('day', now() - interval '1 day'))
+		AS created
 	GROUP BY hour
 	UNION
 	SELECT 0 AS created, COUNT(*) AS modified, date_trunc('hour', mtime) AS hour
-	FROM openpgp_pubkey WHERE mtime > date_trunc('day', now() - interval '1 day')
-		AND mtime > ctime GROUP BY hour) AS hourly
+	FROM (
+		SELECT uuid, mtime FROM openpgp_pubkey WHERE mtime > date_trunc('day', now() - interval '1 day')
+			AND mtime != ctime)
+		AS modified
+	GROUP BY hour) as hourly
 GROUP BY hour ORDER BY start DESC`
 
 var selectDailyStats string = `
 SELECT SUM(created) AS created, SUM(modified) AS modified, day AS start
 FROM (
 	SELECT COUNT(*) AS created, 0 AS modified, date_trunc('day', ctime) AS day
-	FROM openpgp_pubkey WHERE ctime > date_trunc('week', now() - interval '1 week')
+	FROM (
+		SELECT uuid, ctime FROM openpgp_pubkey WHERE ctime > date_trunc('week', now() - interval '1 week'))
+		AS created
 	GROUP BY day
 	UNION
 	SELECT 0 AS created, COUNT(*) AS modified, date_trunc('day', mtime) AS day
-	FROM openpgp_pubkey WHERE mtime > date_trunc('week', now() - interval '1 week')
-		AND mtime > ctime GROUP BY day) AS daily
+	FROM (
+		SELECT uuid, mtime FROM openpgp_pubkey WHERE mtime > date_trunc('week', now() - interval '1 week')
+			AND mtime != ctime)
+		AS modified
+	GROUP BY day) as daily
 GROUP BY day ORDER BY start DESC`
 
 func (s *HkpStats) fetchKeyStats() (err error) {

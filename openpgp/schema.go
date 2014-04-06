@@ -226,7 +226,7 @@ pubkey_uuid TEXT,
 revsig_uuid TEXT
 )`
 
-const Cr_pks_stat = `
+const Cr_pks_status = `
 CREATE TABLE IF NOT EXISTS pks_status (
 -----------------------------------------------------------------------
 -- Scope- and content-unique identifer
@@ -253,13 +253,15 @@ var CreateTablesSql []string = []string{
 	Cr_openpgp_subkey,
 	Cr_openpgp_uid,
 	Cr_openpgp_uat,
-	Cr_pks_stat,
+	Cr_pks_status,
 }
 
 var Cr_openpgp_pubkey_constraints []string = []string{
 	`ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_pk PRIMARY KEY (uuid);`,
 	`ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_md5 UNIQUE (md5);`,
 	`ALTER TABLE openpgp_pubkey ADD CONSTRAINT openpgp_pubkey_sha256 UNIQUE (sha256);`,
+	`CREATE INDEX openpgp_pubkey_ctime ON openpgp_pubkey (ctime);`,
+	`CREATE INDEX openpgp_pubkey_mtime ON openpgp_pubkey (mtime);`,
 }
 
 var Cr_openpgp_subkey_constraints []string = []string{
@@ -388,6 +390,8 @@ var Dr_openpgp_pubkey_constraints []string = []string{
 	`ALTER TABLE openpgp_pubkey DROP CONSTRAINT openpgp_pubkey_pk;`,
 	`ALTER TABLE openpgp_pubkey DROP CONSTRAINT openpgp_pubkey_md5;`,
 	`ALTER TABLE openpgp_pubkey DROP CONSTRAINT openpgp_pubkey_sha256;`,
+	`DROP INDEX openpgp_pubkey_ctime;`,
+	`DROP INDEX openpgp_pubkey_mtime;`,
 }
 
 var Dr_openpgp_subkey_constraints []string = []string{
