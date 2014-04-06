@@ -132,7 +132,7 @@ func (r *StatsResponse) WriteTo(w http.ResponseWriter) (err error) {
 			"http_port": r.Stats.Port,
 			"numkeys":   r.Stats.TotalKeys,
 			"software":  filepath.Base(os.Args[0]),
-			"version":   r.Stats.Version}
+			"version":   hockeypuck.Version}
 		// Convert hourly stats
 		hours := []interface{}{}
 		for _, hour := range r.Stats.KeyStatsHourly {
