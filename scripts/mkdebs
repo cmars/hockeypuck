@@ -16,7 +16,7 @@ fi
 revert_debfiles
 
 # Detect whether this is a development build or production release
-DEVBUILD=$(head -1 debian/changelog | grep \~ && echo true)
+DEVBUILD=$(head -1 debian/changelog | grep \~ && echo true || true)
 
 # Build for each supported Ubuntu version
 for d in $DISTS; do
