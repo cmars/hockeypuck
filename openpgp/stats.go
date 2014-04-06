@@ -23,11 +23,15 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/hockeypuck/hockeypuck"
 	"github.com/hockeypuck/hockeypuck/hkp"
 )
 
 func (w *Worker) Stats(l *hkp.Lookup) {
-	resp := &StatsResponse{Lookup: l, Stats: &HkpStats{Worker: w}}
+	resp := &StatsResponse{
+		Lookup: l,
+		Stats:  &HkpStats{Worker: w, Version: hockeypuck.Version},
+	}
 	resp.Stats.fetchServerInfo(l)
 	err := resp.Stats.fetchKeyStats()
 	if err != nil {
