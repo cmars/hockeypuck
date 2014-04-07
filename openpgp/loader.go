@@ -55,8 +55,13 @@ func (l *Loader) InsertKey(pubkey *Pubkey) error {
 	if err != nil {
 		return err
 	}
-
-	return l.InsertKeyTx(tx, pubkey)
+	err = l.InsertKeyTx(tx, pubkey)
+	if err != nil {
+		tx.Rollback()
+	} else {
+		return tx.Commit()
+	}
+	return err
 }
 
 func (l *Loader) InsertKeyTx(tx *sqlx.Tx, pubkey *Pubkey) error {
@@ -90,11 +95,6 @@ func (l *Loader) InsertKeyTx(tx *sqlx.Tx, pubkey *Pubkey) error {
 		}
 		return nil
 	})
-	if err != nil {
-		tx.Rollback()
-	} else {
-		return tx.Commit()
-	}
 	return err
 }
 

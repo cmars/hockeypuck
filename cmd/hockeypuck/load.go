@@ -118,7 +118,11 @@ func (ec *loadCmd) flushDb() {
 
 func (ec *loadCmd) insertKey(keyRead *openpgp.ReadKeyResult) error {
 	var err error
-	if ec.nkeys%ec.txnSize == 0 {
+	if ec.tx == nil {
+		if ec.tx, err = ec.l.Begin(); err != nil {
+			die(fmt.Errorf("Error starting new transaction: %v", err))
+		}
+	} else if ec.nkeys%ec.txnSize == 0 {
 		ec.flushDb()
 		if ec.tx, err = ec.l.Begin(); err != nil {
 			die(fmt.Errorf("Error starting new transaction: %v", err))
