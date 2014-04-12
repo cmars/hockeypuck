@@ -5,6 +5,7 @@
 # http://dave.cheney.net/2012/09/08/an-introduction-to-cross-compilation-with-go
 # 
 . $HOME/local/bin/golang-crosscompile
+git checkout ./debian
 
 if [ -z "$1" ]; then
 	PLATFORMS=$(find $GOROOT/pkg -maxdepth 1 -mindepth 1 -type d -exec basename {} \; | grep '_' | sed 's/_/-/g' | egrep -v 'windows|-race' | xargs)
@@ -18,16 +19,20 @@ mkdir -p $DOCROOT/usr/share/doc
 cp -r doc/output $DOCROOT/usr/share/doc/hockeypuck
 trap "rm -rf $DOCROOT" EXIT
 
-GOPATH=$(pwd)/gopath
-rm -rf $GOPATH/bin $GOPATH/pkg
+export GOPATH=$(mktemp -d)
+trap "rm -rf $GOPATH" EXIT
 
 APPS="github.com/hockeypuck/hockeypuck/cmd/hockeypuck"
+
+go get github.com/hockeypuck/hockeypuck/...
+go get launchpad.net/godeps
+go install launchpad.net/godeps
+(cd $GOPATH/src/github.com/hockeypuck/hockeypuck; $GOPATH/bin/godeps -u dependencies.tsv)
 
 for platform in $PLATFORMS;
 do
 	for app in $APPS;
 	do
-		go-$platform get $app
 		go-$platform install $app
 	done
 done
@@ -38,12 +43,23 @@ rm -rf $BUILD
 mkdir -p $DIST
 
 host_platform=$(go env GOOS)-$(go env GOARCH)
+
+# Detect whether this is a development build or production release
+REVNO=$(date '+%Y%m%d')+$(git rev-parse --short HEAD)
+DEVBUILD=$(head -1 debian/changelog | grep \~ && echo true || true)
+if [ -n "$DEVBUILD" ]; then
+	# Append bzr revision and release distro info
+	sed -i -e "s/) \([a-zA-Z0-9].*\);/$1~dev$REVNO) $d;/i" debian/changelog
+else
+	# Append release distro info
+	sed -i -e "s/) \([a-zA-Z0-9].*\);/$1~r$REVNO) $d;/i" debian/changelog
+fi
 version=$(head -1 debian/changelog | sed 's/.*(//;s/).*//;')
 
 for platform in $PLATFORMS;
 do
 	platform_bin=$(echo $platform | sed 's/-/_/')
-	tarfile=$DIST/hockeypuck-$version.0$(bzr revno)-$platform.tar
+	tarfile=$DIST/hockeypuck-$version-$platform.tar
 	tar -C instroot -cvf $tarfile .
 	tar -C instroot-extra -rvf $tarfile .
 	tar -C $DOCROOT -rvf $tarfile .
@@ -57,6 +73,7 @@ do
 	gzip -9f $tarfile
 done
 
+git checkout ./debian
 #rm -rf $BUILD
 
 exit 0
