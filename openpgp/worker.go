@@ -78,6 +78,7 @@ func NewWorker(service *hkp.Service, peer *SksPeer) (w *Worker, err error) {
 }
 
 func (w *Worker) Run() {
+	go w.monitorStats()
 	for {
 		select {
 		case req, ok := <-w.Service.Requests:

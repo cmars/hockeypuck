@@ -21,24 +21,77 @@ import (
 	"log"
 	"net"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/hockeypuck/hockeypuck"
 	"github.com/hockeypuck/hockeypuck/hkp"
 )
 
-func (w *Worker) Stats(l *hkp.Lookup) {
-	resp := &StatsResponse{
-		Lookup: l,
-		Stats:  &HkpStats{Worker: w, Version: hockeypuck.Version},
-	}
-	resp.Stats.fetchServerInfo(l)
-	err := resp.Stats.fetchKeyStats()
-	if err != nil {
-		l.Response() <- &ErrorResponse{err}
+var (
+	keyStatsLock   *sync.Mutex
+	keyStatsHourly []PksKeyStats
+	keyStatsDaily  []PksKeyStats
+)
+
+func init() {
+	keyStatsLock = &sync.Mutex{}
+}
+
+func (s *Settings) StatsRefresh() int {
+	return s.GetIntDefault("hockeypuck.openpgp.statsRefresh", 4)
+}
+
+func (w *Worker) monitorStats() {
+	statsRefresh := Config().StatsRefresh()
+	if statsRefresh <= 0 {
+		log.Println("load statistics disabled")
 		return
 	}
-	err = resp.Stats.fetchTotalKeys()
+
+	for {
+		go func() {
+			var stats []PksKeyStats
+			err := w.db.Select(&stats, selectHourlyStats)
+			if err != nil {
+				log.Println("failed to update hourly stats: %v", err)
+			} else {
+				keyStatsLock.Lock()
+				defer keyStatsLock.Unlock()
+				keyStatsHourly = stats
+				log.Println("hourly stats updated")
+			}
+		}()
+		go func() {
+			var stats []PksKeyStats
+			err := w.db.Select(&stats, selectDailyStats)
+			if err != nil {
+				log.Println("failed to update daily stats: %v", err)
+			} else {
+				keyStatsLock.Lock()
+				defer keyStatsLock.Unlock()
+				keyStatsDaily = stats
+				log.Println("daily stats updated")
+			}
+		}()
+		time.Sleep(time.Duration(statsRefresh) * time.Hour)
+	}
+}
+
+func (w *Worker) Stats(l *hkp.Lookup) {
+	keyStatsLock.Lock()
+	defer keyStatsLock.Unlock()
+	resp := &StatsResponse{
+		Lookup: l,
+		Stats: &HkpStats{
+			Version:        hockeypuck.Version,
+			KeyStatsHourly: keyStatsHourly,
+			KeyStatsDaily:  keyStatsDaily,
+		},
+	}
+	resp.Stats.fetchServerInfo(l)
+	err := w.db.Get(resp.Stats, `
+SELECT CAST(reltuples AS INTEGER) AS total_keys FROM pg_class WHERE relname = 'openpgp_pubkey'`)
 	if err != nil {
 		l.Response() <- &ErrorResponse{err}
 		return
@@ -61,7 +114,6 @@ func (s *PksKeyStats) Hour() string {
 }
 
 type HkpStats struct {
-	*Worker
 	Timestamp      time.Time
 	Hostname       string
 	Port           int
@@ -118,17 +170,3 @@ FROM (
 		AS modified
 	GROUP BY day) as daily
 GROUP BY day ORDER BY start DESC`
-
-func (s *HkpStats) fetchKeyStats() (err error) {
-	err = s.db.Select(&s.KeyStatsHourly, selectHourlyStats)
-	if err != nil {
-		return
-	}
-	err = s.db.Select(&s.KeyStatsDaily, selectDailyStats)
-	return
-}
-
-func (s *HkpStats) fetchTotalKeys() (err error) {
-	return s.db.Get(s, `
-SELECT CAST(reltuples AS INTEGER) AS total_keys FROM pg_class WHERE relname = 'openpgp_pubkey'`)
-}
