@@ -19,6 +19,7 @@
 package main
 
 import (
+	"crypto/md5"
 	"encoding/hex"
 	"fmt"
 	"log"
@@ -37,12 +38,13 @@ import (
 
 type loadCmd struct {
 	configuredCmd
-	path       string
-	txnSize    int
-	ignoreDups bool
+	path            string
+	txnSize         int
+	ignoreDups      bool
+	verifyRoundTrip bool
 
 	db    *openpgp.DB
-	l     *openpgp.Loader
+	w     *openpgp.Worker
 	ptree recon.PrefixTree
 	nkeys int
 	tx    *sqlx.Tx
@@ -59,6 +61,7 @@ func newLoadCmd() *loadCmd {
 	flags.StringVar(&cmd.path, "path", "", "OpenPGP keyring file path or glob pattern")
 	flags.IntVar(&cmd.txnSize, "txn-size", 5000, "Transaction size; public keys per commit")
 	flags.BoolVar(&cmd.ignoreDups, "ignore-dups", false, "Ignore duplicate entries")
+	flags.BoolVar(&cmd.verifyRoundTrip, "verify-round-trip", false, "Fetch key after insert and verify digest (slow)")
 	cmd.flags = flags
 	return cmd
 }
@@ -66,6 +69,9 @@ func newLoadCmd() *loadCmd {
 func (ec *loadCmd) Main() {
 	if ec.path == "" {
 		Usage(ec, "--path is required")
+	}
+	if ec.verifyRoundTrip {
+		ec.txnSize = 1
 	}
 	if ec.txnSize < 1 {
 		Usage(ec, "Invalid --txn-size, must be >= 1")
@@ -76,7 +82,7 @@ func (ec *loadCmd) Main() {
 	if ec.db, err = openpgp.NewDB(); err != nil {
 		die(err)
 	}
-	ec.l = openpgp.NewLoader(ec.db, true)
+	ec.w = &openpgp.Worker{Loader: openpgp.NewLoader(ec.db, true)}
 	// Ensure tables all exist
 	if err = ec.db.CreateTables(); err != nil {
 		die(err)
@@ -107,7 +113,9 @@ func (ec *loadCmd) Main() {
 
 func (ec *loadCmd) flushDb() {
 	if ec.tx != nil {
-		log.Println("Loaded", ec.nkeys, "keys")
+		if !ec.verifyRoundTrip {
+			log.Println("Loaded", ec.nkeys, "keys")
+		}
 		if err := ec.tx.Commit(); err != nil {
 			die(fmt.Errorf("Error committing transaction: %v", err))
 		}
@@ -119,23 +127,44 @@ func (ec *loadCmd) flushDb() {
 func (ec *loadCmd) insertKey(keyRead *openpgp.ReadKeyResult) error {
 	var err error
 	if ec.tx == nil {
-		if ec.tx, err = ec.l.Begin(); err != nil {
+		if ec.tx, err = ec.w.Begin(); err != nil {
 			die(fmt.Errorf("Error starting new transaction: %v", err))
 		}
 	} else if ec.nkeys%ec.txnSize == 0 {
 		ec.flushDb()
-		if ec.tx, err = ec.l.Begin(); err != nil {
+		if ec.tx, err = ec.w.Begin(); err != nil {
 			die(fmt.Errorf("Error starting new transaction: %v", err))
 		}
 	}
 	// Load key into relational database
-	if err = ec.l.InsertKeyTx(ec.tx, keyRead.Pubkey); err != nil {
+	if err = ec.w.InsertKeyTx(ec.tx, keyRead.Pubkey); err != nil {
 		log.Println("Error inserting key:", keyRead.Pubkey.Fingerprint(), ":", err)
 		if _, is := err.(pq.Error); is {
 			die(fmt.Errorf("Unable to load due to database errors."))
 		}
 	}
 	ec.nkeys++
+
+	if ec.verifyRoundTrip {
+		ec.flushDb()
+		loadKey := keyRead.Pubkey
+		loadDigest := openpgp.SksDigest(loadKey, md5.New())
+		if loadKey.Md5 != loadDigest {
+			log.Println("RTC: loaded key", loadKey.Md5, "!=", "recalculated", loadDigest)
+		}
+		checkKey, err := ec.w.FetchKey(loadKey.RFingerprint)
+		if err != nil {
+			log.Println("RTC: check failed for", loadKey.Fingerprint(), ":", err)
+			return err
+		}
+		checkDigest := openpgp.SksDigest(checkKey, md5.New())
+		if checkKey.Md5 != checkDigest {
+			log.Println("RTC: check key", checkKey.Md5, "!=", "recalculated", checkDigest)
+		}
+		if loadKey.Md5 != checkKey.Md5 {
+			log.Println("RTC: load key", loadKey.Md5, "!=", "check key", checkKey.Md5)
+		}
+	}
 	return err
 }
 
