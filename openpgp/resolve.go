@@ -77,9 +77,17 @@ func Resolve(pubkey *Pubkey) {
 				// linkSelfSigs needs to set creation & expiration
 			}
 		case *Subkey:
-			r.setSigScope(p.RFingerprint, p.signatures...)
-			p.linkSelfSigs(r.Pubkey)
-			signable = p
+			if _, has := scopedPackets[p.RFingerprint]; has {
+				r.Pubkey.subkeys = removeSubkey(r.Pubkey.subkeys, p)
+				r.Pubkey.Unsupported = append(r.Pubkey.Unsupported, p.Packet...)
+				r.Pubkey.Unsupported = append(r.Pubkey.Unsupported, concatSigPackets(p.signatures)...)
+				p.signatures = nil
+			} else {
+				scopedPackets[p.RFingerprint] = true
+				r.setSigScope(p.RFingerprint, p.signatures...)
+				p.linkSelfSigs(r.Pubkey)
+				signable = p
+			}
 		case *Signature:
 			if _, has := scopedPackets[p.ScopedDigest]; has {
 				signable.RemoveSignature(p)
@@ -131,6 +139,15 @@ func removeUserAttribute(uats []*UserAttribute, removeUat *UserAttribute) (resul
 	for _, uat := range uats {
 		if removeUat != uat {
 			result = append(result, uat)
+		}
+	}
+	return
+}
+
+func removeSubkey(subkeys []*Subkey, removeSubkey *Subkey) (result []*Subkey) {
+	for _, subkey := range subkeys {
+		if removeSubkey != subkey {
+			result = append(result, subkey)
 		}
 	}
 	return

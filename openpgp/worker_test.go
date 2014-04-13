@@ -18,6 +18,7 @@
 package openpgp
 
 import (
+	"bytes"
 	"crypto/md5"
 	"fmt"
 	"testing"
@@ -77,7 +78,8 @@ func TestValidateKey(t *testing.T) {
 func TestRoundTripKeys(t *testing.T) {
 	for _, testfile := range []string{
 		"sksdigest.asc", "alice_signed.asc", "alice_unsigned.asc",
-		"uat.asc", "tails.asc", "fece664e.asc", "weasel.asc"} {
+		"uat.asc", "tails.asc", "fece664e.asc", "weasel.asc",
+		"rtt-140.asc"} {
 		testRoundTripKey(t, testfile)
 	}
 }
@@ -85,21 +87,47 @@ func TestRoundTripKeys(t *testing.T) {
 func testRoundTripKey(t *testing.T, testfile string) {
 	w := MustCreateWorker(t)
 	defer MustDestroyWorker(t, w)
-	key1 := MustInputAscKey(t, testfile)
-	Resolve(key1)
-	_, err := w.Begin()
+	srckey1 := MustInputAscKey(t, testfile)
+	err := w.InsertKey(srckey1)
 	assert.Nil(t, err)
-	keyChange := w.UpsertKey(key1)
-	assert.Nil(t, keyChange.Error)
-	err = w.Commit()
-	assert.Nil(t, err)
-	key2, err := w.fetchKey(key1.RFingerprint)
+	fetchkey2, err := w.FetchKey(srckey1.RFingerprint)
+	if err != nil {
+		t.Fatalf("%s: %v", testfile, err)
+	}
+	h1 := SksDigest(srckey1, md5.New())
+	h2 := SksDigest(fetchkey2, md5.New())
+	assert.Equal(t, h1, h2, "file: %v", testfile)
+	assert.Equal(t, srckey1.Md5, h1, "file: %v", testfile)
+	assert.Equal(t, fetchkey2.Md5, h2, "file: %v", testfile)
+}
+
+func testReadDigestDups(t *testing.T, testfile string) {
+	f := MustInput(t, "rtt-140.asc")
+	defer f.Close()
+	block, err := armor.Decode(f)
 	if err != nil {
 		t.Fatal(err)
 	}
-	h1 := SksDigest(key1, md5.New())
-	h2 := SksDigest(key2, md5.New())
-	assert.Equal(t, h1, h2)
-	assert.Equal(t, key1.Md5, h1)
-	assert.Equal(t, key2.Md5, h1)
+	var opkr *OpaqueKeyring
+	for kr := range ReadOpaqueKeyrings(block.Body) {
+		if opkr != nil {
+			t.Fatal("unexpected keyring")
+		}
+		opkr = kr
+	}
+	assert.Equal(t, len(opkr.Packets), 24)
+
+	pubkey, err := opkr.Parse()
+	assert.Nil(t, err)
+	var buf bytes.Buffer
+	err = WritePackets(&buf, pubkey)
+	assert.Nil(t, err)
+	opkr = nil
+	for kr := range ReadOpaqueKeyrings(bytes.NewBuffer(buf.Bytes())) {
+		if opkr != nil {
+			t.Fatal("unexpected keyring")
+		}
+		opkr = kr
+	}
+	assert.Equal(t, len(opkr.Packets), 24)
 }

@@ -127,28 +127,28 @@ func (ok *OpaqueKeyring) Parse() (*Pubkey, error) {
 		} else if pubkey != nil {
 			switch opkt.Tag {
 			case 14: //packet.PacketTypePublicSubkey:
+				signable = nil
 				var subkey *Subkey
 				if subkey, err = NewSubkey(opkt); err != nil {
 					badPacket = opkt
-					signable = nil
 				} else {
 					pubkey.subkeys = append(pubkey.subkeys, subkey)
 					signable = subkey
 				}
 			case 13: //packet.PacketTypeUserId:
+				signable = nil
 				var userId *UserId
 				if userId, err = NewUserId(opkt); err != nil {
 					badPacket = opkt
-					signable = nil
 				} else {
 					pubkey.userIds = append(pubkey.userIds, userId)
 					signable = userId
 				}
 			case 17: //packet.PacketTypeUserAttribute:
+				signable = nil
 				var userAttr *UserAttribute
 				if userAttr, err = NewUserAttribute(opkt); err != nil {
 					badPacket = opkt
-					signable = nil
 				} else {
 					pubkey.userAttributes = append(pubkey.userAttributes, userAttr)
 					signable = userAttr
@@ -157,7 +157,6 @@ func (ok *OpaqueKeyring) Parse() (*Pubkey, error) {
 				var sig *Signature
 				if sig, err = NewSignature(opkt); err != nil {
 					badPacket = opkt
-					signable = nil
 				} else if signable == nil {
 					badPacket = opkt
 				} else {
@@ -166,6 +165,7 @@ func (ok *OpaqueKeyring) Parse() (*Pubkey, error) {
 			default:
 				badPacket = opkt
 			}
+
 			if badPacket != nil {
 				pubkey.AppendUnsupported(badPacket)
 			}

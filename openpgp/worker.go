@@ -18,6 +18,7 @@
 package openpgp
 
 import (
+	"crypto/md5"
 	"database/sql"
 	"encoding/hex"
 	"fmt"
@@ -285,12 +286,12 @@ func (w *Worker) LookupKey(keyid string) (pubkey *Pubkey, err error) {
 	if len(uuids) > 1 {
 		return nil, ErrKeyIdCollision
 	}
-	return w.fetchKey(uuids[0])
+	return w.FetchKey(uuids[0])
 }
 
 func (w *Worker) fetchKeys(uuids []string) (results ReadKeyResults) {
 	for _, uuid := range uuids {
-		key, err := w.fetchKey(uuid)
+		key, err := w.FetchKey(uuid)
 		results = append(results, &ReadKeyResult{Pubkey: key, Error: err})
 		if err != nil {
 			log.Println("Fetch key:", err)
@@ -299,7 +300,7 @@ func (w *Worker) fetchKeys(uuids []string) (results ReadKeyResults) {
 	return
 }
 
-func (w *Worker) fetchKey(uuid string) (pubkey *Pubkey, err error) {
+func (w *Worker) FetchKey(uuid string) (pubkey *Pubkey, err error) {
 	pubkey = new(Pubkey)
 	err = w.db.Get(pubkey, `SELECT * FROM openpgp_pubkey WHERE uuid = $1`, uuid)
 	if err == sql.ErrNoRows {
@@ -405,6 +406,14 @@ SELECT * FROM openpgp_sig sig WHERE pubkey_uuid = $1 AND subkey_uuid = $2
 		}
 	}
 	Resolve(pubkey)
+
+	digest := SksDigest(pubkey, md5.New())
+	if digest != pubkey.Md5 {
+		// TODO: make this a WARN level message when we use loggo
+		log.Println("digest mismatch for key [%s]: indexed=%s material=%s",
+			pubkey.Fingerprint(), pubkey.Md5, digest)
+	}
+
 	return
 }
 
