@@ -28,7 +28,7 @@ for d in $DISTS; do
 		sed -i -e "s/) \([a-zA-Z0-9].*\);/$1~dev$REVNO~$d) $d;/i" debian/changelog
 	else
 		# Append release distro info
-		sed -i -e "s/) \([a-zA-Z0-9].*\);/$1~r$REVNO~$d) $d;/i" debian/changelog
+		sed -i -e "s/) \([a-zA-Z0-9].*\);/$1~rel$REVNO~$d) $d;/i" debian/changelog
 	fi
 	# Build source package
 	make debsrc
