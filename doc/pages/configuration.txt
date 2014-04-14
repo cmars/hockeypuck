@@ -90,6 +90,17 @@ Type
 Default
     # of detected cores
 
+statsRefresh=\ *(int, >0)*
+--------------------------
+Number of hours to wait between refreshing the load statistics displayed at
+/pks/lookup?op=stats.  In some cases, the stats query can scan a large number
+of rows, so it is not recalculated on each request.
+
+Type
+    int
+Default
+    4
+
 [hockeypuck.openpgp.db]
 =======================
 OpenPGP database connection options.

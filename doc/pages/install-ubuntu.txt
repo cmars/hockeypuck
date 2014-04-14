@@ -12,20 +12,18 @@ PPA prerequisites
 -----------------
 In order to add PPA repositories, you'll need to make sure you have the necessary pacakges installed to manage PPAs on your server. These may already be installed on a desktop Ubuntu distribution, but may not be present on a minimal server image.
 
-Ubuntu 12.04, 12.10
-~~~~~~~~~~~~~~~~~~~
+Ubuntu 12.04
+~~~~~~~~~~~~
 ::
 
   $ sudo apt-get install python-software-properties
 
-Ubuntu 13.04
-~~~~~~~~~~~~
-::
+Ubuntu 13.10, 14.04, cloud images
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+You probably already have apt-add-repository installed. If not, you'll be prompted to install the appropriate package.
 
-  $ sudo apt-get install software-properties-common
-
-Add the Hockeypuck repository
------------------------------
+Add the stable Hockeypuck repository
+------------------------------------
 ::
 
   $ sudo apt-add-repository ppa:hockeypuck/ppa
