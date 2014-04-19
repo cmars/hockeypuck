@@ -1,9 +1,0 @@
-code.google.com/p/go.crypto	hg	6478cc9340cbbe6c04511280c5007722269108e9	184
-code.google.com/p/gorilla	hg	75a547f433ad6a0e8e4c1d6c1e287c18737dbf72	351
-code.google.com/p/snappy-go	hg	12e4b4183793ac4b061921e7980845e750679fd0	14
-github.com/cmars/conflux	git	69b046c58bd2f97db209345f5ab5cd90d439c46e	
-github.com/jmoiron/sqlx	git	dab5bd9ced30aca12c77b004314b9bd4c41083da	
-github.com/lib/pq	git	faae944327048ae177e748c535b857392959e874	
-github.com/pelletier/go-toml	git	2ba6587bf359b35209f71f6602cdf6be99ba3497	
-github.com/syndtr/goleveldb	git	308aa7a00bdf82a2a0595f14b634e6012fb7fe17	
-launchpad.net/gnuflag	bzr	roger.peppe@canonical.com-20121003093437-zcyyw0lpvj2nifpk	12
