@@ -1,5 +1,5 @@
 #!/bin/bash -e
 
-mkdir output
+mkdir -p output
 cp -r pages/* output
 

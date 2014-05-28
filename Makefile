@@ -10,7 +10,7 @@ compile:
 	make -C doc fakebuild
 
 build:
-	GOPATH=$(shell pwd)/build go get ${PACKAGE}/...
+	GOPATH=$(shell pwd)/build go get -d ${PACKAGE}/...
 	GOPATH=$(shell pwd)/build make godeps compile
 
 godeps: require-godeps apply-godeps
