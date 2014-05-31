@@ -15,7 +15,7 @@ if [ "$1" = "purge" ]; then
 	fi
 
 	# Remove prefix tree
-	rm -f /var/lib/hockeypuck/recon-ptree
+	rm -rf /var/lib/hockeypuck/recon-ptree
 
 	# Remove the 'hockeypuck' system user
 	uid=`getent passwd hockeypuck | cut -d ":" -f 3`
