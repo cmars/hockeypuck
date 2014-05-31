@@ -27,7 +27,7 @@ debbin: freeze-build
 	debuild -us -uc -i -b
 
 freeze-build:
-	GOPATH=$(shell pwd)/build go get ${PACKAGE}/...
+	GOPATH=$(shell pwd)/build go get -d ${PACKAGE}/...
 	GOPATH=$(shell pwd)/build make apply-godeps
 
 freeze-godeps: require-godeps
