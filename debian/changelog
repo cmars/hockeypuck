@@ -1,4 +1,10 @@
-hockeypuck (1.0) UNRELEASED; urgency=medium
+hockeypuck (1.0.1) UNRELEASED; urgency=medium
+
+  * Hockeypuck 1.0.1 maintenance release.
+
+ -- Casey Marshall <cmars@cmarstech.com>  Sat, 31 May 2014 18:23:25 -0500
+
+hockeypuck (1.0) trusty; urgency=medium
 
   * Hockeypuck 1.0 release
 
