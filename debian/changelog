@@ -1,4 +1,10 @@
-hockeypuck (1.0) UNRELEASED; urgency=medium
+hockeypuck (1.1~a1) UNRELEASED; urgency=medium
+
+  * Opening 1.1~a1
+
+ -- Casey Marshall <cmars@cmarstech.com>  Sat, 31 May 2014 19:31:35 -0500
+
+hockeypuck (1.0) trusty; urgency=medium
 
   * Hockeypuck 1.0 release
 
