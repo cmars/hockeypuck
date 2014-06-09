@@ -2,6 +2,7 @@
 PACKAGE=github.com/hockeypuck/hockeypuck
 GODEPS=launchpad.net/godeps
 VERSION=$(shell head -1 debian/changelog | sed 's/.*(//;s/).*//;')
+CURRENT=$(shell git rev-parse --short HEAD)
 
 all: compile
 
@@ -35,6 +36,9 @@ freeze-godeps: require-godeps
 
 apply-godeps: require-godeps
 	${GOPATH}/bin/godeps -u dependencies.tsv
+	if [ "$$GOPATH" = "$(shell pwd)/build" ]; then\
+		git archive ${CURRENT} | (cd ${GOPATH}/src/${PACKAGE}; tar xvf -); \
+	fi
 
 require-godeps:
 	go get -u ${GODEPS}
