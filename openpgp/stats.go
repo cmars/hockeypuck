@@ -32,6 +32,7 @@ var (
 	keyStatsLock   *sync.Mutex
 	keyStatsHourly []PksKeyStats
 	keyStatsDaily  []PksKeyStats
+	keyStatsTotal  int
 )
 
 func init() {
@@ -50,6 +51,22 @@ func (w *Worker) monitorStats() {
 	}
 
 	for {
+		go func() {
+			var stats []struct {
+				TotalKeys int `db:"total_keys"`
+			}
+			err := w.db.Select(&stats, selectTotalKeys)
+			if err != nil {
+				log.Println("failed to update total keys: %v", err)
+			} else {
+				keyStatsLock.Lock()
+				defer keyStatsLock.Unlock()
+				if len(stats) > 0 {
+					keyStatsTotal = stats[0].TotalKeys
+					log.Println("total keys updated")
+				}
+			}
+		}()
 		go func() {
 			var stats []PksKeyStats
 			err := w.db.Select(&stats, selectHourlyStats)
@@ -87,15 +104,10 @@ func (w *Worker) Stats(l *hkp.Lookup) {
 			Version:        hockeypuck.Version,
 			KeyStatsHourly: keyStatsHourly,
 			KeyStatsDaily:  keyStatsDaily,
+			TotalKeys:      keyStatsTotal,
 		},
 	}
 	resp.Stats.fetchServerInfo(l)
-	err := w.db.Get(resp.Stats, `
-SELECT CAST(reltuples AS INTEGER) AS total_keys FROM pg_class WHERE relname = 'openpgp_pubkey'`)
-	if err != nil {
-		l.Response() <- &ErrorResponse{err}
-		return
-	}
 	l.Response() <- resp
 }
 
@@ -119,9 +131,13 @@ type HkpStats struct {
 	Port           int
 	Version        string
 	PksPeers       []PksStatus
-	TotalKeys      int `db:"total_keys"`
+	TotalKeys      int
 	KeyStatsHourly []PksKeyStats
 	KeyStatsDaily  []PksKeyStats
+}
+
+func (s *HkpStats) NotReady() bool {
+	return s.TotalKeys == 0
 }
 
 func (s *HkpStats) fetchServerInfo(l *hkp.Lookup) {
@@ -136,6 +152,8 @@ func (s *HkpStats) fetchServerInfo(l *hkp.Lookup) {
 		log.Println("Error parsing Host:", err)
 	}
 }
+
+var selectTotalKeys string = `SELECT COUNT(1) AS total_keys FROM openpgp_pubkey`
 
 var selectHourlyStats string = `
 SELECT SUM(created) AS created, SUM(modified) AS modified, hour AS start

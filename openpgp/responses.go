@@ -123,6 +123,11 @@ func (r *StatsResponse) WriteTo(w http.ResponseWriter) (err error) {
 	if err != nil {
 		return
 	}
+	if r.Stats.NotReady() {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, err = fmt.Fprintf(w, "statistics not ready")
+		return
+	}
 	if r.Lookup.Option&(hkp.JsonFormat|hkp.MachineReadable) != 0 {
 		// JSON is the only supported machine readable stats format.
 		w.Header().Add("Content-Type", "application/json")
