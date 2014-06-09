@@ -1,6 +1,7 @@
 hockeypuck (1.0.1~a2) UNRELEASED; urgency=medium
 
   * precise total key count.
+  * fix sysvinit stop command.
 
  -- Casey Marshall <cmars@cmarstech.com>  Sun, 08 Jun 2014 23:05:16 -0500
 
