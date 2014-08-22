@@ -31,6 +31,22 @@ func (s *Settings) HttpBind() string {
 	return s.GetStringDefault("hockeypuck.hkp.bind", ":11371")
 }
 
+func (s *Settings) HttpsOnly() bool {
+	return s.GetBool("hockeypuck.hkps.only")
+}
+
+func (s *Settings) HttpsBind() string {
+	return s.GetStringDefault("hockeypuck.hkps.bind", ":11372")
+}
+
+func (s *Settings) TLSCertificate() string {
+	return s.GetStringDefault("hockeypuck.hkps.cert", "")
+}
+
+func (s *Settings) TLSKey() string {
+	return s.GetStringDefault("hockeypuck.hkps.key", "")
+}
+
 type Service struct {
 	Requests RequestChan
 }

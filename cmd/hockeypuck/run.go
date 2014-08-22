@@ -54,7 +54,37 @@ func (c *runCmd) Main() {
 	sksPeer.Start()
 	// Bind the router to the built-in webserver root
 	http.Handle("/", r)
-	// Start the built-in webserver, run forever
-	err = http.ListenAndServe(hkp.Config().HttpBind(), nil)
-	die(err)
+
+	var hkpsConfigured bool
+	if hkp.Config().HttpsBind() != "" {
+		if hkp.Config().TLSCertificate() == "" {
+			err = "no TLS certificate provided"
+		} else if hkp.Config().TLSKey() == "" {
+			err = "no TLS private key provided"
+		}
+
+		if err != nil {
+			die(err)
+		}
+
+		hkpsConfigured = true
+	}
+
+	if hkpsConfigured {
+		if !hkp.Config().HttpsBind() {
+			go func() {
+				// Start the built-in webserver, run forever
+				err = http.ListenAndServe(hkp.Config().HttpBind(), nil)
+				die(err)
+			}()
+		}
+		err = http.ListenAndServeTLS(hkp.Config.HttpsBind(),
+			hkp.Config().TLSCertificate(),
+			hkp.Config().TLSKey, nil)
+		die(err)
+	} else {
+		// Start the built-in webserver, run forever
+		err = http.ListenAndServe(hkp.Config().HttpBind(), nil)
+		die(err)
+	}
 }
