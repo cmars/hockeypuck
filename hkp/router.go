@@ -31,10 +31,6 @@ func (s *Settings) HttpBind() string {
 	return s.GetStringDefault("hockeypuck.hkp.bind", ":11371")
 }
 
-func (s *Settings) HttpsOnly() bool {
-	return s.GetBool("hockeypuck.hkps.only")
-}
-
 func (s *Settings) HttpsBind() string {
 	return s.GetStringDefault("hockeypuck.hkps.bind", ":11372")
 }
