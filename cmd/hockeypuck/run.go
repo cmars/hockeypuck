@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 
 	"code.google.com/p/gorilla/mux"
@@ -58,9 +59,9 @@ func (c *runCmd) Main() {
 	var hkpsConfigured bool
 	if hkp.Config().HttpsBind() != "" {
 		if hkp.Config().TLSCertificate() == "" {
-			err = "no TLS certificate provided"
+			err = fmt.Errorf("no TLS certificate provided")
 		} else if hkp.Config().TLSKey() == "" {
-			err = "no TLS private key provided"
+			err = fmt.Errorf("no TLS private key provided")
 		}
 
 		if err != nil {
@@ -71,7 +72,7 @@ func (c *runCmd) Main() {
 	}
 
 	if hkpsConfigured {
-		if !hkp.Config().HttpsBind() {
+		if hkp.Config().HttpBind() {
 			go func() {
 				// Start the built-in webserver, run forever
 				err = http.ListenAndServe(hkp.Config().HttpBind(), nil)
