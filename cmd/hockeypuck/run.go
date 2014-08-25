@@ -72,16 +72,16 @@ func (c *runCmd) Main() {
 	}
 
 	if hkpsConfigured {
-		if hkp.Config().HttpBind() {
+		if hkp.Config().HttpBind() != "" {
 			go func() {
 				// Start the built-in webserver, run forever
 				err = http.ListenAndServe(hkp.Config().HttpBind(), nil)
 				die(err)
 			}()
 		}
-		err = http.ListenAndServeTLS(hkp.Config.HttpsBind(),
+		err = http.ListenAndServeTLS(hkp.Config().HttpsBind(),
 			hkp.Config().TLSCertificate(),
-			hkp.Config().TLSKey, nil)
+			hkp.Config().TLSKey(), nil)
 		die(err)
 	} else {
 		// Start the built-in webserver, run forever
