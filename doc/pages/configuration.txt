@@ -63,6 +63,23 @@ Default
     "$GOPATH/src/github.com/hockeypuck/hockeypuck/instroot/var/lib/hockeypuck/www"
 
     (Note that environment variables are not evaluated for configured values of webroot.)
+
+[hockeypuck.hkps]
+=================
+HTTPS Keyserver Protocol settings. To serve over HKPS, all three options
+must be defined.
+
+bind=\ *"[address]:port"*
+-------------------------
+Listen on address:port for HKPS requests. Omit address to accept requests to this port on any interface.
+
+cert=\ *"/path/to/server.pem"*
+------------------------------
+Path to the server's TLS certificate.
+
+key=\ *"/path/to/server.key"*
+-----------------------------
+Path to the server's TLS private key.
  
 [hockeypuck.openpgp]
 ====================
