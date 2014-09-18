@@ -32,7 +32,7 @@ func (s *Settings) HttpBind() string {
 }
 
 func (s *Settings) HttpsBind() string {
-	return s.GetStringDefault("hockeypuck.hkps.bind", ":11372")
+	return s.GetStringDefault("hockeypuck.hkps.bind", "")
 }
 
 func (s *Settings) TLSCertificate() string {
