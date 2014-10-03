@@ -354,13 +354,13 @@ func (pubkey *Pubkey) verifyUserIdSelfSig(uid *UserId, sig *Signature) (err erro
 	}
 	if pubkey.PublicKey != nil {
 		if sig.Signature != nil {
-			err = pubkey.PublicKey.VerifyUserIdSignature(uid.UserId.Id, sig.Signature)
+			err = pubkey.PublicKey.VerifyUserIdSignature(uid.UserId.Id, pubkey.PublicKey, sig.Signature)
 			if err == nil {
 				sig.State |= PacketStateSigOk
 			}
 			return
 		} else if sig.SignatureV3 != nil {
-			err = pubkey.PublicKey.VerifyUserIdSignatureV3(uid.UserId.Id, sig.SignatureV3)
+			err = pubkey.PublicKey.VerifyUserIdSignatureV3(uid.UserId.Id, pubkey.PublicKey, sig.SignatureV3)
 			if err == nil {
 				sig.State |= PacketStateSigOk
 			}
@@ -370,7 +370,7 @@ func (pubkey *Pubkey) verifyUserIdSelfSig(uid *UserId, sig *Signature) (err erro
 		}
 	} else if pubkey.PublicKeyV3 != nil {
 		if sig.SignatureV3 != nil {
-			return pubkey.PublicKeyV3.VerifyUserIdSignatureV3(uid.UserId.Id, sig.SignatureV3)
+			return pubkey.PublicKeyV3.VerifyUserIdSignatureV3(uid.UserId.Id, pubkey.PublicKeyV3, sig.SignatureV3)
 		} else {
 			return ErrInvalidPacketType
 		}

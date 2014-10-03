@@ -110,7 +110,7 @@ SELECT $1, $2 WHERE NOT EXISTS (
 		if err != nil {
 			return err
 		}
-		_, err = stmt.Execv(uuid, emailAddr)
+		_, err = stmt.Exec(uuid, emailAddr)
 		if err != nil {
 			return err
 		}
@@ -148,7 +148,7 @@ func (ps *PksSync) SendKeys(status *PksStatus) (err error) {
 		}
 		// Send successful, update the timestamp accordingly
 		status.LastSync = key.Mtime
-		_, err = ps.db.Execv("UPDATE pks_status SET last_sync = $1 WHERE email_addr = $2",
+		_, err = ps.db.Exec("UPDATE pks_status SET last_sync = $1 WHERE email_addr = $2",
 			status.LastSync, status.Addr)
 		if err != nil {
 			return

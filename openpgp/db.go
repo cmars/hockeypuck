@@ -18,11 +18,28 @@
 package openpgp
 
 import (
+	"database/sql"
 	"log"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 )
+
+func Execv(e sqlx.Execer, query string, args ...interface{}) (sql.Result, error) {
+	res, err := e.Exec(query, args...)
+	if err != nil {
+		log.Println(query, res, err)
+	}
+	return res, err
+}
+
+func Execf(e sqlx.Execer, query string, args ...interface{}) (sql.Result, error) {
+	res, err := e.Exec(query, args...)
+	if err != nil {
+		log.Fatalln(query, res, err)
+	}
+	return res, err
+}
 
 type DB struct {
 	*sqlx.DB
@@ -44,7 +61,7 @@ func (db *DB) CreateSchema() (err error) {
 func (db *DB) CreateTables() (err error) {
 	for _, crSql := range CreateTablesSql {
 		log.Println(crSql)
-		db.Execf(crSql)
+		Execf(db, crSql)
 	}
 	return
 }
