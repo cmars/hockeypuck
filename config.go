@@ -89,7 +89,6 @@ func (s *Settings) getInt(key string) (int, error) {
 			return i, nil
 		}
 	}
-	panic("unreachable")
 }
 
 // GetBool returns the boolean value for the configuration key if set,
@@ -113,7 +112,8 @@ func (s *Settings) GetBool(key string) bool {
 
 // GetStrings returns a []string slice for the configuration key if set,
 // otherwise an empty slice.
-func (s *Settings) GetStrings(key string) (value []string) {
+func (s *Settings) GetStrings(key string) []string {
+	var value []string
 	if strs, is := s.Get(key).([]interface{}); is {
 		for _, v := range strs {
 			if str, is := v.(string); is {
@@ -121,40 +121,40 @@ func (s *Settings) GetStrings(key string) (value []string) {
 			}
 		}
 	}
-	return
+	return value
 }
 
 // SetConfig sets the global configuration to the TOML-formatted string contents.
-func SetConfig(contents string) (err error) {
-	var tree *toml.TomlTree
-	if tree, err = toml.Load(contents); err != nil {
-		return
+func SetConfig(contents string) error {
+	tree, err := toml.Load(contents)
+	if err != nil {
+		return err
 	}
 	config = &Settings{tree}
-	return
+	return nil
 }
 
 // LoadConfig sets the global configuration to the TOML-formatted reader contents.
-func LoadConfig(r io.Reader) (err error) {
+func LoadConfig(r io.Reader) error {
 	buf := bytes.NewBuffer(nil)
-	_, err = io.Copy(buf, r)
+	_, err := io.Copy(buf, r)
 	if err != nil {
-		return
+		return err
 	}
-	var tree *toml.TomlTree
-	if tree, err = toml.Load(buf.String()); err != nil {
-		return
+	tree, err := toml.Load(buf.String())
+	if err != nil {
+		return err
 	}
 	config = &Settings{tree}
-	return
+	return nil
 }
 
 // LoadConfigFile sets the global configuration to the contents from the TOML file path.
 func LoadConfigFile(path string) (err error) {
-	var tree *toml.TomlTree
-	if tree, err = toml.LoadFile(path); err != nil {
-		return
+	tree, err := toml.LoadFile(path)
+	if err != nil {
+		return err
 	}
 	config = &Settings{tree}
-	return
+	return nil
 }

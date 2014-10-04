@@ -85,49 +85,48 @@ func (uat *UserAttribute) setPacket(p packet.Packet) error {
 	return nil
 }
 
-func (uat *UserAttribute) Read() (err error) {
+func (uat *UserAttribute) Read() error {
 	buf := bytes.NewBuffer(uat.Packet)
-	var p packet.Packet
-	if p, err = packet.Read(buf); err != nil {
+	p, err := packet.Read(buf)
+	if err != nil {
 		return err
 	}
 	return uat.setPacket(p)
 }
 
-func NewUserAttribute(op *packet.OpaquePacket) (uat *UserAttribute, err error) {
+func NewUserAttribute(op *packet.OpaquePacket) (*UserAttribute, error) {
 	var buf bytes.Buffer
-	if err = op.Serialize(&buf); err != nil {
-		return
+	if err := op.Serialize(&buf); err != nil {
+		return nil, err
 	}
-	uat = &UserAttribute{Packet: buf.Bytes()}
-	var p packet.Packet
-	if p, err = op.Parse(); err != nil {
-		return
+	uat := &UserAttribute{Packet: buf.Bytes()}
+	p, err := op.Parse()
+	if err != nil {
+		return nil, err
 	}
 	if err = uat.setPacket(p); err != nil {
-		return
+		return nil, err
 	}
-	return uat, uat.init()
+	uat.init()
+	return uat, nil
 }
 
-func (uat *UserAttribute) init() (err error) {
+func (uat *UserAttribute) init() {
 	uat.Creation = NeverExpires
 	uat.Expiration = time.Unix(0, 0)
-	return
 }
 
-func (uat *UserAttribute) Visit(visitor PacketVisitor) (err error) {
-	err = visitor(uat)
+func (uat *UserAttribute) Visit(visitor PacketVisitor) error {
+	err := visitor(uat)
 	if err != nil {
-		return
+		return err
 	}
 	for _, sig := range uat.signatures {
-		err = sig.Visit(visitor)
-		if err != nil {
-			return
+		if err = sig.Visit(visitor); err != nil {
+			return err
 		}
 	}
-	return
+	return nil
 }
 
 func (uat *UserAttribute) AddSignature(sig *Signature) {

@@ -51,29 +51,28 @@ func NewDB() (db *DB, err error) {
 	return
 }
 
-func (db *DB) CreateSchema() (err error) {
-	if err = db.CreateTables(); err != nil {
+func (db *DB) CreateSchema() error {
+	if err := db.CreateTables(); err != nil {
 		return err
 	}
 	return db.CreateConstraints()
 }
 
-func (db *DB) CreateTables() (err error) {
+func (db *DB) CreateTables() error {
 	for _, crSql := range CreateTablesSql {
-		log.Println(crSql)
 		Execf(db, crSql)
 	}
-	return
+	return nil
 }
 
-func (db *DB) DeleteDuplicates() (err error) {
+func (db *DB) DeleteDuplicates() error {
 	for _, sql := range DeleteDuplicatesSql {
 		log.Println(sql)
-		if _, err = db.Exec(sql); err != nil {
-			return
+		if _, err := db.Exec(sql); err != nil {
+			return err
 		}
 	}
-	return
+	return nil
 }
 
 func isDuplicate(err error) bool {
@@ -104,23 +103,19 @@ func isDuplicateConstraint(err error) bool {
 	return false
 }
 
-func (db *DB) CreateConstraints() (err error) {
+func (db *DB) CreateConstraints() error {
 	for _, crSqls := range CreateConstraintsSql {
 		for _, crSql := range crSqls {
 			log.Println(crSql)
-			if _, err = db.Exec(crSql); err != nil {
-				if isDuplicateConstraint(err) {
-					err = nil
-				} else {
-					return err
-				}
+			if _, err := db.Exec(crSql); err != nil && !isDuplicateConstraint(err) {
+				return err
 			}
 		}
 	}
-	return
+	return nil
 }
 
-func (db *DB) DropConstraints() (err error) {
+func (db *DB) DropConstraints() error {
 	for _, drSqls := range DropConstraintsSql {
 		for _, drSql := range drSqls {
 			log.Println(drSql)

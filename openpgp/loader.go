@@ -38,16 +38,15 @@ func (l *Loader) Begin() (*sqlx.Tx, error) {
 	return l.db.Beginx()
 }
 
-func (l *Loader) Commit(tx *sqlx.Tx) (err error) {
-	if err = tx.Commit(); err != nil {
-		return
+func (l *Loader) Commit(tx *sqlx.Tx) error {
+	if err := tx.Commit(); err != nil {
+		return err
 	}
-	return
+	return nil
 }
 
-func (l *Loader) Rollback(tx *sqlx.Tx) (err error) {
-	err = tx.Rollback()
-	return
+func (l *Loader) Rollback(tx *sqlx.Tx) error {
+	return tx.Rollback()
 }
 
 func (l *Loader) InsertKey(pubkey *Pubkey) error {
