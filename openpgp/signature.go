@@ -103,34 +103,35 @@ func (sig *Signature) GetOpaquePacket() (*packet.OpaquePacket, error) {
 	return toOpaquePacket(sig.Packet)
 }
 
-func (sig *Signature) GetPacket() (p packet.Packet, err error) {
+func (sig *Signature) GetPacket() (packet.Packet, error) {
+	var p packet.Packet
 	if sig.Signature != nil {
 		p = sig.Signature
 	} else if sig.SignatureV3 != nil {
 		p = sig.SignatureV3
 	} else {
-		err = ErrPacketRecordState
+		return nil, ErrPacketRecordState
 	}
-	return
+	return p, nil
 }
 
-func (sig *Signature) setPacket(p packet.Packet) (err error) {
+func (sig *Signature) setPacket(p packet.Packet) error {
 	switch s := p.(type) {
 	case *packet.Signature:
 		sig.Signature = s
 	case *packet.SignatureV3:
 		sig.SignatureV3 = s
 	default:
-		err = ErrInvalidPacketType
+		return ErrInvalidPacketType
 	}
-	return
+	return nil
 }
 
-func (sig *Signature) Read() (err error) {
+func (sig *Signature) Read() error {
 	buf := bytes.NewBuffer(sig.Packet)
-	var p packet.Packet
-	if p, err = packet.Read(buf); err != nil {
-		return
+	p, err := packet.Read(buf)
+	if err != nil {
+		return err
 	}
 	return sig.setPacket(p)
 }
@@ -140,30 +141,30 @@ func (sig *Signature) GetSignature() (packet.Packet, error) {
 	return packet.Read(buf)
 }
 
-func NewSignature(op *packet.OpaquePacket) (sig *Signature, err error) {
+func NewSignature(op *packet.OpaquePacket) (*Signature, error) {
 	var buf bytes.Buffer
-	if err = op.Serialize(&buf); err != nil {
-		return
+	if err := op.Serialize(&buf); err != nil {
+		return nil, err
 	}
-	sig = &Signature{Packet: buf.Bytes()}
-	var p packet.Packet
-	if p, err = op.Parse(); err != nil {
-		return
+	sig := &Signature{Packet: buf.Bytes()}
+	p, err := op.Parse()
+	if err != nil {
+		return nil, err
 	}
 	if err = sig.setPacket(p); err != nil {
-		return
+		return nil, err
 	}
 	if sig.Signature != nil {
-		err = sig.initV4()
+		sig.initV4()
 	} else if sig.SignatureV3 != nil {
-		err = sig.initV3()
+		sig.initV3()
 	} else {
-		err = ErrInvalidPacketType
+		return nil, ErrInvalidPacketType
 	}
-	return
+	return sig, nil
 }
 
-func (sig *Signature) initV3() (err error) {
+func (sig *Signature) initV3() {
 	sig.Creation = sig.SignatureV3.CreationTime
 	// V3 packets do not have an expiration time
 	sig.Expiration = NeverExpires
@@ -173,10 +174,9 @@ func (sig *Signature) initV3() (err error) {
 	binary.BigEndian.PutUint64(issuerKeyId[:], sig.SignatureV3.IssuerKeyId)
 	sigKeyId := hex.EncodeToString(issuerKeyId[:])
 	sig.RIssuerKeyId = util.Reverse(sigKeyId)
-	return
 }
 
-func (sig *Signature) initV4() (err error) {
+func (sig *Signature) initV4() error {
 	if sig.Signature.IssuerKeyId == nil {
 		return errors.New("Signature missing issuer key ID")
 	}
@@ -195,10 +195,10 @@ func (sig *Signature) initV4() (err error) {
 		sig.Expiration = sig.Signature.CreationTime.Add(
 			time.Duration(*sig.Signature.SigLifetimeSecs) * time.Second)
 	}
-	return
+	return nil
 }
 
-func (sig *Signature) Visit(visitor PacketVisitor) (err error) {
+func (sig *Signature) Visit(visitor PacketVisitor) error {
 	return visitor(sig)
 }
 

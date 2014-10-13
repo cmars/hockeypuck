@@ -162,9 +162,10 @@ func removeSignature(sigs []*Signature, removeSig *Signature) (result []*Signatu
 	return
 }
 
-func concatSigPackets(sigs []*Signature) (result []byte) {
+func concatSigPackets(sigs []*Signature) []byte {
+	var result []byte
 	for _, sig := range sigs {
 		result = append(result, sig.Packet...)
 	}
-	return
+	return result
 }

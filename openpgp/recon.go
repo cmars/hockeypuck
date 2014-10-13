@@ -33,6 +33,7 @@ import (
 	. "github.com/cmars/conflux"
 	"github.com/cmars/conflux/recon"
 	"github.com/cmars/conflux/recon/leveldb"
+	"github.com/juju/errors"
 
 	"github.com/hockeypuck/hockeypuck/hkp"
 )
@@ -231,8 +232,9 @@ func (r *SksPeer) workRecovered(rcvr *recon.Recover, ready workRecoveredReady, w
 	}
 }
 
-func (r *SksPeer) requestRecovered(rcvr *recon.Recover, elements *ZSet) (err error) {
+func (r *SksPeer) requestRecovered(rcvr *recon.Recover, elements *ZSet) error {
 	items := elements.Items()
+	var resultErr error
 	for len(items) > 0 {
 		// Chunk requests to keep the hashquery message size and peer load reasonable.
 		chunksize := RequestChunkSize
@@ -242,12 +244,16 @@ func (r *SksPeer) requestRecovered(rcvr *recon.Recover, elements *ZSet) (err err
 		chunk := items[:chunksize]
 		items = items[chunksize:]
 		r.countChunk(chunk)
-		err = r.requestChunk(rcvr, chunk)
+		err := r.requestChunk(rcvr, chunk)
 		if err != nil {
-			log.Println(err)
+			if resultErr == nil {
+				resultErr = err
+			} else {
+				resultErr = errors.Wrap(resultErr, err)
+			}
 		}
 	}
-	return
+	return resultErr
 }
 
 func (r *SksPeer) countChunk(chunk []*Zp) {
@@ -264,9 +270,9 @@ func (r *SksPeer) countChunk(chunk []*Zp) {
 	}
 }
 
-func (r *SksPeer) requestChunk(rcvr *recon.Recover, chunk []*Zp) (err error) {
+func (r *SksPeer) requestChunk(rcvr *recon.Recover, chunk []*Zp) error {
 	var remoteAddr string
-	remoteAddr, err = rcvr.HkpAddr()
+	remoteAddr, err := rcvr.HkpAddr()
 	if err != nil {
 		return err
 	}
@@ -344,7 +350,7 @@ func (r *SksPeer) requestChunk(rcvr *recon.Recover, chunk []*Zp) (err error) {
 	}
 	// Read last two bytes (CRLF, why?), or SKS will complain.
 	body.Read(make([]byte, 2))
-	return
+	return nil
 }
 
 func (r *SksPeer) Stop() {

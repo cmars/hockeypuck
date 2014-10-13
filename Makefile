@@ -3,6 +3,7 @@ PACKAGE=github.com/hockeypuck/hockeypuck
 GODEP=github.com/tools/godep
 GO=godep go
 VERSION=$(shell head -1 debian/changelog | sed 's/.*(//;s/).*//;')
+CURRENT=$(shell git rev-parse --short HEAD)
 
 all: compile
 
@@ -11,7 +12,7 @@ compile: require-godep
 	make -C doc fakebuild
 
 build:
-	GOPATH=$(shell pwd)/build go get ${PACKAGE}/...
+	GOPATH=$(shell pwd)/build go get -d ${PACKAGE}/...
 	GOPATH=$(shell pwd)/build make godeps compile
 
 godep: require-godep

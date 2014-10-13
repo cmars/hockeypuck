@@ -5,31 +5,31 @@
 .. link: 
 .. description: 
 
-Add the Hockeypuck project package repository
-=============================================
 
-PPA prerequisites
------------------
-In order to add PPA repositories, you'll need to make sure you have the necessary pacakges installed to manage PPAs on your server. These may already be installed on a desktop Ubuntu distribution, but may not be present on a minimal server image.
+Ubuntu 14.04
+============
+Hockeypuck is in trusty universe. No need to add the PPA, unless you want to install newer packages for some reason.
 
 Ubuntu 12.04
-~~~~~~~~~~~~
-::
+============
+
+Add the Hockeypuck project package repository
+---------------------------------------------
+
+PPA prerequisites
+~~~~~~~~~~~~~~~~~
+In order to add PPA repositories, you'll need to make sure you have the necessary pacakges installed to manage PPAs on your server. These may already be installed on a desktop Ubuntu distribution, but may not be present on a minimal server image.::
 
   $ sudo apt-get install python-software-properties
 
-Ubuntu 13.10, 14.04, cloud images
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-You probably already have apt-add-repository installed. If not, you'll be prompted to install the appropriate package.
-
 Add the stable Hockeypuck repository
-------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ::
 
   $ sudo apt-add-repository ppa:hockeypuck/ppa
 
 Update the package list
------------------------
+=======================
 ::
 
   $ sudo apt-get update
@@ -40,9 +40,11 @@ If you want to run the PostgreSQL database on the same server as Hockeypuck, ins
 
   $ sudo apt-get install postgresql
 
-Installing Hockeypuck
-=====================
-Install Hockeypuck with::
+Otherwise, skip and install hockeypuck. You'll need to `configure </configuration.html>`_ your Hockeypuck instance to connect to your PostgreSQL database.
+
+Install Hockeypuck
+==================
+::
 
   $ sudo apt-get install hockeypuck
 

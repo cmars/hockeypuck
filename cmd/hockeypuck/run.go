@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
+	"path/filepath"
 
 	"code.google.com/p/gorilla/mux"
 	"launchpad.net/gnuflag"
@@ -20,7 +22,7 @@ func (c *runCmd) Name() string { return "run" }
 func (c *runCmd) Desc() string { return "Run Hockeypuck services" }
 
 func newRunCmd() *runCmd {
-	cmd := new(runCmd)
+	cmd := &runCmd{}
 	flags := gnuflag.NewFlagSet(cmd.Name(), gnuflag.ExitOnError)
 	flags.StringVar(&cmd.configPath, "config", "", "Hockeypuck configuration file")
 	cmd.flags = flags
@@ -54,7 +56,48 @@ func (c *runCmd) Main() {
 	sksPeer.Start()
 	// Bind the router to the built-in webserver root
 	http.Handle("/", r)
-	// Start the built-in webserver, run forever
-	err = http.ListenAndServe(hkp.Config().HttpBind(), nil)
-	die(err)
+
+	var hkpsConfigured bool
+	var tlsCertPath, tlsKeyPath string
+	if hkp.Config().HttpsBind() != "" {
+		if hkp.Config().TLSCertificate() == "" {
+			err = fmt.Errorf("no TLS certificate provided")
+		} else if hkp.Config().TLSKey() == "" {
+			err = fmt.Errorf("no TLS private key provided")
+		}
+
+		if err != nil {
+			die(err)
+		}
+
+		if filepath.IsAbs(hkp.Config().TLSCertificate()) {
+			tlsCertPath = hkp.Config().TLSCertificate()
+		} else {
+			tlsCertPath = filepath.Join(c.configDir, hkp.Config().TLSCertificate())
+		}
+
+		if filepath.IsAbs(hkp.Config().TLSKey()) {
+			tlsKeyPath = hkp.Config().TLSKey()
+		} else {
+			tlsKeyPath = filepath.Join(c.configDir, hkp.Config().TLSKey())
+		}
+		hkpsConfigured = true
+	}
+
+	if hkpsConfigured {
+		if hkp.Config().HttpBind() != "" {
+			go func() {
+				// Start the built-in webserver, run forever
+				err = http.ListenAndServe(hkp.Config().HttpBind(), nil)
+				die(err)
+			}()
+		}
+		err = http.ListenAndServeTLS(hkp.Config().HttpsBind(),
+			tlsCertPath, tlsKeyPath, nil)
+		die(err)
+	} else {
+		// Start the built-in webserver, run forever
+		err = http.ListenAndServe(hkp.Config().HttpBind(), nil)
+		die(err)
+	}
 }

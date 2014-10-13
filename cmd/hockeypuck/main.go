@@ -49,7 +49,7 @@ type subCmd struct {
 	flags *gnuflag.FlagSet
 }
 
-func (c subCmd) Flags() *gnuflag.FlagSet { return c.flags }
+func (c *subCmd) Flags() *gnuflag.FlagSet { return c.flags }
 
 func Usage(h cmdHandler, msg string) {
 	fmt.Fprintln(os.Stderr, msg)
@@ -161,13 +161,19 @@ func newVersionCmd() *versionCmd {
 type configuredCmd struct {
 	subCmd
 	configPath string
+	configDir  string
 }
 
-func (c configuredCmd) Main() {
+func (c *configuredCmd) Main() {
 	if c.configPath != "" {
-		if err := LoadConfigFile(c.configPath); err != nil {
+		var err error
+		if c.configPath, err = filepath.Abs(c.configPath); err != nil {
 			die(err)
 		}
+		if err = LoadConfigFile(c.configPath); err != nil {
+			die(err)
+		}
+		c.configDir = filepath.Dir(c.configPath)
 	} else {
 		// Fall back on default empty config
 		SetConfig("")

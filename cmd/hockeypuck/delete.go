@@ -168,9 +168,9 @@ func (ec *deleteCmd) deleteFingerprint() {
 
 func (ec *deleteCmd) deletePubkey(uuid string) {
 	for _, sql := range UpdateFkSql {
-		ec.db.Execf(sql, uuid)
+		openpgp.Execf(ec.db, sql, uuid)
 	}
 	for _, sql := range DeletePubkeySql {
-		ec.db.Execf(sql, uuid)
+		openpgp.Execf(ec.db, sql, uuid)
 	}
 }

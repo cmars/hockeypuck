@@ -81,18 +81,16 @@ func (subkey *Subkey) GetOpaquePacket() (*packet.OpaquePacket, error) {
 	return toOpaquePacket(subkey.Packet)
 }
 
-func (subkey *Subkey) GetPacket() (p packet.Packet, err error) {
+func (subkey *Subkey) GetPacket() (packet.Packet, error) {
 	if subkey.PublicKey != nil {
-		p = subkey.PublicKey
+		return subkey.PublicKey, nil
 	} else if subkey.PublicKeyV3 != nil {
-		p = subkey.PublicKeyV3
-	} else {
-		err = ErrPacketRecordState
+		return subkey.PublicKeyV3, nil
 	}
-	return
+	return nil, ErrPacketRecordState
 }
 
-func (subkey *Subkey) setPacket(p packet.Packet) (err error) {
+func (subkey *Subkey) setPacket(p packet.Packet) error {
 	switch pk := p.(type) {
 	case *packet.PublicKey:
 		if !pk.IsSubkey {
@@ -105,32 +103,33 @@ func (subkey *Subkey) setPacket(p packet.Packet) (err error) {
 		}
 		subkey.PublicKeyV3 = pk
 	default:
-		err = ErrInvalidPacketType
+		return ErrInvalidPacketType
 	}
-	return
+	return nil
 }
 
-func (subkey *Subkey) Read() (err error) {
+func (subkey *Subkey) Read() error {
 	buf := bytes.NewBuffer(subkey.Packet)
-	var p packet.Packet
-	if p, err = packet.Read(buf); err != nil {
+	p, err := packet.Read(buf)
+	if err != nil {
 		return err
 	}
 	return subkey.setPacket(p)
 }
 
-func NewSubkey(op *packet.OpaquePacket) (subkey *Subkey, err error) {
+func NewSubkey(op *packet.OpaquePacket) (*Subkey, error) {
 	var buf bytes.Buffer
-	if err = op.Serialize(&buf); err != nil {
-		return
+	if err := op.Serialize(&buf); err != nil {
+		return nil, err
 	}
-	subkey = &Subkey{Packet: buf.Bytes()}
+	subkey := &Subkey{Packet: buf.Bytes()}
 	var p packet.Packet
-	if p, err = op.Parse(); err != nil {
-		return
+	p, err := op.Parse()
+	if err != nil {
+		return nil, err
 	}
 	if err = subkey.setPacket(p); err != nil {
-		return
+		return nil, err
 	}
 	if subkey.PublicKey != nil {
 		err = subkey.initV4()
@@ -139,7 +138,10 @@ func NewSubkey(op *packet.OpaquePacket) (subkey *Subkey, err error) {
 	} else {
 		err = ErrInvalidPacketType
 	}
-	return
+	if err != nil {
+		return nil, err
+	}
+	return subkey, nil
 }
 
 func (subkey *Subkey) initV4() error {

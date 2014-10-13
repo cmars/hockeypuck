@@ -1,5 +1,33 @@
 Hockeypuck: OpenPGP Key Server
 ==============================
 
-Documentation: https://hockeypuck.github.io
+Full Documentation: https://hockeypuck.github.io
 
+Developer Quickstart:
+
+Assuming that you:
+ * Have a recent (1.2 or newer) version of go installed
+ * Have $GOPATH/bin in your $PATH
+
+# Check out Hockeypuck sources (without compiling them yet)
+
+ $ go get -d -t github.com/hockeypuck/hockeypuck
+
+# Hockeypuck uses godeps for third-party package vendoring.
+# Install it into your $GOPATH/bin.
+
+ $ go get launchpad.net/godeps
+ $ go install launchpad.net/godeps
+
+# Update all third-party packages in $GOPATH to the versions
+# that Hockeypuck requires:
+
+ $ cd $GOPATH/src/github.com/hockeypuck/hockeypuck
+ $ godeps -u dependencies
+
+# Now you're ready to build, test and install Hockeypuck
+ $ go build ./...
+ $ go test ./...
+ $ go install github.com/hockeypuck/hockeypuck/cmd/hockeypuck
+
+```

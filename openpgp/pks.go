@@ -110,7 +110,7 @@ SELECT $1, $2 WHERE NOT EXISTS (
 		if err != nil {
 			return err
 		}
-		_, err = stmt.Execv(uuid, emailAddr)
+		_, err = stmt.Exec(uuid, emailAddr)
 		if err != nil {
 			return err
 		}
@@ -118,25 +118,28 @@ SELECT $1, $2 WHERE NOT EXISTS (
 	return nil
 }
 
-func (ps *PksSync) SyncStatus() (status []PksStatus, err error) {
-	err = ps.db.Select(&status, `
+func (ps *PksSync) SyncStatus() ([]PksStatus, error) {
+	var status []PksStatus
+	err := ps.db.Select(&status, `
 SELECT email_addr, last_sync FROM pks_status
 WHERE creation < now() AND expiration > now() AND state = 0`)
+	if err != nil {
+		return nil, err
+	}
 	ps.lastStatus = status
-	return
+	return status, nil
 }
 
-func (ps *PksSync) SendKeys(status *PksStatus) (err error) {
+func (ps *PksSync) SendKeys(status *PksStatus) error {
 	var uuids []string
-	err = ps.db.Select(&uuids, "SELECT uuid FROM openpgp_pubkey WHERE mtime > $1",
+	err := ps.db.Select(&uuids, "SELECT uuid FROM openpgp_pubkey WHERE mtime > $1",
 		status.LastSync)
 	if err != nil {
-		return
+		return err
 	}
-	var keys []*Pubkey
-	keys = ps.fetchKeys(uuids).GoodKeys()
+	keys := ps.fetchKeys(uuids).GoodKeys()
 	if err != nil {
-		return
+		return err
 	}
 	for _, key := range keys {
 		// Send key email
@@ -144,26 +147,25 @@ func (ps *PksSync) SendKeys(status *PksStatus) (err error) {
 		err = ps.SendKey(status.Addr, key)
 		if err != nil {
 			log.Println("Error sending key to PKS", status.Addr, ":", err)
-			return
+			return err
 		}
 		// Send successful, update the timestamp accordingly
 		status.LastSync = key.Mtime
-		_, err = ps.db.Execv("UPDATE pks_status SET last_sync = $1 WHERE email_addr = $2",
+		_, err = ps.db.Exec("UPDATE pks_status SET last_sync = $1 WHERE email_addr = $2",
 			status.LastSync, status.Addr)
 		if err != nil {
-			return
+			return err
 		}
 	}
-	return
+	return nil
 }
 
 // Email an updated public key to a PKS server.
-func (ps *PksSync) SendKey(addr string, key *Pubkey) (err error) {
+func (ps *PksSync) SendKey(addr string, key *Pubkey) error {
 	msg := bytes.NewBuffer(nil)
 	msg.WriteString("Subject: ADD\n\n")
 	WriteArmoredPackets(msg, key)
-	err = smtp.SendMail(ps.SmtpHost, ps.SmtpAuth, ps.MailFrom, []string{addr}, msg.Bytes())
-	return
+	return smtp.SendMail(ps.SmtpHost, ps.SmtpAuth, ps.MailFrom, []string{addr}, msg.Bytes())
 }
 
 // Poll PKS downstream servers

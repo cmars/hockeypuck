@@ -38,16 +38,15 @@ func (l *Loader) Begin() (*sqlx.Tx, error) {
 	return l.db.Beginx()
 }
 
-func (l *Loader) Commit(tx *sqlx.Tx) (err error) {
-	if err = tx.Commit(); err != nil {
-		return
+func (l *Loader) Commit(tx *sqlx.Tx) error {
+	if err := tx.Commit(); err != nil {
+		return err
 	}
-	return
+	return nil
 }
 
-func (l *Loader) Rollback(tx *sqlx.Tx) (err error) {
-	err = tx.Rollback()
-	return
+func (l *Loader) Rollback(tx *sqlx.Tx) error {
+	return tx.Rollback()
 }
 
 func (l *Loader) InsertKey(pubkey *Pubkey) error {
@@ -109,7 +108,7 @@ func (l *Loader) insertSelectFrom(sql, table, where string) string {
 }
 
 func (l *Loader) insertPubkey(tx *sqlx.Tx, r *Pubkey) error {
-	_, err := tx.Execv(l.insertSelectFrom(`
+	_, err := Execv(tx, l.insertSelectFrom(`
 INSERT INTO openpgp_pubkey (
 	uuid, creation, expiration, state, packet,
 	ctime, mtime,
@@ -128,7 +127,7 @@ SELECT $1, $2, $3, $4, $5,
 }
 
 func (l *Loader) insertSubkey(tx *sqlx.Tx, pubkey *Pubkey, r *Subkey) error {
-	_, err := tx.Execv(l.insertSelectFrom(`
+	_, err := Execv(tx, l.insertSelectFrom(`
 INSERT INTO openpgp_subkey (
 	uuid, creation, expiration, state, packet,
 	pubkey_uuid, revsig_uuid, algorithm, bit_len)
@@ -141,7 +140,7 @@ SELECT $1, $2, $3, $4, $5,
 }
 
 func (l *Loader) insertUid(tx *sqlx.Tx, pubkey *Pubkey, r *UserId) error {
-	_, err := tx.Execv(l.insertSelectFrom(`
+	_, err := Execv(tx, l.insertSelectFrom(`
 INSERT INTO openpgp_uid (
 	uuid, creation, expiration, state, packet,
 	pubkey_uuid, revsig_uuid, keywords, keywords_fulltext)
@@ -154,7 +153,7 @@ SELECT $1, $2, $3, $4, $5,
 }
 
 func (l *Loader) insertUat(tx *sqlx.Tx, pubkey *Pubkey, r *UserAttribute) error {
-	_, err := tx.Execv(l.insertSelectFrom(`
+	_, err := Execv(tx, l.insertSelectFrom(`
 INSERT INTO openpgp_uat (
 	uuid, creation, expiration, state, packet,
 	pubkey_uuid, revsig_uuid)
@@ -212,7 +211,7 @@ SELECT $1, $2, $3, $4, $5, $6, $7, $8%s`
 	default:
 		return fmt.Errorf("Unsupported packet record type: %v", signed)
 	}
-	_, err := tx.Execv(l.insertSelectFrom(sql, "openpgp_sig", matchSql), args...)
+	_, err := Execv(tx, l.insertSelectFrom(sql, "openpgp_sig", matchSql), args...)
 	// TODO: use RETURNING to update matched issuer fingerprint
 	return err
 }

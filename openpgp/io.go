@@ -29,6 +29,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/juju/errors"
+
 	"code.google.com/p/go.crypto/openpgp"
 	"code.google.com/p/go.crypto/openpgp/armor"
 	"code.google.com/p/go.crypto/openpgp/packet"
@@ -113,15 +115,14 @@ func (ok *OpaqueKeyring) Parse() (*Pubkey, error) {
 	var err error
 	var pubkey *Pubkey
 	var signable Signable
-	pubkey = nil
 	for _, opkt := range ok.Packets {
 		var badPacket *packet.OpaquePacket
 		if opkt.Tag == 6 { //packet.PacketTypePublicKey:
 			if pubkey != nil {
-				return nil, fmt.Errorf("Multiple public keys in keyring")
+				return nil, errors.Errorf("multiple public keys in keyring")
 			}
 			if pubkey, err = NewPubkey(opkt); err != nil {
-				return nil, fmt.Errorf("Failed to parse primary public key")
+				return nil, errors.Annotatef(err, "invalid public key packet type")
 			}
 			signable = pubkey
 		} else if pubkey != nil {
@@ -261,13 +262,14 @@ type ReadKeyResult struct {
 
 type ReadKeyResults []*ReadKeyResult
 
-func (r ReadKeyResults) GoodKeys() (result []*Pubkey) {
+func (r ReadKeyResults) GoodKeys() []*Pubkey {
+	var result []*Pubkey
 	for _, rkr := range r {
 		if rkr.Error == nil {
 			result = append(result, rkr.Pubkey)
 		}
 	}
-	return
+	return result
 }
 
 type PubkeyChan chan *ReadKeyResult

@@ -88,50 +88,49 @@ func (uid *UserId) setPacket(p packet.Packet) error {
 	return nil
 }
 
-func (uid *UserId) Read() (err error) {
+func (uid *UserId) Read() error {
 	buf := bytes.NewBuffer(uid.Packet)
-	var p packet.Packet
-	if p, err = packet.Read(buf); err != nil {
-		return
+	p, err := packet.Read(buf)
+	if err != nil {
+		return err
 	}
 	return uid.setPacket(p)
 }
 
-func NewUserId(op *packet.OpaquePacket) (uid *UserId, err error) {
+func NewUserId(op *packet.OpaquePacket) (*UserId, error) {
 	var buf bytes.Buffer
-	if err = op.Serialize(&buf); err != nil {
-		return
+	if err := op.Serialize(&buf); err != nil {
+		return nil, err
 	}
-	uid = &UserId{Packet: buf.Bytes()}
-	var p packet.Packet
-	if p, err = op.Parse(); err != nil {
-		return
+	uid := &UserId{Packet: buf.Bytes()}
+	p, err := op.Parse()
+	if err != nil {
+		return nil, err
 	}
 	if err = uid.setPacket(p); err != nil {
-		return
+		return nil, err
 	}
-	return uid, uid.init()
+	uid.init()
+	return uid, nil
 }
 
-func (uid *UserId) init() (err error) {
+func (uid *UserId) init() {
 	uid.Creation = NeverExpires
 	uid.Expiration = time.Unix(0, 0)
 	uid.Keywords = util.CleanUtf8(uid.UserId.Id)
-	return
 }
 
-func (uid *UserId) Visit(visitor PacketVisitor) (err error) {
-	err = visitor(uid)
+func (uid *UserId) Visit(visitor PacketVisitor) error {
+	err := visitor(uid)
 	if err != nil {
-		return
+		return err
 	}
 	for _, sig := range uid.signatures {
-		err = sig.Visit(visitor)
-		if err != nil {
-			return
+		if err = sig.Visit(visitor); err != nil {
+			return err
 		}
 	}
-	return
+	return nil
 }
 
 func (uid *UserId) AddSignature(sig *Signature) {

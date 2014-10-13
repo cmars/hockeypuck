@@ -54,13 +54,14 @@ func (s *Settings) Driver() string {
 	return s.GetStringDefault("hockeypuck.openpgp.db.driver", "postgres")
 }
 
-func currentUsername() (username string) {
+func currentUsername() string {
+	var username string
 	if me, err := user.Current(); err != nil {
 		username = os.Getenv("USER")
 	} else {
 		username = me.Name
 	}
-	return
+	return username
 }
 
 func (s *Settings) DSN() string {
@@ -174,7 +175,7 @@ func (w *Worker) HashQuery(hq *hkp.HashQuery) {
 	hq.Response() <- &HashQueryResponse{keys.GoodKeys()}
 }
 
-func (w *Worker) LookupKeys(search string, limit int) (keys []*Pubkey, err error) {
+func (w *Worker) LookupKeys(search string, limit int) ([]*Pubkey, error) {
 	uuids, err := w.lookupPubkeyUuids(search, limit)
 	return w.fetchKeys(uuids).GoodKeys(), err
 }
@@ -184,37 +185,37 @@ func (w *Worker) LookupHash(digest string) ([]*Pubkey, error) {
 	return w.fetchKeys([]string{uuid}).GoodKeys(), err
 }
 
-func (w *Worker) lookupPubkeyUuids(search string, limit int) (uuids []string, err error) {
+func (w *Worker) lookupPubkeyUuids(search string, limit int) ([]string, error) {
 	if strings.HasPrefix(search, "0x") {
 		return w.lookupKeyidUuids(search[2:])
 	}
 	return w.lookupKeywordUuids(search, limit)
 }
 
-func (w *Worker) lookupMd5Uuid(hash string) (uuid string, err error) {
+func (w *Worker) lookupMd5Uuid(hash string) (string, error) {
+	fail := ""
 	rows, err := w.db.Queryx(`SELECT uuid FROM openpgp_pubkey WHERE md5 = $1`,
 		strings.ToLower(hash))
 	if err == sql.ErrNoRows {
-		return "", ErrKeyNotFound
+		return fail, ErrKeyNotFound
 	} else if err != nil {
-		return
+		return fail, err
 	}
-	var uuids []string
-	uuids, err = flattenUuidRows(rows)
+	uuids, err := flattenUuidRows(rows)
 	if err != nil {
-		return
+		return fail, err
 	}
 	if len(uuids) < 1 {
-		return "", ErrKeyNotFound
+		return fail, ErrKeyNotFound
 	}
-	uuid = uuids[0]
+	uuid := uuids[0]
 	if len(uuids) > 1 {
-		return uuid, ErrKeyIdCollision
+		return fail, ErrKeyIdCollision
 	}
-	return
+	return uuid, nil
 }
 
-func (w *Worker) lookupKeyidUuids(keyId string) (uuids []string, err error) {
+func (w *Worker) lookupKeyidUuids(keyId string) ([]string, error) {
 	keyId = strings.ToLower(keyId)
 	raw, err := hex.DecodeString(keyId)
 	if err != nil {
@@ -241,24 +242,25 @@ SELECT pubkey_uuid FROM openpgp_subkey WHERE uuid %s`, compareOp, compareOp), rK
 	if err == sql.ErrNoRows {
 		return nil, ErrKeyNotFound
 	} else if err != nil {
-		return
+		return nil, err
 	}
 	return flattenUuidRows(rows)
 }
 
-func flattenUuidRows(rows *sqlx.Rows) (uuids []string, err error) {
+func flattenUuidRows(rows *sqlx.Rows) ([]string, error) {
+	var uuids []string
 	for rows.Next() {
 		var uuid string
-		err = rows.Scan(&uuid)
+		err := rows.Scan(&uuid)
 		if err != nil {
-			return
+			return nil, err
 		}
 		uuids = append(uuids, uuid)
 	}
-	return
+	return uuids, nil
 }
 
-func (w *Worker) lookupKeywordUuids(search string, limit int) (uuids []string, err error) {
+func (w *Worker) lookupKeywordUuids(search string, limit int) ([]string, error) {
 	search = strings.Join(strings.Split(search, " "), "+")
 	log.Println("keyword:", search)
 	log.Println("limit:", limit)
@@ -268,14 +270,14 @@ WHERE keywords_fulltext @@ to_tsquery($1) LIMIT $2`, search, limit)
 	if err == sql.ErrNoRows {
 		return nil, ErrKeyNotFound
 	} else if err != nil {
-		return
+		return nil, err
 	}
 	return flattenUuidRows(rows)
 }
 
 var ErrInternalKeyInvalid error = fmt.Errorf("Internal integrity error matching key")
 
-func (w *Worker) LookupKey(keyid string) (pubkey *Pubkey, err error) {
+func (w *Worker) LookupKey(keyid string) (*Pubkey, error) {
 	uuids, err := w.lookupKeyidUuids(keyid)
 	if err != nil {
 		return nil, err
@@ -289,7 +291,8 @@ func (w *Worker) LookupKey(keyid string) (pubkey *Pubkey, err error) {
 	return w.FetchKey(uuids[0])
 }
 
-func (w *Worker) fetchKeys(uuids []string) (results ReadKeyResults) {
+func (w *Worker) fetchKeys(uuids []string) ReadKeyResults {
+	var results ReadKeyResults
 	for _, uuid := range uuids {
 		key, err := w.FetchKey(uuid)
 		results = append(results, &ReadKeyResult{Pubkey: key, Error: err})
@@ -297,19 +300,19 @@ func (w *Worker) fetchKeys(uuids []string) (results ReadKeyResults) {
 			log.Println("Fetch key:", err)
 		}
 	}
-	return
+	return results
 }
 
-func (w *Worker) FetchKey(uuid string) (pubkey *Pubkey, err error) {
-	pubkey = new(Pubkey)
-	err = w.db.Get(pubkey, `SELECT * FROM openpgp_pubkey WHERE uuid = $1`, uuid)
+func (w *Worker) FetchKey(uuid string) (*Pubkey, error) {
+	pubkey := new(Pubkey)
+	err := w.db.Get(pubkey, `SELECT * FROM openpgp_pubkey WHERE uuid = $1`, uuid)
 	if err == sql.ErrNoRows {
 		return nil, ErrKeyNotFound
 	} else if err != nil {
-		return
+		return nil, err
 	}
 	if err = pubkey.Read(); err != nil {
-		return
+		return nil, err
 	}
 	// Retrieve all signatures made directly on the primary public key
 	sigs := []Signature{}
@@ -318,12 +321,12 @@ SELECT * FROM openpgp_sig WHERE pubkey_uuid = $1
 	AND subkey_uuid IS NULL AND uid_uuid IS NULL AND uat_uuid IS NULL AND sig_uuid IS NULL`,
 		uuid)
 	if err != nil && err != sql.ErrNoRows {
-		return
+		return nil, err
 	}
 	pubkey.signatures = toSigPtrSlice(sigs)
 	for _, sig := range pubkey.signatures {
 		if err = sig.Read(); err != nil {
-			return
+			return nil, err
 		}
 	}
 	// Retrieve all uid records
@@ -332,24 +335,24 @@ SELECT * FROM openpgp_sig WHERE pubkey_uuid = $1
 SELECT uuid, creation, expiration, state, packet, pubkey_uuid, revsig_uuid, keywords
 FROM openpgp_uid WHERE pubkey_uuid = $1`, uuid)
 	if err != nil && err != sql.ErrNoRows {
-		return
+		return nil, err
 	}
 	pubkey.userIds = toUidPtrSlice(uids)
 	for _, uid := range pubkey.userIds {
 		if err = uid.Read(); err != nil {
-			return
+			return nil, err
 		}
 		sigs = []Signature{}
 		err = w.db.Select(&sigs, `
 SELECT * FROM openpgp_sig WHERE pubkey_uuid = $1 AND uid_uuid = $2
 	AND subkey_uuid IS NULL AND uat_uuid IS NULL AND sig_uuid IS NULL`, uuid, uid.ScopedDigest)
 		if err != nil && err != sql.ErrNoRows {
-			return
+			return nil, err
 		}
 		uid.signatures = toSigPtrSlice(sigs)
 		for _, sig := range uid.signatures {
 			if err = sig.Read(); err != nil {
-				return
+				return nil, err
 			}
 		}
 	}
@@ -358,24 +361,24 @@ SELECT * FROM openpgp_sig WHERE pubkey_uuid = $1 AND uid_uuid = $2
 	err = w.db.Select(&uats,
 		`SELECT * FROM openpgp_uat WHERE pubkey_uuid = $1`, uuid)
 	if err != nil && err != sql.ErrNoRows {
-		return
+		return nil, err
 	}
 	pubkey.userAttributes = toUatPtrSlice(uats)
 	for _, uat := range pubkey.userAttributes {
 		if err = uat.Read(); err != nil {
-			return
+			return nil, err
 		}
 		sigs = []Signature{}
 		err = w.db.Select(&sigs, `
 SELECT * FROM openpgp_sig WHERE pubkey_uuid = $1 AND uat_uuid = $2
 	AND subkey_uuid IS NULL AND uid_uuid IS NULL AND sig_uuid IS NULL`, uuid, uat.ScopedDigest)
 		if err != nil && err != sql.ErrNoRows {
-			return
+			return nil, err
 		}
 		uat.signatures = toSigPtrSlice(sigs)
 		for _, sig := range uat.signatures {
 			if err = sig.Read(); err != nil {
-				return
+				return nil, err
 			}
 		}
 	}
@@ -384,24 +387,24 @@ SELECT * FROM openpgp_sig WHERE pubkey_uuid = $1 AND uat_uuid = $2
 	err = w.db.Select(&subkeys,
 		`SELECT * FROM openpgp_subkey WHERE pubkey_uuid = $1`, uuid)
 	if err != nil && err != sql.ErrNoRows {
-		return
+		return nil, err
 	}
 	pubkey.subkeys = toSubkeyPtrSlice(subkeys)
 	for _, subkey := range pubkey.subkeys {
 		if err = subkey.Read(); err != nil {
-			return
+			return nil, err
 		}
 		sigs = []Signature{}
 		err = w.db.Select(&sigs, `
 SELECT * FROM openpgp_sig sig WHERE pubkey_uuid = $1 AND subkey_uuid = $2
 	AND uid_uuid IS NULL AND uat_uuid IS NULL AND sig_uuid IS NULL`, uuid, subkey.RFingerprint)
 		if err != nil && err != sql.ErrNoRows {
-			return
+			return nil, err
 		}
 		subkey.signatures = toSigPtrSlice(sigs)
 		for _, sig := range subkey.signatures {
 			if err = sig.Read(); err != nil {
-				return
+				return nil, err
 			}
 		}
 	}
@@ -414,33 +417,37 @@ SELECT * FROM openpgp_sig sig WHERE pubkey_uuid = $1 AND subkey_uuid = $2
 			pubkey.Fingerprint(), pubkey.Md5, digest)
 	}
 
-	return
+	return pubkey, nil
 }
 
-func toSigPtrSlice(recs []Signature) (result []*Signature) {
+func toSigPtrSlice(recs []Signature) []*Signature {
+	var result []*Signature
 	for i := 0; i < len(recs); i++ {
 		result = append(result, &(recs[i]))
 	}
-	return
+	return result
 }
 
-func toUidPtrSlice(recs []UserId) (result []*UserId) {
+func toUidPtrSlice(recs []UserId) []*UserId {
+	var result []*UserId
 	for i := 0; i < len(recs); i++ {
 		result = append(result, &(recs[i]))
 	}
-	return
+	return result
 }
 
-func toUatPtrSlice(recs []UserAttribute) (result []*UserAttribute) {
+func toUatPtrSlice(recs []UserAttribute) []*UserAttribute {
+	var result []*UserAttribute
 	for i := 0; i < len(recs); i++ {
 		result = append(result, &(recs[i]))
 	}
-	return
+	return result
 }
 
-func toSubkeyPtrSlice(recs []Subkey) (result []*Subkey) {
+func toSubkeyPtrSlice(recs []Subkey) []*Subkey {
+	var result []*Subkey
 	for i := 0; i < len(recs); i++ {
 		result = append(result, &(recs[i]))
 	}
-	return
+	return result
 }
