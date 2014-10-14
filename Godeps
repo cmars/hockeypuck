@@ -1,0 +1,12 @@
+github.com/hockeypuck/hockeypuck
+github.com/cmars/conflux 7820f28882213681f92ed31f2c9bab6f8d842bc8 
+github.com/pelletier/go-toml v0.2.0 
+github.com/juju/errors 2d51c7649b4e4aed08024db0cc9b5a1b76394390 
+github.com/juju/loggo e7f361cff40a95b186f40b6f4f13fc3f6bee9a43 
+github.com/juju/errgo 08cceb5d0b5331634b9826762a8fd53b29b86ad8 
+github.com/jmoiron/sqlx sqlx-v1.0 
+github.com/lib/pq b7af72a1fc1649a8871af32e23229fb89ae6cdc7 
+launchpad.net/gnuflag go.weekly.2012-02-22 
+code.google.com/p/go.crypto/openpgp 226:d41578056516
+code.google.com/p/gorilla/mux 422:15eb99e408a3
+github.com/syndtr/goleveldb/leveldb 47b49c94d4f2c4023b7548ba749ec2810664ff63
