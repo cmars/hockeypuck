@@ -8,7 +8,7 @@ all: compile
 deps:
 	scripts/gpm install
 
-compile: deps
+compile:
 	go install -ldflags "-X ${PACKAGE}.Version ${VERSION}" ${PACKAGE}/cmd/hockeypuck
 	make -C doc fakebuild
 
@@ -25,12 +25,14 @@ debbin:
 	debuild -us -uc -i -b
 
 clean:
-	$(RM) -r .godeps
 	make -C doc clean
+
+src-clean:
+	$(RM) -r .godeps
 
 pkg-clean:
 	rm -f ../hockeypuck_*.deb ../hockeypuck_*.dsc ../hockeypuck_*.changes ../hockeypuck_*.build ../hockeypuck_*.tar.gz 
 
-all-clean: clean pkg-clean
+all-clean: clean src-clean pkg-clean
 
 .PHONY: all compile godeps fmt debs debsrc debbin freeze-build freeze-godeps apply-godeps require-godeps clean src-clean pkg-clean build all-clean

@@ -1,4 +1,4 @@
 #!/usr/bin/make -f
 
 %:
-	dh $@
+	bash -c "source scripts/gvp; dh $@"
