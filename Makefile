@@ -9,7 +9,7 @@ all: compile
 	bash -c "source scripts/gvp; scripts/gpm install"
 
 compile: .godeps
-	go install -ldflags "-X ${PACKAGE}.Version ${VERSION}" ${PACKAGE}/cmd/hockeypuck
+	bash -c "source scripts/gvp; go install -ldflags \"-X ${PACKAGE}.Version ${VERSION}\" ${PACKAGE}/cmd/hockeypuck"
 	make -C doc fakebuild
 
 sdist: .godeps
