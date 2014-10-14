@@ -31,7 +31,7 @@ src-clean:
 	$(RM) -r .godeps
 
 pkg-clean:
-	rm -f ../hockeypuck_*.deb ../hockeypuck_*.dsc ../hockeypuck_*.changes ../hockeypuck_*.build ../hockeypuck_*.tar.gz 
+	rm -f ../hockeypuck_*.deb ../hockeypuck_*.dsc ../hockeypuck_*.changes ../hockeypuck_*.build ../hockeypuck_*.tar.gz ../hockeypuck_*.upload
 
 all-clean: clean src-clean pkg-clean
 
