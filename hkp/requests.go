@@ -102,11 +102,11 @@ func (l *Lookup) Response() ResponseChan {
 	return l.responseChan
 }
 
-func (l *Lookup) Parse() (err error) {
+func (l *Lookup) Parse() error {
 	// Parse the URL query parameters
-	err = l.ParseForm()
+	err := l.ParseForm()
 	if err != nil {
-		return
+		return err
 	}
 	l.responseChan = make(ResponseChan)
 	searchRequired := true
@@ -179,13 +179,13 @@ func (a *Add) Response() ResponseChan {
 	return a.responseChan
 }
 
-func (a *Add) Parse() (err error) {
+func (a *Add) Parse() error {
 	// Require HTTP POST
 	if a.Method != "POST" {
 		return ErrorInvalidMethod(a.Method)
 	}
 	// Parse the URL query parameters
-	err = a.ParseForm()
+	err := a.ParseForm()
 	if err != nil {
 		return err
 	}

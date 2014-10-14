@@ -38,8 +38,8 @@ func connectString() string {
 func MustCreateWorker(t *testing.T) *Worker {
 	db, err := sqlx.Connect("postgres", connectString())
 	assert.Nil(t, err)
-	db.Execf("DROP DATABASE IF EXISTS testhkp")
-	db.Execf("CREATE DATABASE testhkp")
+	Execf(db, "DROP DATABASE IF EXISTS testhkp")
+	Execf(db, "CREATE DATABASE testhkp")
 	hockeypuck.SetConfig(fmt.Sprintf(`
 [hockeypuck.openpgp.db]
 driver="postgres"

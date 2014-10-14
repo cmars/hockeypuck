@@ -120,18 +120,19 @@ func (pubkey *Pubkey) GetOpaquePacket() (*packet.OpaquePacket, error) {
 	return toOpaquePacket(pubkey.Packet)
 }
 
-func (pubkey *Pubkey) GetPacket() (p packet.Packet, err error) {
+func (pubkey *Pubkey) GetPacket() (packet.Packet, error) {
+	var p packet.Packet
 	if pubkey.PublicKey != nil {
 		p = pubkey.PublicKey
 	} else if pubkey.PublicKeyV3 != nil {
 		p = pubkey.PublicKeyV3
 	} else {
-		err = ErrPacketRecordState
+		return nil, ErrPacketRecordState
 	}
-	return
+	return p, nil
 }
 
-func (pubkey *Pubkey) setPacket(p packet.Packet) (err error) {
+func (pubkey *Pubkey) setPacket(p packet.Packet) error {
 	switch pk := p.(type) {
 	case *packet.PublicKey:
 		if pk.IsSubkey {
@@ -144,44 +145,54 @@ func (pubkey *Pubkey) setPacket(p packet.Packet) (err error) {
 		}
 		pubkey.PublicKeyV3 = pk
 	default:
-		err = ErrInvalidPacketType
+		return ErrInvalidPacketType
 	}
-	return
+	return nil
 }
 
-func (pubkey *Pubkey) Read() (err error) {
+func (pubkey *Pubkey) Read() error {
 	buf := bytes.NewBuffer(pubkey.Packet)
-	var p packet.Packet
-	if p, err = packet.Read(buf); err != nil {
+	p, err := packet.Read(buf)
+	if err != nil {
 		if pubkey.State&PacketStateUnsuppPubkey != 0 {
 			return nil
 		}
 		return err
 	}
-	err = pubkey.setPacket(p)
-	return
+	return pubkey.setPacket(p)
 }
 
-func (pubkey *Pubkey) UnsupportedPackets() (result []*packet.OpaquePacket) {
+func (pubkey *Pubkey) UnsupportedPackets() []*packet.OpaquePacket {
+	var result []*packet.OpaquePacket
 	r := packet.NewOpaqueReader(bytes.NewBuffer(pubkey.Unsupported))
 	for op, err := r.Next(); err == nil; op, err = r.Next() {
 		result = append(result, op)
 	}
-	return
+	return result
 }
 
-func NewPubkey(op *packet.OpaquePacket) (pubkey *Pubkey, err error) {
+func NewPubkey(op *packet.OpaquePacket) (pubkey *Pubkey, _ error) {
 	var buf bytes.Buffer
+	var err error
 	if err = op.Serialize(&buf); err != nil {
-		return
+		panic("unable to write internal buffer")
 	}
 	pubkey = &Pubkey{Packet: buf.Bytes()}
-	var p packet.Packet
-	if p, err = op.Parse(); err != nil {
-		return pubkey, pubkey.initUnsupported(op)
+	defer func() {
+		if err != nil {
+			pubkey.PublicKey = nil
+			pubkey.PublicKeyV3 = nil
+			// TODO: record the reason that the public key is unsupported
+			// somewhere.
+			pubkey.initUnsupported(op)
+		}
+	}()
+	p, err := op.Parse()
+	if err != nil {
+		return pubkey, err
 	}
 	if err = pubkey.setPacket(p); err != nil {
-		return
+		return pubkey, err
 	}
 	if pubkey.PublicKey != nil {
 		err = pubkey.initV4()
@@ -190,15 +201,10 @@ func NewPubkey(op *packet.OpaquePacket) (pubkey *Pubkey, err error) {
 	} else {
 		err = ErrInvalidPacketType
 	}
-	if err != nil {
-		pubkey.PublicKey = nil
-		pubkey.PublicKeyV3 = nil
-		return pubkey, pubkey.initUnsupported(op)
-	}
-	return
+	return pubkey, nil
 }
 
-func (pubkey *Pubkey) initUnsupported(op *packet.OpaquePacket) (err error) {
+func (pubkey *Pubkey) initUnsupported(op *packet.OpaquePacket) {
 	pubkey.State = PacketStateUnsuppPubkey
 	// Calculate opaque fingerprint on unsupported public key packet
 	h := sha1.New()
@@ -206,7 +212,6 @@ func (pubkey *Pubkey) initUnsupported(op *packet.OpaquePacket) (err error) {
 	h.Write(op.Contents)
 	fpr := hex.EncodeToString(h.Sum(nil))
 	pubkey.RFingerprint = util.Reverse(fpr)
-	return
 }
 
 func (pubkey *Pubkey) initV4() error {
@@ -258,36 +263,36 @@ func (pubkey *Pubkey) initV3() error {
 	return nil
 }
 
-func (pubkey *Pubkey) Visit(visitor PacketVisitor) (err error) {
-	err = visitor(pubkey)
+func (pubkey *Pubkey) Visit(visitor PacketVisitor) error {
+	err := visitor(pubkey)
 	if err != nil {
-		return
+		return err
 	}
 	for _, sig := range pubkey.signatures {
 		err = sig.Visit(visitor)
 		if err != nil {
-			return
+			return err
 		}
 	}
 	for _, uid := range pubkey.userIds {
 		err = uid.Visit(visitor)
 		if err != nil {
-			return
+			return err
 		}
 	}
 	for _, uat := range pubkey.userAttributes {
 		err = uat.Visit(visitor)
 		if err != nil {
-			return
+			return err
 		}
 	}
 	for _, subkey := range pubkey.subkeys {
 		err = subkey.Visit(visitor)
 		if err != nil {
-			return
+			return err
 		}
 	}
-	return
+	return nil
 }
 
 func (pubkey *Pubkey) AddSignature(sig *Signature) {
@@ -317,27 +322,27 @@ func (pubkey *Pubkey) linkSelfSigs() {
 func (pubkey *Pubkey) publicKey() *packet.PublicKey     { return pubkey.PublicKey }
 func (pubkey *Pubkey) publicKeyV3() *packet.PublicKeyV3 { return pubkey.PublicKeyV3 }
 
-func (pubkey *Pubkey) verifyPublicKeySelfSig(keyrec publicKeyRecord, sig *Signature) (err error) {
+func (pubkey *Pubkey) verifyPublicKeySelfSig(keyrec publicKeyRecord, sig *Signature) error {
 	if !Config().VerifySigs() {
 		return nil
 	}
 	if pubkey.PublicKey != nil && keyrec.publicKey() != nil {
 		if sig.Signature != nil {
-			err = pubkey.PublicKey.VerifyKeySignature(keyrec.publicKey(), sig.Signature)
+			err := pubkey.PublicKey.VerifyKeySignature(keyrec.publicKey(), sig.Signature)
 			if err == nil {
 				sig.State |= PacketStateSigOk
 			}
-			return
+			return err
 		} else {
 			return ErrInvalidPacketType
 		}
 	} else if pubkey.PublicKeyV3 != nil && keyrec.publicKeyV3() != nil {
 		if sig.SignatureV3 != nil {
-			err = pubkey.PublicKeyV3.VerifyKeySignatureV3(keyrec.publicKeyV3(), sig.SignatureV3)
+			err := pubkey.PublicKeyV3.VerifyKeySignatureV3(keyrec.publicKeyV3(), sig.SignatureV3)
 			if err == nil {
 				sig.State |= PacketStateSigOk
 			}
-			return
+			return err
 		} else {
 			return ErrInvalidPacketType
 		}
@@ -345,7 +350,7 @@ func (pubkey *Pubkey) verifyPublicKeySelfSig(keyrec publicKeyRecord, sig *Signat
 	return ErrPacketRecordState
 }
 
-func (pubkey *Pubkey) verifyUserIdSelfSig(uid *UserId, sig *Signature) (err error) {
+func (pubkey *Pubkey) verifyUserIdSelfSig(uid *UserId, sig *Signature) error {
 	if !Config().VerifySigs() {
 		return nil
 	}
@@ -354,17 +359,17 @@ func (pubkey *Pubkey) verifyUserIdSelfSig(uid *UserId, sig *Signature) (err erro
 	}
 	if pubkey.PublicKey != nil {
 		if sig.Signature != nil {
-			err = pubkey.PublicKey.VerifyUserIdSignature(uid.UserId.Id, pubkey.PublicKey, sig.Signature)
+			err := pubkey.PublicKey.VerifyUserIdSignature(uid.UserId.Id, pubkey.PublicKey, sig.Signature)
 			if err == nil {
 				sig.State |= PacketStateSigOk
 			}
-			return
+			return err
 		} else if sig.SignatureV3 != nil {
-			err = pubkey.PublicKey.VerifyUserIdSignatureV3(uid.UserId.Id, pubkey.PublicKey, sig.SignatureV3)
+			err := pubkey.PublicKey.VerifyUserIdSignatureV3(uid.UserId.Id, pubkey.PublicKey, sig.SignatureV3)
 			if err == nil {
 				sig.State |= PacketStateSigOk
 			}
-			return
+			return err
 		} else {
 			return ErrInvalidPacketType
 		}
@@ -378,7 +383,7 @@ func (pubkey *Pubkey) verifyUserIdSelfSig(uid *UserId, sig *Signature) (err erro
 	return ErrPacketRecordState
 }
 
-func (pubkey *Pubkey) verifyUserAttrSelfSig(uat *UserAttribute, sig *Signature) (err error) {
+func (pubkey *Pubkey) verifyUserAttrSelfSig(uat *UserAttribute, sig *Signature) error {
 	if !Config().VerifySigs() {
 		return nil
 	}
@@ -390,10 +395,10 @@ func (pubkey *Pubkey) verifyUserAttrSelfSig(uat *UserAttribute, sig *Signature) 
 	if pubkey.PublicKey == nil {
 		return ErrInvalidPacketType
 	}
-	var h hash.Hash
 	if sig.Signature != nil {
-		if h, err = pubkey.sigSerializeUserAttribute(uat, sig.Signature.Hash); err != nil {
-			return
+		h, err := pubkey.sigSerializeUserAttribute(uat, sig.Signature.Hash)
+		if err != nil {
+			return err
 		}
 		return pubkey.PublicKey.VerifySignature(h, sig.Signature)
 	}
@@ -402,21 +407,21 @@ func (pubkey *Pubkey) verifyUserAttrSelfSig(uat *UserAttribute, sig *Signature) 
 
 // sigSerializeUserAttribute calculates the user attribute packet hash
 // TODO: clean up & contribute this to go.crypto/openpgp
-func (pubkey *Pubkey) sigSerializeUserAttribute(uat *UserAttribute, hashFunc crypto.Hash) (h hash.Hash, err error) {
+func (pubkey *Pubkey) sigSerializeUserAttribute(uat *UserAttribute, hashFunc crypto.Hash) (hash.Hash, error) {
 	if !hashFunc.Available() {
 		return nil, errors.UnsupportedError("hash function")
 	}
-	h = hashFunc.New()
+	h := hashFunc.New()
 
 	// Get user attribute opaque packet
-	var uatOpaque *packet.OpaquePacket
-	if uatOpaque, err = uat.GetOpaquePacket(); err != nil {
-		return
+	uatOpaque, err := uat.GetOpaquePacket()
+	if err != nil {
+		return nil, err
 	}
 	// Get public key opaque packet.
-	var pkOpaque *packet.OpaquePacket
-	if pkOpaque, err = pubkey.GetOpaquePacket(); err != nil {
-		return
+	pkOpaque, err := pubkey.GetOpaquePacket()
+	if err != nil {
+		return nil, err
 	}
 	// RFC 4880, section 5.2.4
 	// Write the signature prefix and public key contents to hash
@@ -435,7 +440,7 @@ func (pubkey *Pubkey) sigSerializeUserAttribute(uat *UserAttribute, hashFunc cry
 	h.Write(buf[:])
 	// User attribute contents
 	h.Write(uatOpaque.Contents)
-	return
+	return h, nil
 }
 
 func (pubkey *Pubkey) AppendUnsupported(opkt *packet.OpaquePacket) {

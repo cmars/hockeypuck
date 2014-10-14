@@ -28,6 +28,7 @@ import (
 
 	"code.google.com/p/go.crypto/openpgp/armor"
 	"github.com/jmoiron/sqlx"
+	"github.com/juju/errors"
 
 	. "github.com/hockeypuck/hockeypuck/errors"
 	"github.com/hockeypuck/hockeypuck/hkp"
@@ -188,8 +189,8 @@ func (change *KeyChange) calcType() KeyChangeType {
 	return KeyModified
 }
 
-func (w *Worker) UpsertKey(key *Pubkey) (change *KeyChange) {
-	change = &KeyChange{
+func (w *Worker) UpsertKey(key *Pubkey) *KeyChange {
+	change := &KeyChange{
 		Fingerprint:   key.Fingerprint(),
 		Type:          KeyChangeInvalid,
 		CurrentMd5:    key.Md5,
@@ -199,7 +200,7 @@ func (w *Worker) UpsertKey(key *Pubkey) (change *KeyChange) {
 		change.Type = KeyAdded
 	} else if err != nil {
 		change.Error = err
-		return
+		return change
 	} else {
 		change.PreviousMd5 = lastKey.Md5
 		change.PreviousSha256 = lastKey.Sha256
@@ -235,12 +236,12 @@ func (w *Worker) UpsertKey(key *Pubkey) (change *KeyChange) {
 	if change.Type != KeyNotChanged {
 		log.Println(change)
 	}
-	return
+	return change
 }
 
 // UpdateKey updates the database to the contents of the given public key.
-func (w *Worker) UpdateKey(pubkey *Pubkey) (err error) {
-	err = w.InsertKey(pubkey)
+func (w *Worker) UpdateKey(pubkey *Pubkey) error {
+	err := w.InsertKey(pubkey)
 	if err != nil {
 		return err
 	}
@@ -325,7 +326,7 @@ WHERE uuid = $1`,
 	} else {
 		return tx.Commit()
 	}
-	return
+	return nil
 }
 
 // UUID_LEN is the size of unique primary keys generated for certain
@@ -350,7 +351,7 @@ func NewUuid() (string, error) {
 // UpdateKeyRelations updates the foreign-key relations between
 // matching public key packet records to represent the state of the
 // given public key.
-func (w *Worker) UpdateKeyRelations(pubkey *Pubkey) (err error) {
+func (w *Worker) UpdateKeyRelations(pubkey *Pubkey) error {
 	tx, err := w.Begin()
 	if err != nil {
 		return err
@@ -384,11 +385,11 @@ func (w *Worker) UpdateKeyRelations(pubkey *Pubkey) (err error) {
 		return nil
 	})
 	if err != nil {
-		tx.Rollback()
+		err = errors.Wrap(err, tx.Rollback())
 	} else {
 		return tx.Commit()
 	}
-	return
+	return err
 }
 
 func (w *Worker) updatePubkeyRevsig(tx *sqlx.Tx, pubkey *Pubkey, r *Signature) error {

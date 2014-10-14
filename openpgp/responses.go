@@ -20,7 +20,6 @@ package openpgp
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -28,6 +27,7 @@ import (
 	"path/filepath"
 
 	"github.com/cmars/conflux/recon"
+	"github.com/juju/errors"
 
 	"github.com/hockeypuck/hockeypuck"
 	. "github.com/hockeypuck/hockeypuck/errors"
@@ -75,20 +75,21 @@ func (r *AddResponse) Error() error {
 	return errors.New("One or more keys had an error")
 }
 
-func (r *AddResponse) WriteTo(w http.ResponseWriter) (err error) {
+func (r *AddResponse) WriteTo(w http.ResponseWriter) error {
 	if hkp.AddResultTemplate == nil {
 		return ErrTemplatePathNotFound
 	}
-	err = hkp.AddResultTemplate.ExecuteTemplate(w, "top", r)
+	err := hkp.AddResultTemplate.ExecuteTemplate(w, "top", r)
 	if err != nil {
-		return
+		return err
 	}
-	err = hkp.AddResultTemplate.ExecuteTemplate(w, "page_content", r)
-	if err != nil {
-		return
+	if err = hkp.AddResultTemplate.ExecuteTemplate(w, "page_content", r); err != nil {
+		return err
 	}
-	err = hkp.AddResultTemplate.ExecuteTemplate(w, "bottom", r)
-	return
+	if err = hkp.AddResultTemplate.ExecuteTemplate(w, "bottom", r); err != nil {
+		return err
+	}
+	return nil
 }
 
 type RecoverKeyResponse struct {
@@ -118,15 +119,15 @@ func (r *StatsResponse) Error() error {
 	return r.Err
 }
 
-func (r *StatsResponse) WriteTo(w http.ResponseWriter) (err error) {
-	err = r.Err
+func (r *StatsResponse) WriteTo(w http.ResponseWriter) error {
+	err := r.Err
 	if err != nil {
-		return
+		return err
 	}
 	if r.Stats.NotReady() {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		_, err = fmt.Fprintf(w, "statistics not ready")
-		return
+		return err
 	}
 	if r.Lookup.Option&(hkp.JsonFormat|hkp.MachineReadable) != 0 {
 		// JSON is the only supported machine readable stats format.
@@ -175,7 +176,7 @@ func (r *StatsResponse) WriteTo(w http.ResponseWriter) (err error) {
 		}
 		err = hkp.StatsTemplate.ExecuteTemplate(w, "layout", r.Stats)
 	}
-	return
+	return nil
 }
 
 type KeyringResponse struct {
@@ -204,29 +205,28 @@ func (hq *HashQueryResponse) Error() error {
 	return nil
 }
 
-func (hq *HashQueryResponse) WriteTo(w http.ResponseWriter) (err error) {
+func (hq *HashQueryResponse) WriteTo(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "pgp/keys")
 	// Write the number of keys
-	err = recon.WriteInt(w, len(hq.Keys))
+	err := recon.WriteInt(w, len(hq.Keys))
 	for _, key := range hq.Keys {
 		// Write each key in binary packet format, prefixed with length
 		keybuf := bytes.NewBuffer(nil)
-		err = WritePackets(keybuf, key)
-		if err != nil {
-			return
+		if err = WritePackets(keybuf, key); err != nil {
+			return err
 		}
-		err = recon.WriteInt(w, keybuf.Len())
-		if err != nil {
-			return
+		if err = recon.WriteInt(w, keybuf.Len()); err != nil {
+			return err
 		}
-		_, err = w.Write(keybuf.Bytes())
-		if err != nil {
-			return
+		if _, err = w.Write(keybuf.Bytes()); err != nil {
+			return err
 		}
 	}
 	// SKS expects hashquery response to terminate with a CRLF
-	_, err = w.Write([]byte{0x0d, 0x0a})
-	return
+	if _, err = w.Write([]byte{0x0d, 0x0a}); err != nil {
+		return err
+	}
+	return nil
 }
 
 type NotImplementedResponse struct {

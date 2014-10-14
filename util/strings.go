@@ -42,7 +42,8 @@ func isUserDelim(c rune) bool {
 }
 
 // Split a user ID string into fulltext searchable keywords.
-func SplitUserId(id string) (keywords []string) {
+func SplitUserId(id string) []string {
+	var keywords []string
 	matches := UserIdRegex.FindStringSubmatch(id)
 	if len(matches) > 1 {
 		match := keywordNormalize(matches[1])

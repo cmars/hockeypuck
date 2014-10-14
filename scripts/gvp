@@ -1,0 +1,64 @@
+#!/bin/bash
+
+usage() {
+cat << EOF
+usage: gvp [COMMAND]
+
+SYNOPSIS
+    gvp stands for Go Versioning Packager and is based on [gst](http://github.com/tonchis/gst),
+    a similar tool that provides vendoring functionality for Ruby gems.
+
+    The tool modifies your GOPATH to point to a local .godeps/ directory so that you
+    can keep the dependencies of your project isolated there, it also modifies
+    GOBIN and PATH to include the new GOPATH/bin directory.
+
+    gvp is a companion tool to [gpm](http://github.com/pote/gpm) the Go Package Manager.
+
+USAGE
+    Since gvp is a script, env changes will not happen unless you source them.
+
+      $ source gvp
+
+COMMANDS
+    source gvp      Modifies GOPATH and GOBIN to use the .godeps directory.
+    gvp version     Outputs version information.
+    gvp help        Prints this message.
+EOF
+}
+
+case "${1:-"in"}" in
+  "init")
+    echo ">> This command is deprecated, just run 'source gvp'."
+    mkdir -p .godeps/{src,pkg,bin}
+    ;;
+  "version")
+    echo ">> gvp v0.2.0"
+    ;;
+  "in")
+    mkdir -p .godeps/{src,pkg,bin}
+
+    GVP_DIR="$(pwd)/.godeps"
+    GOBIN="$GVP_DIR/bin"
+    GOPATH="$GVP_DIR:$PWD"
+    PATH="$GOBIN:$PATH"
+
+    export GOBIN GOPATH GVP_NAME PATH
+    echo ">> Local GOPATH set."
+    ;;
+  "help")
+    usage
+    ;;
+  *)
+    ## Support for Plugins: if command is unknown search for a gvp-command executable.
+    if command -v "gvp-$1" > /dev/null
+    then
+      plugin=$1 &&
+      shift     &&
+      gvp-$plugin $@ &&
+      exit
+    else
+      echo ">> Unknown command."
+      usage && exit 1
+    fi
+    ;;
+esac

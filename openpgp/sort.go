@@ -44,13 +44,14 @@ func sigLess(iSig *Signature, jSig *Signature) bool {
 	return iSig != nil
 }
 
-func maxSelfSig(pubkey *Pubkey, sigs []*Signature) (recent *Signature) {
+func maxSelfSig(pubkey *Pubkey, sigs []*Signature) *Signature {
+	var recent *Signature
 	for _, sig := range sigs {
 		if strings.HasPrefix(pubkey.RFingerprint, sig.RIssuerKeyId) && (recent == nil || sig.Creation.Unix() > recent.Creation.Unix()) {
 			recent = sig
 		}
 	}
-	return
+	return recent
 }
 
 func (s *uidSorter) Swap(i, j int) {
