@@ -1,4 +1,4 @@
 #!/usr/bin/make -f
 
 %:
-	GOPATH=$(shell pwd)/build dh $@
+	bash -c "source scripts/gvp; dh $@"

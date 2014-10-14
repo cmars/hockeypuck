@@ -1,4 +1,4 @@
-build/bin/hockeypuck /usr/bin/
+.godeps/bin/hockeypuck /usr/bin/
 instroot/etc/hockeypuck /etc/
 instroot/etc/init.d/hockeypuck /etc/init.d/
 instroot/var/lib/hockeypuck/www /var/lib/hockeypuck/

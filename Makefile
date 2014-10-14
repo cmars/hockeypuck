@@ -1,58 +1,37 @@
 
 PACKAGE=github.com/hockeypuck/hockeypuck
-GODEPS=launchpad.net/godeps
 VERSION=$(shell head -1 debian/changelog | sed 's/.*(//;s/).*//;')
 CURRENT=$(shell git rev-parse --short HEAD)
 
 all: compile
 
+deps:
+	scripts/gpm install
+
 compile:
-	GOPATH=$(shell pwd)/build go install -ldflags "-X ${PACKAGE}.Version ${VERSION}" ${PACKAGE}/cmd/hockeypuck
+	go install -ldflags "-X ${PACKAGE}.Version ${VERSION}" ${PACKAGE}/cmd/hockeypuck
 	make -C doc fakebuild
 
-build:
-	GOPATH=$(shell pwd)/build go get -d ${PACKAGE}/...
-	GOPATH=$(shell pwd)/build make godeps compile
+sdist:
+	bash -c "source scripts/gvp; \
+	scripts/gpm install"
 
-godeps: require-godeps apply-godeps
+debs: debsrc debbin
 
-fmt:
-	gofmt -w=true ./...
-
-debs: debbin debsrc
-
-debsrc: debbin clean
+debsrc: sdist
 	debuild -S -k0x879CF8AA8DDA301A
 
-debbin: freeze-build
+debbin:
 	debuild -us -uc -i -b
 
-freeze-build:
-	GOPATH=$(shell pwd)/build go get -d ${PACKAGE}/...
-	GOPATH=$(shell pwd)/build make apply-godeps
-
-freeze-godeps: require-godeps
-	${GOPATH}/bin/godeps $(go list ${PACKAGE}/...) > dependencies.tsv
-
-apply-godeps: require-godeps
-	${GOPATH}/bin/godeps -u dependencies.tsv
-	if [ "$$GOPATH" = "$(shell pwd)/build" ]; then\
-		git archive ${CURRENT} | (cd ${GOPATH}/src/${PACKAGE}; tar xvf -); \
-	fi
-
-require-godeps:
-	go get -u ${GODEPS}
-	go install ${GODEPS}
-
 clean:
-	rm -rf build/bin build/pkg
 	make -C doc clean
 
 src-clean:
-	rm -rf build
+	$(RM) -r .godeps
 
 pkg-clean:
-	rm -f ../hockeypuck_*.deb ../hockeypuck_*.dsc ../hockeypuck_*.changes ../hockeypuck_*.build ../hockeypuck_*.tar.gz 
+	rm -f ../hockeypuck_*.deb ../hockeypuck_*.dsc ../hockeypuck_*.changes ../hockeypuck_*.build ../hockeypuck_*.tar.gz ../hockeypuck_*.upload
 
 all-clean: clean src-clean pkg-clean
 
