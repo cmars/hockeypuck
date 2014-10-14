@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/hockeypuck/hockeypuck.svg?branch=master)](https://travis-ci.org/hockeypuck/hockeypuck)
+
 # Hockeypuck: OpenPGP Key Server
 
 Full Documentation: https://hockeypuck.github.io
