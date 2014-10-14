@@ -12,14 +12,18 @@ Full Documentation: https://hockeypuck.github.io
 
 ### Check out Hockeypuck sources (without compiling them yet)
 
+```
  $ go get -d -t github.com/hockeypuck/hockeypuck
+```
 
 ### Setting up dependencies
 
 Update all the package dependencies in your $GOPATH to the versions supported
 by Hockeypuck with:
 
+```
  $ scripts/gpm install
+```
 
 At this point, you should be able to build, test and install.
 
@@ -28,8 +32,10 @@ At this point, you should be able to build, test and install.
 If you want to compile Hockeypuck but don't want to change the dependency
 versions in your $GOPATH, use the Makefile build:
 
+```
  $ cd $GOPATH/src/github.com/hockeypuck/hockeypuck
  $ make
+```
 
 Binary will be created at .godeps/bin/hockeypuck
 
