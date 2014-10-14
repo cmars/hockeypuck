@@ -5,16 +5,14 @@ CURRENT=$(shell git rev-parse --short HEAD)
 
 all: compile
 
-deps:
-	scripts/gpm install
+.godeps:
+	bash -c "source scripts/gvp; scripts/gpm install"
 
-compile:
+compile: .godeps
 	go install -ldflags "-X ${PACKAGE}.Version ${VERSION}" ${PACKAGE}/cmd/hockeypuck
 	make -C doc fakebuild
 
-sdist:
-	bash -c "source scripts/gvp; \
-	scripts/gpm install"
+sdist: .godeps
 
 debs: debsrc debbin
 
@@ -35,4 +33,4 @@ pkg-clean:
 
 all-clean: clean src-clean pkg-clean
 
-.PHONY: all compile godeps fmt debs debsrc debbin freeze-build freeze-godeps apply-godeps require-godeps clean src-clean pkg-clean build all-clean
+.PHONY: all compile sdist debs debsrc debbin clean src-clean pkg-clean all-clean
