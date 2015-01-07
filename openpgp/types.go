@@ -22,7 +22,7 @@ import (
 	"errors"
 	"io"
 
-	"code.google.com/p/go.crypto/openpgp/packet"
+	"golang.org/x/crypto/openpgp/packet"
 )
 
 var ErrInvalidPacketType error = errors.New("Invalid packet type")

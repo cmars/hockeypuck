@@ -27,7 +27,7 @@ import (
 	tt "text/template"
 	"time"
 
-	"code.google.com/p/go.crypto/openpgp/packet"
+	"golang.org/x/crypto/openpgp/packet"
 
 	"github.com/hockeypuck/hockeypuck/hkp"
 )

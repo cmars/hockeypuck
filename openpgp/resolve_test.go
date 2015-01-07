@@ -25,8 +25,8 @@ import (
 	"sort"
 	"testing"
 
-	"code.google.com/p/go.crypto/openpgp/armor"
-	"code.google.com/p/go.crypto/openpgp/packet"
+	"golang.org/x/crypto/openpgp/armor"
+	"golang.org/x/crypto/openpgp/packet"
 	"github.com/stretchr/testify/assert"
 )
 

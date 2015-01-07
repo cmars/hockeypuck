@@ -23,7 +23,7 @@ import (
 	"runtime"
 	"testing"
 
-	"code.google.com/p/go.crypto/openpgp/armor"
+	"golang.org/x/crypto/openpgp/armor"
 
 	"github.com/hockeypuck/hockeypuck"
 )

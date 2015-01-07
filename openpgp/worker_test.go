@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"testing"
 
-	"code.google.com/p/go.crypto/openpgp/armor"
+	"golang.org/x/crypto/openpgp/armor"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 

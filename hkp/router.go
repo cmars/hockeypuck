@@ -21,7 +21,7 @@ import (
 	"log"
 	"net/http"
 
-	"code.google.com/p/gorilla/mux"
+	"github.com/gorilla/mux"
 
 	"github.com/hockeypuck/hockeypuck"
 	Errors "github.com/hockeypuck/hockeypuck/errors"

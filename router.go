@@ -24,7 +24,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"code.google.com/p/gorilla/mux"
+	"github.com/gorilla/mux"
 )
 
 // System installed location for static files.

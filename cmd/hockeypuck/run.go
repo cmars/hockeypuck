@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"path/filepath"
 
-	"code.google.com/p/gorilla/mux"
+	"github.com/gorilla/mux"
 	"launchpad.net/gnuflag"
 
 	. "github.com/hockeypuck/hockeypuck"
