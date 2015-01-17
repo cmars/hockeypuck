@@ -26,7 +26,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/cmars/conflux/recon"
+	"gopkg.in/hockeypuck/conflux.v2/recon"
 	"github.com/juju/errors"
 
 	"github.com/hockeypuck/hockeypuck"

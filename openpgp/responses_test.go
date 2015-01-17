@@ -26,7 +26,7 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/cmars/conflux/recon"
+	"gopkg.in/hockeypuck/conflux.v2/recon"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/hockeypuck/hockeypuck/hkp"

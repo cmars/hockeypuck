@@ -26,7 +26,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/cmars/conflux/recon"
+	"gopkg.in/hockeypuck/conflux.v2/recon"
 )
 
 // ErrorMissingParam constructs an informative error when a
