@@ -32,10 +32,6 @@ type resolver struct {
 	Pubkey *Pubkey
 }
 
-func (s *Settings) VerifySigs() bool {
-	return s.GetBool("hockeypuck.openpgp.verifySigs")
-}
-
 // Resolve resolves and connects relationship references
 // between the different packet records in the key material.
 func Resolve(pubkey *Pubkey) {

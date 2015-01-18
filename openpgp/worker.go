@@ -22,17 +22,18 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
-	"log"
 	"os"
 	"os/user"
-	"runtime"
 	"strings"
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
+	"gopkg.in/errgo.v1"
+	log "gopkg.in/hockeypuck/logrus.v0"
 
 	. "github.com/hockeypuck/hockeypuck/errors"
 	"github.com/hockeypuck/hockeypuck/hkp"
+	"github.com/hockeypuck/hockeypuck/settings"
 	"github.com/hockeypuck/hockeypuck/util"
 )
 
@@ -40,18 +41,10 @@ const LOOKUP_RESULT_LIMIT = 100
 
 type Worker struct {
 	*Loader
+	settings   *settings.Settings
 	Service    *hkp.Service
 	Peer       *SksPeer
 	keyChanges KeyChangeChan
-}
-
-// Number of workers to spawn
-func (s *Settings) NumWorkers() int {
-	return s.GetIntDefault("hockeypuck.openpgp.nworkers", runtime.NumCPU())
-}
-
-func (s *Settings) Driver() string {
-	return s.GetStringDefault("hockeypuck.openpgp.db.driver", "postgres")
 }
 
 func currentUsername() string {
@@ -64,15 +57,9 @@ func currentUsername() string {
 	return username
 }
 
-func (s *Settings) DSN() string {
-	return s.GetStringDefault("hockeypuck.openpgp.db.dsn",
-		fmt.Sprintf("dbname=hkp host=/var/run/postgresql sslmode=disable user=%s",
-			currentUsername()))
-}
-
 func NewWorker(service *hkp.Service, peer *SksPeer) (w *Worker, err error) {
-	w = &Worker{Loader: &Loader{}, Service: service, Peer: peer}
-	if w.db, err = NewDB(); err != nil {
+	w = &Worker{Loader: &Loader{}, Service: service, Peer: peer, settings: peer.settings}
+	if w.db, err = NewDB(peer.settings); err != nil {
 		return
 	}
 	err = w.db.CreateSchema()
@@ -95,14 +82,14 @@ func (w *Worker) Run() {
 			case *hkp.HashQuery:
 				w.HashQuery(r)
 			default:
-				log.Println("Unsupported HKP service request:", req)
+				log.Warnf("unsupported HKP service request: %+v", req)
 			}
 		case r, ok := <-w.Peer.RecoverKey:
 			if !ok {
 				return
 			}
 			resp := w.recoverKey(&r)
-			log.Println(resp)
+			log.Debug(resp)
 			r.response <- resp
 		}
 	}
@@ -159,12 +146,15 @@ func (w *Worker) HashQuery(hq *hkp.HashQuery) {
 				if err != nil {
 					log.Printf("bad digest %q: %q", z.String(), err)
 				} else {
-					err = w.Peer.Remove(z)
-					if err != nil {
-						log.Printf("failed to remove %q: %q", z.String(), err)
-					} else {
-						log.Printf("removed %q from prefix tree", z.String())
-					}
+					w.Peer.Remove(z)
+					// TODO: support transactions for insert/remove
+					/*
+						if err != nil {
+							log.Printf("failed to remove %q: %q", z.String(), err)
+						} else {
+					*/
+					log.Printf("removed %q from prefix tree", z.String())
+					//}
 				}
 			}
 			continue
@@ -262,15 +252,15 @@ func flattenUuidRows(rows *sqlx.Rows) ([]string, error) {
 
 func (w *Worker) lookupKeywordUuids(search string, limit int) ([]string, error) {
 	search = strings.Join(strings.Split(search, " "), "+")
-	log.Println("keyword:", search)
-	log.Println("limit:", limit)
+	log.Debugf("keyword: %q", search)
+	log.Debugf("limit: %d", limit)
 	rows, err := w.db.Queryx(`
 SELECT DISTINCT pubkey_uuid FROM openpgp_uid
 WHERE keywords_fulltext @@ to_tsquery($1) LIMIT $2`, search, limit)
 	if err == sql.ErrNoRows {
 		return nil, ErrKeyNotFound
 	} else if err != nil {
-		return nil, err
+		return nil, errgo.Mask(err)
 	}
 	return flattenUuidRows(rows)
 }
@@ -297,7 +287,7 @@ func (w *Worker) fetchKeys(uuids []string) ReadKeyResults {
 		key, err := w.FetchKey(uuid)
 		results = append(results, &ReadKeyResult{Pubkey: key, Error: err})
 		if err != nil {
-			log.Println("Fetch key:", err)
+			log.Errorf("failed to fetch key: %v", err)
 		}
 	}
 	return results
@@ -412,8 +402,7 @@ SELECT * FROM openpgp_sig sig WHERE pubkey_uuid = $1 AND subkey_uuid = $2
 
 	digest := SksDigest(pubkey, md5.New())
 	if digest != pubkey.Md5 {
-		// TODO: make this a WARN level message when we use loggo
-		log.Println("digest mismatch for key [%s]: indexed=%s material=%s",
+		log.Warnf("digest mismatch for key %q: indexed=%q material=%q",
 			pubkey.Fingerprint(), pubkey.Md5, digest)
 	}
 

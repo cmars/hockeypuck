@@ -18,30 +18,13 @@
 package hkp
 
 import (
-	"log"
 	"net/http"
 
 	"github.com/gorilla/mux"
+	log "gopkg.in/hockeypuck/logrus.v0"
 
-	"github.com/hockeypuck/hockeypuck"
 	Errors "github.com/hockeypuck/hockeypuck/errors"
 )
-
-func (s *Settings) HttpBind() string {
-	return s.GetStringDefault("hockeypuck.hkp.bind", ":11371")
-}
-
-func (s *Settings) HttpsBind() string {
-	return s.GetStringDefault("hockeypuck.hkps.bind", "")
-}
-
-func (s *Settings) TLSCertificate() string {
-	return s.GetStringDefault("hockeypuck.hkps.cert", "")
-}
-
-func (s *Settings) TLSKey() string {
-	return s.GetStringDefault("hockeypuck.hkps.key", "")
-}
 
 type Service struct {
 	Requests RequestChan
@@ -72,18 +55,18 @@ func (r *Router) HandleAll() {
 func (r *Router) Respond(w http.ResponseWriter, req Request) {
 	err := req.Parse()
 	if err != nil {
-		log.Println("Error parsing request:", err)
-		http.Error(w, hockeypuck.APPLICATION_ERROR, 400)
+		log.Errorf("error parsing request %+v: %q", req, err)
+		http.Error(w, "parse error", http.StatusBadRequest)
 		return
 	}
 	r.Requests <- req
 	resp := <-req.Response()
 	if resp.Error() != nil {
-		log.Println("Error in response:", resp.Error())
+		log.Errorf("failed to responsd: %v", resp.Error())
 	}
 	err = resp.WriteTo(w)
 	if err != nil {
-		log.Println(resp, err)
+		log.Errorf("failed to write response: %v", err)
 	}
 }
 
@@ -118,7 +101,7 @@ func (r *Router) HandleWebUI() {
 				err = AddFormTemplate.ExecuteTemplate(w, "layout", nil)
 			}
 			if err != nil {
-				http.Error(w, hockeypuck.APPLICATION_ERROR, 500)
+				http.Error(w, "application templates not found", http.StatusInternalServerError)
 			}
 		})
 	r.HandleFunc("/openpgp/lookup",
@@ -130,7 +113,7 @@ func (r *Router) HandleWebUI() {
 				err = SearchFormTemplate.ExecuteTemplate(w, "layout", nil)
 			}
 			if err != nil {
-				http.Error(w, hockeypuck.APPLICATION_ERROR, 500)
+				http.Error(w, "application templates not found", http.StatusInternalServerError)
 			}
 		})
 }

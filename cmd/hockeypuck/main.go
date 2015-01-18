@@ -26,11 +26,43 @@ import (
 	"path/filepath"
 	"runtime/pprof"
 
-	. "github.com/hockeypuck/hockeypuck"
+	"gopkg.in/errgo.v1"
 	"launchpad.net/gnuflag"
+
+	. "github.com/hockeypuck/hockeypuck"
+	"github.com/hockeypuck/hockeypuck/settings"
 )
 
+type usageError struct {
+	cmd cmdHandler
+	msg string
+}
+
+func newUsageError(c cmdHandler, msg string) error {
+	return &usageError{cmd: c, msg: msg}
+}
+
+func (err *usageError) Error() string {
+	return err.msg
+}
+
+func (err *usageError) usage() {
+	fmt.Fprintln(os.Stderr, err.msg)
+	// TODO: format this properly wrt variable width strings
+	fmt.Fprintf(os.Stderr, "\n  %s %s\t\t%s\n\n",
+		filepath.Base(os.Args[0]), err.cmd.Name(), err.cmd.Desc())
+	if err.cmd.Flags() != nil {
+		err.cmd.Flags().PrintDefaults()
+	}
+	os.Exit(1)
+}
+
 func die(err error) {
+	usageErr, ok := err.(*usageError)
+	if ok {
+		usageErr.usage()
+	}
+
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err.Error())
 		os.Exit(1)
@@ -42,7 +74,7 @@ type cmdHandler interface {
 	Name() string
 	Desc() string
 	Flags() *gnuflag.FlagSet
-	Main()
+	Main() error
 }
 
 type subCmd struct {
@@ -50,16 +82,6 @@ type subCmd struct {
 }
 
 func (c *subCmd) Flags() *gnuflag.FlagSet { return c.flags }
-
-func Usage(h cmdHandler, msg string) {
-	fmt.Fprintln(os.Stderr, msg)
-	fmt.Fprintf(os.Stderr, "\n  %s %s\t\t%s\n\n",
-		filepath.Base(os.Args[0]), h.Name(), h.Desc())
-	if h.Flags() != nil {
-		h.Flags().PrintDefaults()
-	}
-	os.Exit(1)
-}
 
 var cmds []cmdHandler = []cmdHandler{
 	newRunCmd(),
@@ -106,8 +128,8 @@ func main() {
 					log.Println("Warning: Failed to open tempfile for cpuprof:", err)
 				}
 			}
-			cmd.Main()
-			return
+			err := cmd.Main()
+			die(err)
 		}
 	}
 	newHelpCmd().Main()
@@ -121,7 +143,7 @@ func (c *helpCmd) Name() string { return "help" }
 
 func (c *helpCmd) Desc() string { return "Display this help message" }
 
-func (c *helpCmd) Main() {
+func (c *helpCmd) Main() error {
 	fmt.Fprintln(os.Stderr, `Hockeypuck -- Public Keyserver
 http://hockeypuck.github.io/
 
@@ -134,7 +156,7 @@ Basic commands:
 		fmt.Fprintf(os.Stderr, "  %s %s\t\t%s\n",
 			filepath.Base(os.Args[0]), cmd.Name(), cmd.Desc())
 	}
-	os.Exit(1)
+	return newUsageError(c, "hockeypuck usage")
 }
 
 func newHelpCmd() *helpCmd {
@@ -149,9 +171,9 @@ func (c *versionCmd) Name() string { return "version" }
 
 func (c *versionCmd) Desc() string { return "Display Hockeypuck version information" }
 
-func (c *versionCmd) Main() {
+func (c *versionCmd) Main() error {
 	fmt.Println(Version)
-	os.Exit(0)
+	return nil
 }
 
 func newVersionCmd() *versionCmd {
@@ -162,20 +184,32 @@ type configuredCmd struct {
 	subCmd
 	configPath string
 	configDir  string
+	settings   *settings.Settings
 }
 
-func (c *configuredCmd) Main() {
-	if c.configPath != "" {
-		var err error
-		if c.configPath, err = filepath.Abs(c.configPath); err != nil {
-			die(err)
-		}
-		if err = LoadConfigFile(c.configPath); err != nil {
-			die(err)
-		}
-		c.configDir = filepath.Dir(c.configPath)
-	} else {
-		// Fall back on default empty config
-		SetConfig("")
+func (c *configuredCmd) Main() error {
+	if c.configPath == "" {
+		defaultSettings := settings.Default()
+		c.settings = &defaultSettings
+		return nil
 	}
+
+	var err error
+	c.configPath, err = filepath.Abs(c.configPath)
+	if err != nil {
+		return errgo.Mask(err)
+	}
+
+	contents, err := ioutil.ReadFile(c.configPath)
+	if err != nil {
+		return errgo.Mask(err)
+	}
+
+	c.settings, err = settings.Parse(string(contents))
+	if err != nil {
+		return errgo.Mask(err)
+	}
+
+	c.configDir = filepath.Dir(c.configPath)
+	return nil
 }

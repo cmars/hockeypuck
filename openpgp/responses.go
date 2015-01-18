@@ -21,15 +21,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 
+	"gopkg.in/errgo.v1"
 	"gopkg.in/hockeypuck/conflux.v2/recon"
-	"github.com/juju/errors"
+	log "gopkg.in/hockeypuck/logrus.v0"
 
-	"github.com/hockeypuck/hockeypuck"
 	. "github.com/hockeypuck/hockeypuck/errors"
 	"github.com/hockeypuck/hockeypuck/hkp"
 )
@@ -43,9 +42,9 @@ func (r *ErrorResponse) Error() error {
 }
 
 func (r *ErrorResponse) WriteTo(w http.ResponseWriter) error {
-	w.WriteHeader(400)
-	fmt.Fprintf(w, hockeypuck.BAD_REQUEST)
-	log.Println(r.Err)
+	w.WriteHeader(http.StatusBadRequest)
+	//fmt.Fprintf(w, hockeypuck.BAD_REQUEST)
+	log.Error(r.Err)
 	return r.Err
 }
 
@@ -72,7 +71,7 @@ func (r *AddResponse) Error() error {
 	if len(r.Changes) > 0 || len(r.Errors) == 0 {
 		return nil
 	}
-	return errors.New("One or more keys had an error")
+	return errgo.New("failed to add one or more keys")
 }
 
 func (r *AddResponse) WriteTo(w http.ResponseWriter) error {
@@ -138,7 +137,8 @@ func (r *StatsResponse) WriteTo(w http.ResponseWriter) error {
 			"http_port": r.Stats.Port,
 			"numkeys":   r.Stats.TotalKeys,
 			"software":  filepath.Base(os.Args[0]),
-			"version":   hockeypuck.Version}
+			//"version":   hockeypuck.Version}
+		}
 		// Convert hourly stats
 		hours := []interface{}{}
 		for _, hour := range r.Stats.KeyStatsHourly {
@@ -233,7 +233,7 @@ type NotImplementedResponse struct {
 }
 
 func (e *NotImplementedResponse) Error() error {
-	return errors.New("Not implemented")
+	return errgo.New("not implemented")
 }
 
 func (e *NotImplementedResponse) WriteTo(w http.ResponseWriter) error {

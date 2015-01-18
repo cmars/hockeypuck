@@ -1,11 +1,12 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 	"path/filepath"
 
 	"github.com/gorilla/mux"
+	"gopkg.in/errgo.v1"
+	"gopkg.in/tomb.v2"
 	"launchpad.net/gnuflag"
 
 	. "github.com/hockeypuck/hockeypuck"
@@ -29,25 +30,28 @@ func newRunCmd() *runCmd {
 	return cmd
 }
 
-func (c *runCmd) Main() {
-	c.configuredCmd.Main()
-	InitLog()
+func (c *runCmd) Main() error {
+	err := c.configuredCmd.Main()
+	if err != nil {
+		return errgo.Mask(err)
+	}
+
 	// Create an HTTP request router
 	r := mux.NewRouter()
 	// Add common static routes
-	NewStaticRouter(r)
+	NewStaticRouter(r, c.settings)
 	// Create HKP router
 	hkpRouter := hkp.NewRouter(r)
 	// Create SKS peer
-	sksPeer, err := openpgp.NewSksPeer(hkpRouter.Service)
+	sksPeer, err := openpgp.NewSksPeer(hkpRouter.Service, c.settings)
 	if err != nil {
-		die(err)
+		return errgo.Mask(err)
 	}
 	// Launch the OpenPGP workers
-	for i := 0; i < openpgp.Config().NumWorkers(); i++ {
+	for i := 0; i < c.settings.OpenPGP.NWorkers; i++ {
 		w, err := openpgp.NewWorker(hkpRouter.Service, sksPeer)
 		if err != nil {
-			die(err)
+			return errgo.Mask(err)
 		}
 		// Subscribe SKS to worker's key changes
 		w.SubKeyChanges(sksPeer.KeyChanges)
@@ -59,45 +63,40 @@ func (c *runCmd) Main() {
 
 	var hkpsConfigured bool
 	var tlsCertPath, tlsKeyPath string
-	if hkp.Config().HttpsBind() != "" {
-		if hkp.Config().TLSCertificate() == "" {
-			err = fmt.Errorf("no TLS certificate provided")
-		} else if hkp.Config().TLSKey() == "" {
-			err = fmt.Errorf("no TLS private key provided")
+	if c.settings.Hkps != nil && c.settings.Hkps.Bind != "" {
+		if c.settings.Hkps.Cert == "" {
+			return errgo.New("missing TLS certificate")
+		} else if c.settings.Hkps.Key == "" {
+			return errgo.New("missing TLS private key")
 		}
 
-		if err != nil {
-			die(err)
-		}
-
-		if filepath.IsAbs(hkp.Config().TLSCertificate()) {
-			tlsCertPath = hkp.Config().TLSCertificate()
+		if filepath.IsAbs(c.settings.Hkps.Cert) {
+			tlsCertPath = c.settings.Hkps.Cert
 		} else {
-			tlsCertPath = filepath.Join(c.configDir, hkp.Config().TLSCertificate())
+			tlsCertPath = filepath.Join(c.configDir, c.settings.Hkps.Cert)
 		}
 
-		if filepath.IsAbs(hkp.Config().TLSKey()) {
-			tlsKeyPath = hkp.Config().TLSKey()
+		if filepath.IsAbs(c.settings.Hkps.Key) {
+			tlsKeyPath = c.settings.Hkps.Key
 		} else {
-			tlsKeyPath = filepath.Join(c.configDir, hkp.Config().TLSKey())
+			tlsKeyPath = filepath.Join(c.configDir, c.settings.Hkps.Key)
 		}
 		hkpsConfigured = true
 	}
 
-	if hkpsConfigured {
-		if hkp.Config().HttpBind() != "" {
-			go func() {
-				// Start the built-in webserver, run forever
-				err = http.ListenAndServe(hkp.Config().HttpBind(), nil)
-				die(err)
-			}()
-		}
-		err = http.ListenAndServeTLS(hkp.Config().HttpsBind(),
-			tlsCertPath, tlsKeyPath, nil)
-		die(err)
-	} else {
-		// Start the built-in webserver, run forever
-		err = http.ListenAndServe(hkp.Config().HttpBind(), nil)
-		die(err)
+	var t tomb.Tomb
+
+	if c.settings.Hkp.Bind != "" {
+		t.Go(func() error {
+			return http.ListenAndServe(c.settings.Hkp.Bind, nil)
+		})
 	}
+	if hkpsConfigured {
+		t.Go(func() error {
+			return http.ListenAndServeTLS(c.settings.Hkps.Bind,
+				tlsCertPath, tlsKeyPath, nil)
+		})
+	}
+
+	return t.Wait()
 }

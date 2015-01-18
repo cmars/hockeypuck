@@ -19,14 +19,11 @@
 package main
 
 import (
-	"log"
-
-	. "github.com/hockeypuck/hockeypuck"
-	"github.com/hockeypuck/hockeypuck/openpgp"
-	"launchpad.net/gnuflag"
-
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/storage"
+	"gopkg.in/errgo.v1"
+	log "gopkg.in/hockeypuck/logrus.v0"
+	"launchpad.net/gnuflag"
 )
 
 type recoverCmd struct {
@@ -45,19 +42,22 @@ func newRecoverCmd() *recoverCmd {
 	return cmd
 }
 
-func (ec *recoverCmd) Main() {
-	ec.configuredCmd.Main()
-	InitLog()
-	path := openpgp.Config().Settings.TomlTree.Get("conflux.recon.leveldb.path").(string)
+func (ec *recoverCmd) Main() error {
+	err := ec.configuredCmd.Main()
+	if err != nil {
+		return errgo.Mask(err)
+	}
+
+	path := ec.settings.Conflux.Recon.LevelDB.Path
 	stor, err := storage.OpenFile(path)
 	if err != nil {
 		die(err)
 	}
-	log.Println("database storage opened, recovering...")
+	log.Info("database storage opened, recovering...")
 	db, err := leveldb.Recover(stor, nil)
 	if err != nil {
-		die(err)
+		return errgo.Mask(err)
 	}
-	log.Println("recovery complete")
-	db.Close()
+	log.Info("recovery complete")
+	return errgo.Mask(db.Close())
 }

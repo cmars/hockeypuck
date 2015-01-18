@@ -17,24 +17,14 @@
 
 package openpgp
 
-import (
-	"bytes"
-	"crypto/md5"
-	"fmt"
-	"testing"
-
-	"golang.org/x/crypto/openpgp/armor"
-	"github.com/jmoiron/sqlx"
-	"github.com/stretchr/testify/assert"
-
-	"github.com/hockeypuck/hockeypuck"
-)
+import "fmt"
 
 func connectString() string {
 	return fmt.Sprintf(
 		"dbname=postgres host=/var/run/postgresql sslmode=disable user=%s", currentUsername())
 }
 
+/*
 func MustCreateWorker(t *testing.T) *Worker {
 	db, err := sqlx.Connect("postgres", connectString())
 	assert.Nil(t, err)
@@ -131,3 +121,4 @@ func testReadDigestDups(t *testing.T, testfile string) {
 	}
 	assert.Equal(t, len(opkr.Packets), 24)
 }
+*/

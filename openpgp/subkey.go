@@ -21,11 +21,11 @@ import (
 	"bytes"
 	"database/sql"
 	"io"
-	"log"
 	"strings"
 	"time"
 
 	"golang.org/x/crypto/openpgp/packet"
+	log "gopkg.in/hockeypuck/logrus.v0"
 
 	"github.com/hockeypuck/hockeypuck/util"
 )
@@ -151,7 +151,7 @@ func (subkey *Subkey) initV4() error {
 		return err
 	}
 	if !subkey.PublicKey.IsSubkey {
-		log.Println("Expected sub-key packet, got primary public key")
+		log.Warn("expected sub-key packet, got primary public key")
 		return ErrInvalidPacketType
 	}
 	subkey.RFingerprint = util.Reverse(fingerprint)
@@ -169,7 +169,7 @@ func (subkey *Subkey) initV3() error {
 		return err
 	}
 	if subkey.PublicKeyV3.IsSubkey {
-		log.Println("Expected primary public key packet, got sub-key")
+		log.Warn("expected primary public key packet, got sub-key")
 		return ErrInvalidPacketType
 	}
 	subkey.RFingerprint = util.Reverse(fingerprint)

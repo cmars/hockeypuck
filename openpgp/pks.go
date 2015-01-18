@@ -19,41 +19,19 @@ package openpgp
 
 import (
 	"bytes"
-	"log"
 	"net/smtp"
 	"strings"
 	"time"
+
+	"gopkg.in/errgo.v1"
+	log "gopkg.in/hockeypuck/logrus.v0"
+	"gopkg.in/tomb.v2"
+
+	"github.com/hockeypuck/hockeypuck/settings"
 )
 
 // Max delay backoff multiplier when smtp errors
 const MAX_DELAY = 60
-
-// PKS mail from address
-func (s *Settings) PksFrom() string {
-	return s.GetString("hockeypuck.openpgp.pks.from")
-}
-
-// Downstream PKS servers
-func (s *Settings) PksTo() []string {
-	return s.GetStrings("hockeypuck.openpgp.pks.to")
-}
-
-// SMTP settings
-func (s *Settings) SmtpHost() string {
-	return s.GetStringDefault("hockeypuck.openpgp.pks.smtp.host", "localhost:25")
-}
-
-func (s *Settings) SmtpId() string {
-	return s.GetString("hockeypuck.openpgp.pks.smtp.id")
-}
-
-func (s *Settings) SmtpUser() string {
-	return s.GetString("hockeypuck.openpgp.pks.smtp.user")
-}
-
-func (s *Settings) SmtpPass() string {
-	return s.GetString("hockeypuck.openpgp.pks.smtp.pass")
-}
 
 // Status of PKS synchronization
 type PksStatus struct {
@@ -76,23 +54,27 @@ type PksSync struct {
 	SmtpAuth smtp.Auth
 	// Last status
 	lastStatus []PksStatus
-	// stop channel, used to shut down
-	stop chan interface{}
+
+	t tomb.Tomb
 }
 
 // Initialize from command line switches if fields not set.
-func NewPksSync(w *Worker) (*PksSync, error) {
-	ps := &PksSync{Worker: w, stop: make(chan interface{})}
-	ps.MailFrom = Config().PksFrom()
-	ps.SmtpHost = Config().SmtpHost()
+func NewPksSync(w *Worker, s *settings.Settings) (*PksSync, error) {
+	if s.OpenPGP.Pks == nil {
+		return nil, errgo.New("PKS mail synchronization not configured")
+	}
+
+	ps := &PksSync{Worker: w}
+	ps.MailFrom = s.OpenPGP.Pks.From
+	ps.SmtpHost = s.OpenPGP.Pks.Smtp.Host
 	authHost := ps.SmtpHost
 	if parts := strings.Split(authHost, ":"); len(parts) >= 1 {
 		// Strip off the port, use only the hostname for auth
 		authHost = parts[0]
 	}
-	ps.SmtpAuth = smtp.PlainAuth(Config().SmtpId(),
-		Config().SmtpUser(), Config().SmtpPass(), authHost)
-	ps.PksAddrs = Config().PksTo()
+	ps.SmtpAuth = smtp.PlainAuth(s.OpenPGP.Pks.Smtp.ID,
+		s.OpenPGP.Pks.Smtp.User, s.OpenPGP.Pks.Smtp.Password, authHost)
+	ps.PksAddrs = s.OpenPGP.Pks.To
 	err := ps.initStatus()
 	return ps, err
 }
@@ -143,10 +125,10 @@ func (ps *PksSync) SendKeys(status *PksStatus) error {
 	}
 	for _, key := range keys {
 		// Send key email
-		log.Println("Sending key", key.Fingerprint(), "to PKS", status.Addr)
+		log.Debugf("sending key %q to PKS %s", key.Fingerprint(), status.Addr)
 		err = ps.SendKey(status.Addr, key)
 		if err != nil {
-			log.Println("Error sending key to PKS", status.Addr, ":", err)
+			log.Errorf("error sending key to PKS %s: %v", status.Addr, err)
 			return err
 		}
 		// Send successful, update the timestamp accordingly
@@ -169,13 +151,20 @@ func (ps *PksSync) SendKey(addr string, key *Pubkey) error {
 }
 
 // Poll PKS downstream servers
-func (ps *PksSync) run() {
+func (ps *PksSync) run() error {
 	delay := 1
+	timer := time.NewTimer(time.Duration(delay) * time.Minute)
 	for {
+		select {
+		case <-ps.t.Dying():
+			return nil
+		case <-timer.C:
+		}
+
 		statuses, err := ps.SyncStatus()
 		if err != nil {
-			log.Println("Error obtaining PKS sync status", err)
-			goto POLL_NEXT
+			log.Errorf("failed to obtain PKS sync status: %v", err)
+			goto DELAY
 		}
 		for _, status := range statuses {
 			err = ps.SendKeys(&status)
@@ -191,34 +180,23 @@ func (ps *PksSync) run() {
 				delay = 1
 			}
 		}
-	POLL_NEXT:
-		// Check for stop
-		select {
-		case _, ok := <-ps.stop:
-			if !ok {
-				log.Println("Stopping PKS sync")
-				return
-			}
-		default:
-			// Nothing on channels, fall thru
-		}
+
+	DELAY:
 		toSleep := time.Duration(delay) * time.Minute
 		if delay > 1 {
 			// log delay if we had an error
-			log.Println("Sleeping", toSleep)
+			log.Debugf("PKS sleeping %d minute(s)", toSleep)
 		}
-		time.Sleep(toSleep)
+		timer.Reset(toSleep)
 	}
 }
 
 // Start PKS synchronization
 func (ps *PksSync) Start() {
-	go ps.run()
+	ps.t.Go(ps.run)
 }
 
-func (ps *PksSync) Stop() {
-	if ps.stop != nil {
-		close(ps.stop)
-		ps.stop = nil
-	}
+func (ps *PksSync) Stop() error {
+	ps.t.Kill(nil)
+	return ps.t.Wait()
 }

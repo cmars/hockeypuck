@@ -23,12 +23,12 @@ import (
 	"encoding/ascii85"
 	"fmt"
 	"io"
-	"log"
 	"time"
 
-	"golang.org/x/crypto/openpgp/armor"
 	"github.com/jmoiron/sqlx"
 	"github.com/juju/errors"
+	"golang.org/x/crypto/openpgp/armor"
+	log "gopkg.in/hockeypuck/logrus.v0"
 
 	. "github.com/hockeypuck/hockeypuck/errors"
 	"github.com/hockeypuck/hockeypuck/hkp"
@@ -222,7 +222,7 @@ func (w *Worker) UpsertKey(key *Pubkey) *KeyChange {
 		if change.Error = w.UpdateKey(lastKey); change.Error == nil {
 			w.UpdateKeyRelations(lastKey)
 		} else {
-			log.Println(change.Error)
+			log.Error(change.Error)
 		}
 	case KeyAdded:
 		key.Ctime = time.Now()
@@ -230,11 +230,11 @@ func (w *Worker) UpsertKey(key *Pubkey) *KeyChange {
 		if change.Error = w.InsertKey(key); change.Error == nil {
 			w.UpdateKeyRelations(key)
 		} else {
-			log.Println(change.Error)
+			log.Error(change.Error)
 		}
 	}
 	if change.Type != KeyNotChanged {
-		log.Println(change)
+		log.Info(change)
 	}
 	return change
 }

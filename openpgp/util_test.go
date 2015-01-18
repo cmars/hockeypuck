@@ -24,13 +24,13 @@ import (
 	"testing"
 
 	"golang.org/x/crypto/openpgp/armor"
-
-	"github.com/hockeypuck/hockeypuck"
 )
 
+/*
 func init() {
 	hockeypuck.SetConfig("")
 }
+*/
 
 func MustInput(t *testing.T, name string) *os.File {
 	_, thisFile, _, ok := runtime.Caller(0)

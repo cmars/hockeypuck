@@ -19,9 +19,9 @@
 package main
 
 import (
+	"gopkg.in/errgo.v1"
 	"launchpad.net/gnuflag"
 
-	. "github.com/hockeypuck/hockeypuck"
 	"github.com/hockeypuck/hockeypuck/openpgp"
 )
 
@@ -53,37 +53,46 @@ func newDbCmd() *dbCmd {
 	return cmd
 }
 
-func (c *dbCmd) Main() {
-	c.configuredCmd.Main()
-	InitLog()
-	var db *openpgp.DB
-	var err error
-	if db, err = openpgp.NewDB(); err != nil {
-		die(err)
+func (c *dbCmd) Main() error {
+	err := c.configuredCmd.Main()
+	if err != nil {
+		return errgo.Mask(err)
 	}
+
+	db, err := openpgp.NewDB(c.settings)
+	if err != nil {
+		return errgo.Mask(err)
+	}
+
 	// Ensure tables all exist
 	if c.crTables {
-		if err = db.CreateTables(); err != nil {
-			die(err)
+		err = db.CreateTables()
+		if err != nil {
+			return errgo.Mask(err)
 		}
 	}
 	// Drop constraints
 	if c.drConstraints {
 		// Create all constraints
-		if err = db.DropConstraints(); err != nil {
-			die(err)
+		err = db.DropConstraints()
+		if err != nil {
+			return errgo.Mask(err)
 		}
 	}
 	// De-duplication option
 	if c.dedup {
-		if err = db.DeleteDuplicates(); err != nil {
-			die(err)
+		err = db.DeleteDuplicates()
+		if err != nil {
+			return errgo.Mask(err)
 		}
 	}
 	// Create all constraints
 	if c.crConstraints {
-		if err = db.CreateConstraints(); err != nil {
-			die(err)
+		err = db.CreateConstraints()
+		if err != nil {
+			return errgo.Mask(err)
 		}
 	}
+
+	return nil
 }

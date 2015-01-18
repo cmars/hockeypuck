@@ -26,12 +26,12 @@ import (
 	"fmt"
 	"hash"
 	"io"
-	"log"
 	"strings"
 	"time"
 
 	"golang.org/x/crypto/openpgp/errors"
 	"golang.org/x/crypto/openpgp/packet"
+	log "gopkg.in/hockeypuck/logrus.v0"
 
 	"github.com/hockeypuck/hockeypuck/util"
 )
@@ -226,7 +226,7 @@ func (pubkey *Pubkey) initV4() error {
 		return err
 	}
 	if pubkey.PublicKey.IsSubkey {
-		log.Println("Expected primary public key packet, got sub-key")
+		log.Warn("expected primary public key packet, got sub-key")
 		return ErrInvalidPacketType
 	}
 	pubkey.RFingerprint = util.Reverse(fingerprint)
@@ -249,7 +249,7 @@ func (pubkey *Pubkey) initV3() error {
 		return err
 	}
 	if pubkey.PublicKeyV3.IsSubkey {
-		log.Println("Expected primary public key packet, got sub-key")
+		log.Warn("expected primary public key packet, got sub-key")
 		return ErrInvalidPacketType
 	}
 	pubkey.RFingerprint = util.Reverse(fingerprint)
@@ -323,86 +323,95 @@ func (pubkey *Pubkey) publicKey() *packet.PublicKey     { return pubkey.PublicKe
 func (pubkey *Pubkey) publicKeyV3() *packet.PublicKeyV3 { return pubkey.PublicKeyV3 }
 
 func (pubkey *Pubkey) verifyPublicKeySelfSig(keyrec publicKeyRecord, sig *Signature) error {
-	if !Config().VerifySigs() {
-		return nil
-	}
-	if pubkey.PublicKey != nil && keyrec.publicKey() != nil {
-		if sig.Signature != nil {
-			err := pubkey.PublicKey.VerifyKeySignature(keyrec.publicKey(), sig.Signature)
-			if err == nil {
-				sig.State |= PacketStateSigOk
+	// TODO: need to configure this somewhere sensible
+	//if !Config().VerifySigs() {
+	return nil
+	//}
+	/*
+		if pubkey.PublicKey != nil && keyrec.publicKey() != nil {
+			if sig.Signature != nil {
+				err := pubkey.PublicKey.VerifyKeySignature(keyrec.publicKey(), sig.Signature)
+				if err == nil {
+					sig.State |= PacketStateSigOk
+				}
+				return err
+			} else {
+				return ErrInvalidPacketType
 			}
-			return err
-		} else {
-			return ErrInvalidPacketType
-		}
-	} else if pubkey.PublicKeyV3 != nil && keyrec.publicKeyV3() != nil {
-		if sig.SignatureV3 != nil {
-			err := pubkey.PublicKeyV3.VerifyKeySignatureV3(keyrec.publicKeyV3(), sig.SignatureV3)
-			if err == nil {
-				sig.State |= PacketStateSigOk
+		} else if pubkey.PublicKeyV3 != nil && keyrec.publicKeyV3() != nil {
+			if sig.SignatureV3 != nil {
+				err := pubkey.PublicKeyV3.VerifyKeySignatureV3(keyrec.publicKeyV3(), sig.SignatureV3)
+				if err == nil {
+					sig.State |= PacketStateSigOk
+				}
+				return err
+			} else {
+				return ErrInvalidPacketType
 			}
-			return err
-		} else {
-			return ErrInvalidPacketType
 		}
-	}
-	return ErrPacketRecordState
+		return ErrPacketRecordState
+	*/
 }
 
 func (pubkey *Pubkey) verifyUserIdSelfSig(uid *UserId, sig *Signature) error {
-	if !Config().VerifySigs() {
-		return nil
-	}
-	if uid.UserId == nil {
+	return nil
+	/*
+		if !Config().VerifySigs() {
+			return nil
+		}
+		if uid.UserId == nil {
+			return ErrPacketRecordState
+		}
+		if pubkey.PublicKey != nil {
+			if sig.Signature != nil {
+				err := pubkey.PublicKey.VerifyUserIdSignature(uid.UserId.Id, pubkey.PublicKey, sig.Signature)
+				if err == nil {
+					sig.State |= PacketStateSigOk
+				}
+				return err
+			} else if sig.SignatureV3 != nil {
+				err := pubkey.PublicKey.VerifyUserIdSignatureV3(uid.UserId.Id, pubkey.PublicKey, sig.SignatureV3)
+				if err == nil {
+					sig.State |= PacketStateSigOk
+				}
+				return err
+			} else {
+				return ErrInvalidPacketType
+			}
+		} else if pubkey.PublicKeyV3 != nil {
+			if sig.SignatureV3 != nil {
+				return pubkey.PublicKeyV3.VerifyUserIdSignatureV3(uid.UserId.Id, pubkey.PublicKeyV3, sig.SignatureV3)
+			} else {
+				return ErrInvalidPacketType
+			}
+		}
 		return ErrPacketRecordState
-	}
-	if pubkey.PublicKey != nil {
-		if sig.Signature != nil {
-			err := pubkey.PublicKey.VerifyUserIdSignature(uid.UserId.Id, pubkey.PublicKey, sig.Signature)
-			if err == nil {
-				sig.State |= PacketStateSigOk
-			}
-			return err
-		} else if sig.SignatureV3 != nil {
-			err := pubkey.PublicKey.VerifyUserIdSignatureV3(uid.UserId.Id, pubkey.PublicKey, sig.SignatureV3)
-			if err == nil {
-				sig.State |= PacketStateSigOk
-			}
-			return err
-		} else {
-			return ErrInvalidPacketType
-		}
-	} else if pubkey.PublicKeyV3 != nil {
-		if sig.SignatureV3 != nil {
-			return pubkey.PublicKeyV3.VerifyUserIdSignatureV3(uid.UserId.Id, pubkey.PublicKeyV3, sig.SignatureV3)
-		} else {
-			return ErrInvalidPacketType
-		}
-	}
-	return ErrPacketRecordState
+	*/
 }
 
 func (pubkey *Pubkey) verifyUserAttrSelfSig(uat *UserAttribute, sig *Signature) error {
-	if !Config().VerifySigs() {
-		return nil
-	}
-	if uat.UserAttribute == nil {
-		return ErrPacketRecordState
-	}
-	// Not sure if photo IDs are supported pre-V4. We'll just flag these as unvalidated
-	// if they do happen to exist.
-	if pubkey.PublicKey == nil {
-		return ErrInvalidPacketType
-	}
-	if sig.Signature != nil {
-		h, err := pubkey.sigSerializeUserAttribute(uat, sig.Signature.Hash)
-		if err != nil {
-			return err
+	return nil
+	/*
+		if !Config().VerifySigs() {
+			return nil
 		}
-		return pubkey.PublicKey.VerifySignature(h, sig.Signature)
-	}
-	return ErrPacketRecordState
+		if uat.UserAttribute == nil {
+			return ErrPacketRecordState
+		}
+		// Not sure if photo IDs are supported pre-V4. We'll just flag these as unvalidated
+		// if they do happen to exist.
+		if pubkey.PublicKey == nil {
+			return ErrInvalidPacketType
+		}
+		if sig.Signature != nil {
+			h, err := pubkey.sigSerializeUserAttribute(uat, sig.Signature.Hash)
+			if err != nil {
+				return err
+			}
+			return pubkey.PublicKey.VerifySignature(h, sig.Signature)
+		}
+		return ErrPacketRecordState
+	*/
 }
 
 // sigSerializeUserAttribute calculates the user attribute packet hash

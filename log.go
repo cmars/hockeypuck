@@ -19,65 +19,52 @@ package hockeypuck
 
 import (
 	"io"
-	"log"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
-)
 
-// Logfile option
-func (s *Settings) LogFile() string {
-	return s.GetString("hockeypuck.logfile")
-}
+	log "gopkg.in/hockeypuck/logrus.v0"
+)
 
 var logOut io.Writer = nil
 
 // InitLog initializes the logging output to the globally configured settings.
 // It also registers SIGHUP, SIGUSR1 and SIGUSR2 to close and reopen the log file
 // for logrotate(8) support.
-//
-// BUG: If InitLog is called before the application is properly configured, it will automatically
-// configure the application with an empty TOML (accept all defaults).
-func InitLog() {
-	if Config() == nil {
-		SetConfig("")
-	}
-	if Config().LogFile() != "" {
-		// Handle signals for log rotation
-		sigChan := make(chan os.Signal)
-		signal.Notify(sigChan, syscall.SIGHUP, syscall.SIGUSR1, syscall.SIGUSR2)
-		go func() {
-			for {
-				select {
-				case _ = <-sigChan:
-					closeable, canClose := logOut.(io.WriteCloser)
-					openLog()
-					if canClose {
-						closeable.Close()
-					}
-					log.Println("Reopened logfile")
+func InitLog(logfile string) {
+	// Handle signals for log rotation
+	sigChan := make(chan os.Signal)
+	signal.Notify(sigChan, syscall.SIGHUP, syscall.SIGUSR1, syscall.SIGUSR2)
+	go func() {
+		for {
+			select {
+			case _ = <-sigChan:
+				closeable, ok := logOut.(io.WriteCloser)
+				openLog(logfile)
+				if ok {
+					closeable.Close()
 				}
+				log.Info("reopened logfile")
 			}
-		}()
-	}
+		}
+	}()
+
 	// Open the log
-	openLog()
+	openLog(logfile)
 }
 
-func openLog() {
-	if Config().LogFile() != "" {
-		var err error
-		logOut, err = os.OpenFile(Config().LogFile(), os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
-		if err != nil {
-			log.Println("Failed to open logfile", err)
-			logOut = os.Stderr
-		} else {
-			log.SetOutput(logOut)
-		}
-	} else {
+func openLog(logfile string) {
+	if logfile == "" {
+		logOut = nil
 		log.SetOutput(os.Stderr)
+		return
 	}
-	log.SetPrefix(filepath.Base(os.Args[0]))
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
+	var err error
+	logOut, err = os.OpenFile(logfile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+	if err != nil {
+		log.Errorf("failed to open logfile: %v", err)
+		return
+	}
+	log.SetOutput(logOut)
 }

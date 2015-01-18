@@ -19,12 +19,14 @@ package hockeypuck
 
 import (
 	"flag"
-	"go/build"
+	//"go/build"
 	"net/http"
 	"os"
 	"path/filepath"
 
 	"github.com/gorilla/mux"
+
+	"github.com/hockeypuck/hockeypuck/settings"
 )
 
 // System installed location for static files.
@@ -44,6 +46,8 @@ func init() {
 	flag.String("webroot", "",
 		"Location of static web server files and templates")
 }
+
+/*
 func (s *Settings) Webroot() string {
 	webroot := s.GetString("webroot")
 	if webroot != "" {
@@ -60,15 +64,17 @@ func (s *Settings) Webroot() string {
 	s.Set("webroot", webroot)
 	return webroot
 }
+*/
 
 // StaticRouter configures HTTP request handlers for static media files.
 type StaticRouter struct {
 	*mux.Router
+	settings *settings.Settings
 }
 
 // NewStaticRouter constructs a new static media router and sets up all request handlers.
-func NewStaticRouter(r *mux.Router) *StaticRouter {
-	sr := &StaticRouter{Router: r}
+func NewStaticRouter(r *mux.Router, s *settings.Settings) *StaticRouter {
+	sr := &StaticRouter{Router: r, settings: s}
 	sr.HandleAll()
 	return sr
 }
@@ -93,7 +99,7 @@ func (sr *StaticRouter) HandleFonts() {
 	sr.HandleFunc(`/fonts/{filename:.*\.ttf}`,
 		func(resp http.ResponseWriter, req *http.Request) {
 			filename := mux.Vars(req)["filename"]
-			path := filepath.Join(Config().Webroot(), "fonts", filename)
+			path := filepath.Join(sr.settings.Webroot, "fonts", filename)
 			if stat, err := os.Stat(path); err != nil || stat.IsDir() {
 				http.NotFound(resp, req)
 				return
@@ -107,7 +113,7 @@ func (sr *StaticRouter) HandleCss() {
 	sr.HandleFunc(`/css/{filename:.*\.css}`,
 		func(resp http.ResponseWriter, req *http.Request) {
 			filename := mux.Vars(req)["filename"]
-			path := filepath.Join(Config().Webroot(), "css", filename)
+			path := filepath.Join(sr.settings.Webroot, "css", filename)
 			if stat, err := os.Stat(path); err != nil || stat.IsDir() {
 				http.NotFound(resp, req)
 				return

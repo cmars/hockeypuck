@@ -21,14 +21,14 @@ package main
 import (
 	"encoding/hex"
 	"fmt"
-	"log"
 	"strings"
 
+	"gopkg.in/errgo.v1"
 	"gopkg.in/hockeypuck/conflux.v2"
 	"gopkg.in/hockeypuck/conflux.v2/recon"
+	log "gopkg.in/hockeypuck/logrus.v0"
 	"launchpad.net/gnuflag"
 
-	. "github.com/hockeypuck/hockeypuck"
 	"github.com/hockeypuck/hockeypuck/openpgp"
 )
 
@@ -36,6 +36,8 @@ type pbuildCmd struct {
 	configuredCmd
 	cache      int
 	ignoreDups bool
+
+	readErr error
 }
 
 func (c *pbuildCmd) Name() string { return "pbuild" }
@@ -54,70 +56,78 @@ func newPbuildCmd() *pbuildCmd {
 	return cmd
 }
 
-func (c *pbuildCmd) Main() {
+func (c *pbuildCmd) Main() error {
 	if c.cache <= 0 {
-		Usage(c, "Max cache size must be > 0")
+		return newUsageError(c, "Max cache size must be > 0")
 	}
-	c.configuredCmd.Main()
-	InitLog()
-	var db *openpgp.DB
-	var err error
-	if db, err = openpgp.NewDB(); err != nil {
-		die(err)
+	err := c.configuredCmd.Main()
+	if err != nil {
+		return errgo.Mask(err)
 	}
-	var ptree recon.PrefixTree
-	reconSettings := recon.NewSettings(openpgp.Config().Settings.TomlTree)
-	reconSettings.Set("conflux.recon.diskv.cacheSizeMax", 1024*1024*c.cache)
-	if ptree, err = openpgp.NewSksPTree(reconSettings); err != nil {
-		die(err)
+
+	db, err := openpgp.NewDB(c.settings)
+	if err != nil {
+		return errgo.Mask(err)
 	}
-	if err = ptree.Create(); err != nil {
-		panic(err)
+
+	ptree, err := openpgp.NewSksPTree(c.settings)
+	if err != nil {
+		return errgo.NoteMask(err, "failed to instantiate prefix tree")
+	}
+	err = ptree.Create()
+	if err != nil {
+		return errgo.NoteMask(err, "failed to create/open prefix tree")
 	}
 	n := 0
-	for z := range readHashes(db) {
+	for z := range c.readHashes(db) {
 		err = ptree.Insert(z)
 		if err != nil {
 			if c.ignoreDups && strings.Contains(err.Error(), "insert duplicate element") {
 				continue
 			}
-			log.Printf("Error inserting %x into ptree: %v", z.Bytes(), err)
-			panic(err)
+			log.Errorf("failed to insert %x into ptree: %v", z.Bytes(), err)
+			return errgo.Mask(err)
 		}
 		n++
 		if n%1000 == 0 {
 			fmt.Printf(".")
 		}
 	}
-	if err = ptree.Close(); err != nil {
-		log.Println("Close:", err)
+	if c.readErr != nil {
+		return errgo.Mask(c.readErr)
 	}
+	return errgo.NoteMask(ptree.Close(), "error closing prefix tree")
 }
 
-func readHashes(db *openpgp.DB) chan *conflux.Zp {
+func (c *pbuildCmd) readHashes(db *openpgp.DB) chan *conflux.Zp {
 	hashes := make(chan *conflux.Zp)
 	go func() {
 		defer close(hashes)
 		rows, err := db.DB.Query("SELECT md5 FROM openpgp_pubkey")
 		if err != nil {
-			die(err)
+			c.readErr = errgo.NoteMask(err, "db select error")
+			return
 		}
 		for rows.Next() {
 			var md5str string
-			if err = rows.Scan(&md5str); err != nil {
-				die(err)
+			err = rows.Scan(&md5str)
+			if err != nil {
+				c.readErr = errgo.Mask(err)
+				return
 			}
 			digest, err := hex.DecodeString(md5str)
 			if err != nil {
-				log.Println("Bad md5:", md5str)
+				log.Warnf("bad key md5 %q found in query", md5str)
 				continue
 			}
 			digest = recon.PadSksElement(digest)
 			digestZp := conflux.Zb(conflux.P_SKS, digest)
 			hashes <- digestZp
 		}
-		if err = rows.Err(); err != nil {
-			log.Println("Error during hash query:", err)
+		err = rows.Err()
+		if err != nil {
+			c.readErr = errgo.NoteMask(err, "db error during hash query")
+			return
 		}
 	}()
 	return hashes

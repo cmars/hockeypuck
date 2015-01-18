@@ -18,13 +18,15 @@
 package openpgp
 
 import (
-	"log"
 	"net"
 	"strconv"
 	"sync"
 	"time"
 
-	"github.com/hockeypuck/hockeypuck"
+	"gopkg.in/errgo.v1"
+	log "gopkg.in/hockeypuck/logrus.v0"
+	"gopkg.in/tomb.v2"
+
 	"github.com/hockeypuck/hockeypuck/hkp"
 )
 
@@ -39,58 +41,62 @@ func init() {
 	keyStatsLock = &sync.Mutex{}
 }
 
-func (s *Settings) StatsRefresh() int {
-	return s.GetIntDefault("hockeypuck.openpgp.statsRefresh", 4)
-}
-
 func (w *Worker) monitorStats() {
-	statsRefresh := Config().StatsRefresh()
+	statsRefresh := w.settings.OpenPGP.StatsRefreshHours
 	if statsRefresh <= 0 {
-		log.Println("load statistics disabled")
+		log.Infof("load statistics disabled")
 		return
 	}
 
 	for {
-		go func() {
+		var t tomb.Tomb
+		t.Go(func() error {
 			var stats []struct {
 				TotalKeys int `db:"total_keys"`
 			}
 			err := w.db.Select(&stats, selectTotalKeys)
 			if err != nil {
-				log.Println("failed to update total keys: %v", err)
-			} else {
-				keyStatsLock.Lock()
-				defer keyStatsLock.Unlock()
-				if len(stats) > 0 {
-					keyStatsTotal = stats[0].TotalKeys
-					log.Println("total keys updated")
-				}
+				log.Errorf("failed to update total keys: %v", err)
+				return errgo.Mask(err)
 			}
-		}()
-		go func() {
+			keyStatsLock.Lock()
+			defer keyStatsLock.Unlock()
+			if len(stats) > 0 {
+				keyStatsTotal = stats[0].TotalKeys
+				log.Info("total keys updated")
+			}
+			return nil
+		})
+		t.Go(func() error {
 			var stats []PksKeyStats
 			err := w.db.Select(&stats, selectHourlyStats)
 			if err != nil {
-				log.Println("failed to update hourly stats: %v", err)
-			} else {
-				keyStatsLock.Lock()
-				defer keyStatsLock.Unlock()
-				keyStatsHourly = stats
-				log.Println("hourly stats updated")
+				log.Errorf("failed to update hourly stats: %v", err)
+				return errgo.Mask(err)
 			}
-		}()
-		go func() {
+			keyStatsLock.Lock()
+			defer keyStatsLock.Unlock()
+			keyStatsHourly = stats
+			log.Info("hourly stats updated")
+			return nil
+		})
+		t.Go(func() error {
 			var stats []PksKeyStats
 			err := w.db.Select(&stats, selectDailyStats)
 			if err != nil {
-				log.Println("failed to update daily stats: %v", err)
-			} else {
-				keyStatsLock.Lock()
-				defer keyStatsLock.Unlock()
-				keyStatsDaily = stats
-				log.Println("daily stats updated")
+				log.Errorf("failed to update daily stats: %v", err)
+				return errgo.Mask(err)
 			}
-		}()
+			keyStatsLock.Lock()
+			defer keyStatsLock.Unlock()
+			keyStatsDaily = stats
+			log.Info("daily stats updated")
+			return nil
+		})
+		err := t.Wait()
+		if err != nil {
+			log.Errorf("errors updating statistics")
+		}
 		time.Sleep(time.Duration(statsRefresh) * time.Hour)
 	}
 }
@@ -101,7 +107,7 @@ func (w *Worker) Stats(l *hkp.Lookup) {
 	resp := &StatsResponse{
 		Lookup: l,
 		Stats: &HkpStats{
-			Version:        hockeypuck.Version,
+			//Version:        hockeypuck.Version,
 			KeyStatsHourly: keyStatsHourly,
 			KeyStatsDaily:  keyStatsDaily,
 			TotalKeys:      keyStatsTotal,
@@ -145,11 +151,11 @@ func (s *HkpStats) fetchServerInfo(l *hkp.Lookup) {
 	if host, port, err := net.SplitHostPort(l.Host); err == nil {
 		s.Hostname = host
 		if s.Port, err = strconv.Atoi(port); err != nil {
-			log.Println("Error parsing port:", err)
+			log.Warnf("cannot parse port out of address %q: %v", l.Host, err)
 		}
 	} else {
 		s.Hostname = l.Host
-		log.Println("Error parsing Host:", err)
+		log.Warnf("cannot parse address %q: %v", l.Host, err)
 	}
 }
 

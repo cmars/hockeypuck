@@ -32,19 +32,19 @@ import (
 // ErrorMissingParam constructs an informative error when a
 // required parameter was missing from a request.
 func ErrorMissingParam(param string) error {
-	return errors.New(fmt.Sprintf("Missing required parameter: %s", param))
+	return errgo.Newf("missing required parameter: %s", param)
 }
 
 // ErrorMissingParam constructs an informative error when an
 // unknown operation was requested.
 func ErrorUnknownOperation(op string) error {
-	return errors.New(fmt.Sprintf("Unknown operation: %s", op))
+	return errgo.Newf("unknown operation: %s", op)
 }
 
 // ErrorMissingParam constructs an informative error when an
 // invalid HTTP method was requested for the given HKP endpoint.
 func ErrorInvalidMethod(method string) error {
-	return errors.New(fmt.Sprintf("Invalid HTTP method: %s", method))
+	return errgo.Newf("invalid HTTP method: %s", method)
 }
 
 // Request defines an interface for all HKP web requests.
@@ -140,7 +140,7 @@ func (l *Lookup) Parse() error {
 	l.Hash = l.Form.Get("hash") == "on"
 	// Parse the "exact" variable (section 3.2.3)
 	l.Exact = l.Form.Get("exact") == "on"
-	return err
+	return nil
 }
 
 func (l *Lookup) MachineReadable() bool { return l.Option&MachineReadable != 0 }

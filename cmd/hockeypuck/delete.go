@@ -20,17 +20,16 @@ package main
 
 import (
 	"encoding/hex"
-	"fmt"
-	"log"
 	"strings"
 
+	"gopkg.in/errgo.v1"
 	"gopkg.in/hockeypuck/conflux.v2"
 	"gopkg.in/hockeypuck/conflux.v2/recon"
+	log "gopkg.in/hockeypuck/logrus.v0"
+	"launchpad.net/gnuflag"
 
-	. "github.com/hockeypuck/hockeypuck"
 	"github.com/hockeypuck/hockeypuck/openpgp"
 	"github.com/hockeypuck/hockeypuck/util"
-	"launchpad.net/gnuflag"
 )
 
 type deleteCmd struct {
@@ -57,41 +56,52 @@ func newDeleteCmd() *deleteCmd {
 	return cmd
 }
 
-func (ec *deleteCmd) Main() {
-	var err error
-	if ec.keyHash != "" && ec.fingerprint != "" {
-		Usage(ec, "Cannot specify both --keyHash and --fingerprint. Choose one.")
+func (ec *deleteCmd) Main() error {
+	err := ec.configuredCmd.Main()
+	if err != nil {
+		return errgo.Mask(err)
 	}
-	ec.configuredCmd.Main()
-	InitLog()
-	if ec.db, err = openpgp.NewDB(); err != nil {
-		die(err)
+
+	if ec.keyHash != "" && ec.fingerprint != "" {
+		return newUsageError(ec, "cannot specify both --keyHash and --fingerprint")
+	}
+	ec.db, err = openpgp.NewDB(ec.settings)
+	if err != nil {
+		return errgo.Mask(err)
 	}
 	// Ensure tables all exist
-	if err = ec.db.CreateTables(); err != nil {
-		die(err)
+	err = ec.db.CreateTables()
+	if err != nil {
+		return errgo.Mask(err)
 	}
-	reconSettings := recon.NewSettings(openpgp.Config().Settings.TomlTree)
-	if ec.ptree, err = openpgp.NewSksPTree(reconSettings); err != nil {
-		die(err)
+	ec.ptree, err = openpgp.NewSksPTree(ec.settings)
+	if err != nil {
+		return errgo.Mask(err)
 	}
 	// Create the prefix tree (if not exists)
-	if err = ec.ptree.Create(); err != nil {
-		die(err)
+	err = ec.ptree.Create()
+	if err != nil {
+		return errgo.Mask(err)
 	}
 	// Ensure tables all exist
-	if err = ec.db.CreateTables(); err != nil {
-		die(err)
+	err = ec.db.CreateTables()
+	if err != nil {
+		return errgo.Mask(err)
 	}
 	defer ec.db.Close()
 	defer ec.ptree.Close()
 	if ec.keyHash != "" {
-		ec.deleteKeyHash()
+		err = ec.deleteKeyHash()
+		if err != nil {
+			return errgo.Mask(err)
+		}
 	} else if ec.fingerprint != "" {
-		ec.deleteFingerprint()
-	} else {
-		Usage(ec, "One of --keyHash or --fingerprint is required")
+		err = ec.deleteFingerprint()
+		if err != nil {
+			return errgo.Mask(err)
+		}
 	}
+	return newUsageError(ec, "one of --keyHash, --fingerprint required")
 }
 
 var UpdateFkSql []string = []string{
@@ -114,56 +124,58 @@ var DeletePubkeySql []string = []string{
 	"DELETE FROM openpgp_sig WHERE pubkey_uuid = $1",
 }
 
-func (ec *deleteCmd) deleteKeyHash() {
+func (ec *deleteCmd) deleteKeyHash() error {
 	ec.keyHash = strings.ToLower(ec.keyHash)
 	keyHashBuf, err := hex.DecodeString(ec.keyHash)
 	if err != nil {
-		die(err)
+		return errgo.Mask(err)
 	}
 	if err = ec.ptree.Remove(conflux.Zb(conflux.P_SKS, keyHashBuf)); err != nil {
-		log.Println("Remove [%s] from prefix tree: %v", ec.keyHash, err)
+		log.Errorf("failed to remove key %q from prefix tree: %v", ec.keyHash, err)
 	}
 	var uuid string
 	row, err := ec.db.Query(
 		"SELECT uuid FROM openpgp_pubkey WHERE md5 = $1", ec.keyHash)
 	if err != nil {
-		die(err)
+		return errgo.Mask(err)
 	}
 	if !row.Next() {
-		die(fmt.Errorf("Key hash [%d] not found", ec.keyHash))
+		return errgo.Newf("key hash %q not found", ec.keyHash)
 	}
 	err = row.Scan(&uuid)
 	if err != nil {
-		die(err)
+		return errgo.Mask(err)
 	}
 	ec.deletePubkey(uuid)
-	log.Println(ec.keyHash, "deleted from prefix tree and database")
+	log.Infof("key %q deleted from prefix tree and database", ec.keyHash)
+	return nil
 }
 
-func (ec *deleteCmd) deleteFingerprint() {
+func (ec *deleteCmd) deleteFingerprint() error {
 	uuid := strings.ToLower(util.Reverse(ec.fingerprint))
 	row, err := ec.db.Query(
 		"SELECT md5 FROM openpgp_pubkey WHERE uuid = $1", uuid)
 	if err != nil {
-		die(err)
+		return errgo.Mask(err)
 	}
 	if !row.Next() {
-		die(fmt.Errorf("Key fingerprint [%s] not found", uuid))
+		return errgo.Newf("key %q not found", uuid)
 	}
 	var keyHash string
 	err = row.Scan(&keyHash)
 	if err != nil {
-		die(err)
+		return errgo.Mask(err)
 	}
 	keyHashBuf, err := hex.DecodeString(keyHash)
 	if err != nil {
-		die(err)
+		return errgo.Mask(err)
 	}
 	if err = ec.ptree.Remove(conflux.Zb(conflux.P_SKS, keyHashBuf)); err != nil {
-		log.Println("Remove [%s] from prefix tree: %v", keyHash, err)
+		log.Errorf("remove %q from prefix tree: %v", keyHash, err)
 	}
 	ec.deletePubkey(uuid)
-	log.Println(ec.keyHash, "deleted from prefix tree and database")
+	log.Infof("key %q deleted from prefix tree and database", ec.keyHash)
+	return nil
 }
 
 func (ec *deleteCmd) deletePubkey(uuid string) {

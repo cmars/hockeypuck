@@ -19,57 +19,70 @@ package openpgp
 
 import (
 	"database/sql"
-	"log"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
+	"gopkg.in/errgo.v1"
+	log "gopkg.in/hockeypuck/logrus.v0"
+
+	"github.com/hockeypuck/hockeypuck/settings"
 )
 
 func Execv(e sqlx.Execer, query string, args ...interface{}) (sql.Result, error) {
 	res, err := e.Exec(query, args...)
 	if err != nil {
-		log.Println(query, res, err)
+		log.Errorf("error executing query %q: %v", query, err)
+		return nil, err
 	}
-	return res, err
+	return res, nil
 }
 
 func Execf(e sqlx.Execer, query string, args ...interface{}) (sql.Result, error) {
 	res, err := e.Exec(query, args...)
 	if err != nil {
-		log.Fatalln(query, res, err)
+		log.Errorf("error executing query %q: %v", query, err)
+		return nil, err
 	}
-	return res, err
+	return res, nil
 }
 
 type DB struct {
 	*sqlx.DB
 }
 
-func NewDB() (db *DB, err error) {
-	db = new(DB)
-	db.DB, err = sqlx.Connect(Config().Driver(), Config().DSN())
-	return
+func NewDB(s *settings.Settings) (*DB, error) {
+	var err error
+	db := &DB{}
+	db.DB, err = sqlx.Connect(s.OpenPGP.DB.Driver, s.OpenPGP.DB.DSN)
+	if err != nil {
+		return nil, errgo.Mask(err)
+	}
+	return db, nil
 }
 
 func (db *DB) CreateSchema() error {
 	if err := db.CreateTables(); err != nil {
-		return err
+		return errgo.Mask(err)
 	}
 	return db.CreateConstraints()
 }
 
 func (db *DB) CreateTables() error {
 	for _, crSql := range CreateTablesSql {
-		Execf(db, crSql)
+		log.Debug(crSql)
+		_, err := Execf(db, crSql)
+		if err != nil {
+			return errgo.Mask(err)
+		}
 	}
 	return nil
 }
 
 func (db *DB) DeleteDuplicates() error {
 	for _, sql := range DeleteDuplicatesSql {
-		log.Println(sql)
+		log.Debug(sql)
 		if _, err := db.Exec(sql); err != nil {
-			return err
+			return errgo.Mask(err)
 		}
 	}
 	return nil
@@ -106,9 +119,14 @@ func isDuplicateConstraint(err error) bool {
 func (db *DB) CreateConstraints() error {
 	for _, crSqls := range CreateConstraintsSql {
 		for _, crSql := range crSqls {
-			log.Println(crSql)
-			if _, err := db.Exec(crSql); err != nil && !isDuplicateConstraint(err) {
-				return err
+			log.Debug(crSql)
+			_, err := db.Exec(crSql)
+			if err != nil {
+				if !isDuplicateConstraint(err) {
+					return errgo.Mask(err)
+				} else {
+					log.Debugf("ignored duplicate constraint error: %v", err)
+				}
 			}
 		}
 	}
@@ -118,10 +136,10 @@ func (db *DB) CreateConstraints() error {
 func (db *DB) DropConstraints() error {
 	for _, drSqls := range DropConstraintsSql {
 		for _, drSql := range drSqls {
-			log.Println(drSql)
+			log.Debug(drSql)
 			if _, err := db.Exec(drSql); err != nil {
 				// TODO: Ignore duplicate error or check for this ahead of time
-				log.Println(err)
+				return errgo.Mask(err)
 			}
 		}
 	}
