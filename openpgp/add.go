@@ -30,7 +30,7 @@ import (
 	"golang.org/x/crypto/openpgp/armor"
 	log "gopkg.in/hockeypuck/logrus.v0"
 
-	. "github.com/hockeypuck/hockeypuck/errors"
+	"github.com/hockeypuck/hockeypuck"
 	"github.com/hockeypuck/hockeypuck/hkp"
 )
 
@@ -85,9 +85,9 @@ func (w *Worker) recoverKey(rk *RecoverKey) hkp.Response {
 		return &ErrorResponse{err}
 	}
 	if len(pubkeys) == 0 {
-		return &ErrorResponse{ErrKeyNotFound}
+		return &ErrorResponse{hockeypuck.ErrKeyNotFound}
 	} else if len(pubkeys) > 1 {
-		return &ErrorResponse{ErrTooManyResponses}
+		return &ErrorResponse{hockeypuck.ErrTooManyResponses}
 	}
 	resp.Change = w.UpsertKey(pubkeys[0])
 	if resp.Change.Error != nil {
@@ -99,7 +99,7 @@ func (w *Worker) recoverKey(rk *RecoverKey) hkp.Response {
 
 // ErrSubKeyChanges is an error occurring when attempting to subscribe
 // to KeyChange messages on a worker that already has a subscriber.
-var ErrSubKeyChanges error = fmt.Errorf("Worker already has a key change subscriber")
+var ErrSubKeyChanges error = errors.New("worker already has a key change subscriber")
 
 // SubKeyChanges subscribes a KeyChange channel to receive updates on
 // any keys added or updated by this worker.
@@ -161,19 +161,20 @@ func (kc *KeyChange) String() string {
 	var msg string
 	switch kc.Type {
 	case KeyChangeInvalid:
-		msg = fmt.Sprintf("Invalid key change for [%s] could not be processed",
-			kc.Fingerprint)
+		msg = fmt.Sprintf("invalid change for key fp=%q", kc.Fingerprint)
 	case KeyAdded:
-		msg = fmt.Sprintf("Add key %s, [%s..]", kc.Fingerprint, kc.CurrentSha256[:8])
+		msg = fmt.Sprintf("add key fp=%q, md5=%q", kc.Fingerprint, kc.CurrentMd5)
 	case KeyModified:
-		msg = fmt.Sprintf("Modify key %s, [%s.. -> %s..]", kc.Fingerprint,
-			kc.PreviousSha256[:8], kc.CurrentSha256[:8])
+		msg = fmt.Sprintf("modify key fp=%q, md5=%q prev_md5=%q", kc.Fingerprint,
+			kc.CurrentMd5, kc.PreviousMd5)
 	case KeyNotChanged:
-		msg = fmt.Sprintf("No change in key %s", kc.Fingerprint)
+		msg = fmt.Sprintf("no change in key %s", kc.Fingerprint)
+	default:
+		msg = fmt.Sprintf("unknown KeyChange type=%s", kc.Type)
 	}
 	w.Write([]byte(msg))
 	if kc.Error != nil {
-		w.Write([]byte(fmt.Sprintf(": Error: %v", kc.Error)))
+		w.Write([]byte(fmt.Sprintf(": %v", kc.Error)))
 	}
 	return w.String()
 }
@@ -196,7 +197,7 @@ func (w *Worker) UpsertKey(key *Pubkey) *KeyChange {
 		CurrentMd5:    key.Md5,
 		CurrentSha256: key.Sha256}
 	lastKey, err := w.LookupKey(key.Fingerprint())
-	if err == ErrKeyNotFound {
+	if err == hockeypuck.ErrKeyNotFound {
 		change.Type = KeyAdded
 	} else if err != nil {
 		change.Error = err
@@ -343,7 +344,7 @@ func NewUuid() (string, error) {
 		return "", err
 	}
 	if n < UUID_LEN {
-		return "", fmt.Errorf("Failed to generate UUID")
+		return "", fmt.Errorf("failed to generate UUID")
 	}
 	return string(buf.Bytes()), nil
 }

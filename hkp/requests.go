@@ -20,12 +20,11 @@ package hkp
 import (
 	"bytes"
 	"encoding/hex"
-	"errors"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strings"
 
+	"gopkg.in/errgo.v1"
 	"gopkg.in/hockeypuck/conflux.v2/recon"
 )
 

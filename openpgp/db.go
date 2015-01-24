@@ -53,6 +53,7 @@ type DB struct {
 func NewDB(s *settings.Settings) (*DB, error) {
 	var err error
 	db := &DB{}
+	log.Debugf("connecting to driver=%q dsn=%q", s.OpenPGP.DB.Driver, s.OpenPGP.DB.DSN)
 	db.DB, err = sqlx.Connect(s.OpenPGP.DB.Driver, s.OpenPGP.DB.DSN)
 	if err != nil {
 		return nil, errgo.Mask(err)

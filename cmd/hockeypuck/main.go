@@ -29,7 +29,7 @@ import (
 	"gopkg.in/errgo.v1"
 	"launchpad.net/gnuflag"
 
-	. "github.com/hockeypuck/hockeypuck"
+	"github.com/hockeypuck/hockeypuck"
 	"github.com/hockeypuck/hockeypuck/settings"
 )
 
@@ -58,13 +58,12 @@ func (err *usageError) usage() {
 }
 
 func die(err error) {
-	usageErr, ok := err.(*usageError)
-	if ok {
-		usageErr.usage()
-	}
-
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%s\n", err.Error())
+		usageErr, ok := err.(*usageError)
+		if ok {
+			usageErr.usage()
+		}
+		fmt.Fprintf(os.Stderr, "%s\n", errgo.Details(err))
 		os.Exit(1)
 	}
 	os.Exit(0)
@@ -172,7 +171,7 @@ func (c *versionCmd) Name() string { return "version" }
 func (c *versionCmd) Desc() string { return "Display Hockeypuck version information" }
 
 func (c *versionCmd) Main() error {
-	fmt.Println(Version)
+	fmt.Println(hockeypuck.Version)
 	return nil
 }
 
@@ -211,5 +210,6 @@ func (c *configuredCmd) Main() error {
 	}
 
 	c.configDir = filepath.Dir(c.configPath)
+	hockeypuck.InitLog(c.settings)
 	return nil
 }

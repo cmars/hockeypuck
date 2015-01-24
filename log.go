@@ -21,9 +21,12 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	log "gopkg.in/hockeypuck/logrus.v0"
+
+	"github.com/hockeypuck/hockeypuck/settings"
 )
 
 var logOut io.Writer = nil
@@ -31,7 +34,7 @@ var logOut io.Writer = nil
 // InitLog initializes the logging output to the globally configured settings.
 // It also registers SIGHUP, SIGUSR1 and SIGUSR2 to close and reopen the log file
 // for logrotate(8) support.
-func InitLog(logfile string) {
+func InitLog(s *settings.Settings) {
 	// Handle signals for log rotation
 	sigChan := make(chan os.Signal)
 	signal.Notify(sigChan, syscall.SIGHUP, syscall.SIGUSR1, syscall.SIGUSR2)
@@ -40,7 +43,7 @@ func InitLog(logfile string) {
 			select {
 			case _ = <-sigChan:
 				closeable, ok := logOut.(io.WriteCloser)
-				openLog(logfile)
+				openLog(s)
 				if ok {
 					closeable.Close()
 				}
@@ -50,21 +53,31 @@ func InitLog(logfile string) {
 	}()
 
 	// Open the log
-	openLog(logfile)
+	openLog(s)
 }
 
-func openLog(logfile string) {
-	if logfile == "" {
+func openLog(s *settings.Settings) {
+	defer func() {
+		level, err := log.ParseLevel(strings.ToLower(s.LogLevel))
+		if err != nil {
+			log.Warningf("invalid LogLevel %q: %v", s.LogLevel, err)
+			return
+		}
+		log.SetLevel(level)
+	}()
+
+	if s.LogFile == "" {
 		logOut = nil
 		log.SetOutput(os.Stderr)
 		return
 	}
 
 	var err error
-	logOut, err = os.OpenFile(logfile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+	logOut, err = os.OpenFile(s.LogFile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 	if err != nil {
-		log.Errorf("failed to open logfile: %v", err)
+		log.Errorf("failed to open LogFile: %v", err)
 		return
 	}
 	log.SetOutput(logOut)
+	log.Debug("log opened")
 }

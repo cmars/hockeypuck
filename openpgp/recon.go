@@ -66,6 +66,13 @@ type RecoverKey struct {
 }
 
 func NewSksPTree(s *settings.Settings) (recon.PrefixTree, error) {
+	if _, err := os.Stat(s.Conflux.Recon.LevelDB.Path); os.IsNotExist(err) {
+		log.Debugf("creating prefix tree at: %q", s.Conflux.Recon.LevelDB.Path)
+		err = os.MkdirAll(s.Conflux.Recon.LevelDB.Path, 0755)
+		if err != nil {
+			return nil, errgo.Mask(err)
+		}
+	}
 	return leveldb.New(s.Conflux.Recon.PTreeConfig, s.Conflux.Recon.LevelDB.Path)
 }
 
@@ -152,15 +159,13 @@ func (r *SksPeer) HandleKeyUpdates() error {
 				continue
 			}
 			log.Debugf("insert prefix tree: %q %v %v", hex.EncodeToString(digestZp.Bytes()), keyChange, keyChange.CurrentMd5)
-			r.Peer.Insert(digestZp)
-			// TODO: need to make prefix tree updates transactional
-			/*
+			r.Peer.InsertWith(func(err error) {
 				if err != nil {
-					log.Println(err)
-				} else {
-			*/
-			delete(r.recoverAttempts, digestZp.String())
-			//}
+					log.Errorf("insert %q failed: %v", digestZp, err)
+				}
+				// TODO: this needs locking!
+				delete(r.recoverAttempts, digestZp.String())
+			}, digestZp)
 			if keyChange.PreviousMd5 != "" && keyChange.PreviousMd5 != keyChange.CurrentMd5 {
 				prevDigestZp, err := DigestZp(keyChange.PreviousMd5)
 				if err != nil {
@@ -169,12 +174,11 @@ func (r *SksPeer) HandleKeyUpdates() error {
 				}
 				log.Debugf("remove prefix tree: %q", prevDigestZp)
 				// TODO: here as well
-				r.Peer.Remove(prevDigestZp)
-				/*
+				r.Peer.RemoveWith(func(err error) {
 					if err != nil {
-						log.Println(err)
+						log.Errorf("remove %q failed: %v", prevDigestZp, err)
 					}
-				*/
+				}, prevDigestZp)
 			}
 		}
 	}
@@ -291,17 +295,16 @@ func (r *SksPeer) requestRecovered(rcvr *recon.Recover, elements *cf.ZSet) error
 
 func (r *SksPeer) countChunk(chunk []*cf.Zp) {
 	for _, z := range chunk {
+		// TODO: needs locking
 		r.recoverAttempts[z.String()] = r.recoverAttempts[z.String()] + 1
 		n := r.recoverAttempts[z.String()]
 		if n > MaxKeyRecoveryAttempts {
 			log.Warnf("giving up on key %q after failing to recover %d attempts", z, n)
-			r.Insert(z)
-			// TODO: make this transactional. Better yet, support bulk feedback per inserted Zp.
-			/*
+			r.InsertWith(func(err error) {
 				if err != nil {
-					log.Println("failed to insert", z, "into prefix tree to prevent further attempts")
+					log.Errorf("failed to insert %s into prefix tree to prevent further attempts", z)
 				}
-			*/
+			}, z)
 		}
 	}
 }

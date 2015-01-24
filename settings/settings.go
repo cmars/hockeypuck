@@ -10,11 +10,13 @@ type confluxConfig struct {
 	Recon reconConfig `toml:"recon"`
 }
 
+type levelDB struct {
+	Path string `toml:"path"`
+}
+
 type reconConfig struct {
 	recon.Settings
-	LevelDB struct {
-		Path string `toml:"path"`
-	} `toml:"leveldb"`
+	LevelDB levelDB `toml:"leveldb"`
 }
 
 const (
@@ -50,7 +52,7 @@ type SmtpConfig struct {
 
 const (
 	DefaultDBDriver = "postgres"
-	DefaultDBDSN    = "dbname=hkp host=/var/run/postgresql sslmode=disable user=%s"
+	DefaultDBDSN    = "dbname=hkp host=/var/run/postgresql sslmode=disable"
 )
 
 type DBConfig struct {
@@ -90,9 +92,15 @@ type Settings struct {
 
 	OpenPGP OpenPGPConfig `toml:"openpgp"`
 
-	Logfile string `toml:"logfile"`
-	Webroot string `toml:"webroot"`
+	LogFile  string `toml:"logfile"`
+	LogLevel string `toml:"loglevel"`
+	Webroot  string `toml:"webroot"`
 }
+
+const (
+	DefaultLogLevel    = "INFO"
+	DefaultLevelDBPath = "recon.db"
+)
 
 func Default() Settings {
 	reconSettings := recon.DefaultSettings()
@@ -100,12 +108,16 @@ func Default() Settings {
 		Conflux: confluxConfig{
 			Recon: reconConfig{
 				Settings: *reconSettings,
+				LevelDB: levelDB{
+					Path: DefaultLevelDBPath,
+				},
 			},
 		},
 		Hkp: HkpConfig{
 			Bind: DefaultHkpBind,
 		},
-		OpenPGP: DefaultOpenPGP(),
+		OpenPGP:  DefaultOpenPGP(),
+		LogLevel: DefaultLogLevel,
 	}
 }
 
@@ -123,5 +135,6 @@ func Parse(data string) (*Settings, error) {
 	if err != nil {
 		return nil, errgo.Mask(err)
 	}
+
 	return &doc.Hockeypuck, nil
 }

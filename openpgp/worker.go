@@ -31,7 +31,7 @@ import (
 	"gopkg.in/errgo.v1"
 	log "gopkg.in/hockeypuck/logrus.v0"
 
-	. "github.com/hockeypuck/hockeypuck/errors"
+	"github.com/hockeypuck/hockeypuck"
 	"github.com/hockeypuck/hockeypuck/hkp"
 	"github.com/hockeypuck/hockeypuck/settings"
 	"github.com/hockeypuck/hockeypuck/util"
@@ -128,7 +128,7 @@ func (w *Worker) Lookup(l *hkp.Lookup) {
 	case hkp.Vindex:
 		resp = &IndexResponse{Lookup: l, Keys: keys, Verbose: true}
 	default:
-		resp = &ErrorResponse{ErrUnsupportedOperation}
+		resp = &ErrorResponse{hockeypuck.ErrUnsupportedOperation}
 		return
 	}
 	l.Response() <- resp
@@ -137,32 +137,38 @@ func (w *Worker) Lookup(l *hkp.Lookup) {
 func (w *Worker) HashQuery(hq *hkp.HashQuery) {
 	var uuids []string
 	for _, digest := range hq.Digests {
+		// Look up key in storage
 		uuid, err := w.lookupMd5Uuid(digest)
-		if err != nil {
-			log.Printf("Hashquery lookup [%s] failed: %q\n", digest, err)
-			if err == ErrKeyNotFound {
-				// I guess we *don't* have this digest. Try to remove from prefix tree.
-				z, err := DigestZp(digest)
-				if err != nil {
-					log.Printf("bad digest %q: %q", z.String(), err)
-				} else {
-					w.Peer.Remove(z)
-					// TODO: support transactions for insert/remove
-					/*
-						if err != nil {
-							log.Printf("failed to remove %q: %q", z.String(), err)
-						} else {
-					*/
-					log.Printf("removed %q from prefix tree", z.String())
-					//}
-				}
+		if IsNotFound(err) {
+			// Must have gotten into our prefix tree if peer thinks we have it.
+			// Remove the digest to self-correct.
+			err = w.removeMissingDigest(digest)
+			if err != nil {
+				log.Errorf("remove missing key md5=%q from recon: %v", digest, errgo.Details(err))
 			}
-			continue
+		} else if err != nil {
+			log.Errorf("hashquery: failed to look up key md5=%q: %v", digest, errgo.Details(err))
+		} else {
+			uuids = append(uuids, uuid)
 		}
-		uuids = append(uuids, uuid)
 	}
 	keys := w.fetchKeys(uuids)
 	hq.Response() <- &HashQueryResponse{keys.GoodKeys()}
+}
+
+func (w *Worker) removeMissingKey(digest string) error {
+	z, err := DigestZp(digest)
+	if err != nil {
+		return errgo.Wrap(err)
+	} else {
+		w.Peer.RemoveWith(func(err error) {
+			if err != nil {
+				log.Errorf("failed to remove %q: %v", z, errgo.Details(err))
+			} else {
+				log.Debugf("removed %q from prefix tree", z.String())
+			}
+		}, z)
+	}
 }
 
 func (w *Worker) LookupKeys(search string, limit int) ([]*Pubkey, error) {
@@ -187,7 +193,7 @@ func (w *Worker) lookupMd5Uuid(hash string) (string, error) {
 	rows, err := w.db.Queryx(`SELECT uuid FROM openpgp_pubkey WHERE md5 = $1`,
 		strings.ToLower(hash))
 	if err == sql.ErrNoRows {
-		return fail, ErrKeyNotFound
+		return fail, hockeypuck.ErrKeyNotFound
 	} else if err != nil {
 		return fail, err
 	}
@@ -196,11 +202,11 @@ func (w *Worker) lookupMd5Uuid(hash string) (string, error) {
 		return fail, err
 	}
 	if len(uuids) < 1 {
-		return fail, ErrKeyNotFound
+		return fail, hockeypuck.ErrKeyNotFound
 	}
 	uuid := uuids[0]
 	if len(uuids) > 1 {
-		return fail, ErrKeyIdCollision
+		return fail, hockeypuck.ErrKeyIdCollision
 	}
 	return uuid, nil
 }
@@ -209,7 +215,7 @@ func (w *Worker) lookupKeyidUuids(keyId string) ([]string, error) {
 	keyId = strings.ToLower(keyId)
 	raw, err := hex.DecodeString(keyId)
 	if err != nil {
-		return nil, ErrInvalidKeyId
+		return nil, hockeypuck.ErrInvalidKeyId
 	}
 	rKeyId := util.Reverse(keyId)
 	var compareOp string
@@ -223,14 +229,14 @@ func (w *Worker) lookupKeyidUuids(keyId string) ([]string, error) {
 	case 20:
 		return []string{rKeyId}, nil
 	default:
-		return nil, ErrInvalidKeyId
+		return nil, hockeypuck.ErrInvalidKeyId
 	}
 	rows, err := w.db.Queryx(fmt.Sprintf(`
 SELECT uuid FROM openpgp_pubkey WHERE uuid %s
 UNION
 SELECT pubkey_uuid FROM openpgp_subkey WHERE uuid %s`, compareOp, compareOp), rKeyId)
 	if err == sql.ErrNoRows {
-		return nil, ErrKeyNotFound
+		return nil, hockeypuck.ErrKeyNotFound
 	} else if err != nil {
 		return nil, err
 	}
@@ -258,7 +264,7 @@ func (w *Worker) lookupKeywordUuids(search string, limit int) ([]string, error) 
 SELECT DISTINCT pubkey_uuid FROM openpgp_uid
 WHERE keywords_fulltext @@ to_tsquery($1) LIMIT $2`, search, limit)
 	if err == sql.ErrNoRows {
-		return nil, ErrKeyNotFound
+		return nil, hockeypuck.ErrKeyNotFound
 	} else if err != nil {
 		return nil, errgo.Mask(err)
 	}
@@ -273,10 +279,10 @@ func (w *Worker) LookupKey(keyid string) (*Pubkey, error) {
 		return nil, err
 	}
 	if len(uuids) < 1 {
-		return nil, ErrKeyNotFound
+		return nil, hockeypuck.ErrKeyNotFound
 	}
 	if len(uuids) > 1 {
-		return nil, ErrKeyIdCollision
+		return nil, hockeypuck.ErrKeyIdCollision
 	}
 	return w.FetchKey(uuids[0])
 }
@@ -297,7 +303,7 @@ func (w *Worker) FetchKey(uuid string) (*Pubkey, error) {
 	pubkey := new(Pubkey)
 	err := w.db.Get(pubkey, `SELECT * FROM openpgp_pubkey WHERE uuid = $1`, uuid)
 	if err == sql.ErrNoRows {
-		return nil, ErrKeyNotFound
+		return nil, hockeypuck.ErrKeyNotFound
 	} else if err != nil {
 		return nil, err
 	}

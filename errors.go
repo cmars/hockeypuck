@@ -15,33 +15,33 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package errors
+package hockeypuck
 
 import (
-	"fmt"
+	"errors"
 )
 
 // Lookup key was not found in the database.
-var ErrKeyNotFound = fmt.Errorf("Key not found.")
+var ErrKeyNotFound = errors.New("key not found.")
 
 // An internal inconsistency between the stored key material and our indexing was detected.
-var ErrInconsistentKey = fmt.Errorf("Stored key is internally inconsistent.")
+var ErrInconsistentKey = errors.New("stored key is internally inconsistent")
 
 // Key ID is invalid.
-var ErrInvalidKeyId = fmt.Errorf("Invalid key ID.")
+var ErrInvalidKeyId = errors.New("invalid key ID")
 
 // Key hash is invalid.
-var ErrInvalidKeyHash = fmt.Errorf("Invalid key hash.")
+var ErrInvalidKeyHash = errors.New("invalid key hash")
 
 // A lookup with a short key ID found a collision.
 // This is quite possible with short key IDs, remotely possibly with long IDs.
-var ErrKeyIdCollision = fmt.Errorf("Key ID matches multiple public keys. Try again with a longer key ID.")
+var ErrKeyIdCollision = errors.New("key ID matches multiple public keys")
 
 // A query resulted in more responses than we'd care to respond with.
-var ErrTooManyResponses = fmt.Errorf("Too many responses.")
+var ErrTooManyResponses = errors.New("too many responses")
 
 // Something was attempted that isn't fully baked yet.
-var ErrUnsupportedOperation = fmt.Errorf("Unsupported operation.")
+var ErrUnsupportedOperation = errors.New("unsupported operation")
 
 // Template path was not found. Installation or configuration problem.
-var ErrTemplatePathNotFound = fmt.Errorf("Could not find templates. Check your installation and configuration.")
+var ErrTemplatePathNotFound = errors.New("could not locate templates")

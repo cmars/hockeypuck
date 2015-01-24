@@ -23,7 +23,7 @@ import (
 	"github.com/gorilla/mux"
 	log "gopkg.in/hockeypuck/logrus.v0"
 
-	Errors "github.com/hockeypuck/hockeypuck/errors"
+	"github.com/hockeypuck/hockeypuck"
 )
 
 type Service struct {
@@ -96,7 +96,7 @@ func (r *Router) HandleWebUI() {
 		func(w http.ResponseWriter, req *http.Request) {
 			var err error
 			if SearchFormTemplate == nil {
-				err = Errors.ErrTemplatePathNotFound
+				err = hockeypuck.ErrTemplatePathNotFound
 			} else {
 				err = AddFormTemplate.ExecuteTemplate(w, "layout", nil)
 			}
@@ -108,7 +108,7 @@ func (r *Router) HandleWebUI() {
 		func(w http.ResponseWriter, req *http.Request) {
 			var err error
 			if SearchFormTemplate == nil {
-				err = Errors.ErrTemplatePathNotFound
+				err = hockeypuck.ErrTemplatePathNotFound
 			} else {
 				err = SearchFormTemplate.ExecuteTemplate(w, "layout", nil)
 			}

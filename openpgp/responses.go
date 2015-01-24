@@ -29,7 +29,7 @@ import (
 	"gopkg.in/hockeypuck/conflux.v2/recon"
 	log "gopkg.in/hockeypuck/logrus.v0"
 
-	. "github.com/hockeypuck/hockeypuck/errors"
+	"github.com/hockeypuck/hockeypuck"
 	"github.com/hockeypuck/hockeypuck/hkp"
 )
 
@@ -76,7 +76,7 @@ func (r *AddResponse) Error() error {
 
 func (r *AddResponse) WriteTo(w http.ResponseWriter) error {
 	if hkp.AddResultTemplate == nil {
-		return ErrTemplatePathNotFound
+		return hockeypuck.ErrTemplatePathNotFound
 	}
 	err := hkp.AddResultTemplate.ExecuteTemplate(w, "top", r)
 	if err != nil {
@@ -172,7 +172,7 @@ func (r *StatsResponse) WriteTo(w http.ResponseWriter) error {
 	} else {
 		w.Header().Add("Content-Type", "text/html")
 		if hkp.StatsTemplate == nil {
-			return ErrTemplatePathNotFound
+			return hockeypuck.ErrTemplatePathNotFound
 		}
 		err = hkp.StatsTemplate.ExecuteTemplate(w, "layout", r.Stats)
 	}
