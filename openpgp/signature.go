@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/openpgp/packet"
+	"gopkg.in/errgo.v1"
 
 	"github.com/hockeypuck/hockeypuck/util"
 )
@@ -94,7 +95,7 @@ func (sig *Signature) calcScopedDigest(pubkey *Pubkey, scope string) string {
 
 func (sig *Signature) Serialize(w io.Writer) error {
 	_, err := w.Write(sig.Packet)
-	return err
+	return errgo.Mask(err)
 }
 
 func (sig *Signature) Uuid() string { return sig.ScopedDigest }
@@ -131,7 +132,7 @@ func (sig *Signature) Read() error {
 	buf := bytes.NewBuffer(sig.Packet)
 	p, err := packet.Read(buf)
 	if err != nil {
-		return err
+		return errgo.Mask(err)
 	}
 	return sig.setPacket(p)
 }
@@ -144,15 +145,15 @@ func (sig *Signature) GetSignature() (packet.Packet, error) {
 func NewSignature(op *packet.OpaquePacket) (*Signature, error) {
 	var buf bytes.Buffer
 	if err := op.Serialize(&buf); err != nil {
-		return nil, err
+		return nil, errgo.Mask(err)
 	}
 	sig := &Signature{Packet: buf.Bytes()}
 	p, err := op.Parse()
 	if err != nil {
-		return nil, err
+		return nil, errgo.Mask(err)
 	}
 	if err = sig.setPacket(p); err != nil {
-		return nil, err
+		return nil, errgo.Mask(err)
 	}
 	if sig.Signature != nil {
 		sig.initV4()

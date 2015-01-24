@@ -19,10 +19,12 @@ package hockeypuck
 
 import (
 	"errors"
+
+	"gopkg.in/errgo.v1"
 )
 
 func IsNotFound(err error) bool {
-	return err == ErrKeyNotFound
+	return errgo.Cause(err) == ErrKeyNotFound
 }
 
 // Lookup key was not found in the database.

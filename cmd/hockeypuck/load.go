@@ -168,7 +168,7 @@ func (ec *loadCmd) insertKey(keyRead *openpgp.ReadKeyResult) error {
 		checkKey, err := ec.w.FetchKey(loadKey.RFingerprint)
 		if err != nil {
 			log.Println("RTC: check failed for", loadKey.Fingerprint(), ":", err)
-			return err
+			return errgo.Mask(err)
 		}
 		checkDigest := openpgp.SksDigest(checkKey, md5.New())
 		if checkKey.Md5 != checkDigest {
@@ -178,7 +178,7 @@ func (ec *loadCmd) insertKey(keyRead *openpgp.ReadKeyResult) error {
 			log.Println("RTC: load key", loadKey.Md5, "!=", "check key", checkKey.Md5)
 		}
 	}
-	return err
+	return nil
 }
 
 func (ec *loadCmd) loadAllKeys(path string) error {

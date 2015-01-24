@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/openpgp/packet"
+	"gopkg.in/errgo.v1"
 
 	"github.com/hockeypuck/hockeypuck/util"
 )
@@ -63,7 +64,7 @@ func (uid *UserId) calcScopedDigest(pubkey *Pubkey) string {
 
 func (uid *UserId) Serialize(w io.Writer) error {
 	_, err := w.Write(uid.Packet)
-	return err
+	return errgo.Mask(err)
 }
 
 func (uid *UserId) Uuid() string { return uid.ScopedDigest }
@@ -92,7 +93,7 @@ func (uid *UserId) Read() error {
 	buf := bytes.NewBuffer(uid.Packet)
 	p, err := packet.Read(buf)
 	if err != nil {
-		return err
+		return errgo.Mask(err)
 	}
 	return uid.setPacket(p)
 }
@@ -100,15 +101,15 @@ func (uid *UserId) Read() error {
 func NewUserId(op *packet.OpaquePacket) (*UserId, error) {
 	var buf bytes.Buffer
 	if err := op.Serialize(&buf); err != nil {
-		return nil, err
+		return nil, errgo.Mask(err)
 	}
 	uid := &UserId{Packet: buf.Bytes()}
 	p, err := op.Parse()
 	if err != nil {
-		return nil, err
+		return nil, errgo.Mask(err)
 	}
 	if err = uid.setPacket(p); err != nil {
-		return nil, err
+		return nil, errgo.Mask(err)
 	}
 	uid.init()
 	return uid, nil
@@ -123,11 +124,11 @@ func (uid *UserId) init() {
 func (uid *UserId) Visit(visitor PacketVisitor) error {
 	err := visitor(uid)
 	if err != nil {
-		return err
+		return errgo.Mask(err)
 	}
 	for _, sig := range uid.signatures {
 		if err = sig.Visit(visitor); err != nil {
-			return err
+			return errgo.Mask(err)
 		}
 	}
 	return nil

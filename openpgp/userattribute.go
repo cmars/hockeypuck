@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/openpgp/packet"
+	"gopkg.in/errgo.v1"
 )
 
 type UserAttribute struct {
@@ -60,7 +61,7 @@ func (uat *UserAttribute) calcScopedDigest(pubkey *Pubkey) string {
 
 func (uat *UserAttribute) Serialize(w io.Writer) error {
 	_, err := w.Write(uat.Packet)
-	return err
+	return errgo.Mask(err)
 }
 
 func (uat *UserAttribute) Uuid() string { return uat.ScopedDigest }
@@ -89,7 +90,7 @@ func (uat *UserAttribute) Read() error {
 	buf := bytes.NewBuffer(uat.Packet)
 	p, err := packet.Read(buf)
 	if err != nil {
-		return err
+		return errgo.Mask(err)
 	}
 	return uat.setPacket(p)
 }
@@ -97,15 +98,15 @@ func (uat *UserAttribute) Read() error {
 func NewUserAttribute(op *packet.OpaquePacket) (*UserAttribute, error) {
 	var buf bytes.Buffer
 	if err := op.Serialize(&buf); err != nil {
-		return nil, err
+		return nil, errgo.Mask(err)
 	}
 	uat := &UserAttribute{Packet: buf.Bytes()}
 	p, err := op.Parse()
 	if err != nil {
-		return nil, err
+		return nil, errgo.Mask(err)
 	}
 	if err = uat.setPacket(p); err != nil {
-		return nil, err
+		return nil, errgo.Mask(err)
 	}
 	uat.init()
 	return uat, nil
@@ -119,11 +120,11 @@ func (uat *UserAttribute) init() {
 func (uat *UserAttribute) Visit(visitor PacketVisitor) error {
 	err := visitor(uat)
 	if err != nil {
-		return err
+		return errgo.Mask(err)
 	}
 	for _, sig := range uat.signatures {
 		if err = sig.Visit(visitor); err != nil {
-			return err
+			return errgo.Mask(err)
 		}
 	}
 	return nil

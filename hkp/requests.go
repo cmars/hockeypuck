@@ -105,7 +105,7 @@ func (l *Lookup) Parse() error {
 	// Parse the URL query parameters
 	err := l.ParseForm()
 	if err != nil {
-		return err
+		return errgo.Mask(err)
 	}
 	l.responseChan = make(ResponseChan)
 	searchRequired := true
@@ -186,7 +186,7 @@ func (a *Add) Parse() error {
 	// Parse the URL query parameters
 	err := a.ParseForm()
 	if err != nil {
-		return err
+		return errgo.Mask(err)
 	}
 	a.responseChan = make(ResponseChan)
 	if keytext := a.Form.Get("keytext"); keytext == "" {
@@ -223,25 +223,25 @@ func (hq *HashQuery) Parse() error {
 		defer hq.Body.Close()
 		buf, err := ioutil.ReadAll(hq.Body)
 		if err != nil {
-			return err
+			return errgo.Mask(err)
 		}
 		body = bytes.NewBuffer(buf)
 	}
 	// Parse hashquery POST data
 	n, err := recon.ReadInt(body)
 	if err != nil {
-		return err
+		return errgo.Mask(err)
 	}
 	hq.Digests = make([]string, n)
 	for i := 0; i < n; i++ {
 		hashlen, err := recon.ReadInt(body)
 		if err != nil {
-			return err
+			return errgo.Mask(err)
 		}
 		hash := make([]byte, hashlen)
 		_, err = body.Read(hash)
 		if err != nil {
-			return err
+			return errgo.Mask(err)
 		}
 		hq.Digests[i] = hex.EncodeToString(hash)
 	}

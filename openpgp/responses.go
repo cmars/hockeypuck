@@ -80,13 +80,13 @@ func (r *AddResponse) WriteTo(w http.ResponseWriter) error {
 	}
 	err := hkp.AddResultTemplate.ExecuteTemplate(w, "top", r)
 	if err != nil {
-		return err
+		return errgo.Mask(err)
 	}
 	if err = hkp.AddResultTemplate.ExecuteTemplate(w, "page_content", r); err != nil {
-		return err
+		return errgo.Mask(err)
 	}
 	if err = hkp.AddResultTemplate.ExecuteTemplate(w, "bottom", r); err != nil {
-		return err
+		return errgo.Mask(err)
 	}
 	return nil
 }
@@ -121,12 +121,12 @@ func (r *StatsResponse) Error() error {
 func (r *StatsResponse) WriteTo(w http.ResponseWriter) error {
 	err := r.Err
 	if err != nil {
-		return err
+		return errgo.Mask(err)
 	}
 	if r.Stats.NotReady() {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		_, err = fmt.Fprintf(w, "statistics not ready")
-		return err
+		return errgo.Mask(err)
 	}
 	if r.Lookup.Option&(hkp.JsonFormat|hkp.MachineReadable) != 0 {
 		// JSON is the only supported machine readable stats format.
@@ -191,7 +191,7 @@ func (k *KeyringResponse) WriteTo(w http.ResponseWriter) error {
 	for _, key := range k.Keys {
 		err := WriteArmoredPackets(w, key)
 		if err != nil {
-			return err
+			return errgo.Mask(err)
 		}
 	}
 	return nil
@@ -213,18 +213,18 @@ func (hq *HashQueryResponse) WriteTo(w http.ResponseWriter) error {
 		// Write each key in binary packet format, prefixed with length
 		keybuf := bytes.NewBuffer(nil)
 		if err = WritePackets(keybuf, key); err != nil {
-			return err
+			return errgo.Mask(err)
 		}
 		if err = recon.WriteInt(w, keybuf.Len()); err != nil {
-			return err
+			return errgo.Mask(err)
 		}
 		if _, err = w.Write(keybuf.Bytes()); err != nil {
-			return err
+			return errgo.Mask(err)
 		}
 	}
 	// SKS expects hashquery response to terminate with a CRLF
 	if _, err = w.Write([]byte{0x0d, 0x0a}); err != nil {
-		return err
+		return errgo.Mask(err)
 	}
 	return nil
 }

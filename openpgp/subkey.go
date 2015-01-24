@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/openpgp/packet"
+	"gopkg.in/errgo.v1"
 	log "gopkg.in/hockeypuck/logrus.v0"
 
 	"github.com/hockeypuck/hockeypuck/util"
@@ -72,7 +73,7 @@ func (subkey *Subkey) Signatures() []*Signature { return subkey.signatures }
 
 func (subkey *Subkey) Serialize(w io.Writer) error {
 	_, err := w.Write(subkey.Packet)
-	return err
+	return errgo.Mask(err)
 }
 
 func (subkey *Subkey) Uuid() string { return subkey.RFingerprint }
@@ -112,7 +113,7 @@ func (subkey *Subkey) Read() error {
 	buf := bytes.NewBuffer(subkey.Packet)
 	p, err := packet.Read(buf)
 	if err != nil {
-		return err
+		return errgo.Mask(err)
 	}
 	return subkey.setPacket(p)
 }
@@ -120,16 +121,16 @@ func (subkey *Subkey) Read() error {
 func NewSubkey(op *packet.OpaquePacket) (*Subkey, error) {
 	var buf bytes.Buffer
 	if err := op.Serialize(&buf); err != nil {
-		return nil, err
+		return nil, errgo.Mask(err)
 	}
 	subkey := &Subkey{Packet: buf.Bytes()}
 	var p packet.Packet
 	p, err := op.Parse()
 	if err != nil {
-		return nil, err
+		return nil, errgo.Mask(err)
 	}
 	if err = subkey.setPacket(p); err != nil {
-		return nil, err
+		return nil, errgo.Mask(err)
 	}
 	if subkey.PublicKey != nil {
 		err = subkey.initV4()
@@ -139,7 +140,7 @@ func NewSubkey(op *packet.OpaquePacket) (*Subkey, error) {
 		err = ErrInvalidPacketType
 	}
 	if err != nil {
-		return nil, err
+		return nil, errgo.Mask(err)
 	}
 	return subkey, nil
 }
@@ -148,7 +149,7 @@ func (subkey *Subkey) initV4() error {
 	fingerprint := Fingerprint(subkey.PublicKey)
 	bitLen, err := subkey.PublicKey.BitLength()
 	if err != nil {
-		return err
+		return errgo.Mask(err)
 	}
 	if !subkey.PublicKey.IsSubkey {
 		log.Warn("expected sub-key packet, got primary public key")
@@ -166,7 +167,7 @@ func (subkey *Subkey) initV3() error {
 	fingerprint := FingerprintV3(subkey.PublicKeyV3)
 	bitLen, err := subkey.PublicKeyV3.BitLength()
 	if err != nil {
-		return err
+		return errgo.Mask(err)
 	}
 	if subkey.PublicKeyV3.IsSubkey {
 		log.Warn("expected primary public key packet, got sub-key")
