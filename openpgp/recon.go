@@ -25,8 +25,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"gopkg.in/errgo.v1"
@@ -101,25 +99,6 @@ func NewSksPeer(srv *hkp.Service, s *hockeypuck.Settings) (*SksPeer, error) {
 }
 
 func (r *SksPeer) Start() {
-	sigChan := make(chan os.Signal)
-	signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
-	r.t.Go(func() error {
-		defer signal.Stop(sigChan)
-		defer func() {
-			err := r.ptree.Close()
-			if err != nil {
-				log.Warnf("error closing prefix tree: %v", err)
-			}
-		}()
-		select {
-		case <-r.t.Dying():
-			return nil
-		case sig := <-sigChan:
-			log.Infof("caught signal: %v", sig)
-			return nil
-		}
-	})
-
 	r.t.Go(r.HandleRecovery)
 	r.t.Go(r.HandleKeyUpdates)
 	r.Peer.Start()
@@ -133,12 +112,18 @@ func (r *SksPeer) Stop() {
 		log.Error(errgo.Details(err))
 	}
 	log.Info("recon processing: stopped")
+
 	log.Info("recon peer: stopping")
 	err = errgo.Mask(r.Peer.Stop())
 	if err != nil {
 		log.Error(errgo.Details(err))
 	}
 	log.Info("recon peer: stopped")
+
+	err = r.ptree.Close()
+	if err != nil {
+		log.Errorf("error closing prefix tree: %v", errgo.Details(err))
+	}
 }
 
 func DigestZp(digest string) (*cf.Zp, error) {
