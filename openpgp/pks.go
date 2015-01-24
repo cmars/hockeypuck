@@ -76,7 +76,10 @@ func NewPksSync(w *Worker, s *hockeypuck.Settings) (*PksSync, error) {
 		s.OpenPGP.Pks.Smtp.User, s.OpenPGP.Pks.Smtp.Password, authHost)
 	ps.PksAddrs = s.OpenPGP.Pks.To
 	err := ps.initStatus()
-	return ps, err
+	if err != nil {
+		return nil, errgo.Mask(err)
+	}
+	return ps, nil
 }
 
 func (ps *PksSync) initStatus() error {
@@ -85,16 +88,16 @@ INSERT INTO pks_status (uuid, email_addr)
 SELECT $1, $2 WHERE NOT EXISTS (
 	SELECT 1 FROM pks_status WHERE email_addr = $2)`)
 	if err != nil {
-		return err
+		return errgo.Mask(err)
 	}
 	for _, emailAddr := range ps.PksAddrs {
 		uuid, err := NewUuid()
 		if err != nil {
-			return err
+			return errgo.Mask(err)
 		}
 		_, err = stmt.Exec(uuid, emailAddr)
 		if err != nil {
-			return err
+			return errgo.Mask(err)
 		}
 	}
 	return nil
@@ -106,7 +109,7 @@ func (ps *PksSync) SyncStatus() ([]PksStatus, error) {
 SELECT email_addr, last_sync FROM pks_status
 WHERE creation < now() AND expiration > now() AND state = 0`)
 	if err != nil {
-		return nil, err
+		return nil, errgo.Mask(err)
 	}
 	ps.lastStatus = status
 	return status, nil
@@ -117,11 +120,11 @@ func (ps *PksSync) SendKeys(status *PksStatus) error {
 	err := ps.db.Select(&uuids, "SELECT uuid FROM openpgp_pubkey WHERE mtime > $1",
 		status.LastSync)
 	if err != nil {
-		return err
+		return errgo.Mask(err)
 	}
 	keys := ps.fetchKeys(uuids).GoodKeys()
 	if err != nil {
-		return err
+		return errgo.Mask(err)
 	}
 	for _, key := range keys {
 		// Send key email
@@ -129,14 +132,14 @@ func (ps *PksSync) SendKeys(status *PksStatus) error {
 		err = ps.SendKey(status.Addr, key)
 		if err != nil {
 			log.Errorf("error sending key to PKS %s: %v", status.Addr, err)
-			return err
+			return errgo.Mask(err)
 		}
 		// Send successful, update the timestamp accordingly
 		status.LastSync = key.Mtime
 		_, err = ps.db.Exec("UPDATE pks_status SET last_sync = $1 WHERE email_addr = $2",
 			status.LastSync, status.Addr)
 		if err != nil {
-			return err
+			return errgo.Mask(err)
 		}
 	}
 	return nil

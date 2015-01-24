@@ -21,13 +21,14 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/ascii85"
+	"errors"
 	"fmt"
 	"io"
 	"time"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/juju/errors"
 	"golang.org/x/crypto/openpgp/armor"
+	"gopkg.in/errgo.v1"
 	log "gopkg.in/hockeypuck/logrus.v0"
 
 	"github.com/hockeypuck/hockeypuck"
@@ -105,7 +106,7 @@ var ErrSubKeyChanges error = errors.New("worker already has a key change subscri
 // any keys added or updated by this worker.
 func (w *Worker) SubKeyChanges(keyChanges KeyChangeChan) error {
 	if w.keyChanges != nil {
-		return ErrSubKeyChanges
+		return errgo.Mask(ErrSubKeyChanges)
 	}
 	w.keyChanges = keyChanges
 	return nil
@@ -386,11 +387,13 @@ func (w *Worker) UpdateKeyRelations(pubkey *Pubkey) error {
 		return nil
 	})
 	if err != nil {
-		err = errors.Wrap(err, tx.Rollback())
-	} else {
-		return tx.Commit()
+		rbErr := tx.Rollback()
+		if rbErr != nil {
+			log.Errorf("failed to rollback: %v", rbErr)
+		}
+		err = errgo.Mask(err)
 	}
-	return err
+	return errgo.Mask(tx.Commit())
 }
 
 func (w *Worker) updatePubkeyRevsig(tx *sqlx.Tx, pubkey *Pubkey, r *Signature) error {

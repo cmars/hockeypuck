@@ -29,22 +29,35 @@ import (
 
 var logOut io.Writer = nil
 
+func closeLog(w io.Writer) {
+	closer, ok := logOut.(io.Closer)
+	if ok {
+		closer.Close()
+	}
+}
+
 // InitLog initializes the logging output to the globally configured settings.
 // It also registers SIGHUP, SIGUSR1 and SIGUSR2 to close and reopen the log file
 // for logrotate(8) support.
 func InitLog(s *Settings) {
 	// Handle signals for log rotation
 	sigChan := make(chan os.Signal)
-	signal.Notify(sigChan, syscall.SIGHUP, syscall.SIGUSR1, syscall.SIGUSR2)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGUSR1, syscall.SIGUSR2)
 	go func() {
 		for {
+			w := logOut
 			select {
-			case _ = <-sigChan:
-				closeable, ok := logOut.(io.WriteCloser)
-				openLog(s)
-				if ok {
-					closeable.Close()
+			case sig := <-sigChan:
+				switch sig {
+				case syscall.SIGINT:
+					closeLog(w)
+					return
+				case syscall.SIGTERM:
+					closeLog(w)
+					return
 				}
+				openLog(s)
+				closeLog(w)
 				log.Info("reopened logfile")
 			}
 		}

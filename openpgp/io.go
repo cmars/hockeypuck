@@ -29,11 +29,10 @@ import (
 	"sort"
 	"time"
 
-	"github.com/juju/errors"
-
 	"golang.org/x/crypto/openpgp"
 	"golang.org/x/crypto/openpgp/armor"
 	"golang.org/x/crypto/openpgp/packet"
+	"gopkg.in/errgo.v1"
 )
 
 // Comparable time flag for "never expires"
@@ -63,19 +62,19 @@ func WritePackets(w io.Writer, root PacketRecord) error {
 	err := root.Visit(func(rec PacketRecord) error {
 		op, err := rec.GetOpaquePacket()
 		if err != nil {
-			return err
+			return errgo.Mask(err)
 		}
 		return op.Serialize(w)
 	})
 	if err != nil {
-		return err
+		return errgo.Mask(err)
 	}
 	// Dump unsupported packets at the end.
 	pubkey := root.(*Pubkey)
 	for _, op := range pubkey.UnsupportedPackets() {
 		err = op.Serialize(w)
 		if err != nil {
-			return err
+			return errgo.Mask(err)
 		}
 	}
 	return nil
@@ -85,7 +84,7 @@ func WriteArmoredPackets(w io.Writer, root PacketRecord) error {
 	armw, err := armor.Encode(w, openpgp.PublicKeyType, nil)
 	defer armw.Close()
 	if err != nil {
-		return err
+		return errgo.Mask(err)
 	}
 	return WritePackets(armw, root)
 }
@@ -119,10 +118,10 @@ func (ok *OpaqueKeyring) Parse() (*Pubkey, error) {
 		var badPacket *packet.OpaquePacket
 		if opkt.Tag == 6 { //packet.PacketTypePublicKey:
 			if pubkey != nil {
-				return nil, errors.Errorf("multiple public keys in keyring")
+				return nil, errgo.Newf("multiple public keys in keyring")
 			}
 			if pubkey, err = NewPubkey(opkt); err != nil {
-				return nil, errors.Annotatef(err, "invalid public key packet type")
+				return nil, errgo.Notef(err, "invalid public key packet type")
 			}
 			signable = pubkey
 		} else if pubkey != nil {
@@ -219,7 +218,7 @@ func ReadOpaqueKeyrings(r io.Reader) OpaqueKeyringChan {
 			if current == nil {
 				current = &OpaqueKeyring{}
 			}
-			current.Error = err
+			current.Error = errgo.Mask(err)
 			c <- current
 		}
 	}()

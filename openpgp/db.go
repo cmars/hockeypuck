@@ -32,7 +32,7 @@ func Execv(e sqlx.Execer, query string, args ...interface{}) (sql.Result, error)
 	res, err := e.Exec(query, args...)
 	if err != nil {
 		log.Errorf("error executing query %q: %v", query, err)
-		return nil, err
+		return nil, errgo.Mask(err)
 	}
 	return res, nil
 }
@@ -41,7 +41,7 @@ func Execf(e sqlx.Execer, query string, args ...interface{}) (sql.Result, error)
 	res, err := e.Exec(query, args...)
 	if err != nil {
 		log.Errorf("error executing query %q: %v", query, err)
-		return nil, err
+		return nil, errgo.Mask(err)
 	}
 	return res, nil
 }

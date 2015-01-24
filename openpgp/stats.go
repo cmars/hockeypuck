@@ -41,63 +41,75 @@ func init() {
 	keyStatsLock = &sync.Mutex{}
 }
 
-func (w *Worker) monitorStats() {
+func (w *Worker) monitorStats() error {
 	statsRefresh := w.settings.OpenPGP.StatsRefreshHours
 	if statsRefresh <= 0 {
 		log.Infof("load statistics disabled")
-		return
+		<-w.t.Dying()
+		return nil
 	}
 
+	timer := time.NewTimer(time.Duration(statsRefresh) * time.Hour)
 	for {
-		var t tomb.Tomb
-		t.Go(func() error {
-			var stats []struct {
-				TotalKeys int `db:"total_keys"`
-			}
-			err := w.db.Select(&stats, selectTotalKeys)
-			if err != nil {
-				log.Errorf("failed to update total keys: %v", err)
-				return errgo.Mask(err)
-			}
-			keyStatsLock.Lock()
-			defer keyStatsLock.Unlock()
-			if len(stats) > 0 {
-				keyStatsTotal = stats[0].TotalKeys
-				log.Info("total keys updated")
-			}
+		select {
+		case <-w.t.Dying():
 			return nil
-		})
-		t.Go(func() error {
-			var stats []PksKeyStats
-			err := w.db.Select(&stats, selectHourlyStats)
-			if err != nil {
-				log.Errorf("failed to update hourly stats: %v", err)
-				return errgo.Mask(err)
+		case <-timer.C:
+			var t tomb.Tomb
+			t.Go(func() error {
+				var stats []struct {
+					TotalKeys int `db:"total_keys"`
+				}
+				err := w.db.Select(&stats, selectTotalKeys)
+				if err != nil {
+					log.Errorf("failed to update total keys: %v", err)
+					return errgo.Mask(err)
+				}
+				keyStatsLock.Lock()
+				defer keyStatsLock.Unlock()
+				if len(stats) > 0 {
+					keyStatsTotal = stats[0].TotalKeys
+					log.Info("total keys updated")
+				}
+				return nil
+			})
+			t.Go(func() error {
+				var stats []PksKeyStats
+				err := w.db.Select(&stats, selectHourlyStats)
+				if err != nil {
+					log.Errorf("failed to update hourly stats: %v", err)
+					return errgo.Mask(err)
+				}
+				keyStatsLock.Lock()
+				defer keyStatsLock.Unlock()
+				keyStatsHourly = stats
+				log.Info("hourly stats updated")
+				return nil
+			})
+			t.Go(func() error {
+				var stats []PksKeyStats
+				err := w.db.Select(&stats, selectDailyStats)
+				if err != nil {
+					log.Errorf("failed to update daily stats: %v", err)
+					return errgo.Mask(err)
+				}
+				keyStatsLock.Lock()
+				defer keyStatsLock.Unlock()
+				keyStatsDaily = stats
+				log.Info("daily stats updated")
+				return nil
+			})
+			select {
+			case <-w.t.Dying():
+				return nil
+			case <-t.Dead():
+				err := t.Err()
+				if err != nil {
+					log.Errorf("error updating stats: %v", errgo.Details(err))
+				}
 			}
-			keyStatsLock.Lock()
-			defer keyStatsLock.Unlock()
-			keyStatsHourly = stats
-			log.Info("hourly stats updated")
-			return nil
-		})
-		t.Go(func() error {
-			var stats []PksKeyStats
-			err := w.db.Select(&stats, selectDailyStats)
-			if err != nil {
-				log.Errorf("failed to update daily stats: %v", err)
-				return errgo.Mask(err)
-			}
-			keyStatsLock.Lock()
-			defer keyStatsLock.Unlock()
-			keyStatsDaily = stats
-			log.Info("daily stats updated")
-			return nil
-		})
-		err := t.Wait()
-		if err != nil {
-			log.Errorf("errors updating statistics")
+			timer.Reset(time.Duration(statsRefresh) * time.Hour)
 		}
-		time.Sleep(time.Duration(statsRefresh) * time.Hour)
 	}
 }
 

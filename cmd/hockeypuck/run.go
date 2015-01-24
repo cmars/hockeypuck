@@ -2,7 +2,10 @@ package main
 
 import (
 	"net/http"
+	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 
 	"github.com/gorilla/mux"
 	"gopkg.in/errgo.v1"
@@ -42,11 +45,21 @@ func (c *runCmd) Main() error {
 	hockeypuck.NewStaticRouter(r, c.settings)
 	// Create HKP router
 	hkpRouter := hkp.NewRouter(r)
+
+	var t tomb.Tomb
+
 	// Create SKS peer
 	sksPeer, err := openpgp.NewSksPeer(hkpRouter.Service, c.settings)
 	if err != nil {
 		return errgo.Mask(err)
 	}
+
+	t.Go(func() error {
+		<-t.Dying()
+		sksPeer.Stop()
+		return nil
+	})
+
 	// Launch the OpenPGP workers
 	for i := 0; i < c.settings.OpenPGP.NWorkers; i++ {
 		w, err := openpgp.NewWorker(hkpRouter.Service, sksPeer)
@@ -55,7 +68,12 @@ func (c *runCmd) Main() error {
 		}
 		// Subscribe SKS to worker's key changes
 		w.SubKeyChanges(sksPeer.KeyChanges)
-		go w.Run()
+		w.Start()
+		t.Go(func() error {
+			<-t.Dying()
+			w.Stop()
+			return nil
+		})
 	}
 	sksPeer.Start()
 	// Bind the router to the built-in webserver root
@@ -84,8 +102,6 @@ func (c *runCmd) Main() error {
 		hkpsConfigured = true
 	}
 
-	var t tomb.Tomb
-
 	if c.settings.Hkp.Bind != "" {
 		t.Go(func() error {
 			return http.ListenAndServe(c.settings.Hkp.Bind, nil)
@@ -97,6 +113,19 @@ func (c *runCmd) Main() error {
 				tlsCertPath, tlsKeyPath, nil)
 		})
 	}
+
+	sigChan := make(chan os.Signal)
+	signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
+	t.Go(func() error {
+		select {
+		case <-t.Dying():
+			break
+		case <-sigChan:
+			t.Kill(nil)
+			break
+		}
+		return nil
+	})
 
 	return t.Wait()
 }

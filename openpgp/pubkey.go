@@ -31,6 +31,7 @@ import (
 
 	"golang.org/x/crypto/openpgp/errors"
 	"golang.org/x/crypto/openpgp/packet"
+	"gopkg.in/errgo.v1"
 	log "gopkg.in/hockeypuck/logrus.v0"
 
 	"github.com/hockeypuck/hockeypuck/util"
@@ -111,7 +112,7 @@ func (pubkey *Pubkey) Subkeys() []*Subkey { return pubkey.subkeys }
 
 func (pubkey *Pubkey) Serialize(w io.Writer) error {
 	_, err := w.Write(pubkey.Packet)
-	return err
+	return errgo.Mask(err)
 }
 
 func (pubkey *Pubkey) Uuid() string { return pubkey.RFingerprint }
@@ -157,7 +158,7 @@ func (pubkey *Pubkey) Read() error {
 		if pubkey.State&PacketStateUnsuppPubkey != 0 {
 			return nil
 		}
-		return err
+		return errgo.Mask(err)
 	}
 	return pubkey.setPacket(p)
 }
@@ -189,10 +190,10 @@ func NewPubkey(op *packet.OpaquePacket) (pubkey *Pubkey, _ error) {
 	}()
 	p, err := op.Parse()
 	if err != nil {
-		return pubkey, err
+		return pubkey, errgo.Mask(err)
 	}
 	if err = pubkey.setPacket(p); err != nil {
-		return pubkey, err
+		return pubkey, errgo.Mask(err)
 	}
 	if pubkey.PublicKey != nil {
 		err = pubkey.initV4()
@@ -218,16 +219,16 @@ func (pubkey *Pubkey) initV4() error {
 	buf := bytes.NewBuffer(nil)
 	err := pubkey.PublicKey.Serialize(buf)
 	if err != nil {
-		return err
+		return errgo.Mask(err)
 	}
 	fingerprint := Fingerprint(pubkey.PublicKey)
 	bitLen, err := pubkey.PublicKey.BitLength()
 	if err != nil {
-		return err
+		return errgo.Mask(err)
 	}
 	if pubkey.PublicKey.IsSubkey {
 		log.Warn("expected primary public key packet, got sub-key")
-		return ErrInvalidPacketType
+		return errgo.Mask(ErrInvalidPacketType)
 	}
 	pubkey.RFingerprint = util.Reverse(fingerprint)
 	pubkey.Creation = pubkey.PublicKey.CreationTime
@@ -241,12 +242,12 @@ func (pubkey *Pubkey) initV3() error {
 	var buf bytes.Buffer
 	err := pubkey.PublicKeyV3.Serialize(&buf)
 	if err != nil {
-		return err
+		return errgo.Mask(err)
 	}
 	fingerprint := FingerprintV3(pubkey.PublicKeyV3)
 	bitLen, err := pubkey.PublicKeyV3.BitLength()
 	if err != nil {
-		return err
+		return errgo.Mask(err)
 	}
 	if pubkey.PublicKeyV3.IsSubkey {
 		log.Warn("expected primary public key packet, got sub-key")
@@ -266,30 +267,30 @@ func (pubkey *Pubkey) initV3() error {
 func (pubkey *Pubkey) Visit(visitor PacketVisitor) error {
 	err := visitor(pubkey)
 	if err != nil {
-		return err
+		return errgo.Mask(err)
 	}
 	for _, sig := range pubkey.signatures {
 		err = sig.Visit(visitor)
 		if err != nil {
-			return err
+			return errgo.Mask(err)
 		}
 	}
 	for _, uid := range pubkey.userIds {
 		err = uid.Visit(visitor)
 		if err != nil {
-			return err
+			return errgo.Mask(err)
 		}
 	}
 	for _, uat := range pubkey.userAttributes {
 		err = uat.Visit(visitor)
 		if err != nil {
-			return err
+			return errgo.Mask(err)
 		}
 	}
 	for _, subkey := range pubkey.subkeys {
 		err = subkey.Visit(visitor)
 		if err != nil {
-			return err
+			return errgo.Mask(err)
 		}
 	}
 	return nil
@@ -425,12 +426,12 @@ func (pubkey *Pubkey) sigSerializeUserAttribute(uat *UserAttribute, hashFunc cry
 	// Get user attribute opaque packet
 	uatOpaque, err := uat.GetOpaquePacket()
 	if err != nil {
-		return nil, err
+		return nil, errgo.Mask(err)
 	}
 	// Get public key opaque packet.
 	pkOpaque, err := pubkey.GetOpaquePacket()
 	if err != nil {
-		return nil, err
+		return nil, errgo.Mask(err)
 	}
 	// RFC 4880, section 5.2.4
 	// Write the signature prefix and public key contents to hash

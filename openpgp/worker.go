@@ -30,6 +30,7 @@ import (
 	_ "github.com/lib/pq"
 	"gopkg.in/errgo.v1"
 	log "gopkg.in/hockeypuck/logrus.v0"
+	"gopkg.in/tomb.v2"
 
 	"github.com/hockeypuck/hockeypuck"
 	"github.com/hockeypuck/hockeypuck/hkp"
@@ -44,6 +45,8 @@ type Worker struct {
 	Service    *hkp.Service
 	Peer       *SksPeer
 	keyChanges KeyChangeChan
+
+	t tomb.Tomb
 }
 
 func currentUsername() string {
@@ -65,13 +68,34 @@ func NewWorker(service *hkp.Service, peer *SksPeer) (w *Worker, err error) {
 	return
 }
 
-func (w *Worker) Run() {
-	go w.monitorStats()
+func (w *Worker) Start() {
+	w.t.Go(w.monitorStats)
+	w.t.Go(w.run)
+}
+
+func (w *Worker) Stop() {
+	log.Info("worker: stopping")
+	w.t.Kill(nil)
+	err := w.t.Wait()
+	if err != nil {
+		log.Error(errgo.Details(err))
+	}
+	log.Info("worker: stopped")
+
+	err = w.db.Close()
+	if err != nil {
+		log.Error("error closing database connection: %v", errgo.Details(err))
+	}
+}
+
+func (w *Worker) run() error {
 	for {
 		select {
+		case <-w.t.Dying():
+			return nil
 		case req, ok := <-w.Service.Requests:
 			if !ok {
-				return
+				return nil
 			}
 			switch r := req.(type) {
 			case *hkp.Lookup:
@@ -85,7 +109,7 @@ func (w *Worker) Run() {
 			}
 		case r, ok := <-w.Peer.RecoverKey:
 			if !ok {
-				return
+				return nil
 			}
 			resp := w.recoverKey(&r)
 			log.Debug(resp)

@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/jmoiron/sqlx"
+	"gopkg.in/errgo.v1"
 
 	"github.com/hockeypuck/hockeypuck/util"
 )
@@ -40,7 +41,7 @@ func (l *Loader) Begin() (*sqlx.Tx, error) {
 
 func (l *Loader) Commit(tx *sqlx.Tx) error {
 	if err := tx.Commit(); err != nil {
-		return err
+		return errgo.Mask(err)
 	}
 	return nil
 }
@@ -52,7 +53,7 @@ func (l *Loader) Rollback(tx *sqlx.Tx) error {
 func (l *Loader) InsertKey(pubkey *Pubkey) error {
 	tx, err := l.Begin()
 	if err != nil {
-		return err
+		return errgo.Mask(err)
 	}
 	err = l.InsertKeyTx(tx, pubkey)
 	if err != nil {
@@ -60,7 +61,7 @@ func (l *Loader) InsertKey(pubkey *Pubkey) error {
 	} else {
 		return tx.Commit()
 	}
-	return err
+	return errgo.Mask(err)
 }
 
 func (l *Loader) InsertKeyTx(tx *sqlx.Tx, pubkey *Pubkey) error {
@@ -69,32 +70,32 @@ func (l *Loader) InsertKeyTx(tx *sqlx.Tx, pubkey *Pubkey) error {
 		switch r := rec.(type) {
 		case *Pubkey:
 			if err := l.insertPubkey(tx, r); err != nil {
-				return err
+				return errgo.Mask(err)
 			}
 			signable = r
 		case *Subkey:
 			if err := l.insertSubkey(tx, pubkey, r); err != nil {
-				return err
+				return errgo.Mask(err)
 			}
 			signable = r
 		case *UserId:
 			if err := l.insertUid(tx, pubkey, r); err != nil {
-				return err
+				return errgo.Mask(err)
 			}
 			signable = r
 		case *UserAttribute:
 			if err := l.insertUat(tx, pubkey, r); err != nil {
-				return err
+				return errgo.Mask(err)
 			}
 			signable = r
 		case *Signature:
 			if err := l.insertSig(tx, pubkey, signable, r); err != nil {
-				return err
+				return errgo.Mask(err)
 			}
 		}
 		return nil
 	})
-	return err
+	return errgo.Mask(err)
 }
 
 // insertSelectFrom completes an INSERT INTO .. SELECT FROM
@@ -123,7 +124,7 @@ SELECT $1, $2, $3, $4, $5,
 		// TODO: use mtime and ctime from record, or use RETURNING to set it
 		r.Md5, r.Sha256, r.RevSigDigest, r.PrimaryUid, r.PrimaryUat,
 		r.Algorithm, r.BitLen, r.Unsupported)
-	return err
+	return errgo.Mask(err)
 }
 
 func (l *Loader) insertSubkey(tx *sqlx.Tx, pubkey *Pubkey, r *Subkey) error {
@@ -136,7 +137,7 @@ SELECT $1, $2, $3, $4, $5,
 		"openpgp_subkey", "uuid = $1"),
 		r.RFingerprint, r.Creation, r.Expiration, r.State, r.Packet,
 		pubkey.RFingerprint, r.RevSigDigest, r.Algorithm, r.BitLen)
-	return err
+	return errgo.Mask(err)
 }
 
 func (l *Loader) insertUid(tx *sqlx.Tx, pubkey *Pubkey, r *UserId) error {
@@ -149,7 +150,7 @@ SELECT $1, $2, $3, $4, $5,
 		"openpgp_uid", "uuid = $1"),
 		r.ScopedDigest, r.Creation, r.Expiration, r.State, r.Packet,
 		pubkey.RFingerprint, r.RevSigDigest, util.CleanUtf8(r.Keywords))
-	return err
+	return errgo.Mask(err)
 }
 
 func (l *Loader) insertUat(tx *sqlx.Tx, pubkey *Pubkey, r *UserAttribute) error {
@@ -162,7 +163,7 @@ SELECT $1, $2, $3, $4, $5,
 		"openpgp_uat", "uuid = $1"),
 		r.ScopedDigest, r.Creation, r.Expiration, r.State, r.Packet,
 		pubkey.RFingerprint, r.RevSigDigest)
-	return err
+	return errgo.Mask(err)
 }
 
 func (l *Loader) insertSig(tx *sqlx.Tx, pubkey *Pubkey, signable PacketRecord, r *Signature) error {
@@ -213,5 +214,5 @@ SELECT $1, $2, $3, $4, $5, $6, $7, $8%s`
 	}
 	_, err := Execv(tx, l.insertSelectFrom(sql, "openpgp_sig", matchSql), args...)
 	// TODO: use RETURNING to update matched issuer fingerprint
-	return err
+	return errgo.Mask(err)
 }

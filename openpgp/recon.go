@@ -125,20 +125,26 @@ func (r *SksPeer) Start() {
 	r.Peer.Start()
 }
 
-func (r *SksPeer) Stop() error {
+func (r *SksPeer) Stop() {
+	log.Info("recon processing: stopping")
 	r.t.Kill(nil)
 	err := r.t.Wait()
-	peerErr := r.Peer.Stop()
 	if err != nil {
-		return errgo.Mask(err)
+		log.Error(errgo.Details(err))
 	}
-	return peerErr
+	log.Info("recon processing: stopped")
+	log.Info("recon peer: stopping")
+	err = errgo.Mask(r.Peer.Stop())
+	if err != nil {
+		log.Error(errgo.Details(err))
+	}
+	log.Info("recon peer: stopped")
 }
 
 func DigestZp(digest string) (*cf.Zp, error) {
 	buf, err := hex.DecodeString(digest)
 	if err != nil {
-		return nil, err
+		return nil, errgo.Mask(err)
 	}
 	buf = recon.PadSksElement(buf)
 	return cf.Zb(cf.P_SKS, buf), nil
@@ -193,6 +199,8 @@ func (r *SksPeer) HandleRecovery() error {
 	}()
 	for {
 		select {
+		case <-r.t.Dying():
+			return nil
 		case rcvr, ok := <-r.Peer.RecoverChan:
 			if !ok {
 				return nil
@@ -225,6 +233,8 @@ func (r *SksPeer) handleRemoteRecovery(rcvr *recon.Recover, rcvrChan chan *recon
 	go r.workRecovered(rcvr, ready, work)
 	for {
 		select {
+		case <-r.t.Dying():
+			return
 		case rcvr, ok := <-rcvrChan:
 			if !ok {
 				return
@@ -250,6 +260,8 @@ func (r *SksPeer) workRecovered(rcvr *recon.Recover, ready workRecoveredReady, w
 	defer timer.Stop()
 	for {
 		select {
+		case <-r.t.Dying():
+			return
 		case recovered, ok := <-work:
 			go func() {
 				defer r.Peer.Enable()

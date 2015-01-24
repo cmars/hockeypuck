@@ -23,7 +23,7 @@ import (
 
 type PacketRecordMap map[string]PacketRecord
 
-var ErrMissingUuid error = errors.New("Packet record missing content-unique identifier")
+var ErrMissingUuid error = errors.New("packet record missing uuid")
 
 func GetUuid(rec PacketRecord) string {
 	switch r := rec.(type) {
