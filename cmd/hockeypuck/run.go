@@ -9,7 +9,7 @@ import (
 	"gopkg.in/tomb.v2"
 	"launchpad.net/gnuflag"
 
-	. "github.com/hockeypuck/hockeypuck"
+	"github.com/hockeypuck/hockeypuck"
 	"github.com/hockeypuck/hockeypuck/hkp"
 	"github.com/hockeypuck/hockeypuck/openpgp"
 )
@@ -39,7 +39,7 @@ func (c *runCmd) Main() error {
 	// Create an HTTP request router
 	r := mux.NewRouter()
 	// Add common static routes
-	NewStaticRouter(r, c.settings)
+	hockeypuck.NewStaticRouter(r, c.settings)
 	// Create HKP router
 	hkpRouter := hkp.NewRouter(r)
 	// Create SKS peer

@@ -1,4 +1,21 @@
-package settings
+/*
+   Hockeypuck - OpenPGP key server
+   Copyright (C) 2012-2014  Casey Marshall
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU Affero General Public License as published by
+   the Free Software Foundation, version 3.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU Affero General Public License for more details.
+
+   You should have received a copy of the GNU Affero General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+package hockeypuck
 
 import (
 	"github.com/BurntSushi/toml"
@@ -102,7 +119,7 @@ const (
 	DefaultLevelDBPath = "recon.db"
 )
 
-func Default() Settings {
+func DefaultSettings() Settings {
 	reconSettings := recon.DefaultSettings()
 	return Settings{
 		Conflux: confluxConfig{
@@ -121,11 +138,11 @@ func Default() Settings {
 	}
 }
 
-func Parse(data string) (*Settings, error) {
+func ParseSettings(data string) (*Settings, error) {
 	var doc struct {
 		Hockeypuck Settings `toml:"hockeypuck"`
 	}
-	doc.Hockeypuck = Default()
+	doc.Hockeypuck = DefaultSettings()
 	_, err := toml.Decode(data, &doc)
 	if err != nil {
 		return nil, errgo.Mask(err)

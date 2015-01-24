@@ -25,8 +25,6 @@ import (
 	"syscall"
 
 	log "gopkg.in/hockeypuck/logrus.v0"
-
-	"github.com/hockeypuck/hockeypuck/settings"
 )
 
 var logOut io.Writer = nil
@@ -34,7 +32,7 @@ var logOut io.Writer = nil
 // InitLog initializes the logging output to the globally configured settings.
 // It also registers SIGHUP, SIGUSR1 and SIGUSR2 to close and reopen the log file
 // for logrotate(8) support.
-func InitLog(s *settings.Settings) {
+func InitLog(s *Settings) {
 	// Handle signals for log rotation
 	sigChan := make(chan os.Signal)
 	signal.Notify(sigChan, syscall.SIGHUP, syscall.SIGUSR1, syscall.SIGUSR2)
@@ -56,7 +54,7 @@ func InitLog(s *settings.Settings) {
 	openLog(s)
 }
 
-func openLog(s *settings.Settings) {
+func openLog(s *Settings) {
 	defer func() {
 		level, err := log.ParseLevel(strings.ToLower(s.LogLevel))
 		if err != nil {

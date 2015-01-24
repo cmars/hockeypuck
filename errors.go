@@ -21,6 +21,10 @@ import (
 	"errors"
 )
 
+func IsNotFound(err error) bool {
+	return err == ErrKeyNotFound
+}
+
 // Lookup key was not found in the database.
 var ErrKeyNotFound = errors.New("key not found.")
 

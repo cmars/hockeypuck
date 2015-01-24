@@ -27,7 +27,7 @@ import (
 	log "gopkg.in/hockeypuck/logrus.v0"
 	"gopkg.in/tomb.v2"
 
-	"github.com/hockeypuck/hockeypuck/settings"
+	"github.com/hockeypuck/hockeypuck"
 )
 
 // Max delay backoff multiplier when smtp errors
@@ -59,7 +59,7 @@ type PksSync struct {
 }
 
 // Initialize from command line switches if fields not set.
-func NewPksSync(w *Worker, s *settings.Settings) (*PksSync, error) {
+func NewPksSync(w *Worker, s *hockeypuck.Settings) (*PksSync, error) {
 	if s.OpenPGP.Pks == nil {
 		return nil, errgo.New("PKS mail synchronization not configured")
 	}

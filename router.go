@@ -25,8 +25,6 @@ import (
 	"path/filepath"
 
 	"github.com/gorilla/mux"
-
-	"github.com/hockeypuck/hockeypuck/settings"
 )
 
 // System installed location for static files.
@@ -69,11 +67,11 @@ func (s *Settings) Webroot() string {
 // StaticRouter configures HTTP request handlers for static media files.
 type StaticRouter struct {
 	*mux.Router
-	settings *settings.Settings
+	settings *Settings
 }
 
 // NewStaticRouter constructs a new static media router and sets up all request handlers.
-func NewStaticRouter(r *mux.Router, s *settings.Settings) *StaticRouter {
+func NewStaticRouter(r *mux.Router, s *Settings) *StaticRouter {
 	sr := &StaticRouter{Router: r, settings: s}
 	sr.HandleAll()
 	return sr

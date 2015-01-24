@@ -30,7 +30,6 @@ import (
 	"launchpad.net/gnuflag"
 
 	"github.com/hockeypuck/hockeypuck"
-	"github.com/hockeypuck/hockeypuck/settings"
 )
 
 type usageError struct {
@@ -183,12 +182,12 @@ type configuredCmd struct {
 	subCmd
 	configPath string
 	configDir  string
-	settings   *settings.Settings
+	settings   *hockeypuck.Settings
 }
 
 func (c *configuredCmd) Main() error {
 	if c.configPath == "" {
-		defaultSettings := settings.Default()
+		defaultSettings := hockeypuck.DefaultSettings()
 		c.settings = &defaultSettings
 		return nil
 	}
@@ -204,7 +203,7 @@ func (c *configuredCmd) Main() error {
 		return errgo.Mask(err)
 	}
 
-	c.settings, err = settings.Parse(string(contents))
+	c.settings, err = hockeypuck.ParseSettings(string(contents))
 	if err != nil {
 		return errgo.Mask(err)
 	}

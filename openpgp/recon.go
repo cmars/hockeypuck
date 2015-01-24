@@ -36,8 +36,8 @@ import (
 	log "gopkg.in/hockeypuck/logrus.v0"
 	"gopkg.in/tomb.v2"
 
+	"github.com/hockeypuck/hockeypuck"
 	"github.com/hockeypuck/hockeypuck/hkp"
-	"github.com/hockeypuck/hockeypuck/settings"
 )
 
 const RequestChunkSize = 100
@@ -48,7 +48,7 @@ type KeyRecoveryCounter map[string]int
 
 type SksPeer struct {
 	*recon.Peer
-	settings   *settings.Settings
+	settings   *hockeypuck.Settings
 	ptree      recon.PrefixTree
 	Service    *hkp.Service
 	RecoverKey chan RecoverKey
@@ -65,7 +65,7 @@ type RecoverKey struct {
 	response hkp.ResponseChan
 }
 
-func NewSksPTree(s *settings.Settings) (recon.PrefixTree, error) {
+func NewSksPTree(s *hockeypuck.Settings) (recon.PrefixTree, error) {
 	if _, err := os.Stat(s.Conflux.Recon.LevelDB.Path); os.IsNotExist(err) {
 		log.Debugf("creating prefix tree at: %q", s.Conflux.Recon.LevelDB.Path)
 		err = os.MkdirAll(s.Conflux.Recon.LevelDB.Path, 0755)
@@ -76,7 +76,7 @@ func NewSksPTree(s *settings.Settings) (recon.PrefixTree, error) {
 	return leveldb.New(s.Conflux.Recon.PTreeConfig, s.Conflux.Recon.LevelDB.Path)
 }
 
-func NewSksPeer(srv *hkp.Service, s *settings.Settings) (*SksPeer, error) {
+func NewSksPeer(srv *hkp.Service, s *hockeypuck.Settings) (*SksPeer, error) {
 	ptree, err := NewSksPTree(s)
 	if err != nil {
 		return nil, errgo.Mask(err)

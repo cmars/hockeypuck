@@ -25,7 +25,7 @@ import (
 	"gopkg.in/errgo.v1"
 	log "gopkg.in/hockeypuck/logrus.v0"
 
-	"github.com/hockeypuck/hockeypuck/settings"
+	"github.com/hockeypuck/hockeypuck"
 )
 
 func Execv(e sqlx.Execer, query string, args ...interface{}) (sql.Result, error) {
@@ -50,7 +50,7 @@ type DB struct {
 	*sqlx.DB
 }
 
-func NewDB(s *settings.Settings) (*DB, error) {
+func NewDB(s *hockeypuck.Settings) (*DB, error) {
 	var err error
 	db := &DB{}
 	log.Debugf("connecting to driver=%q dsn=%q", s.OpenPGP.DB.Driver, s.OpenPGP.DB.DSN)

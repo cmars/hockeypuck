@@ -33,7 +33,6 @@ import (
 
 	"github.com/hockeypuck/hockeypuck"
 	"github.com/hockeypuck/hockeypuck/hkp"
-	"github.com/hockeypuck/hockeypuck/settings"
 	"github.com/hockeypuck/hockeypuck/util"
 )
 
@@ -41,7 +40,7 @@ const LOOKUP_RESULT_LIMIT = 100
 
 type Worker struct {
 	*Loader
-	settings   *settings.Settings
+	settings   *hockeypuck.Settings
 	Service    *hkp.Service
 	Peer       *SksPeer
 	keyChanges KeyChangeChan
@@ -139,7 +138,7 @@ func (w *Worker) HashQuery(hq *hkp.HashQuery) {
 	for _, digest := range hq.Digests {
 		// Look up key in storage
 		uuid, err := w.lookupMd5Uuid(digest)
-		if IsNotFound(err) {
+		if hockeypuck.IsNotFound(err) {
 			// Must have gotten into our prefix tree if peer thinks we have it.
 			// Remove the digest to self-correct.
 			err = w.removeMissingDigest(digest)
@@ -156,29 +155,29 @@ func (w *Worker) HashQuery(hq *hkp.HashQuery) {
 	hq.Response() <- &HashQueryResponse{keys.GoodKeys()}
 }
 
-func (w *Worker) removeMissingKey(digest string) error {
+func (w *Worker) removeMissingDigest(digest string) error {
 	z, err := DigestZp(digest)
 	if err != nil {
-		return errgo.Wrap(err)
-	} else {
-		w.Peer.RemoveWith(func(err error) {
-			if err != nil {
-				log.Errorf("failed to remove %q: %v", z, errgo.Details(err))
-			} else {
-				log.Debugf("removed %q from prefix tree", z.String())
-			}
-		}, z)
+		return errgo.Mask(err)
 	}
+	w.Peer.RemoveWith(func(err error) {
+		if err != nil {
+			log.Errorf("failed to remove %q: %v", z, errgo.Details(err))
+		} else {
+			log.Debugf("removed %q from prefix tree", z.String())
+		}
+	}, z)
+	return nil
 }
 
 func (w *Worker) LookupKeys(search string, limit int) ([]*Pubkey, error) {
 	uuids, err := w.lookupPubkeyUuids(search, limit)
-	return w.fetchKeys(uuids).GoodKeys(), err
+	return w.fetchKeys(uuids).GoodKeys(), errgo.Mask(err)
 }
 
 func (w *Worker) LookupHash(digest string) ([]*Pubkey, error) {
 	uuid, err := w.lookupMd5Uuid(digest)
-	return w.fetchKeys([]string{uuid}).GoodKeys(), err
+	return w.fetchKeys([]string{uuid}).GoodKeys(), errgo.Mask(err)
 }
 
 func (w *Worker) lookupPubkeyUuids(search string, limit int) ([]string, error) {
@@ -193,20 +192,20 @@ func (w *Worker) lookupMd5Uuid(hash string) (string, error) {
 	rows, err := w.db.Queryx(`SELECT uuid FROM openpgp_pubkey WHERE md5 = $1`,
 		strings.ToLower(hash))
 	if err == sql.ErrNoRows {
-		return fail, hockeypuck.ErrKeyNotFound
+		return fail, errgo.Mask(hockeypuck.ErrKeyNotFound, hockeypuck.IsNotFound)
 	} else if err != nil {
-		return fail, err
+		return fail, errgo.Mask(err)
 	}
 	uuids, err := flattenUuidRows(rows)
 	if err != nil {
-		return fail, err
+		return fail, errgo.Mask(err)
 	}
 	if len(uuids) < 1 {
-		return fail, hockeypuck.ErrKeyNotFound
+		return fail, errgo.Mask(hockeypuck.ErrKeyNotFound, hockeypuck.IsNotFound)
 	}
 	uuid := uuids[0]
 	if len(uuids) > 1 {
-		return fail, hockeypuck.ErrKeyIdCollision
+		return fail, errgo.Mask(hockeypuck.ErrKeyIdCollision)
 	}
 	return uuid, nil
 }
@@ -215,7 +214,7 @@ func (w *Worker) lookupKeyidUuids(keyId string) ([]string, error) {
 	keyId = strings.ToLower(keyId)
 	raw, err := hex.DecodeString(keyId)
 	if err != nil {
-		return nil, hockeypuck.ErrInvalidKeyId
+		return nil, errgo.Mask(hockeypuck.ErrInvalidKeyId)
 	}
 	rKeyId := util.Reverse(keyId)
 	var compareOp string
@@ -229,16 +228,16 @@ func (w *Worker) lookupKeyidUuids(keyId string) ([]string, error) {
 	case 20:
 		return []string{rKeyId}, nil
 	default:
-		return nil, hockeypuck.ErrInvalidKeyId
+		return nil, errgo.Mask(hockeypuck.ErrInvalidKeyId)
 	}
 	rows, err := w.db.Queryx(fmt.Sprintf(`
 SELECT uuid FROM openpgp_pubkey WHERE uuid %s
 UNION
 SELECT pubkey_uuid FROM openpgp_subkey WHERE uuid %s`, compareOp, compareOp), rKeyId)
 	if err == sql.ErrNoRows {
-		return nil, hockeypuck.ErrKeyNotFound
+		return nil, errgo.Mask(hockeypuck.ErrKeyNotFound, hockeypuck.IsNotFound)
 	} else if err != nil {
-		return nil, err
+		return nil, errgo.Mask(err)
 	}
 	return flattenUuidRows(rows)
 }
@@ -249,7 +248,7 @@ func flattenUuidRows(rows *sqlx.Rows) ([]string, error) {
 		var uuid string
 		err := rows.Scan(&uuid)
 		if err != nil {
-			return nil, err
+			return nil, errgo.Mask(err)
 		}
 		uuids = append(uuids, uuid)
 	}
@@ -264,7 +263,7 @@ func (w *Worker) lookupKeywordUuids(search string, limit int) ([]string, error) 
 SELECT DISTINCT pubkey_uuid FROM openpgp_uid
 WHERE keywords_fulltext @@ to_tsquery($1) LIMIT $2`, search, limit)
 	if err == sql.ErrNoRows {
-		return nil, hockeypuck.ErrKeyNotFound
+		return nil, errgo.Mask(hockeypuck.ErrKeyNotFound, hockeypuck.IsNotFound)
 	} else if err != nil {
 		return nil, errgo.Mask(err)
 	}
@@ -276,10 +275,10 @@ var ErrInternalKeyInvalid error = fmt.Errorf("Internal integrity error matching 
 func (w *Worker) LookupKey(keyid string) (*Pubkey, error) {
 	uuids, err := w.lookupKeyidUuids(keyid)
 	if err != nil {
-		return nil, err
+		return nil, errgo.Mask(err)
 	}
 	if len(uuids) < 1 {
-		return nil, hockeypuck.ErrKeyNotFound
+		return nil, errgo.Mask(hockeypuck.ErrKeyNotFound, hockeypuck.IsNotFound)
 	}
 	if len(uuids) > 1 {
 		return nil, hockeypuck.ErrKeyIdCollision
@@ -303,12 +302,12 @@ func (w *Worker) FetchKey(uuid string) (*Pubkey, error) {
 	pubkey := new(Pubkey)
 	err := w.db.Get(pubkey, `SELECT * FROM openpgp_pubkey WHERE uuid = $1`, uuid)
 	if err == sql.ErrNoRows {
-		return nil, hockeypuck.ErrKeyNotFound
+		return nil, errgo.Mask(hockeypuck.ErrKeyNotFound, hockeypuck.IsNotFound)
 	} else if err != nil {
-		return nil, err
+		return nil, errgo.Mask(err)
 	}
 	if err = pubkey.Read(); err != nil {
-		return nil, err
+		return nil, errgo.Mask(err)
 	}
 	// Retrieve all signatures made directly on the primary public key
 	sigs := []Signature{}
@@ -317,12 +316,12 @@ SELECT * FROM openpgp_sig WHERE pubkey_uuid = $1
 	AND subkey_uuid IS NULL AND uid_uuid IS NULL AND uat_uuid IS NULL AND sig_uuid IS NULL`,
 		uuid)
 	if err != nil && err != sql.ErrNoRows {
-		return nil, err
+		return nil, errgo.Mask(err)
 	}
 	pubkey.signatures = toSigPtrSlice(sigs)
 	for _, sig := range pubkey.signatures {
 		if err = sig.Read(); err != nil {
-			return nil, err
+			return nil, errgo.Mask(err)
 		}
 	}
 	// Retrieve all uid records
@@ -331,24 +330,24 @@ SELECT * FROM openpgp_sig WHERE pubkey_uuid = $1
 SELECT uuid, creation, expiration, state, packet, pubkey_uuid, revsig_uuid, keywords
 FROM openpgp_uid WHERE pubkey_uuid = $1`, uuid)
 	if err != nil && err != sql.ErrNoRows {
-		return nil, err
+		return nil, errgo.Mask(err)
 	}
 	pubkey.userIds = toUidPtrSlice(uids)
 	for _, uid := range pubkey.userIds {
 		if err = uid.Read(); err != nil {
-			return nil, err
+			return nil, errgo.Mask(err)
 		}
 		sigs = []Signature{}
 		err = w.db.Select(&sigs, `
 SELECT * FROM openpgp_sig WHERE pubkey_uuid = $1 AND uid_uuid = $2
 	AND subkey_uuid IS NULL AND uat_uuid IS NULL AND sig_uuid IS NULL`, uuid, uid.ScopedDigest)
 		if err != nil && err != sql.ErrNoRows {
-			return nil, err
+			return nil, errgo.Mask(err)
 		}
 		uid.signatures = toSigPtrSlice(sigs)
 		for _, sig := range uid.signatures {
 			if err = sig.Read(); err != nil {
-				return nil, err
+				return nil, errgo.Mask(err)
 			}
 		}
 	}
@@ -357,24 +356,24 @@ SELECT * FROM openpgp_sig WHERE pubkey_uuid = $1 AND uid_uuid = $2
 	err = w.db.Select(&uats,
 		`SELECT * FROM openpgp_uat WHERE pubkey_uuid = $1`, uuid)
 	if err != nil && err != sql.ErrNoRows {
-		return nil, err
+		return nil, errgo.Mask(err)
 	}
 	pubkey.userAttributes = toUatPtrSlice(uats)
 	for _, uat := range pubkey.userAttributes {
 		if err = uat.Read(); err != nil {
-			return nil, err
+			return nil, errgo.Mask(err)
 		}
 		sigs = []Signature{}
 		err = w.db.Select(&sigs, `
 SELECT * FROM openpgp_sig WHERE pubkey_uuid = $1 AND uat_uuid = $2
 	AND subkey_uuid IS NULL AND uid_uuid IS NULL AND sig_uuid IS NULL`, uuid, uat.ScopedDigest)
 		if err != nil && err != sql.ErrNoRows {
-			return nil, err
+			return nil, errgo.Mask(err)
 		}
 		uat.signatures = toSigPtrSlice(sigs)
 		for _, sig := range uat.signatures {
 			if err = sig.Read(); err != nil {
-				return nil, err
+				return nil, errgo.Mask(err)
 			}
 		}
 	}
@@ -383,24 +382,24 @@ SELECT * FROM openpgp_sig WHERE pubkey_uuid = $1 AND uat_uuid = $2
 	err = w.db.Select(&subkeys,
 		`SELECT * FROM openpgp_subkey WHERE pubkey_uuid = $1`, uuid)
 	if err != nil && err != sql.ErrNoRows {
-		return nil, err
+		return nil, errgo.Mask(err)
 	}
 	pubkey.subkeys = toSubkeyPtrSlice(subkeys)
 	for _, subkey := range pubkey.subkeys {
 		if err = subkey.Read(); err != nil {
-			return nil, err
+			return nil, errgo.Mask(err)
 		}
 		sigs = []Signature{}
 		err = w.db.Select(&sigs, `
 SELECT * FROM openpgp_sig sig WHERE pubkey_uuid = $1 AND subkey_uuid = $2
 	AND uid_uuid IS NULL AND uat_uuid IS NULL AND sig_uuid IS NULL`, uuid, subkey.RFingerprint)
 		if err != nil && err != sql.ErrNoRows {
-			return nil, err
+			return nil, errgo.Mask(err)
 		}
 		subkey.signatures = toSigPtrSlice(sigs)
 		for _, sig := range subkey.signatures {
 			if err = sig.Read(); err != nil {
-				return nil, err
+				return nil, errgo.Mask(err)
 			}
 		}
 	}
