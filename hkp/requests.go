@@ -28,21 +28,15 @@ import (
 	"gopkg.in/hockeypuck/conflux.v2/recon"
 )
 
-// ErrorMissingParam constructs an informative error when a
-// required parameter was missing from a request.
-func ErrorMissingParam(param string) error {
+func errMissingParam(param string) error {
 	return errgo.Newf("missing required parameter: %s", param)
 }
 
-// ErrorMissingParam constructs an informative error when an
-// unknown operation was requested.
-func ErrorUnknownOperation(op string) error {
+func errUnknownOperation(op string) error {
 	return errgo.Newf("unknown operation: %s", op)
 }
 
-// ErrorMissingParam constructs an informative error when an
-// invalid HTTP method was requested for the given HKP endpoint.
-func ErrorInvalidMethod(method string) error {
+func errInvalidMethod(method string) error {
 	return errgo.Newf("invalid HTTP method: %s", method)
 }
 
@@ -55,207 +49,153 @@ type Request interface {
 }
 
 // Operation enumerates the supported HKP operations (op parameter) in the request.
-type Operation int
+type Operation string
 
-// Hockeypuck supported Operations.
 const (
-	UnknownOperation           = iota
-	Get              Operation = iota
-	Index            Operation = iota
-	Vindex           Operation = iota
-	Stats            Operation = iota
-	HashGet          Operation = iota
+	OperationGet    = Operation("get")
+	OperationIndex  = Operation("index")
+	OperationVindex = Operation("vindex")
+	OperationStats  = Operation("stats")
+	OperationHGet   = Operation("hget")
 )
 
-// Option bit mask in request.
-type Option int
+func ParseOperation(s string) (Operation, bool) {
+	op := Operation(s)
+	switch op {
+	case OperationGet, OperationIndex, OperationVindex,
+		OperationStats, OperationHGet:
+		return op, true
+	}
+	return Operation(""), false
+}
 
-// Hockeypuck supported HKP options.
+// Option defines modifiers available to some HKP requests.
+type Option string
+
 const (
-	MachineReadable Option = 1 << iota
-	NotModifiable   Option = 1 << iota
-	JsonFormat      Option = 1 << iota
-	NoOption               = Option(0)
+	OptionMachineReadable = Option("mr")
+	OptionNotModifiable   = Option("nm")
+	OptionJSON            = Option("json")
 )
 
-// An HKP "lookup" request.
+type OptionSet map[Option]bool
+
+func ParseOptionSet(s string) OptionSet {
+	result := OptionSet{}
+	fields := strings.Split(s, ",")
+	for _, field := range fields {
+		result[Option[field]] = true
+	}
+	return result
+}
+
+// Lookup contains all the parameters and options for a /pks/lookup request.
 type Lookup struct {
-	*http.Request
 	Op           Operation
 	Search       string
-	Option       Option
+	Options      OptionSet
 	Fingerprint  bool
 	Exact        bool
 	Hash         bool
 	responseChan ResponseChan
 }
 
-func NewLookup() *Lookup {
-	return &Lookup{responseChan: make(ResponseChan)}
-}
-
-// Get the response channel that a worker processing
-// a lookup request will use to send the response back to the
-// web server.
-func (l *Lookup) Response() ResponseChan {
-	return l.responseChan
-}
-
-func (l *Lookup) Parse() error {
-	// Parse the URL query parameters
-	err := l.ParseForm()
+func ParseLookup(req *http.Request) (*Lookup, error) {
+	err := req.ParseForm()
 	if err != nil {
-		return errgo.Mask(err)
+		return nil, errgo.Mask(err)
 	}
-	l.responseChan = make(ResponseChan)
-	searchRequired := true
-	// Parse the "op" variable (section 3.1.2)
-	switch op := l.Form.Get("op"); op {
-	case "get":
-		l.Op = Get
-	case "index":
-		l.Op = Index
-	case "vindex":
-		l.Op = Vindex
-	case "stats":
-		l.Op = Stats
-		searchRequired = false
-	case "hget":
-		l.Op = HashGet
-	case "":
-		return ErrorMissingParam("op")
-	default:
-		return ErrorUnknownOperation(op)
-	}
-	// Parse the "search" variable (section 3.1.1)
-	if l.Search = l.Form.Get("search"); searchRequired && l.Search == "" {
-		return ErrorMissingParam("search")
-	}
-	// Parse the "options" variable (section 3.2.1)
-	l.Option = parseOptions(l.Form.Get("options"))
-	// Parse the "fingerprint" variable (section 3.2.2)
-	l.Fingerprint = l.Form.Get("fingerprint") == "on"
-	// Parse the "hash" variable (SKS convention)
-	l.Hash = l.Form.Get("hash") == "on"
-	// Parse the "exact" variable (section 3.2.3)
-	l.Exact = l.Form.Get("exact") == "on"
-	return nil
-}
 
-func (l *Lookup) MachineReadable() bool { return l.Option&MachineReadable != 0 }
+	var l Lookup
+	var ok bool
+	// The OpenPGP HTTP Keyserver Protocol (HKP), Section 3.1.2
+	l.Operation, ok = ParseOperation(req.Form.Get("op"))
+	if !ok {
+		return nil, errgo.Mask("invalid operation %q", req.Form.Get("op"))
+	}
 
-// parseOptions interprets the "options" parameter (section 3.2.1)
-func parseOptions(options string) Option {
-	var result Option
-	optionValues := strings.Split(options, ",")
-	for _, option := range optionValues {
-		switch option {
-		case "mr":
-			result |= MachineReadable
-		case "nm":
-			result |= NotModifiable
-		case "json":
-			result |= JsonFormat
+	if op != OperationStats {
+		// The OpenPGP HTTP Keyserver Protocol (HKP), Section 3.1.1
+		l.Search = req.Form.Get("search")
+		if l.Search == "" {
+			return nil, errMissingParam("search")
 		}
 	}
-	return result
+
+	l.Options = ParseOptionSet(req.Form.Get("options"))
+
+	// The OpenPGP HTTP Keyserver Protocol (HKP), Section 3.2.2
+	l.Fingerprint = l.Form.Get("fingerprint") == "on"
+
+	// Not in draft spec, SKS convention
+	l.Hash = l.Form.Get("hash") == "on"
+
+	// The OpenPGP HTTP Keyserver Protocol (HKP), Section 3.2.3
+	l.Exact = l.Form.Get("exact") == "on"
+
+	return &l, nil
 }
 
-// An HKP "add" request.
+// Add represents a valid /pks/add request content, parameters and options.
 type Add struct {
-	*http.Request
-	Keytext      string
-	Option       Option
-	responseChan ResponseChan
+	Keytext   string
+	OptionSet Options
 }
 
-func NewAdd() *Add {
-	return &Add{responseChan: make(ResponseChan)}
-}
-
-// Get the response channel for sending a response to an add request.
-func (a *Add) Response() ResponseChan {
-	return a.responseChan
-}
-
-func (a *Add) Parse() error {
-	// Require HTTP POST
-	if a.Method != "POST" {
-		return ErrorInvalidMethod(a.Method)
+func ParseAdd(req *http.Request) (*Add, error) {
+	if req.Method != "POST" {
+		return errInvalidMethod(a.Method)
 	}
+
+	var a Add
 	// Parse the URL query parameters
-	err := a.ParseForm()
+	err := req.ParseForm()
 	if err != nil {
 		return errgo.Mask(err)
 	}
-	a.responseChan = make(ResponseChan)
-	if keytext := a.Form.Get("keytext"); keytext == "" {
-		return ErrorMissingParam("keytext")
-	} else {
-		a.Keytext = keytext
+
+	a.Keytext = req.Form.Get("keytext")
+	if a.Keytext == "" {
+		return errMissingParam("keytext")
 	}
-	a.Option = parseOptions(a.Form.Get("options"))
-	return nil
+
+	a.Options = ParseOptionSet(req.Form.Get("options"))
+
+	return a, nil
 }
 
 type HashQuery struct {
-	*http.Request
-	Digests      []string
-	responseChan ResponseChan
+	Digests []string
 }
 
-func NewHashQuery() *HashQuery {
-	return &HashQuery{responseChan: make(ResponseChan)}
-}
-
-func (hq *HashQuery) Response() ResponseChan {
-	return hq.responseChan
-}
-
-func (hq *HashQuery) Parse() error {
-	// Require HTTP POST
-	if hq.Method != "POST" {
-		return ErrorInvalidMethod(hq.Method)
+func ParseHashQuery(req *http.Request) (*HashQuery, error) {
+	if req.Method != "POST" {
+		return errInvalidMethod(hq.Method)
 	}
-	hq.responseChan = make(ResponseChan)
-	var body *bytes.Buffer
-	{
-		defer hq.Body.Close()
-		buf, err := ioutil.ReadAll(hq.Body)
-		if err != nil {
-			return errgo.Mask(err)
-		}
-		body = bytes.NewBuffer(buf)
-	}
+
+	r := req.Body
+	defer r.Close()
+
+	var hq HashQuery
+
 	// Parse hashquery POST data
-	n, err := recon.ReadInt(body)
+	n, err := recon.ReadInt(r)
 	if err != nil {
-		return errgo.Mask(err)
+		return nil, errgo.Mask(err)
 	}
 	hq.Digests = make([]string, n)
 	for i := 0; i < n; i++ {
-		hashlen, err := recon.ReadInt(body)
+		hashlen, err := recon.ReadInt(r)
 		if err != nil {
-			return errgo.Mask(err)
+			return nil, errgo.Mask(err)
 		}
 		hash := make([]byte, hashlen)
 		_, err = body.Read(hash)
 		if err != nil {
-			return errgo.Mask(err)
+			return nil, errgo.Mask(err)
 		}
 		hq.Digests[i] = hex.EncodeToString(hash)
 	}
-	return nil
+
+	return &hq, nil
 }
-
-// Worker responses.
-type Response interface {
-	Error() error
-	WriteTo(http.ResponseWriter) error
-}
-
-// Channel of HKP requests, to be read by a worker.
-type RequestChan chan Request
-
-// Response channel to which the workers send their results.
-type ResponseChan chan Response
