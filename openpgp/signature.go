@@ -19,13 +19,8 @@ package openpgp
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"database/sql"
-	"encoding/ascii85"
 	"encoding/binary"
 	"encoding/hex"
-	"errors"
-	"io"
 	"time"
 
 	"golang.org/x/crypto/openpgp/packet"
@@ -34,6 +29,120 @@ import (
 	"github.com/hockeypuck/hockeypuck/util"
 )
 
+type Signature struct {
+	Packet
+
+	SigType      int
+	RIssuerKeyID string
+	Creation     time.Time
+	Expiration   time.Time
+}
+
+const sigTag = "{sig}"
+
+func (sig *Signature) removeDuplicate(parent packetNode, dup packetNode) error {
+	dupSig, ok := dup.(*Signature)
+	if !ok {
+		return errgo.Newf("invalid packet duplicate: %+v", dup)
+	}
+	switch ppkt := parent.(type) {
+	case *Pubkey:
+		ppkt.Signatures = sigSlice(ppkt.Signatures).without(dupSig)
+	case *Subkey:
+		ppkt.Signatures = sigSlice(ppkt.Signatures).without(dupSig)
+	case *UserID:
+		ppkt.Signatures = sigSlice(ppkt.Signatures).without(dupSig)
+	case *UserAttribute:
+		ppkt.Signatures = sigSlice(ppkt.Signatures).without(dupSig)
+	}
+	return nil
+}
+
+type sigSlice []*Signature
+
+func (ss sigSlice) without(target *Signature) []*Signature {
+	var result []*Signature
+	for _, sig := range ss {
+		if sig != target {
+			result = append(result, sig)
+		}
+	}
+	return result
+}
+
+func ParseSignature(op *packet.OpaquePacket, pubkeyUUID, scopedUUID string) (*Signature, error) {
+	var buf bytes.Buffer
+	var err error
+
+	if err = op.Serialize(&buf); err != nil {
+		return nil, errgo.Mask(err)
+	}
+	sig := &Signature{
+		Packet: Packet{
+			UUID:   scopedDigest([]string{pubkeyUUID, scopedUUID}, sigTag, buf.Bytes()),
+			Tag:    op.Tag,
+			Packet: buf.Bytes(),
+		},
+	}
+
+	// Attempt to parse the opaque packet into a public key type.
+	err = sig.parse(op)
+	if err != nil {
+		return nil, errgo.Mask(err)
+	}
+	sig.Valid = true
+	return sig, nil
+}
+
+func (sig *Signature) parse(op *packet.OpaquePacket) error {
+	p, err := op.Parse()
+	if err != nil {
+		return errgo.Mask(err)
+	}
+
+	switch s := p.(type) {
+	case *packet.Signature:
+		return sig.setSignature(s)
+	case *packet.SignatureV3:
+		return sig.setSignatureV3(s)
+	}
+	return errgo.Mask(ErrInvalidPacketType, errgo.Any)
+}
+
+func (sig *Signature) setSignature(s *packet.Signature) error {
+	if s.IssuerKeyId == nil {
+		return errgo.New("missing issuer key ID")
+	}
+	sig.Creation = s.CreationTime
+	sig.SigType = int(s.SigType)
+	// Extract the issuer key id
+	var issuerKeyId [8]byte
+	if s.IssuerKeyId != nil {
+		binary.BigEndian.PutUint64(issuerKeyId[:], *s.IssuerKeyId)
+		sigKeyId := hex.EncodeToString(issuerKeyId[:])
+		sig.RIssuerKeyID = util.Reverse(sigKeyId)
+	}
+	// Expiration time
+	if s.SigLifetimeSecs != nil {
+		sig.Expiration = s.CreationTime.Add(
+			time.Duration(*s.SigLifetimeSecs) * time.Second)
+	}
+	return nil
+}
+
+func (sig *Signature) setSignatureV3(s *packet.SignatureV3) error {
+	sig.Creation = s.CreationTime
+	// V3 packets do not have an expiration time
+	sig.SigType = int(s.SigType)
+	// Extract the issuer key id
+	var issuerKeyId [8]byte
+	binary.BigEndian.PutUint64(issuerKeyId[:], s.IssuerKeyId)
+	sigKeyId := hex.EncodeToString(issuerKeyId[:])
+	sig.RIssuerKeyID = util.Reverse(sigKeyId)
+	return nil
+}
+
+/*
 type Signature struct {
 	ScopedDigest       string         `db:"uuid"`        // immutable
 	Creation           time.Time      `db:"creation"`    // immutable
@@ -45,7 +154,7 @@ type Signature struct {
 	RIssuerFingerprint sql.NullString `db:"signer_uuid"` // mutable
 	RevSigDigest       sql.NullString `db:"revsig_uuid"` // mutable
 
-	/* Containment references */
+	/ * Containment references * /
 
 	PubkeyUuid sql.NullString `db:"pubkey_uuid"`
 	SubkeyUuid sql.NullString `db:"subkey_uuid"`
@@ -53,11 +162,11 @@ type Signature struct {
 	UatUuid    sql.NullString `db:"uat_uuid"`
 	SigUuid    sql.NullString `db:"sig_uuid"`
 
-	/* Cross-references */
+	/ * Cross-references * /
 
 	revSig *Signature
 
-	/* Parsed packet data */
+	/ * Parsed packet data * /
 
 	Signature   *packet.Signature
 	SignatureV3 *packet.SignatureV3
@@ -73,14 +182,6 @@ func (sig *Signature) IssuerShortId() string {
 
 func (sig *Signature) IssuerFingerprint() string {
 	return util.Reverse(sig.RIssuerFingerprint.String)
-}
-
-func toAscii85String(buf []byte) string {
-	out := bytes.NewBuffer(nil)
-	enc := ascii85.NewEncoder(out)
-	enc.Write(buf)
-	enc.Close()
-	return out.String()
 }
 
 func (sig *Signature) calcScopedDigest(pubkey *Pubkey, scope string) string {
@@ -165,40 +266,6 @@ func NewSignature(op *packet.OpaquePacket) (*Signature, error) {
 	return sig, nil
 }
 
-func (sig *Signature) initV3() {
-	sig.Creation = sig.SignatureV3.CreationTime
-	// V3 packets do not have an expiration time
-	sig.Expiration = NeverExpires
-	sig.SigType = int(sig.SignatureV3.SigType)
-	// Extract the issuer key id
-	var issuerKeyId [8]byte
-	binary.BigEndian.PutUint64(issuerKeyId[:], sig.SignatureV3.IssuerKeyId)
-	sigKeyId := hex.EncodeToString(issuerKeyId[:])
-	sig.RIssuerKeyId = util.Reverse(sigKeyId)
-}
-
-func (sig *Signature) initV4() error {
-	if sig.Signature.IssuerKeyId == nil {
-		return errors.New("Signature missing issuer key ID")
-	}
-	sig.Creation = sig.Signature.CreationTime
-	sig.Expiration = NeverExpires
-	sig.SigType = int(sig.Signature.SigType)
-	// Extract the issuer key id
-	var issuerKeyId [8]byte
-	if sig.Signature.IssuerKeyId != nil {
-		binary.BigEndian.PutUint64(issuerKeyId[:], *sig.Signature.IssuerKeyId)
-		sigKeyId := hex.EncodeToString(issuerKeyId[:])
-		sig.RIssuerKeyId = util.Reverse(sigKeyId)
-	}
-	// Expiration time
-	if sig.Signature.SigLifetimeSecs != nil {
-		sig.Expiration = sig.Signature.CreationTime.Add(
-			time.Duration(*sig.Signature.SigLifetimeSecs) * time.Second)
-	}
-	return nil
-}
-
 func (sig *Signature) Visit(visitor PacketVisitor) error {
 	return visitor(sig)
 }
@@ -206,3 +273,4 @@ func (sig *Signature) Visit(visitor PacketVisitor) error {
 func (sig *Signature) IsPrimary() bool {
 	return sig.Signature != nil && sig.Signature.IsPrimaryId != nil && *sig.Signature.IsPrimaryId
 }
+*/

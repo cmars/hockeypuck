@@ -19,82 +19,75 @@ package openpgp
 
 import (
 	"bytes"
+	"io"
 	"testing"
 
 	"golang.org/x/crypto/openpgp/armor"
 	"golang.org/x/crypto/openpgp/packet"
-	"github.com/stretchr/testify/assert"
+	gc "gopkg.in/check.v1"
 )
 
-func TestVerifyUserAttributeSig(t *testing.T) {
-	key := MustInputAscKey(t, "uat.asc")
-	assert.Equal(t, 1, len(key.userAttributes), "Failed to read user attribute")
-	Resolve(key)
-	assert.Equal(t, 1, len(key.userAttributes), "Failed to validate user attribute")
-	uat := key.userAttributes[0]
-	imageDats := uat.UserAttribute.ImageData()
-	assert.Equal(t, 1, len(imageDats), "Expected 1 image in uat, found", len(imageDats))
+func Test(t *testing.T) { gc.TestingT(t) }
+
+type SamplePacketSuite struct{}
+
+var _ = gc.Suite(&SamplePacketSuite{})
+
+func (s *SamplePacketSuite) TestVerifyUserAttributeSig(c *gc.C) {
+	key := MustInputAscKey(c, "uat.asc")
+	c.Assert(key.UserAttributes, gc.HasLen, 1)
+	Deduplicate(key)
+	c.Assert(key.UserAttributes, gc.HasLen, 1)
+	uat := key.UserAttributes[0]
+	c.Assert(uat.Images, gc.HasLen, 1)
 	// TODO: check contents
 }
 
-const SKS_DIGEST__SHORTID = "ce353cf4"
+/*
+const SksExampleShortID = "ce353cf4"
 const SKS_DIGEST__REFERENCE = "da84f40d830a7be2a3c0b7f2e146bfaa"
 
-func TestSksDigest(t *testing.T) {
-	key := MustInputAscKey(t, "sksdigest.asc")
+func (s *SamplePacketSuite) TestSksDigest(c *gc.C) {
+	key := MustInputAscKey(c, "sksdigest.asc")
 	assert.Equal(t, SKS_DIGEST__SHORTID, key.ShortId())
 	assert.Equal(t, SKS_DIGEST__REFERENCE, key.Md5)
 }
+*/
 
-func TestUatRtt(t *testing.T) {
-	f := MustInput(t, "uat.asc")
+func (s *SamplePacketSuite) TestUatRtt(c *gc.C) {
+	f := MustInput(c, "uat.asc")
 	defer f.Close()
 	block, err := armor.Decode(f)
-	if err != nil {
-		t.Fatal(err)
-	}
+	c.Assert(err, gc.IsNil)
 	var p packet.Packet
 	for {
 		p, err = packet.Read(block.Body)
 		if err != nil {
+			c.Assert(err, gc.Equals, io.EOF)
 			break
 		}
-		if uat, is := p.(*packet.UserAttribute); is {
+
+		uat, ok := p.(*packet.UserAttribute)
+		if ok {
 			var buf bytes.Buffer
 			uat.Serialize(&buf)
 			or := packet.NewOpaqueReader(bytes.NewBuffer(buf.Bytes()))
 			op, _ := or.Next()
-			assert.Equal(t, buf.Bytes()[3:], op.Contents)
+			c.Assert(buf.Bytes()[3:], gc.DeepEquals, op.Contents)
 		}
 	}
 }
 
-func TestReadKey0ff16c87(t *testing.T) {
-	f := MustInput(t, "0ff16c87.asc")
+func (s *SamplePacketSuite) TestReadKey0ff16c87(c *gc.C) {
+	f := MustInput(c, "0ff16c87.asc")
 	block, err := armor.Decode(f)
-	if err != nil {
-		t.Fatal(err)
-	}
+	c.Assert(err, gc.IsNil)
 	var key *Pubkey
 	for keyRead := range ReadKeys(block.Body) {
 		key = keyRead.Pubkey
 	}
-	assert.NotNil(t, key)
-	key.Visit(func(rec PacketRecord) error {
-		_, err = rec.GetOpaquePacket()
-		switch r := rec.(type) {
-		case *Pubkey:
-			assert.NotEmpty(t, r.Packet)
-		case *Subkey:
-			assert.NotEmpty(t, r.Packet)
-		case *Signature:
-			assert.NotEmpty(t, r.Packet)
-		case *UserId:
-			assert.NotEmpty(t, r.Packet)
-		case *UserAttribute:
-			assert.NotEmpty(t, r.Packet)
-		}
-		assert.Nil(t, err)
-		return nil
-	})
+	c.Assert(key, gc.NotNil)
+	c.Assert(key.UserIDs, gc.HasLen, 9)
+	c.Assert(key.UserAttributes, gc.HasLen, 0)
+	c.Assert(key.Subkeys, gc.HasLen, 1)
 }

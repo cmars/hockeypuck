@@ -21,50 +21,44 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"testing"
 
 	"golang.org/x/crypto/openpgp/armor"
+	gc "gopkg.in/check.v1"
 )
 
-/*
-func init() {
-	hockeypuck.SetConfig("")
-}
-*/
-
-func MustInput(t *testing.T, name string) *os.File {
+func MustInput(c *gc.C, name string) *os.File {
 	_, thisFile, _, ok := runtime.Caller(0)
 	if !ok {
-		t.Fatal("Cannot locate unit test data files")
+		c.Fatal("cannot locate unit test data files")
 	}
 	path := filepath.Join(filepath.Dir(thisFile), "testdata", name)
 	f, err := os.Open(path)
 	if err != nil {
-		t.Fatal("Cannot open unit test data file", path, ":", err)
+		c.Fatalf("cannot open unit test data file %q: %v", path, err)
 	}
 	return f
 }
 
-func MustInputAscKeys(t *testing.T, name string) (result []*Pubkey) {
-	f := MustInput(t, name)
+func MustInputAscKeys(c *gc.C, name string) []*Pubkey {
+	f := MustInput(c, name)
 	defer f.Close()
 	block, err := armor.Decode(f)
 	if err != nil {
-		t.Fatal(err)
+		c.Fatal(err)
 	}
+
+	var result []*Pubkey
 	for keyRead := range ReadKeys(block.Body) {
-		if keyRead.Error != nil {
-			t.Fatal(keyRead.Error)
-		}
+		c.Assert(keyRead.Error, gc.IsNil)
 		result = append(result, keyRead.Pubkey)
 	}
-	return
+	return result
 }
 
-func MustInputAscKey(t *testing.T, name string) *Pubkey {
-	keys := MustInputAscKeys(t, name)
+func MustInputAscKey(c *gc.C, name string) *Pubkey {
+	keys := MustInputAscKeys(c, name)
 	if len(keys) != 1 {
-		t.Fatal("Expected only one key, got", len(keys))
+		c.Fatalf("expected one key, got %d", len(keys))
 	}
 	return keys[0]
 }

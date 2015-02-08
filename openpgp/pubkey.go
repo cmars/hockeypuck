@@ -19,17 +19,10 @@ package openpgp
 
 import (
 	"bytes"
-	"crypto"
 	"crypto/sha1"
-	"database/sql"
 	"encoding/hex"
-	"fmt"
-	"hash"
-	"io"
-	"strings"
 	"time"
 
-	"golang.org/x/crypto/openpgp/errors"
 	"golang.org/x/crypto/openpgp/packet"
 	"gopkg.in/errgo.v1"
 	log "gopkg.in/hockeypuck/logrus.v0"
@@ -37,17 +30,158 @@ import (
 	"github.com/hockeypuck/hockeypuck/util"
 )
 
-const (
-	PubkeyStateOk      = 0
-	PubkeyStateInvalid = iota
-)
+type publicKeyPacket struct {
+	Packet
 
+	// Creation stores the timestamp when the public key was created.
+	Creation time.Time
+
+	// Expiration stores the timestamp when the public key expires.
+	Expiration time.Time
+
+	// Algorithm stores the algorithm type of the public key.
+	Algorithm int
+
+	// BitLen stores the bit length of the public key.
+	BitLen int
+
+	Signatures []*Signature
+	Others     []*Packet
+}
+
+// packet implements the packetNode interface.
+func (pk *publicKeyPacket) packet() *Packet {
+	return &pk.Packet
+}
+
+func reverse(s string) string {
+	runes := []rune(s)
+	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
+		runes[i], runes[j] = runes[j], runes[i]
+	}
+	return string(runes)
+}
+
+func ShortID(rid string) (string, bool) {
+	return suffixID(rid, 8)
+}
+
+func LongID(rid string) (string, bool) {
+	return suffixID(rid, 16)
+}
+
+func suffixID(rid string, n int) (string, bool) {
+	l := len(rid)
+	if l < n {
+		return "", false
+	}
+	id := reverse(rid)
+	return id[l-n : l], true
+}
+
+type Pubkey struct {
+	publicKeyPacket
+
+	Subkeys        []*Subkey
+	UserIDs        []*UserID
+	UserAttributes []*UserAttribute
+}
+
+// contents implements the packetNode interface for top-level public keys.
+func (pubkey *Pubkey) contents() []packetNode {
+	result := []packetNode{pubkey}
+	for _, sig := range pubkey.Signatures {
+		result = append(result, sig.contents()...)
+	}
+	for _, uid := range pubkey.UserIDs {
+		result = append(result, uid.contents()...)
+	}
+	for _, uat := range pubkey.UserAttributes {
+		result = append(result, uat.contents()...)
+	}
+	for _, subkey := range pubkey.Subkeys {
+		result = append(result, subkey.contents()...)
+	}
+	for _, other := range pubkey.Others {
+		result = append(result, other.contents()...)
+	}
+	return result
+}
+
+func (*Pubkey) removeDuplicate(parent packetNode, dup packetNode) error {
+	return errgo.New("cannot remove a duplicate primary pubkey")
+}
+
+// appendSignature implements signable.
+func (pk *publicKeyPacket) appendSignature(sig *Signature) {
+	pk.Signatures = append(pk.Signatures, sig)
+}
+
+func ParsePubkey(op *packet.OpaquePacket) (*Pubkey, error) {
+	var buf bytes.Buffer
+	var err error
+
+	if err = op.Serialize(&buf); err != nil {
+		return nil, errgo.Mask(err)
+	}
+	pubkey := &Pubkey{
+		publicKeyPacket: publicKeyPacket{
+			Packet: Packet{
+				Tag:    op.Tag,
+				Packet: buf.Bytes(),
+			},
+		},
+	}
+
+	// Attempt to parse the opaque packet into a public key type.
+	parseErr := pubkey.parse(op, false)
+	if parseErr != nil {
+		pubkey.setUnsupported(op)
+	} else {
+		pubkey.Valid = true
+	}
+
+	return pubkey, nil
+}
+
+func (pkp *publicKeyPacket) parse(op *packet.OpaquePacket, subkey bool) error {
+	p, err := op.Parse()
+	if err != nil {
+		return errgo.Mask(err)
+	}
+
+	switch pk := p.(type) {
+	case *packet.PublicKey:
+		if pk.IsSubkey != subkey {
+			return ErrInvalidPacketType
+		}
+		return pkp.setPublicKey(pk)
+	case *packet.PublicKeyV3:
+		if pk.IsSubkey != subkey {
+			return ErrInvalidPacketType
+		}
+		return pkp.setPublicKeyV3(pk)
+	default:
+	}
+	return errgo.Mask(ErrInvalidPacketType, errgo.Any)
+}
+
+type Keyring struct {
+	Pubkey
+
+	CTime  time.Time
+	MTime  time.Time
+	MD5    string
+	SHA256 string
+}
+
+/*
 // Pubkey represents an OpenPGP public key packet.
 // Searchable fields are extracted from the packet key material
 // stored in Packet, for database indexing.
 type Pubkey struct {
 
-	/* Database fields */
+	/ * Database fields * /
 
 	RFingerprint string         `db:"uuid"`        // immutable
 	Creation     time.Time      `db:"creation"`    // immutable
@@ -65,14 +199,14 @@ type Pubkey struct {
 	BitLen       int            `db:"bit_len"`     // immutable
 	Unsupported  []byte         `db:"unsupp"`      // mutable
 
-	/* Containment references */
+	/ * Containment references * /
 
 	signatures     []*Signature     `db:"-"`
 	subkeys        []*Subkey        `db:"-"`
 	userIds        []*UserId        `db:"-"`
 	userAttributes []*UserAttribute `db:"-"`
 
-	/* Cross-references */
+	/ * Cross-references * /
 
 	revSig        *Signature     `db:"-"`
 	primaryUid    *UserId        `db:"-"`
@@ -80,7 +214,7 @@ type Pubkey struct {
 	primaryUat    *UserAttribute `db:"-"`
 	primaryUatSig *Signature     `db:"-"`
 
-	/* Parsed packet data */
+	/ * Parsed packet data * /
 
 	PublicKey   *packet.PublicKey
 	PublicKeyV3 *packet.PublicKeyV3
@@ -204,66 +338,69 @@ func NewPubkey(op *packet.OpaquePacket) (pubkey *Pubkey, _ error) {
 	}
 	return pubkey, nil
 }
+*/
 
-func (pubkey *Pubkey) initUnsupported(op *packet.OpaquePacket) {
-	pubkey.State = PacketStateUnsuppPubkey
+func (pkp *publicKeyPacket) setUnsupported(op *packet.OpaquePacket) {
 	// Calculate opaque fingerprint on unsupported public key packet
 	h := sha1.New()
 	h.Write([]byte{0x99, byte(len(op.Contents) >> 8), byte(len(op.Contents))})
 	h.Write(op.Contents)
 	fpr := hex.EncodeToString(h.Sum(nil))
-	pubkey.RFingerprint = util.Reverse(fpr)
+	pkp.UUID = util.Reverse(fpr)
 }
 
-func (pubkey *Pubkey) initV4() error {
+func (pkp *publicKeyPacket) setPublicKey(pk *packet.PublicKey) error {
 	buf := bytes.NewBuffer(nil)
-	err := pubkey.PublicKey.Serialize(buf)
+	err := pk.Serialize(buf)
 	if err != nil {
 		return errgo.Mask(err)
 	}
-	fingerprint := Fingerprint(pubkey.PublicKey)
-	bitLen, err := pubkey.PublicKey.BitLength()
+	fingerprint := hex.EncodeToString(pk.Fingerprint[:])
+	bitLen, err := pk.BitLength()
 	if err != nil {
 		return errgo.Mask(err)
 	}
-	if pubkey.PublicKey.IsSubkey {
+	if pk.IsSubkey {
 		log.Warn("expected primary public key packet, got sub-key")
 		return errgo.Mask(ErrInvalidPacketType)
 	}
-	pubkey.RFingerprint = util.Reverse(fingerprint)
-	pubkey.Creation = pubkey.PublicKey.CreationTime
-	pubkey.Expiration = NeverExpires
-	pubkey.Algorithm = int(pubkey.PublicKey.PubKeyAlgo)
-	pubkey.BitLen = int(bitLen)
+	pkp.UUID = util.Reverse(fingerprint)
+	pkp.Creation = pk.CreationTime
+	pkp.Expiration = NeverExpires
+	pkp.Algorithm = int(pk.PubKeyAlgo)
+	pkp.BitLen = int(bitLen)
+	pkp.Valid = true
 	return nil
 }
 
-func (pubkey *Pubkey) initV3() error {
+func (pkp *publicKeyPacket) setPublicKeyV3(pk *packet.PublicKeyV3) error {
 	var buf bytes.Buffer
-	err := pubkey.PublicKeyV3.Serialize(&buf)
+	err := pk.Serialize(&buf)
 	if err != nil {
 		return errgo.Mask(err)
 	}
-	fingerprint := FingerprintV3(pubkey.PublicKeyV3)
-	bitLen, err := pubkey.PublicKeyV3.BitLength()
+	fingerprint := hex.EncodeToString(pk.Fingerprint[:])
+	bitLen, err := pk.BitLength()
 	if err != nil {
 		return errgo.Mask(err)
 	}
-	if pubkey.PublicKeyV3.IsSubkey {
+	if pk.IsSubkey {
 		log.Warn("expected primary public key packet, got sub-key")
 		return ErrInvalidPacketType
 	}
-	pubkey.RFingerprint = util.Reverse(fingerprint)
-	pubkey.Creation = pubkey.PublicKeyV3.CreationTime
-	pubkey.Expiration = NeverExpires
-	if pubkey.PublicKeyV3.DaysToExpire > 0 {
-		pubkey.Expiration = pubkey.Creation.Add(time.Duration(pubkey.PublicKeyV3.DaysToExpire) * time.Hour * 24)
+	pkp.UUID = util.Reverse(fingerprint)
+	pkp.Creation = pk.CreationTime
+	pkp.Expiration = NeverExpires
+	if pk.DaysToExpire > 0 {
+		pkp.Expiration = pkp.Creation.Add(time.Duration(pk.DaysToExpire) * time.Hour * 24)
 	}
-	pubkey.Algorithm = int(pubkey.PublicKeyV3.PubKeyAlgo)
-	pubkey.BitLen = int(bitLen)
+	pkp.Algorithm = int(pk.PubKeyAlgo)
+	pkp.BitLen = int(bitLen)
+	pkp.Valid = true
 	return nil
 }
 
+/*
 func (pubkey *Pubkey) Visit(visitor PacketVisitor) error {
 	err := visitor(pubkey)
 	if err != nil {
@@ -328,7 +465,7 @@ func (pubkey *Pubkey) verifyPublicKeySelfSig(keyrec publicKeyRecord, sig *Signat
 	//if !Config().VerifySigs() {
 	return nil
 	//}
-	/*
+	/ *
 		if pubkey.PublicKey != nil && keyrec.publicKey() != nil {
 			if sig.Signature != nil {
 				err := pubkey.PublicKey.VerifyKeySignature(keyrec.publicKey(), sig.Signature)
@@ -351,12 +488,12 @@ func (pubkey *Pubkey) verifyPublicKeySelfSig(keyrec publicKeyRecord, sig *Signat
 			}
 		}
 		return ErrPacketRecordState
-	*/
+	* /
 }
 
 func (pubkey *Pubkey) verifyUserIdSelfSig(uid *UserId, sig *Signature) error {
 	return nil
-	/*
+	/ *
 		if !Config().VerifySigs() {
 			return nil
 		}
@@ -387,12 +524,12 @@ func (pubkey *Pubkey) verifyUserIdSelfSig(uid *UserId, sig *Signature) error {
 			}
 		}
 		return ErrPacketRecordState
-	*/
+	* /
 }
 
 func (pubkey *Pubkey) verifyUserAttrSelfSig(uat *UserAttribute, sig *Signature) error {
 	return nil
-	/*
+	/ *
 		if !Config().VerifySigs() {
 			return nil
 		}
@@ -412,7 +549,7 @@ func (pubkey *Pubkey) verifyUserAttrSelfSig(uat *UserAttribute, sig *Signature) 
 			return pubkey.PublicKey.VerifySignature(h, sig.Signature)
 		}
 		return ErrPacketRecordState
-	*/
+	* /
 }
 
 // sigSerializeUserAttribute calculates the user attribute packet hash
@@ -458,3 +595,4 @@ func (pubkey *Pubkey) AppendUnsupported(opkt *packet.OpaquePacket) {
 	opkt.Serialize(&buf)
 	pubkey.Unsupported = append(pubkey.Unsupported, buf.Bytes()...)
 }
+*/

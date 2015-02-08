@@ -18,111 +18,96 @@
 package openpgp
 
 import (
-	"bytes"
 	"crypto/md5"
 	"encoding/binary"
 	"encoding/hex"
 	"sort"
-	"testing"
 
 	"golang.org/x/crypto/openpgp/armor"
 	"golang.org/x/crypto/openpgp/packet"
-	"github.com/stretchr/testify/assert"
+	gc "gopkg.in/check.v1"
 )
 
-func TestBadSelfSigUid(t *testing.T) {
-	f := MustInput(t, "badselfsig.asc")
-	i := 0
-	for keyRead := range ReadKeys(f) {
-		assert.NotNil(t, keyRead.Error)
-		i++
+type ResolveSuite struct{}
+
+var _ = gc.Suite(&ResolveSuite{})
+
+func (s *ResolveSuite) TestBadSelfSigUid(c *gc.C) {
+	f := MustInput(c, "badselfsig.asc")
+	var keys []*ReadKeyResult
+	for kr := range ReadKeys(f) {
+		keys = append(keys, kr)
 	}
-	assert.Equal(t, 1, i)
+	c.Assert(keys, gc.HasLen, 1)
+	c.Assert(keys[0].Error, gc.NotNil)
 }
 
-func TestDupSig(t *testing.T) {
-	{
-		f := MustInput(t, "252B8B37.dupsig.asc")
-		defer f.Close()
-		block, err := armor.Decode(f)
-		if err != nil {
-			t.Fatal(err)
-		}
-		r := packet.NewOpaqueReader(block.Body)
-		var packets []*packet.OpaquePacket
-		for {
-			if op, err := r.Next(); err != nil {
-				break
-			} else {
-				packets = append(packets, op)
-				t.Log("raw:", op)
-			}
-		}
-		sksDigest := sksDigestOpaque(packets, md5.New())
-		assert.Equal(t, sksDigest, "6d57b48c83d6322076d634059bb3b94b")
-	}
-	// Read a key
-	{
-		f := MustInput(t, "252B8B37.dupsig.asc")
-		defer f.Close()
-		block, err := armor.Decode(f)
-		if err != nil {
-			t.Fatal(err)
-		}
-		var key *Pubkey
-		for keyRead := range readKeys(block.Body) {
-			assert.Nil(t, keyRead.Error)
-			key = keyRead.Pubkey
-		}
-		var packets []*packet.OpaquePacket
-		key.Visit(func(rec PacketRecord) error {
-			op, err := rec.GetOpaquePacket()
-			assert.Nil(t, err)
+func (s *ResolveSuite) TestDupSigSksDigest(c *gc.C) {
+	f := MustInput(c, "252B8B37.dupsig.asc")
+	defer f.Close()
+	block, err := armor.Decode(f)
+	c.Assert(err, gc.IsNil)
+	r := packet.NewOpaqueReader(block.Body)
+	var packets []*packet.OpaquePacket
+	for {
+		if op, err := r.Next(); err != nil {
+			break
+		} else {
 			packets = append(packets, op)
-			return err
-		})
-		r := packet.NewOpaqueReader(bytes.NewBuffer(key.Unsupported))
-		for op, err := r.Next(); err == nil; op, err = r.Next() {
-			packets = append(packets, op)
+			c.Log("raw:", op)
 		}
-		sksDigest := sksDigestOpaque(packets, md5.New())
-		assert.Equal(t, sksDigest, "6d57b48c83d6322076d634059bb3b94b")
 	}
-	// Now read & resolve
-	key := MustInputAscKey(t, "252B8B37.dupsig.asc")
-	key.Visit(func(rec PacketRecord) error {
-		op, err := rec.GetOpaquePacket()
-		assert.Nil(t, err)
-		t.Log("parsed:", op)
-		return nil
-	})
-	r := packet.NewOpaqueReader(bytes.NewBuffer(key.Unsupported))
-	for op, err := r.Next(); err == nil; op, err = r.Next() {
-		t.Log("parsed:", op)
-	}
-	assert.Equal(t, key.Md5, "6d57b48c83d6322076d634059bb3b94b")
+	sksDigest := sksDigestOpaque(packets, md5.New())
+	c.Assert(sksDigest, gc.Equals, "6d57b48c83d6322076d634059bb3b94b")
 }
 
-func TestPrimaryUidSelection(t *testing.T) {
-	key := MustInputAscKey(t, "lp1195901.asc")
+func (s *ResolveSuite) TestRoundTripSksDigest(c *gc.C) {
+	f := MustInput(c, "252B8B37.dupsig.asc")
+	defer f.Close()
+	block, err := armor.Decode(f)
+	c.Assert(err, gc.IsNil)
+
+	var key *Pubkey
+	for keyRead := range readKeys(block.Body) {
+		c.Assert(keyRead.Error, gc.IsNil)
+		key = keyRead.Pubkey
+	}
+
+	var packets []*packet.OpaquePacket
+	for _, node := range key.contents() {
+		packet := node.packet()
+		for i := 0; i <= packet.Count; i++ {
+			op, err := newOpaquePacket(packet.Packet)
+			c.Assert(err, gc.IsNil)
+			packets = append(packets, op)
+		}
+	}
+
+	sksDigest := sksDigestOpaque(packets, md5.New())
+	c.Assert(sksDigest, gc.Equals, "6d57b48c83d6322076d634059bb3b94b")
+}
+
+/*
+func (s *ResolveSuite) TestPrimaryUidSelection(c *gc.C) {
+	key := MustInputAscKey(c, "lp1195901.asc")
 	Resolve(key)
-	assert.NotNil(t, key.primaryUid)
+	assert.NotNil(c, key.primaryUid)
 	// Primary UID
-	assert.Equal(t, key.primaryUid.Keywords, "Phil Pennock <phil.pennock@spodhuis.org>")
+	assert.Equal(c, key.primaryUid.Keywords, "Phil Pennock <phil.pennock@spodhuis.org>")
 	for _, uid := range key.userIds {
 		if uid.Keywords == "pdp@spodhuis.demon.nl" {
 			// This uid sig is revoked
-			assert.NotNil(t, uid.revSig)
+			assert.NotNil(c, uid.revSig)
 		}
 	}
-	key = MustInputAscKey(t, "lp1195901_2.asc")
+	key = MustInputAscKey(c, "lp1195901_2.asc")
 	Resolve(key)
-	assert.NotNil(t, key.primaryUid)
-	assert.Equal(t, key.primaryUid.Keywords, "Phil Pennock <phil.pennock@globnix.org>")
+	assert.NotNil(c, key.primaryUid)
+	assert.Equal(c, key.primaryUid.Keywords, "Phil Pennock <phil.pennock@globnix.org>")
 }
 
-func TestSortPrimaryUid(t *testing.T) {
-	key := MustInputAscKey(t, "lp1195901.asc")
+func (s *ResolveSuite) TestSortPrimaryUid(c *gc.C) {
+	key := MustInputAscKey(c, "lp1195901.asc")
 	Resolve(key)
 	Sort(key)
 	expect := []string{
@@ -132,14 +117,16 @@ func TestSortPrimaryUid(t *testing.T) {
 		"Phil Pennock <pdp@spodhuis.org>",
 		"Phil Pennock <pdp@spodhuis.demon.nl>"}
 	for i := range key.userIds {
-		assert.Equal(t, expect[i], key.userIds[i].Keywords)
+		assert.Equal(c, expect[i], key.userIds[i].Keywords)
 	}
 }
+*/
 
-func TestKeyExpiration(t *testing.T) {
-	key := MustInputAscKey(t, "lp1195901.asc")
+/*
+func (s *ResolveSuite) TestKeyExpiration(c *gc.C) {
+	key := MustInputAscKey(c, "lp1195901.asc")
 	Resolve(key)
-	Sort(key)
+
 	key.Visit(func(rec PacketRecord) error {
 		if sig, is := rec.(*Signature); is {
 			if sig.Signature != nil && sig.Signature.KeyLifetimeSecs != nil {
@@ -149,53 +136,68 @@ func TestKeyExpiration(t *testing.T) {
 		return nil
 	})
 }
+*/
 
-func TestPrimaryUidFallback(t *testing.T) {
-	f := MustInput(t, "snowcrash.gpg")
+/*
+func (s *ResolveSuite) TestPrimaryUidFallback(c *gc.C) {
+	f := MustInput(c, "snowcrash.gpg")
 	var key *Pubkey
 	for keyRead := range ReadKeys(f) {
-		assert.Nil(t, keyRead.Error)
+		assert.Nil(c, keyRead.Error)
 		key = keyRead.Pubkey
 	}
-	assert.NotNil(t, key)
-	assert.NotEmpty(t, key.PrimaryUid)
-	t.Log(key.PrimaryUid)
+	assert.NotNil(c, key)
+	assert.NotEmpty(c, key.PrimaryUid)
+	c.Log(key.PrimaryUid)
 }
+*/
 
 // TestUnsuppIgnored tests parsing key material containing
 // packets which are not normally part of an exported public key --
 // trust packets, in this case.
-func TestUnsuppIgnored(t *testing.T) {
-	f := MustInput(t, "snowcrash.gpg")
+func (s *ResolveSuite) TestUnsuppIgnored(c *gc.C) {
+	f := MustInput(c, "snowcrash.gpg")
 	var key *Pubkey
 	for keyRead := range ReadKeys(f) {
-		assert.Nil(t, keyRead.Error)
+		c.Assert(keyRead.Error, gc.IsNil)
 		key = keyRead.Pubkey
+		break
 	}
-	assert.NotNil(t, key)
-	assert.Empty(t, key.Unsupported)
+	c.Assert(key, gc.NotNil)
+	for _, node := range key.contents() {
+		switch p := node.(type) {
+		case *Pubkey:
+			c.Assert(p.Others, gc.HasLen, 0)
+		case *Subkey:
+			c.Assert(p.Others, gc.HasLen, 0)
+		case *UserID:
+			c.Assert(p.Others, gc.HasLen, 0)
+		case *UserAttribute:
+			c.Assert(p.Others, gc.HasLen, 0)
+		}
+	}
 }
 
-func TestMissingUidFk(t *testing.T) {
-	key := MustInputAscKey(t, "d7346e26.asc")
-	t.Log(key)
+func (s *ResolveSuite) TestMissingUidFk(c *gc.C) {
+	key := MustInputAscKey(c, "d7346e26.asc")
+	c.Log(key)
 }
 
-func TestV3NoUidSig(t *testing.T) {
-	key := MustInputAscKey(t, "0xd46b7c827be290fe4d1f9291b1ebc61a.asc")
-	assert.Equal(t, "0005127a8b7da8c32998d7e81dc92540", key.Md5)
-	assert.Equal(t, "0760df64b3d82239", key.KeyId())
-	f := MustInput(t, "0xd46b7c827be290fe4d1f9291b1ebc61a.asc")
+func (s *ResolveSuite) TestV3NoUidSig(c *gc.C) {
+	key := MustInputAscKey(c, "0xd46b7c827be290fe4d1f9291b1ebc61a.asc")
+	//c.Assert("0005127a8b7da8c32998d7e81dc92540", gc.Equals, key.Md5)
+	longID, ok := LongID(key.UUID)
+	c.Assert(ok, gc.Equals, true)
+	c.Assert("0760df64b3d82239", gc.Equals, longID)
+	f := MustInput(c, "0xd46b7c827be290fe4d1f9291b1ebc61a.asc")
 	defer f.Close()
 	block, err := armor.Decode(f)
-	if err != nil {
-		t.Fatal(err)
-	}
+	c.Assert(err, gc.IsNil)
 	var kr *OpaqueKeyring
 	for opkr := range ReadOpaqueKeyrings(block.Body) {
 		kr = opkr
 	}
-	sort.Sort(sksPacketSorter{kr.Packets})
+	sort.Sort(opaquePacketSlice(kr.Packets))
 	h := md5.New()
 	for _, opkt := range kr.Packets {
 		binary.Write(h, binary.BigEndian, int32(opkt.Tag))
@@ -203,5 +205,5 @@ func TestV3NoUidSig(t *testing.T) {
 		h.Write(opkt.Contents)
 	}
 	md5 := hex.EncodeToString(h.Sum(nil))
-	assert.Equal(t, "0005127a8b7da8c32998d7e81dc92540", md5)
+	c.Assert("0005127a8b7da8c32998d7e81dc92540", gc.Equals, md5)
 }

@@ -19,11 +19,6 @@ package openpgp
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"database/sql"
-	"io"
-	"strings"
-	"time"
 
 	"golang.org/x/crypto/openpgp/packet"
 	"gopkg.in/errgo.v1"
@@ -31,6 +26,16 @@ import (
 	"github.com/hockeypuck/hockeypuck/util"
 )
 
+type UserID struct {
+	Packet
+
+	Keywords string
+
+	Signatures []*Signature
+	Others     []*Packet
+}
+
+/*
 type UserId struct {
 	ScopedDigest string         `db:"uuid"`        // immutable
 	Creation     time.Time      `db:"creation"`    // mutable (derived from latest sigs)
@@ -41,27 +46,23 @@ type UserId struct {
 	RevSigDigest sql.NullString `db:"revsig_uuid"` // mutable
 	Keywords     string         `db:"keywords"`    // immutable
 
-	/* Cross-references */
+	/ * Cross-references * /
 
 	revSig        *Signature   `db:"-"`
 	selfSignature *Signature   `db:"-"`
 	signatures    []*Signature `db:"-"`
 
-	/* Parsed packet data */
+	/ * Parsed packet data * /
 
 	UserId *packet.UserId
 }
 
 func (uid *UserId) Signatures() []*Signature { return uid.signatures }
+*/
 
-func (uid *UserId) calcScopedDigest(pubkey *Pubkey) string {
-	h := sha256.New()
-	h.Write([]byte(pubkey.RFingerprint))
-	h.Write([]byte("{uid}"))
-	h.Write(uid.Packet)
-	return toAscii85String(h.Sum(nil))
-}
+const uidTag = "{uid}"
 
+/*
 func (uid *UserId) Serialize(w io.Writer) error {
 	_, err := w.Write(uid.Packet)
 	return errgo.Mask(err)
@@ -97,30 +98,89 @@ func (uid *UserId) Read() error {
 	}
 	return uid.setPacket(p)
 }
+*/
 
-func NewUserId(op *packet.OpaquePacket) (*UserId, error) {
+// contents implements the packetNode interface for user IDs.
+func (uid *UserID) contents() []packetNode {
+	result := []packetNode{uid}
+	for _, sig := range uid.Signatures {
+		result = append(result, sig.contents()...)
+	}
+	for _, p := range uid.Others {
+		result = append(result, p.contents()...)
+	}
+	return result
+}
+
+// appendSignature implements signable.
+func (uid *UserID) appendSignature(sig *Signature) {
+	uid.Signatures = append(uid.Signatures, sig)
+}
+
+func (uid *UserID) removeDuplicate(parent packetNode, dup packetNode) error {
+	pubkey, ok := parent.(*Pubkey)
+	if !ok {
+		return errgo.Newf("invalid uid parent: %+v", parent)
+	}
+	dupUserID, ok := dup.(*UserID)
+	if !ok {
+		return errgo.Newf("invalid uid duplicate: %+v", dup)
+	}
+
+	uid.Signatures = append(uid.Signatures, dupUserID.Signatures...)
+	uid.Others = append(uid.Others, dupUserID.Others...)
+	pubkey.UserIDs = uidSlice(pubkey.UserIDs).without(dupUserID)
+	return nil
+}
+
+type uidSlice []*UserID
+
+func (us uidSlice) without(target *UserID) []*UserID {
+	var result []*UserID
+	for _, uid := range us {
+		if uid != target {
+			result = append(result, uid)
+		}
+	}
+	return result
+}
+
+func ParseUserID(op *packet.OpaquePacket, parentID string) (*UserID, error) {
 	var buf bytes.Buffer
 	if err := op.Serialize(&buf); err != nil {
 		return nil, errgo.Mask(err)
 	}
-	uid := &UserId{Packet: buf.Bytes()}
+	uid := &UserID{
+		Packet: Packet{
+			UUID:   scopedDigest([]string{parentID}, uidTag, buf.Bytes()),
+			Tag:    op.Tag,
+			Packet: buf.Bytes(),
+		},
+	}
+
 	p, err := op.Parse()
 	if err != nil {
 		return nil, errgo.Mask(err)
 	}
-	if err = uid.setPacket(p); err != nil {
+
+	u, ok := p.(*packet.UserId)
+	if !ok {
+		return nil, ErrInvalidPacketType
+	}
+	err = uid.setUserID(u)
+	if err != nil {
 		return nil, errgo.Mask(err)
 	}
-	uid.init()
+	uid.Valid = true
 	return uid, nil
 }
 
-func (uid *UserId) init() {
-	uid.Creation = NeverExpires
-	uid.Expiration = time.Unix(0, 0)
-	uid.Keywords = util.CleanUtf8(uid.UserId.Id)
+func (uid *UserID) setUserID(u *packet.UserId) error {
+	uid.Keywords = util.CleanUtf8(u.Id)
+	return nil
 }
 
+/*
 func (uid *UserId) Visit(visitor PacketVisitor) error {
 	err := visitor(uid)
 	if err != nil {
@@ -190,3 +250,4 @@ func (uid *UserId) linkSelfSigs(pubkey *Pubkey) {
 		uid.State |= PacketStateNoSelfSig
 	}
 }
+*/

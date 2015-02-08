@@ -19,16 +19,95 @@ package openpgp
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"database/sql"
-	"io"
-	"strings"
-	"time"
 
 	"golang.org/x/crypto/openpgp/packet"
 	"gopkg.in/errgo.v1"
 )
 
+type UserAttribute struct {
+	Packet
+
+	Images [][]byte
+
+	Signatures []*Signature
+	Others     []*Packet
+}
+
+const uatTag = "{uat}"
+
+// contents implements the packetNode interface for user attributes.
+func (uat *UserAttribute) contents() []packetNode {
+	result := []packetNode{uat}
+	for _, sig := range uat.Signatures {
+		result = append(result, sig.contents()...)
+	}
+	for _, p := range uat.Others {
+		result = append(result, p.contents()...)
+	}
+	return result
+}
+
+// appendSignature implements signable.
+func (uat *UserAttribute) appendSignature(sig *Signature) {
+	uat.Signatures = append(uat.Signatures, sig)
+}
+
+func (uat *UserAttribute) removeDuplicate(parent packetNode, dup packetNode) error {
+	pubkey, ok := parent.(*Pubkey)
+	if !ok {
+		return errgo.Newf("invalid uat parent: %+v", parent)
+	}
+	dupUserAttribute, ok := dup.(*UserAttribute)
+	if !ok {
+		return errgo.Newf("invalid uat duplicate: %+v", dup)
+	}
+
+	uat.Signatures = append(uat.Signatures, dupUserAttribute.Signatures...)
+	uat.Others = append(uat.Others, dupUserAttribute.Others...)
+	pubkey.UserAttributes = uatSlice(pubkey.UserAttributes).without(dupUserAttribute)
+	return nil
+}
+
+type uatSlice []*UserAttribute
+
+func (us uatSlice) without(target *UserAttribute) []*UserAttribute {
+	var result []*UserAttribute
+	for _, uat := range us {
+		if uat != target {
+			result = append(result, uat)
+		}
+	}
+	return result
+}
+
+func ParseUserAttribute(op *packet.OpaquePacket, parentID string) (*UserAttribute, error) {
+	var buf bytes.Buffer
+	if err := op.Serialize(&buf); err != nil {
+		return nil, errgo.Mask(err)
+	}
+	uat := &UserAttribute{
+		Packet: Packet{
+			UUID:   scopedDigest([]string{parentID}, uatTag, buf.Bytes()),
+			Tag:    op.Tag,
+			Packet: buf.Bytes(),
+		},
+	}
+
+	p, err := op.Parse()
+	if err != nil {
+		return nil, errgo.Mask(err)
+	}
+
+	u, ok := p.(*packet.UserAttribute)
+	if !ok {
+		return nil, ErrInvalidPacketType
+	}
+	uat.Images = u.ImageData()
+	uat.Valid = true
+	return uat, nil
+}
+
+/*
 type UserAttribute struct {
 	ScopedDigest string         `db:"uuid"`        // immutable
 	Creation     time.Time      `db:"creation"`    // mutable (derived from latest sigs)
@@ -38,13 +117,13 @@ type UserAttribute struct {
 	PubkeyRFP    string         `db:"pubkey_uuid"` // immutable
 	RevSigDigest sql.NullString `db:"revsig_uuid"` // mutable
 
-	/* Cross-references */
+	/ * Cross-references * /
 
 	revSig        *Signature   `db:"-"`
 	selfSignature *Signature   `db:"-"`
 	signatures    []*Signature `db:"-"`
 
-	/* Parsed packet data */
+	/ * Parsed packet data * /
 
 	UserAttribute *packet.UserAttribute
 }
@@ -182,3 +261,4 @@ func (uat *UserAttribute) linkSelfSigs(pubkey *Pubkey) {
 		uat.State |= PacketStateNoSelfSig
 	}
 }
+*/

@@ -18,8 +18,6 @@
 package openpgp
 
 import (
-	"crypto/md5"
-	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -48,6 +46,7 @@ func init() {
 	NeverExpires = t
 }
 
+/*
 // Get the public key fingerprint as a hex string.
 func Fingerprint(pubkey *packet.PublicKey) string {
 	return hex.EncodeToString(pubkey.Fingerprint[:])
@@ -57,21 +56,14 @@ func Fingerprint(pubkey *packet.PublicKey) string {
 func FingerprintV3(pubkey *packet.PublicKeyV3) string {
 	return hex.EncodeToString(pubkey.Fingerprint[:])
 }
+*/
 
-func WritePackets(w io.Writer, root PacketRecord) error {
-	err := root.Visit(func(rec PacketRecord) error {
-		op, err := rec.GetOpaquePacket()
+func WritePackets(w io.Writer, root packetNode) error {
+	for _, node := range root.contents() {
+		op, err := newOpaquePacket(node.packet().Packet)
 		if err != nil {
 			return errgo.Mask(err)
 		}
-		return op.Serialize(w)
-	})
-	if err != nil {
-		return errgo.Mask(err)
-	}
-	// Dump unsupported packets at the end.
-	pubkey := root.(*Pubkey)
-	for _, op := range pubkey.UnsupportedPackets() {
 		err = op.Serialize(w)
 		if err != nil {
 			return errgo.Mask(err)
@@ -80,7 +72,7 @@ func WritePackets(w io.Writer, root PacketRecord) error {
 	return nil
 }
 
-func WriteArmoredPackets(w io.Writer, root PacketRecord) error {
+func WriteArmoredPackets(w io.Writer, root packetNode) error {
 	armw, err := armor.Encode(w, openpgp.PublicKeyType, nil)
 	defer armw.Close()
 	if err != nil {
@@ -98,87 +90,103 @@ type OpaqueKeyring struct {
 	Position     int64
 }
 
-func (ok *OpaqueKeyring) setPosition(r io.Reader) {
-	if f, is := r.(*os.File); is {
-		var err error
-		ok.Position, err = f.Seek(0, 1)
-		if err != nil {
-			ok.Position = -1
+func (okr *OpaqueKeyring) setPosition(r io.Reader) {
+	f, ok := r.(*os.File)
+	if ok {
+		pos, err := f.Seek(0, 1)
+		if err == nil {
+			okr.Position = pos
+			return
 		}
-	} else {
-		ok.Position = -1
 	}
+	okr.Position = -1
 }
 
 func (ok *OpaqueKeyring) Parse() (*Pubkey, error) {
 	var err error
 	var pubkey *Pubkey
-	var signable Signable
+	var signablePacket signable
 	for _, opkt := range ok.Packets {
 		var badPacket *packet.OpaquePacket
 		if opkt.Tag == 6 { //packet.PacketTypePublicKey:
 			if pubkey != nil {
 				return nil, errgo.Newf("multiple public keys in keyring")
 			}
-			if pubkey, err = NewPubkey(opkt); err != nil {
+			if pubkey, err = ParsePubkey(opkt); err != nil {
 				return nil, errgo.Notef(err, "invalid public key packet type")
 			}
-			signable = pubkey
+			signablePacket = pubkey
 		} else if pubkey != nil {
 			switch opkt.Tag {
 			case 14: //packet.PacketTypePublicSubkey:
-				signable = nil
-				var subkey *Subkey
-				if subkey, err = NewSubkey(opkt); err != nil {
+				signablePacket = nil
+				subkey, err := ParseSubkey(opkt)
+				if err != nil {
 					badPacket = opkt
 				} else {
-					pubkey.subkeys = append(pubkey.subkeys, subkey)
-					signable = subkey
+					pubkey.Subkeys = append(pubkey.Subkeys, subkey)
+					signablePacket = subkey
 				}
 			case 13: //packet.PacketTypeUserId:
-				signable = nil
-				var userId *UserId
-				if userId, err = NewUserId(opkt); err != nil {
+				signablePacket = nil
+				uid, err := ParseUserID(opkt, pubkey.UUID)
+				if err != nil {
 					badPacket = opkt
 				} else {
-					pubkey.userIds = append(pubkey.userIds, userId)
-					signable = userId
+					pubkey.UserIDs = append(pubkey.UserIDs, uid)
+					signablePacket = uid
 				}
 			case 17: //packet.PacketTypeUserAttribute:
-				signable = nil
-				var userAttr *UserAttribute
-				if userAttr, err = NewUserAttribute(opkt); err != nil {
+				signablePacket = nil
+				uat, err := ParseUserAttribute(opkt, pubkey.UUID)
+				if err != nil {
 					badPacket = opkt
 				} else {
-					pubkey.userAttributes = append(pubkey.userAttributes, userAttr)
-					signable = userAttr
+					pubkey.UserAttributes = append(pubkey.UserAttributes, uat)
+					signablePacket = uat
 				}
 			case 2: //packet.PacketTypeSignature:
-				var sig *Signature
-				if sig, err = NewSignature(opkt); err != nil {
+				sig, err := ParseSignature(opkt, pubkey.UUID, signablePacket.uuid())
+				if err != nil {
 					badPacket = opkt
-				} else if signable == nil {
+				} else if signablePacket == nil {
 					badPacket = opkt
 				} else {
-					signable.AddSignature(sig)
+					signablePacket.appendSignature(sig)
 				}
 			default:
 				badPacket = opkt
 			}
 
 			if badPacket != nil {
-				pubkey.AppendUnsupported(badPacket)
+				var badParent string
+				if signablePacket != nil {
+					badParent = signablePacket.uuid()
+				} else {
+					badParent = pubkey.uuid()
+				}
+				other, err := ParseOther(badPacket, badParent)
+				if err != nil {
+					return nil, errgo.Mask(err)
+				}
+				pubkey.Others = append(pubkey.Others, other)
 			}
 		}
 	}
 	if pubkey == nil {
-		return nil, fmt.Errorf("No primary public key found")
+		return nil, errgo.New("primary public key not found")
 	}
-	// Update the overall public key material digest.
-	pubkey.updateDigests()
-	// Validate signatures and wire-up relationships.
-	// Also flags invalid key material but does not remove it.
-	Resolve(pubkey)
+	/*
+		// Update the overall public key material digest.
+		pubkey.updateDigests()
+		// Validate signatures and wire-up relationships.
+		// Also flags invalid key material but does not remove it.
+		Resolve(pubkey)
+	*/
+	err = Deduplicate(pubkey)
+	if err != nil {
+		return nil, err
+	}
 	return pubkey, nil
 }
 
@@ -229,23 +237,24 @@ func ReadOpaqueKeyrings(r io.Reader) OpaqueKeyringChan {
 // OpenPGP packets for a given primary public key,
 // using the same ordering as SKS, the Synchronizing Key Server.
 // Use MD5 for matching digest values with SKS.
-func SksDigest(key *Pubkey, h hash.Hash) string {
-	var packets packetSlice
-	key.Visit(func(rec PacketRecord) error {
-		if opkt, err := rec.GetOpaquePacket(); err != nil {
-			panic(fmt.Sprintf(
-				"Error parsing packet: %v public key fingerprint: %v", err, key.Fingerprint()))
-		} else {
-			packets = append(packets, opkt)
+func SksDigest(key *Pubkey, h hash.Hash) (string, error) {
+	var fail string
+	var packets opaquePacketSlice
+	for _, node := range key.contents() {
+		op, err := newOpaquePacket(node.packet().Packet)
+		if err != nil {
+			return fail, errgo.Mask(err)
 		}
-		return nil
-	})
-	packets = append(packets, key.UnsupportedPackets()...)
-	return sksDigestOpaque(packets, h)
+		packets = append(packets, op)
+	}
+	if len(packets) == 0 {
+		return fail, errgo.New("no packets found")
+	}
+	return sksDigestOpaque(packets, h), nil
 }
 
 func sksDigestOpaque(packets []*packet.OpaquePacket, h hash.Hash) string {
-	sort.Sort(sksPacketSorter{packets})
+	sort.Sort(opaquePacketSlice(packets))
 	for _, opkt := range packets {
 		binary.Write(h, binary.BigEndian, int32(opkt.Tag))
 		binary.Write(h, binary.BigEndian, int32(len(opkt.Contents)))
@@ -277,10 +286,12 @@ func ErrReadKeys(msg string) *ReadKeyResult {
 	return &ReadKeyResult{Error: fmt.Errorf(msg)}
 }
 
+/*
 func (pubkey *Pubkey) updateDigests() {
-	pubkey.Md5 = SksDigest(pubkey, md5.New())
-	pubkey.Sha256 = SksDigest(pubkey, sha256.New())
+	pubkey.MD5 = SksDigest(pubkey, md5.New())
+	pubkey.SHA256 = SksDigest(pubkey, sha256.New())
 }
+*/
 
 func ReadKeys(r io.Reader) PubkeyChan {
 	c := make(PubkeyChan)
@@ -288,7 +299,7 @@ func ReadKeys(r io.Reader) PubkeyChan {
 		defer close(c)
 		for keyRead := range readKeys(r) {
 			if keyRead.Error == nil {
-				Resolve(keyRead.Pubkey)
+				keyRead.Error = Deduplicate(keyRead.Pubkey)
 			}
 			c <- keyRead
 		}

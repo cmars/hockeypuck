@@ -19,18 +19,84 @@ package openpgp
 
 import (
 	"bytes"
-	"database/sql"
-	"io"
-	"strings"
-	"time"
 
 	"golang.org/x/crypto/openpgp/packet"
 	"gopkg.in/errgo.v1"
-	log "gopkg.in/hockeypuck/logrus.v0"
-
-	"github.com/hockeypuck/hockeypuck/util"
 )
 
+type Subkey struct {
+	publicKeyPacket
+}
+
+// contents implements the packetNode interface for sub-keys.
+func (subkey *Subkey) contents() []packetNode {
+	result := []packetNode{subkey}
+	for _, sig := range subkey.Signatures {
+		result = append(result, sig.contents()...)
+	}
+	for _, p := range subkey.Others {
+		result = append(result, p.contents()...)
+	}
+	return result
+}
+
+func ParseSubkey(op *packet.OpaquePacket) (*Subkey, error) {
+	var buf bytes.Buffer
+	var err error
+
+	if err = op.Serialize(&buf); err != nil {
+		return nil, errgo.Mask(err)
+		panic("unable to write internal buffer")
+	}
+	subkey := &Subkey{
+		publicKeyPacket: publicKeyPacket{
+			Packet: Packet{
+				Tag:    op.Tag,
+				Packet: buf.Bytes(),
+			},
+		},
+	}
+
+	// Attempt to parse the opaque packet into a public key type.
+	parseErr := subkey.parse(op, true)
+	if parseErr != nil {
+		subkey.setUnsupported(op)
+	} else {
+		subkey.Valid = true
+	}
+
+	return subkey, nil
+}
+
+func (subkey *Subkey) removeDuplicate(parent packetNode, dup packetNode) error {
+	pubkey, ok := parent.(*Pubkey)
+	if !ok {
+		return errgo.Newf("invalid subkey parent: %+v", parent)
+	}
+	dupSubkey, ok := dup.(*Subkey)
+	if !ok {
+		return errgo.Newf("invalid subkey duplicate: %+v", dup)
+	}
+
+	subkey.Signatures = append(subkey.Signatures, dupSubkey.Signatures...)
+	subkey.Others = append(subkey.Others, dupSubkey.Others...)
+	pubkey.Subkeys = subkeySlice(pubkey.Subkeys).without(dupSubkey)
+	return nil
+}
+
+type subkeySlice []*Subkey
+
+func (ss subkeySlice) without(target *Subkey) []*Subkey {
+	var result []*Subkey
+	for _, subkey := range ss {
+		if subkey != target {
+			result = append(result, subkey)
+		}
+	}
+	return result
+}
+
+/*
 type Subkey struct {
 	RFingerprint string         `db:"uuid"`        // immutable
 	Creation     time.Time      `db:"creation"`    // immutable
@@ -42,16 +108,16 @@ type Subkey struct {
 	Algorithm    int            `db:"algorithm"`   // immutable
 	BitLen       int            `db:"bit_len"`     // immutable
 
-	/* Containment references */
+	/ * Containment references * /
 
 	signatures []*Signature `db:"-"`
 
-	/* Cross-references */
+	/ * Cross-references * /
 
 	revSig     *Signature `db:"-"`
 	bindingSig *Signature `db:"-"`
 
-	/* Parsed packet data */
+	/ * Parsed packet data * /
 
 	PublicKey   *packet.PublicKey
 	PublicKeyV3 *packet.PublicKeyV3
@@ -240,3 +306,4 @@ func (subkey *Subkey) linkSelfSigs(pubkey *Pubkey) {
 
 func (subkey *Subkey) publicKey() *packet.PublicKey     { return subkey.PublicKey }
 func (subkey *Subkey) publicKeyV3() *packet.PublicKeyV3 { return subkey.PublicKeyV3 }
+*/

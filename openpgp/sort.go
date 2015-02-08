@@ -26,19 +26,21 @@ type uidSorter struct {
 	*Pubkey
 }
 
-func (s *uidSorter) Len() int { return len(s.userIds) }
+func (s *uidSorter) Len() int { return len(s.UserIDs) }
 
 func (s *uidSorter) Less(i, j int) bool {
-	iSig := maxSelfSig(s.Pubkey, s.userIds[i].signatures)
-	jSig := maxSelfSig(s.Pubkey, s.userIds[j].signatures)
+	iSig := maxSelfSig(s.Pubkey, s.UserIDs[i].Signatures)
+	jSig := maxSelfSig(s.Pubkey, s.UserIDs[j].Signatures)
 	return sigLess(iSig, jSig)
 }
 
 func sigLess(iSig *Signature, jSig *Signature) bool {
 	if iSig != nil && jSig != nil {
-		if iSig.IsPrimary() != jSig.IsPrimary() {
-			return iSig.IsPrimary()
-		}
+		/*
+			if iSig.IsPrimary() != jSig.IsPrimary() {
+				return iSig.IsPrimary()
+			}
+		*/
 		return iSig.Creation.Unix() > jSig.Creation.Unix()
 	}
 	return iSig != nil
@@ -47,7 +49,7 @@ func sigLess(iSig *Signature, jSig *Signature) bool {
 func maxSelfSig(pubkey *Pubkey, sigs []*Signature) *Signature {
 	var recent *Signature
 	for _, sig := range sigs {
-		if strings.HasPrefix(pubkey.RFingerprint, sig.RIssuerKeyId) && (recent == nil || sig.Creation.Unix() > recent.Creation.Unix()) {
+		if strings.HasPrefix(pubkey.UUID, sig.RIssuerKeyID) && (recent == nil || sig.Creation.Unix() > recent.Creation.Unix()) {
 			recent = sig
 		}
 	}
@@ -55,40 +57,42 @@ func maxSelfSig(pubkey *Pubkey, sigs []*Signature) *Signature {
 }
 
 func (s *uidSorter) Swap(i, j int) {
-	s.userIds[i], s.userIds[j] = s.userIds[j], s.userIds[i]
+	s.UserIDs[i], s.UserIDs[j] = s.UserIDs[j], s.UserIDs[i]
 }
 
 type uatSorter struct {
 	*Pubkey
 }
 
-func (s *uatSorter) Len() int { return len(s.userAttributes) }
+func (s *uatSorter) Len() int { return len(s.UserAttributes) }
 
 func (s *uatSorter) Less(i, j int) bool {
-	iSig := maxSelfSig(s.Pubkey, s.userAttributes[i].signatures)
-	jSig := maxSelfSig(s.Pubkey, s.userAttributes[j].signatures)
+	iSig := maxSelfSig(s.Pubkey, s.UserAttributes[i].Signatures)
+	jSig := maxSelfSig(s.Pubkey, s.UserAttributes[j].Signatures)
 	return sigLess(iSig, jSig)
 }
 
 func (s *uatSorter) Swap(i, j int) {
-	s.userAttributes[i], s.userAttributes[j] = s.userAttributes[j], s.userAttributes[i]
+	s.UserAttributes[i], s.UserAttributes[j] = s.UserAttributes[j], s.UserAttributes[i]
 }
 
 type subkeySorter struct {
 	*Pubkey
 }
 
-func (s *subkeySorter) Len() int { return len(s.subkeys) }
+func (s *subkeySorter) Len() int { return len(s.Subkeys) }
 
 func (s *subkeySorter) Less(i, j int) bool {
-	if (s.subkeys[i].revSig == nil) != (s.subkeys[j].revSig == nil) {
-		return s.subkeys[i].revSig != nil
-	}
-	return s.subkeys[i].Creation.Unix() < s.subkeys[j].Creation.Unix()
+	/*
+		if (s.Subkeys[i].revSig == nil) != (s.Subkeys[j].revSig == nil) {
+			return s.Subkeys[i].revSig != nil
+		}
+	*/
+	return s.Subkeys[i].Creation.Unix() < s.Subkeys[j].Creation.Unix()
 }
 
 func (s *subkeySorter) Swap(i, j int) {
-	s.subkeys[i], s.subkeys[j] = s.subkeys[j], s.subkeys[i]
+	s.Subkeys[i], s.Subkeys[j] = s.Subkeys[j], s.Subkeys[i]
 }
 
 type sigSorter struct {
@@ -107,18 +111,19 @@ func (s *sigSorter) Swap(i, j int) {
 
 // Sort reorders the key material
 func Sort(pubkey *Pubkey) {
-	pubkey.Visit(func(rec PacketRecord) error {
-		switch r := rec.(type) {
-		case *UserId:
-			sort.Sort(&sigSorter{r.signatures})
-		case *UserAttribute:
-			sort.Sort(&sigSorter{r.signatures})
+	for _, node := range pubkey.contents() {
+		switch p := node.(type) {
+		case *Pubkey:
+			sort.Sort(&sigSorter{p.Signatures})
+			sort.Sort(&uidSorter{p})
+			sort.Sort(&uatSorter{p})
+			sort.Sort(&subkeySorter{p})
 		case *Subkey:
-			sort.Sort(&sigSorter{r.signatures})
+			sort.Sort(&sigSorter{p.Signatures})
+		case *UserID:
+			sort.Sort(&sigSorter{p.Signatures})
+		case *UserAttribute:
+			sort.Sort(&sigSorter{p.Signatures})
 		}
-		return nil
-	})
-	sort.Sort(&uidSorter{pubkey})
-	sort.Sort(&uatSorter{pubkey})
-	sort.Sort(&subkeySorter{pubkey})
+	}
 }

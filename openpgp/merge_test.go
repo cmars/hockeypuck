@@ -18,30 +18,30 @@
 package openpgp
 
 import (
-	"testing"
-
-	"github.com/stretchr/testify/assert"
+	gc "gopkg.in/check.v1"
 )
 
-func TestMergeAddSig(t *testing.T) {
-	unsignedKeys := MustInputAscKeys(t, "alice_unsigned.asc")
-	assert.Equal(t, 1, len(unsignedKeys))
-	signedKeys := MustInputAscKeys(t, "alice_signed.asc")
-	assert.Equal(t, 1, len(signedKeys))
-	expectedSigCount := func(key *Pubkey) (count int) {
-		key.Visit(func(rec PacketRecord) error {
-			switch r := rec.(type) {
-			case *Signature:
-				if r.IssuerKeyId() == "62aea01d67640fb5" {
-					count++
-				}
+type MergeSuite struct{}
+
+var _ = gc.Suite(&MergeSuite{})
+
+func (s *MergeSuite) TestMergeAddSig(c *gc.C) {
+	unsignedKeys := MustInputAscKeys(c, "alice_unsigned.asc")
+	c.Assert(unsignedKeys, gc.HasLen, 1)
+	signedKeys := MustInputAscKeys(c, "alice_signed.asc")
+	c.Assert(signedKeys, gc.HasLen, 1)
+
+	hasExpectedSig := func(key *Pubkey) bool {
+		for _, node := range key.contents() {
+			sig, ok := node.(*Signature)
+			if ok && sig.RIssuerKeyID == "62aea01d67640fb5" {
+				return true
 			}
-			return nil
-		})
-		return
+		}
+		return false
 	}
-	assert.Equal(t, 0, expectedSigCount(unsignedKeys[0]))
-	assert.Equal(t, 1, expectedSigCount(signedKeys[0]))
-	MergeKey(unsignedKeys[0], signedKeys[0])
-	assert.Equal(t, 1, expectedSigCount(unsignedKeys[0]))
+	c.Assert(hasExpectedSig(unsignedKeys[0]), gc.Equals, false)
+	c.Assert(hasExpectedSig(signedKeys[0]), gc.Equals, true)
+	Merge(unsignedKeys[0], signedKeys[0])
+	c.Assert(hasExpectedSig(unsignedKeys[0]), gc.Equals, true)
 }

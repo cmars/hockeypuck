@@ -18,24 +18,74 @@
 package openpgp
 
 import (
-	_ "crypto/md5"
-	_ "crypto/sha1"
-	_ "crypto/sha256"
-	_ "crypto/sha512"
-	"database/sql"
-
-	_ "golang.org/x/crypto/md4"
-	_ "golang.org/x/crypto/ripemd160"
+	"gopkg.in/errgo.v1"
 )
 
-type resolver struct {
-	Pubkey *Pubkey
+func Deduplicate(root packetNode) error {
+	return dedup(root, func(primary, _ packetNode) {
+		primary.packet().Count++
+	})
 }
 
+func dedup(root packetNode, handleDuplicate func(primary, duplicate packetNode)) error {
+	nodes := map[string]packetNode{}
+
+	var parent packetNode
+	for _, node := range root.contents() {
+		primary, ok := nodes[node.uuid()]
+		if ok {
+			if parent == nil {
+				return errgo.Newf("cannot determine parent of node: %+v", node)
+			}
+			err := primary.removeDuplicate(parent, node)
+			if err != nil {
+				return errgo.Mask(err)
+			}
+
+			if handleDuplicate != nil {
+				handleDuplicate(primary, node)
+			}
+
+			err = dedup(primary, handleDuplicate)
+			if err != nil {
+				return errgo.Mask(err)
+			}
+		} else {
+			nodes[node.uuid()] = node
+		}
+
+		switch p := node.(type) {
+		case *Pubkey:
+			parent = p
+		case *Subkey:
+			parent = p
+		case *UserID:
+			parent = p
+		case *UserAttribute:
+			parent = p
+		}
+	}
+	return nil
+}
+
+func Merge(dst, src *Pubkey) error {
+	dst.UserIDs = append(dst.UserIDs, src.UserIDs...)
+	dst.UserAttributes = append(dst.UserAttributes, src.UserAttributes...)
+	dst.Subkeys = append(dst.Subkeys, src.Subkeys...)
+	dst.Others = append(dst.Others, src.Others...)
+	return dedup(dst, func(primary, duplicate packetNode) {
+		primaryPacket := primary.packet()
+		duplicatePacket := duplicate.packet()
+		if duplicatePacket.Count > primaryPacket.Count {
+			primaryPacket.Count = duplicatePacket.Count
+		}
+	})
+}
+
+/*
 // Resolve resolves and connects relationship references
 // between the different packet records in the key material.
 func Resolve(pubkey *Pubkey) {
-	r := &resolver{pubkey}
 	var signable Signable
 	scopedPackets := make(map[string]bool)
 	pubkey.Visit(func(rec PacketRecord) error {
@@ -165,3 +215,4 @@ func concatSigPackets(sigs []*Signature) []byte {
 	}
 	return result
 }
+*/

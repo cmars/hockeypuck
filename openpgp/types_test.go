@@ -18,36 +18,37 @@
 package openpgp
 
 import (
-	"testing"
-
-	"github.com/stretchr/testify/assert"
+	gc "gopkg.in/check.v1"
 )
 
-func TestVisitor(t *testing.T) {
-	key := MustInputAscKey(t, "sksdigest.asc")
-	t.Log(key.userIds[0].signatures[0])
+type TypesSuite struct{}
+
+var _ = gc.Suite(&TypesSuite{})
+
+func (s *TypesSuite) TestVisitor(c *gc.C) {
+	key := MustInputAscKey(c, "sksdigest.asc")
+	c.Log(key.UserIDs[0].Signatures[0])
 	var npub, nuid, nsub, nsig int
-	key.Visit(func(rec PacketRecord) error {
-		switch rec.(type) {
+	for _, node := range key.contents() {
+		switch node.(type) {
 		case *Pubkey:
 			npub++
-		case *UserId:
+		case *UserID:
 			nuid++
 		case *Subkey:
 			nsub++
 		case *Signature:
 			nsig++
 		}
-		return nil
-	})
-	assert.Equal(t, 1, npub)
-	assert.Equal(t, 1, nuid)
-	assert.Equal(t, 1, nsub)
-	assert.Equal(t, 2, nsig)
+	}
+	c.Assert(1, gc.Equals, npub)
+	c.Assert(1, gc.Equals, nuid)
+	c.Assert(1, gc.Equals, nsub)
+	c.Assert(2, gc.Equals, nsig)
 }
 
-func TestIterOpaque(t *testing.T) {
-	key := MustInputAscKey(t, "sksdigest.asc")
+func (s *TypesSuite) TestIterOpaque(c *gc.C) {
+	key := MustInputAscKey(c, "sksdigest.asc")
 	hits := make(map[uint8]int)
 	for _, tag := range []uint8{
 		2, 6, 13, 14} {
@@ -55,20 +56,16 @@ func TestIterOpaque(t *testing.T) {
 		//P.PacketTypeUserId, P.PacketTypePublicSubkey} {
 		hits[tag] = 0
 	}
-	err := key.Visit(func(rec PacketRecord) error {
-		if opkt, err := rec.GetOpaquePacket(); err == nil {
-			hits[opkt.Tag]++
-		}
-		return nil
-	})
-	assert.Nil(t, err)
-	t.Log(hits)
-	assert.Equal(t, 2, hits[2 /*P.PacketTypeSignature*/])
-	assert.Equal(t, 1, hits[6 /*P.PacketTypePublicKey*/])
-	assert.Equal(t, 1, hits[13 /*P.PacketTypeUserId*/])
-	assert.Equal(t, 1, len(key.userIds))
-	assert.Equal(t, 1, len(key.userIds[0].signatures))
-	assert.Equal(t, 1, hits[14 /*P.PacketTypePublicSubkey*/])
-	assert.Equal(t, 1, len(key.subkeys[0].signatures))
-	assert.Equal(t, 4, len(hits))
+	for _, node := range key.contents() {
+		hits[node.packet().Tag]++
+	}
+	c.Log(hits)
+	c.Assert(2, gc.Equals, hits[2 /*P.PacketTypeSignature*/])
+	c.Assert(1, gc.Equals, hits[6 /*P.PacketTypePublicKey*/])
+	c.Assert(1, gc.Equals, hits[13 /*P.PacketTypeUserId*/])
+	c.Assert(1, gc.Equals, len(key.UserIDs))
+	c.Assert(1, gc.Equals, len(key.UserIDs[0].Signatures))
+	c.Assert(1, gc.Equals, hits[14 /*P.PacketTypePublicSubkey*/])
+	c.Assert(1, gc.Equals, len(key.Subkeys[0].Signatures))
+	c.Assert(4, gc.Equals, len(hits))
 }

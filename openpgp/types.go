@@ -19,15 +19,18 @@ package openpgp
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/ascii85"
 	"errors"
-	"io"
 
 	"golang.org/x/crypto/openpgp/packet"
+	"gopkg.in/errgo.v1"
 )
 
 var ErrInvalidPacketType error = errors.New("Invalid packet type")
 var ErrPacketRecordState error = errors.New("Packet record state has not been properly initialized")
 
+/*
 // PacketState indicates the validity of the public key material and special
 // policies that may apply to it. The lower 16 bits are either neutral policy
 // or positive validation indicators. The upper 16 bits indicate validation failure
@@ -89,30 +92,143 @@ type Signable interface {
 	AddSignature(*Signature)
 	RemoveSignature(*Signature)
 }
+*/
 
-func toOpaquePacket(buf []byte) (*packet.OpaquePacket, error) {
+type Packet struct {
+
+	// UUID is a universally unique identifier string for this packet. Not
+	// necessarily a standard UUID format though.
+	UUID string
+
+	// Tag indicates the OpenPGP package tag type.
+	Tag uint8
+
+	// Valid indicates whether Hockeypuck is able to parse the contents of this
+	// packet or if it is unsupported/malformed key material.
+	Valid bool
+
+	// Count indicates the number of times this packet occurs in the keyring.
+	Count int
+
+	// Packet contains the raw packet bytes.
+	Packet []byte
+}
+
+const packetTag = "{other}"
+
+func ParseOther(op *packet.OpaquePacket, parentID string) (*Packet, error) {
+	var buf bytes.Buffer
+	err := op.Serialize(&buf)
+	if err != nil {
+		return nil, errgo.Mask(err)
+	}
+
+	return &Packet{
+		UUID:   scopedDigest([]string{parentID}, packetTag, buf.Bytes()),
+		Tag:    op.Tag,
+		Packet: buf.Bytes(),
+		Valid:  false,
+	}, nil
+}
+
+// packetNode defines a tree-like hierarchy by which OpenPGP packets can be
+// usefully traversed.
+type packetNode interface {
+	contents() []packetNode
+	packet() *Packet
+	removeDuplicate(parent packetNode, target packetNode) error
+	uuid() string
+}
+
+type signable interface {
+	appendSignature(*Signature)
+
+	packetNode
+}
+
+// packet implements the packetNode interface.
+func (p *Packet) packet() *Packet {
+	return p
+}
+
+// contents implements the packetNode interface for default unclassified packets.
+func (p *Packet) contents() []packetNode {
+	return []packetNode{p}
+}
+
+func (p *Packet) uuid() string {
+	return p.UUID
+}
+
+func (p *Packet) removeDuplicate(parent packetNode, dup packetNode) error {
+	dupPacket, ok := dup.(*Packet)
+	if !ok {
+		return errgo.Newf("invalid packet duplicate: %+v", dup)
+	}
+	switch ppkt := parent.(type) {
+	case *Pubkey:
+		ppkt.Others = packetSlice(ppkt.Others).without(dupPacket)
+	case *Subkey:
+		ppkt.Others = packetSlice(ppkt.Others).without(dupPacket)
+	case *UserID:
+		ppkt.Others = packetSlice(ppkt.Others).without(dupPacket)
+	case *UserAttribute:
+		ppkt.Others = packetSlice(ppkt.Others).without(dupPacket)
+	}
+	return nil
+}
+
+type packetSlice []*Packet
+
+func (ps packetSlice) without(target *Packet) []*Packet {
+	var result []*Packet
+	for _, packet := range ps {
+		if packet != target {
+			result = append(result, packet)
+		}
+	}
+	return result
+}
+
+func newOpaquePacket(buf []byte) (*packet.OpaquePacket, error) {
 	r := packet.NewOpaqueReader(bytes.NewBuffer(buf))
 	return r.Next()
 }
 
-type packetSlice []*packet.OpaquePacket
+type opaquePacketSlice []*packet.OpaquePacket
 
-func (ps packetSlice) Len() int {
+func (ps opaquePacketSlice) Len() int {
 	return len(ps)
 }
 
-func (ps packetSlice) Swap(i, j int) {
+func (ps opaquePacketSlice) Swap(i, j int) {
 	ps[i], ps[j] = ps[j], ps[i]
 }
 
-type sksPacketSorter struct{ packetSlice }
-
-func (sps sksPacketSorter) Less(i, j int) bool {
-	cmp := int32(sps.packetSlice[i].Tag) - int32(sps.packetSlice[j].Tag)
+func (ps opaquePacketSlice) Less(i, j int) bool {
+	cmp := int32(ps[i].Tag) - int32(ps[j].Tag)
 	if cmp < 0 {
 		return true
 	} else if cmp > 0 {
 		return false
 	}
-	return bytes.Compare(sps.packetSlice[i].Contents, sps.packetSlice[j].Contents) < 0
+	return bytes.Compare(ps[i].Contents, ps[j].Contents) < 0
+}
+
+func toAscii85String(buf []byte) string {
+	out := bytes.NewBuffer(nil)
+	enc := ascii85.NewEncoder(out)
+	enc.Write(buf)
+	enc.Close()
+	return out.String()
+}
+
+func scopedDigest(parents []string, tag string, packet []byte) string {
+	h := sha256.New()
+	for i := range parents {
+		h.Write([]byte(parents[i]))
+		h.Write([]byte(tag))
+	}
+	h.Write(packet)
+	return toAscii85String(h.Sum(nil))
 }
