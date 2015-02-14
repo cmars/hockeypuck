@@ -185,10 +185,7 @@ func (s *ResolveSuite) TestMissingUidFk(c *gc.C) {
 
 func (s *ResolveSuite) TestV3NoUidSig(c *gc.C) {
 	key := MustInputAscKey(c, "0xd46b7c827be290fe4d1f9291b1ebc61a.asc")
-	//c.Assert("0005127a8b7da8c32998d7e81dc92540", gc.Equals, key.Md5)
-	longID, ok := LongID(key.UUID)
-	c.Assert(ok, gc.Equals, true)
-	c.Assert("0760df64b3d82239", gc.Equals, longID)
+	c.Assert(key.KeyID, gc.Equals, "0760df64b3d82239")
 	f := MustInput(c, "0xd46b7c827be290fe4d1f9291b1ebc61a.asc")
 	defer f.Close()
 	block, err := armor.Decode(f)
@@ -206,4 +203,31 @@ func (s *ResolveSuite) TestV3NoUidSig(c *gc.C) {
 	}
 	md5 := hex.EncodeToString(h.Sum(nil))
 	c.Assert("0005127a8b7da8c32998d7e81dc92540", gc.Equals, md5)
+}
+
+func (s *ResolveSuite) TestMergeAddSig(c *gc.C) {
+	unsignedKeys := MustInputAscKeys(c, "alice_unsigned.asc")
+	c.Assert(unsignedKeys, gc.HasLen, 1)
+	c.Assert(unsignedKeys[0], gc.NotNil)
+	signedKeys := MustInputAscKeys(c, "alice_signed.asc")
+	c.Assert(signedKeys, gc.HasLen, 1)
+	c.Assert(signedKeys[0], gc.NotNil)
+
+	hasExpectedSig := func(key *Pubkey) bool {
+		for _, node := range key.contents() {
+			sig, ok := node.(*Signature)
+			if ok {
+				c.Logf("sig from %s", sig.RIssuerKeyID)
+				if sig.RIssuerKeyID == "5bf04676d10aea26" {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	c.Assert(hasExpectedSig(unsignedKeys[0]), gc.Equals, false)
+	c.Assert(hasExpectedSig(signedKeys[0]), gc.Equals, true)
+	err := Merge(unsignedKeys[0], signedKeys[0])
+	c.Assert(err, gc.IsNil)
+	c.Assert(hasExpectedSig(unsignedKeys[0]), gc.Equals, true)
 }

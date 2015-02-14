@@ -15,84 +15,21 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+// Package openpgp supports processing OpenPGP public key material.
 package openpgp
 
 import (
 	"bytes"
 	"crypto/sha256"
-	"encoding/ascii85"
 	"errors"
 
 	"golang.org/x/crypto/openpgp/packet"
+	"gopkg.in/basen.v1"
 	"gopkg.in/errgo.v1"
 )
 
 var ErrInvalidPacketType error = errors.New("Invalid packet type")
 var ErrPacketRecordState error = errors.New("Packet record state has not been properly initialized")
-
-/*
-// PacketState indicates the validity of the public key material and special
-// policies that may apply to it. The lower 16 bits are either neutral policy
-// or positive validation indicators. The upper 16 bits indicate validation failure
-// that the key material is either invalid, unverifiable or failed to meet some policy
-// criteria.
-type PacketState int
-
-const (
-	// Bits 0-15 indicate positive verification status and public key policies
-
-	// Key material has been registered with Hockeypuck by the key owner,
-	// who has signed a nonced challenge message with the associated private key.
-	PacketStateRegistered = 1 << 0
-
-	// Key material is cloaked. Hockeypuck will respond as if the key does not exist
-	// unless the HKP request has proper authentication.
-	PacketStateCloaked = 1 << 1
-
-	// Signature has been checked and verified
-	PacketStateSigOk = 1 << 2
-
-	// Bits 16-23 indicate verification failure of the key material.
-
-	// Key material is banned from HKP results unconditionally. Could be signature
-	// graphiti or other unwanted content.
-	PacketStateSpam = 1 << 16
-
-	// Key material is considered to be abandoned according to keyserver policy.
-	PacketStateAbandoned = 1 << 17
-
-	// Key material lacks a valid, non-expired self-signature
-	PacketStateNoSelfSig = 1 << 18
-
-	// Subkey material lacks a valid, non-expired binding-signature
-	PacketStateNoBindingSig = 1 << 19
-
-	// Public key is unsupported (unknown algorithm code, etc.)
-	PacketStateUnsuppPubkey = 1 << 20
-)
-
-type PacketVisitor func(PacketRecord) error
-
-type PacketRecord interface {
-	GetOpaquePacket() (*packet.OpaquePacket, error)
-	GetPacket() (packet.Packet, error)
-	Read() error
-	Serialize(w io.Writer) error
-	setPacket(packet.Packet) error
-	Uuid() string
-	Visit(PacketVisitor) error
-}
-
-type publicKeyRecord interface {
-	publicKey() *packet.PublicKey
-	publicKeyV3() *packet.PublicKeyV3
-}
-
-type Signable interface {
-	AddSignature(*Signature)
-	RemoveSignature(*Signature)
-}
-*/
 
 type Packet struct {
 
@@ -178,6 +115,10 @@ func (p *Packet) removeDuplicate(parent packetNode, dup packetNode) error {
 	return nil
 }
 
+func (p *Packet) opaquePacket() (*packet.OpaquePacket, error) {
+	return newOpaquePacket(p.Packet)
+}
+
 type packetSlice []*Packet
 
 func (ps packetSlice) without(target *Packet) []*Packet {
@@ -215,14 +156,6 @@ func (ps opaquePacketSlice) Less(i, j int) bool {
 	return bytes.Compare(ps[i].Contents, ps[j].Contents) < 0
 }
 
-func toAscii85String(buf []byte) string {
-	out := bytes.NewBuffer(nil)
-	enc := ascii85.NewEncoder(out)
-	enc.Write(buf)
-	enc.Close()
-	return out.String()
-}
-
 func scopedDigest(parents []string, tag string, packet []byte) string {
 	h := sha256.New()
 	for i := range parents {
@@ -230,5 +163,5 @@ func scopedDigest(parents []string, tag string, packet []byte) string {
 		h.Write([]byte(tag))
 	}
 	h.Write(packet)
-	return toAscii85String(h.Sum(nil))
+	return basen.Base58.EncodeToString(h.Sum(nil))
 }

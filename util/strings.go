@@ -22,7 +22,6 @@ import (
 	"regexp"
 	"strings"
 	"unicode"
-	"unicode/utf8"
 )
 
 const MIN_KEYWORD_LEN = 3
@@ -75,18 +74,4 @@ func keywordNormalize(s string) string {
 		}
 	}
 	return strings.Join(fields, " ")
-}
-
-func CleanUtf8(s string) string {
-	var runes []rune
-	for _, r := range s {
-		if r == utf8.RuneError {
-			r = '?'
-		}
-		if r < 0x20 || r == 0x7f {
-			continue
-		}
-		runes = append(runes, r)
-	}
-	return string(runes)
 }

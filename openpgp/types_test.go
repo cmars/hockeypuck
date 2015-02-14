@@ -19,7 +19,12 @@ package openpgp
 
 import (
 	gc "gopkg.in/check.v1"
+	log "gopkg.in/hockeypuck/logrus.v0"
 )
+
+func init() {
+	log.SetLevel(log.DebugLevel)
+}
 
 type TypesSuite struct{}
 
@@ -27,10 +32,16 @@ var _ = gc.Suite(&TypesSuite{})
 
 func (s *TypesSuite) TestVisitor(c *gc.C) {
 	key := MustInputAscKey(c, "sksdigest.asc")
-	c.Log(key.UserIDs[0].Signatures[0])
+	c.Assert(key.UserIDs, gc.HasLen, 1)
+	c.Assert(key.UserIDs[0].Signatures, gc.HasLen, 1)
+	c.Assert(key.UserIDs[0].Signatures[0], gc.NotNil)
+	c.Assert(key.Subkeys, gc.HasLen, 1)
+	c.Assert(key.Subkeys[0].Signatures, gc.HasLen, 1)
+	c.Assert(key.Subkeys[0].Signatures[0], gc.NotNil)
 	var npub, nuid, nsub, nsig int
-	for _, node := range key.contents() {
-		switch node.(type) {
+	contents := key.contents()
+	for _, node := range contents {
+		switch p := node.(type) {
 		case *Pubkey:
 			npub++
 		case *UserID:
@@ -39,6 +50,8 @@ func (s *TypesSuite) TestVisitor(c *gc.C) {
 			nsub++
 		case *Signature:
 			nsig++
+		default:
+			c.Fatalf("unexpected node type: %+v", p)
 		}
 	}
 	c.Assert(1, gc.Equals, npub)

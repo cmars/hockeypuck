@@ -19,11 +19,11 @@ package openpgp
 
 import (
 	"bytes"
+	"strings"
+	"unicode/utf8"
 
 	"golang.org/x/crypto/openpgp/packet"
 	"gopkg.in/errgo.v1"
-
-	"github.com/hockeypuck/hockeypuck/util"
 )
 
 type UserID struct {
@@ -35,70 +35,7 @@ type UserID struct {
 	Others     []*Packet
 }
 
-/*
-type UserId struct {
-	ScopedDigest string         `db:"uuid"`        // immutable
-	Creation     time.Time      `db:"creation"`    // mutable (derived from latest sigs)
-	Expiration   time.Time      `db:"expiration"`  // mutable
-	State        int            `db:"state"`       // mutable
-	Packet       []byte         `db:"packet"`      // immutable
-	PubkeyRFP    string         `db:"pubkey_uuid"` // immutable
-	RevSigDigest sql.NullString `db:"revsig_uuid"` // mutable
-	Keywords     string         `db:"keywords"`    // immutable
-
-	/ * Cross-references * /
-
-	revSig        *Signature   `db:"-"`
-	selfSignature *Signature   `db:"-"`
-	signatures    []*Signature `db:"-"`
-
-	/ * Parsed packet data * /
-
-	UserId *packet.UserId
-}
-
-func (uid *UserId) Signatures() []*Signature { return uid.signatures }
-*/
-
 const uidTag = "{uid}"
-
-/*
-func (uid *UserId) Serialize(w io.Writer) error {
-	_, err := w.Write(uid.Packet)
-	return errgo.Mask(err)
-}
-
-func (uid *UserId) Uuid() string { return uid.ScopedDigest }
-
-func (uid *UserId) GetOpaquePacket() (*packet.OpaquePacket, error) {
-	return toOpaquePacket(uid.Packet)
-}
-
-func (uid *UserId) GetPacket() (packet.Packet, error) {
-	if uid.UserId != nil {
-		return uid.UserId, nil
-	}
-	return nil, ErrPacketRecordState
-}
-
-func (uid *UserId) setPacket(p packet.Packet) error {
-	u, is := p.(*packet.UserId)
-	if !is {
-		return ErrInvalidPacketType
-	}
-	uid.UserId = u
-	return nil
-}
-
-func (uid *UserId) Read() error {
-	buf := bytes.NewBuffer(uid.Packet)
-	p, err := packet.Read(buf)
-	if err != nil {
-		return errgo.Mask(err)
-	}
-	return uid.setPacket(p)
-}
-*/
 
 // contents implements the packetNode interface for user IDs.
 func (uid *UserID) contents() []packetNode {
@@ -175,79 +112,64 @@ func ParseUserID(op *packet.OpaquePacket, parentID string) (*UserID, error) {
 	return uid, nil
 }
 
-func (uid *UserID) setUserID(u *packet.UserId) error {
-	uid.Keywords = util.CleanUtf8(u.Id)
-	return nil
-}
-
-/*
-func (uid *UserId) Visit(visitor PacketVisitor) error {
-	err := visitor(uid)
+func (uid *UserID) userIDPacket() (*packet.UserId, error) {
+	op, err := uid.opaquePacket()
 	if err != nil {
-		return errgo.Mask(err)
+		return nil, errgo.Mask(err)
 	}
-	for _, sig := range uid.signatures {
-		if err = sig.Visit(visitor); err != nil {
-			return errgo.Mask(err)
-		}
+	p, err := op.Parse()
+	if err != nil {
+		return nil, errgo.Mask(err)
 	}
+	u, ok := p.(*packet.UserId)
+	if !ok {
+		return nil, errgo.Newf("expected user ID packet, got %T", p)
+	}
+	return u, nil
+}
+
+func (uid *UserID) setUserID(u *packet.UserId) error {
+	uid.Keywords = cleanUtf8(u.Id)
 	return nil
 }
 
-func (uid *UserId) AddSignature(sig *Signature) {
-	uid.signatures = append(uid.signatures, sig)
+func cleanUtf8(s string) string {
+	var runes []rune
+	for _, r := range s {
+		if r == utf8.RuneError {
+			r = '?'
+		}
+		if r < 0x20 || r == 0x7f {
+			continue
+		}
+		runes = append(runes, r)
+	}
+	return string(runes)
 }
 
-func (uid *UserId) RemoveSignature(sig *Signature) {
-	uid.signatures = removeSignature(uid.signatures, sig)
+func (uid *UserID) SelfSigs(pubkey *Pubkey) *SelfSigs {
+	result := &SelfSigs{}
+	for _, sig := range uid.Signatures {
+		// Skip non-self-certifications.
+		if !strings.HasPrefix(pubkey.UUID, sig.RIssuerKeyID) {
+			continue
+		}
+		switch sig.SigType {
+		case 0x30: // packet.SigTypeCertRevocation
+			result.Revocations = append(result.Revocations, &CheckSig{
+				Pubkey:    pubkey,
+				Signature: sig,
+				Error:     pubkey.verifyUserIDSelfSig(uid, sig),
+				target:    uid,
+			})
+		case 0x10, 0x11, 0x12, 0x13:
+			result.Certifications = append(result.Certifications, &CheckSig{
+				Pubkey:    pubkey,
+				Signature: sig,
+				Error:     pubkey.verifyUserIDSelfSig(uid, sig),
+				target:    uid,
+			})
+		}
+	}
+	return result
 }
-
-func (uid *UserId) linkSelfSigs(pubkey *Pubkey) {
-	for _, sig := range uid.signatures {
-		if !strings.HasPrefix(pubkey.RFingerprint, sig.RIssuerKeyId) {
-			continue
-		}
-		if sig.SigType == 0x30 { // TODO: add packet.SigTypeCertRevocation
-			if uid.revSig == nil || sig.Creation.Unix() > uid.revSig.Creation.Unix() {
-				// Keep the most recent revocation
-				if err := pubkey.verifyUserIdSelfSig(uid, sig); err == nil {
-					uid.revSig = sig
-					uid.RevSigDigest = sql.NullString{sig.ScopedDigest, true}
-				}
-			}
-		}
-	}
-	// Look for a better primary UID
-	for _, sig := range uid.signatures {
-		if !strings.HasPrefix(pubkey.RFingerprint, sig.RIssuerKeyId) {
-			// Ignore signatures not made by this key (not self-sig)
-			continue
-		}
-		if time.Now().Unix() > sig.Expiration.Unix() {
-			// Ignore expired signatures
-			continue
-		}
-		if sig.SigType >= 0x10 && sig.SigType <= 0x13 {
-			if err := pubkey.verifyUserIdSelfSig(uid, sig); err == nil {
-				if sig.Expiration.Unix() == NeverExpires.Unix() && sig.Signature != nil && sig.Signature.KeyLifetimeSecs != nil {
-					sig.Expiration = pubkey.Creation.Add(
-						time.Duration(*sig.Signature.KeyLifetimeSecs) * time.Second)
-				}
-				if uid.selfSignature == nil || sig.Creation.Unix() > uid.selfSignature.Creation.Unix() {
-					// Choose the most-recent self-signature on the uid
-					uid.selfSignature = sig
-				}
-				if uid.revSig != nil && sig.Creation.Unix() > uid.selfSignature.Creation.Unix() {
-					// A self-certification more recent than a revocation effectively cancels it.
-					uid.revSig = nil
-					uid.RevSigDigest = sql.NullString{"", false}
-				}
-			} // TODO: else { flag badsig state }
-		}
-	}
-	// Remove User Ids without a self-signature
-	if uid.selfSignature == nil {
-		uid.State |= PacketStateNoSelfSig
-	}
-}
-*/

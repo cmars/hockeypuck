@@ -25,8 +25,6 @@ import (
 
 	"golang.org/x/crypto/openpgp/packet"
 	"gopkg.in/errgo.v1"
-
-	"github.com/hockeypuck/hockeypuck/util"
 )
 
 type Signature struct {
@@ -36,9 +34,15 @@ type Signature struct {
 	RIssuerKeyID string
 	Creation     time.Time
 	Expiration   time.Time
+	Primary      bool
 }
 
 const sigTag = "{sig}"
+
+// contents implements the packetNode interface for default unclassified packets.
+func (sig *Signature) contents() []packetNode {
+	return []packetNode{sig}
+}
 
 func (sig *Signature) removeDuplicate(parent packetNode, dup packetNode) error {
 	dupSig, ok := dup.(*Signature)
@@ -115,18 +119,27 @@ func (sig *Signature) setSignature(s *packet.Signature) error {
 	}
 	sig.Creation = s.CreationTime
 	sig.SigType = int(s.SigType)
+
 	// Extract the issuer key id
 	var issuerKeyId [8]byte
 	if s.IssuerKeyId != nil {
 		binary.BigEndian.PutUint64(issuerKeyId[:], *s.IssuerKeyId)
 		sigKeyId := hex.EncodeToString(issuerKeyId[:])
-		sig.RIssuerKeyID = util.Reverse(sigKeyId)
+		sig.RIssuerKeyID = reverse(sigKeyId)
 	}
+
 	// Expiration time
 	if s.SigLifetimeSecs != nil {
 		sig.Expiration = s.CreationTime.Add(
 			time.Duration(*s.SigLifetimeSecs) * time.Second)
+	} else if s.KeyLifetimeSecs != nil {
+		sig.Expiration = s.CreationTime.Add(
+			time.Duration(*s.KeyLifetimeSecs) * time.Second)
 	}
+
+	// Primary indicator
+	sig.Primary = s.IsPrimaryId != nil && *s.IsPrimaryId
+
 	return nil
 }
 
@@ -138,139 +151,38 @@ func (sig *Signature) setSignatureV3(s *packet.SignatureV3) error {
 	var issuerKeyId [8]byte
 	binary.BigEndian.PutUint64(issuerKeyId[:], s.IssuerKeyId)
 	sigKeyId := hex.EncodeToString(issuerKeyId[:])
-	sig.RIssuerKeyID = util.Reverse(sigKeyId)
+	sig.RIssuerKeyID = reverse(sigKeyId)
 	return nil
 }
 
-/*
-type Signature struct {
-	ScopedDigest       string         `db:"uuid"`        // immutable
-	Creation           time.Time      `db:"creation"`    // immutable
-	Expiration         time.Time      `db:"expiration"`  // immutable
-	State              int            `db:"state"`       // mutable
-	Packet             []byte         `db:"packet"`      // immutable
-	SigType            int            `db:"sig_type"`    // immutable
-	RIssuerKeyId       string         `db:"signer"`      // immutable
-	RIssuerFingerprint sql.NullString `db:"signer_uuid"` // mutable
-	RevSigDigest       sql.NullString `db:"revsig_uuid"` // mutable
-
-	/ * Containment references * /
-
-	PubkeyUuid sql.NullString `db:"pubkey_uuid"`
-	SubkeyUuid sql.NullString `db:"subkey_uuid"`
-	UidUuid    sql.NullString `db:"uid_uuid"`
-	UatUuid    sql.NullString `db:"uat_uuid"`
-	SigUuid    sql.NullString `db:"sig_uuid"`
-
-	/ * Cross-references * /
-
-	revSig *Signature
-
-	/ * Parsed packet data * /
-
-	Signature   *packet.Signature
-	SignatureV3 *packet.SignatureV3
-}
-
-func (sig *Signature) IssuerKeyId() string {
-	return util.Reverse(sig.RIssuerKeyId)
-}
-
-func (sig *Signature) IssuerShortId() string {
-	return sig.IssuerKeyId()[8:16]
-}
-
-func (sig *Signature) IssuerFingerprint() string {
-	return util.Reverse(sig.RIssuerFingerprint.String)
-}
-
-func (sig *Signature) calcScopedDigest(pubkey *Pubkey, scope string) string {
-	h := sha256.New()
-	h.Write([]byte(pubkey.RFingerprint))
-	h.Write([]byte("{sig}"))
-	h.Write([]byte(scope))
-	h.Write([]byte("{sig}"))
-	h.Write(sig.Packet)
-	return toAscii85String(h.Sum(nil))
-}
-
-func (sig *Signature) Serialize(w io.Writer) error {
-	_, err := w.Write(sig.Packet)
-	return errgo.Mask(err)
-}
-
-func (sig *Signature) Uuid() string { return sig.ScopedDigest }
-
-func (sig *Signature) GetOpaquePacket() (*packet.OpaquePacket, error) {
-	return toOpaquePacket(sig.Packet)
-}
-
-func (sig *Signature) GetPacket() (packet.Packet, error) {
-	var p packet.Packet
-	if sig.Signature != nil {
-		p = sig.Signature
-	} else if sig.SignatureV3 != nil {
-		p = sig.SignatureV3
-	} else {
-		return nil, ErrPacketRecordState
-	}
-	return p, nil
-}
-
-func (sig *Signature) setPacket(p packet.Packet) error {
-	switch s := p.(type) {
-	case *packet.Signature:
-		sig.Signature = s
-	case *packet.SignatureV3:
-		sig.SignatureV3 = s
-	default:
-		return ErrInvalidPacketType
-	}
-	return nil
-}
-
-func (sig *Signature) Read() error {
-	buf := bytes.NewBuffer(sig.Packet)
-	p, err := packet.Read(buf)
+func (sig *Signature) signaturePacket() (*packet.Signature, error) {
+	op, err := sig.opaquePacket()
 	if err != nil {
-		return errgo.Mask(err)
-	}
-	return sig.setPacket(p)
-}
-
-func (sig *Signature) GetSignature() (packet.Packet, error) {
-	buf := bytes.NewBuffer(sig.Packet)
-	return packet.Read(buf)
-}
-
-func NewSignature(op *packet.OpaquePacket) (*Signature, error) {
-	var buf bytes.Buffer
-	if err := op.Serialize(&buf); err != nil {
 		return nil, errgo.Mask(err)
 	}
-	sig := &Signature{Packet: buf.Bytes()}
 	p, err := op.Parse()
 	if err != nil {
 		return nil, errgo.Mask(err)
 	}
-	if err = sig.setPacket(p); err != nil {
+	s, ok := p.(*packet.Signature)
+	if !ok {
+		return nil, errgo.Newf("expected signature packet, got %T", p)
+	}
+	return s, nil
+}
+
+func (sig *Signature) signatureV3Packet() (*packet.SignatureV3, error) {
+	op, err := sig.opaquePacket()
+	if err != nil {
 		return nil, errgo.Mask(err)
 	}
-	if sig.Signature != nil {
-		sig.initV4()
-	} else if sig.SignatureV3 != nil {
-		sig.initV3()
-	} else {
-		return nil, ErrInvalidPacketType
+	p, err := op.Parse()
+	if err != nil {
+		return nil, errgo.Mask(err)
 	}
-	return sig, nil
+	s, ok := p.(*packet.SignatureV3)
+	if !ok {
+		return nil, errgo.Newf("expected signature V3 packet, got %T", p)
+	}
+	return s, nil
 }
-
-func (sig *Signature) Visit(visitor PacketVisitor) error {
-	return visitor(sig)
-}
-
-func (sig *Signature) IsPrimary() bool {
-	return sig.Signature != nil && sig.Signature.IsPrimaryId != nil && *sig.Signature.IsPrimaryId
-}
-*/

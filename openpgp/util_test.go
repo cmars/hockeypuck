@@ -43,9 +43,7 @@ func MustInputAscKeys(c *gc.C, name string) []*Pubkey {
 	f := MustInput(c, name)
 	defer f.Close()
 	block, err := armor.Decode(f)
-	if err != nil {
-		c.Fatal(err)
-	}
+	c.Assert(err, gc.IsNil)
 
 	var result []*Pubkey
 	for keyRead := range ReadKeys(block.Body) {

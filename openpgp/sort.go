@@ -36,11 +36,9 @@ func (s *uidSorter) Less(i, j int) bool {
 
 func sigLess(iSig *Signature, jSig *Signature) bool {
 	if iSig != nil && jSig != nil {
-		/*
-			if iSig.IsPrimary() != jSig.IsPrimary() {
-				return iSig.IsPrimary()
-			}
-		*/
+		if iSig.Primary != jSig.Primary {
+			return iSig.Primary
+		}
 		return iSig.Creation.Unix() > jSig.Creation.Unix()
 	}
 	return iSig != nil
@@ -83,11 +81,6 @@ type subkeySorter struct {
 func (s *subkeySorter) Len() int { return len(s.Subkeys) }
 
 func (s *subkeySorter) Less(i, j int) bool {
-	/*
-		if (s.Subkeys[i].revSig == nil) != (s.Subkeys[j].revSig == nil) {
-			return s.Subkeys[i].revSig != nil
-		}
-	*/
 	return s.Subkeys[i].Creation.Unix() < s.Subkeys[j].Creation.Unix()
 }
 
