@@ -34,31 +34,62 @@ type SelfSigs struct {
 	Certifications []*CheckSig
 }
 
-// Revoked returns whether the target certification has been revoked, and the
-// earliest time of revocation if there are multiple revocation signatures on
-// that target. An error is returned if revocation signatures are present but
-// cannot be checked.
-func (s *SelfSigs) Revoked() (bool, time.Time, error) {
-	panic("TODO")
+// Revoked returns the earliest revocation of the target, and whether a
+// valid revocation exists at all.
+func (s *SelfSigs) Revoked() (time.Time, bool) {
+	var t time.Time
+	if len(s.Revocations) == 0 {
+		return t, false
+	}
+	for _, cksig := range s.Revocations {
+		if cksig.Error != nil {
+			continue
+		}
+		if t.IsZero() || t.Unix() > cksig.Signature.Creation.Unix() {
+			t = cksig.Signature.Creation
+		}
+	}
+	return t, !t.IsZero()
 }
 
-// Valid returns whether the certification is valid. Valid certification means
-// that the target has a non-expired, verified self-signature with no
-// revocations. An error is returned if one or more signatures are not supported.
-func (s *SelfSigs) Valid() (bool, error) {
-	panic("TODO")
+// Valid returns the latest expiration, whether an expiration has been set,
+// and whether a valid self-signature exists at all.
+func (s *SelfSigs) Valid() (time.Time, bool, bool) {
+	var t time.Time
+	var ok bool
+	if len(s.Certifications) == 0 {
+		return t, false, false
+	}
+	for _, ckSig := range s.Certifications {
+		if ckSig.Error != nil {
+			continue
+		}
+		ok = true
+		if !ckSig.Signature.Expiration.IsZero() {
+			if t.IsZero() || t.Unix() < ckSig.Signature.Expiration.Unix() {
+				t = ckSig.Signature.Expiration
+			}
+		}
+	}
+	return t, !t.IsZero(), ok
 }
 
-// Expired returns if the self-certifications will expire, and the latest
-// expiration timestamp of all valid self-certifications. An error is returned
-// if one or more signatures are not supported.
-func (s *SelfSigs) Expired() (bool, time.Time, error) {
-	panic("TODO")
-}
-
-// Primary returns whether the target is flagged as a primary identifier, the
-// latest time at which the primary designation was made. An error is returned
-// if one or more signatures are not supported.
-func (s *SelfSigs) Primary() (bool, time.Time, error) {
-	panic("TODO")
+// Primary returns the latest time when the target was flagged as a primary
+// identifier, and whether such a claim even exists on the target.
+func (s *SelfSigs) Primary() (time.Time, bool) {
+	var t time.Time
+	if len(s.Certifications) == 0 {
+		return t, false
+	}
+	for _, ckSig := range s.Certifications {
+		if ckSig.Error != nil {
+			continue
+		}
+		if ckSig.Signature.Primary {
+			if t.IsZero() || t.Unix() < ckSig.Signature.Creation.Unix() {
+				t = ckSig.Signature.Creation
+			}
+		}
+	}
+	return t, !t.IsZero()
 }
