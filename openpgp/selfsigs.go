@@ -17,14 +17,18 @@
 
 package openpgp
 
-import "time"
+import (
+	"sort"
+	"time"
+)
 
+var now = time.Now
+
+// CheckSig represents the result of checking a self-signature.
 type CheckSig struct {
 	Pubkey    *Pubkey
 	Signature *Signature
 	Error     error
-
-	target packetNode
 }
 
 // SelfSigs holds self-signatures on OpenPGP targets, which may be keys, user
@@ -32,64 +36,117 @@ type CheckSig struct {
 type SelfSigs struct {
 	Revocations    []*CheckSig
 	Certifications []*CheckSig
+	Expirations    []*CheckSig
+	Primaries      []*CheckSig
+	Errors         []*CheckSig
+
+	target packetNode
 }
 
-// Revoked returns the earliest revocation of the target, and whether a
-// valid revocation exists at all.
-func (s *SelfSigs) Revoked() (time.Time, bool) {
-	var t time.Time
-	if len(s.Revocations) == 0 {
-		return t, false
-	}
-	for _, cksig := range s.Revocations {
-		if cksig.Error != nil {
-			continue
-		}
-		if t.IsZero() || t.Unix() > cksig.Signature.Creation.Unix() {
-			t = cksig.Signature.Creation
-		}
-	}
-	return t, !t.IsZero()
+type checkSigCreationAsc []*CheckSig
+
+func (s checkSigCreationAsc) Len() int { return len(s) }
+
+func (s checkSigCreationAsc) Less(i, j int) bool {
+	return s[i].Signature.Creation.Unix() < s[j].Signature.Creation.Unix()
 }
 
-// Valid returns the latest expiration, whether an expiration has been set,
-// and whether a valid self-signature exists at all.
-func (s *SelfSigs) Valid() (time.Time, bool, bool) {
-	var t time.Time
-	var ok bool
-	if len(s.Certifications) == 0 {
-		return t, false, false
-	}
-	for _, ckSig := range s.Certifications {
-		if ckSig.Error != nil {
-			continue
-		}
-		ok = true
-		if !ckSig.Signature.Expiration.IsZero() {
-			if t.IsZero() || t.Unix() < ckSig.Signature.Expiration.Unix() {
-				t = ckSig.Signature.Expiration
-			}
-		}
-	}
-	return t, !t.IsZero(), ok
+func (s checkSigCreationAsc) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
 }
 
-// Primary returns the latest time when the target was flagged as a primary
-// identifier, and whether such a claim even exists on the target.
-func (s *SelfSigs) Primary() (time.Time, bool) {
-	var t time.Time
-	if len(s.Certifications) == 0 {
-		return t, false
+type checkSigCreationDesc []*CheckSig
+
+func (s checkSigCreationDesc) Len() int { return len(s) }
+
+func (s checkSigCreationDesc) Less(i, j int) bool {
+	return s[j].Signature.Creation.Unix() < s[i].Signature.Creation.Unix()
+}
+
+func (s checkSigCreationDesc) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+type checkSigExpirationDesc []*CheckSig
+
+func (s checkSigExpirationDesc) Len() int { return len(s) }
+
+func (s checkSigExpirationDesc) Less(i, j int) bool {
+	return s[j].Signature.Expiration.Unix() < s[i].Signature.Expiration.Unix()
+}
+
+func (s checkSigExpirationDesc) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func (s *SelfSigs) resolve() {
+	// Revocations cancel all other certifications
+	if len(s.Revocations) > 0 {
+		s.Certifications = nil
+		s.Expirations = nil
+		s.Primaries = nil
 	}
-	for _, ckSig := range s.Certifications {
-		if ckSig.Error != nil {
-			continue
-		}
-		if ckSig.Signature.Primary {
-			if t.IsZero() || t.Unix() < ckSig.Signature.Creation.Unix() {
-				t = ckSig.Signature.Creation
-			}
+
+	// Sort signatures
+	sort.Sort(checkSigCreationAsc(s.Revocations))
+	sort.Sort(checkSigCreationDesc(s.Certifications))
+	sort.Sort(checkSigExpirationDesc(s.Expirations))
+	sort.Sort(checkSigCreationDesc(s.Primaries))
+}
+
+var zeroTime time.Time
+
+func (s *SelfSigs) RevokedSince() (time.Time, bool) {
+	if len(s.Revocations) > 0 {
+		return s.Revocations[0].Signature.Creation, true
+	}
+	return zeroTime, false
+}
+
+func (s *SelfSigs) ExpiresAt() (time.Time, bool) {
+	if len(s.Expirations) > 0 {
+		return s.Expirations[0].Signature.Expiration, true
+	}
+	return zeroTime, false
+}
+
+func (s *SelfSigs) Valid() bool {
+	revoked := len(s.Revocations) > 0
+	expiration, okExpiration := s.ExpiresAt()
+	_, okPubkey := s.target.(*Pubkey)
+	return (!revoked && // target has no revocations
+		// target does not expire or hasn't expired yet
+		(!okExpiration || expiration.Unix() > now().Unix()) &&
+		// target has self-signatures or is the primary key
+		(okPubkey || len(s.Certifications) > 0))
+}
+
+func (s *SelfSigs) ValidSince() (time.Time, bool) {
+	if len(s.Revocations) > 0 {
+		return zeroTime, false
+	}
+	pubkey, okPubkey := s.target.(*Pubkey)
+	if okPubkey {
+		return pubkey.Creation, true
+	}
+	for _, checkSig := range s.Certifications {
+		expiresAt := checkSig.Signature.Expiration
+		if expiresAt.IsZero() || expiresAt.Unix() > now().Unix() {
+			return checkSig.Signature.Creation, true
 		}
 	}
-	return t, !t.IsZero()
+	return zeroTime, false
+}
+
+func (s *SelfSigs) PrimarySince() (time.Time, bool) {
+	if len(s.Revocations) > 0 {
+		return zeroTime, false
+	}
+	for _, checkSig := range s.Primaries {
+		expiresAt := checkSig.Signature.Expiration
+		if expiresAt.IsZero() || expiresAt.Unix() > now().Unix() {
+			return checkSig.Signature.Creation, true
+		}
+	}
+	return zeroTime, false
 }

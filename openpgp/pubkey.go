@@ -278,21 +278,26 @@ func (pubkey *Pubkey) setPublicKeyV3(pk *packet.PublicKeyV3) error {
 }
 
 func (pubkey *Pubkey) SelfSigs() *SelfSigs {
-	result := &SelfSigs{}
+	result := &SelfSigs{target: pubkey}
 	for _, sig := range pubkey.Signatures {
 		// Skip non-self-certifications.
 		if !strings.HasPrefix(pubkey.UUID, sig.RIssuerKeyID) {
 			continue
 		}
+		checkSig := &CheckSig{
+			Pubkey:    pubkey,
+			Signature: sig,
+			Error:     pubkey.verifyPublicKeySelfSig(&pubkey.publicKeyPacket, sig),
+		}
+		if checkSig.Error != nil {
+			result.Errors = append(result.Errors, checkSig)
+			continue
+		}
 		switch sig.SigType {
 		case 0x20: // packet.SigTypeKeyRevocation
-			result.Revocations = append(result.Revocations, &CheckSig{
-				Pubkey:    pubkey,
-				Signature: sig,
-				Error:     pubkey.verifyPublicKeySelfSig(&pubkey.publicKeyPacket, sig),
-				target:    pubkey,
-			})
+			result.Revocations = append(result.Revocations, checkSig)
 		}
 	}
+	result.resolve()
 	return result
 }

@@ -22,6 +22,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"sort"
+	"time"
 
 	"golang.org/x/crypto/openpgp/armor"
 	"golang.org/x/crypto/openpgp/packet"
@@ -87,70 +88,68 @@ func (s *ResolveSuite) TestRoundTripSksDigest(c *gc.C) {
 	c.Assert(sksDigest, gc.Equals, "6d57b48c83d6322076d634059bb3b94b")
 }
 
-/*
-func (s *ResolveSuite) TestPrimaryUidSelection(c *gc.C) {
-	key := MustInputAscKey(c, "lp1195901.asc")
-	Resolve(key)
-	assert.NotNil(c, key.primaryUid)
-	// Primary UID
-	assert.Equal(c, key.primaryUid.Keywords, "Phil Pennock <phil.pennock@spodhuis.org>")
-	for _, uid := range key.userIds {
-		if uid.Keywords == "pdp@spodhuis.demon.nl" {
-			// This uid sig is revoked
-			assert.NotNil(c, uid.revSig)
-		}
+func patchNow(t time.Time) func() {
+	now = func() time.Time {
+		return t
 	}
-	key = MustInputAscKey(c, "lp1195901_2.asc")
-	Resolve(key)
-	assert.NotNil(c, key.primaryUid)
-	assert.Equal(c, key.primaryUid.Keywords, "Phil Pennock <phil.pennock@globnix.org>")
+	return func() {
+		now = time.Now
+	}
 }
 
-func (s *ResolveSuite) TestSortPrimaryUid(c *gc.C) {
+func (s *ResolveSuite) TestUserIDSelfSigs(c *gc.C) {
+	defer patchNow(time.Date(2014, time.January, 1, 0, 0, 0, 0, time.UTC))()
+
 	key := MustInputAscKey(c, "lp1195901.asc")
-	Resolve(key)
+	err := Deduplicate(key)
+	c.Assert(err, gc.IsNil)
+	Sort(key)
+	// Primary UID
+	c.Assert(key.UserIDs[0].Keywords, gc.Equals, "Phil Pennock <phil.pennock@spodhuis.org>")
+	for _, uid := range key.UserIDs {
+		if uid.Keywords == "pdp@spodhuis.demon.nl" {
+			ss := uid.SelfSigs(key)
+			c.Assert(ss.Revocations, gc.HasLen, 1)
+		}
+	}
+
+	key = MustInputAscKey(c, "lp1195901_2.asc")
+	err = Deduplicate(key)
+	c.Assert(err, gc.IsNil)
+	Sort(key)
+	c.Assert(key.UserIDs[0].Keywords, gc.Equals, "Phil Pennock <phil.pennock@globnix.org>")
+}
+
+func (s *ResolveSuite) TestSortUserIDs(c *gc.C) {
+	defer patchNow(time.Date(2014, time.January, 1, 0, 0, 0, 0, time.UTC))()
+
+	key := MustInputAscKey(c, "lp1195901.asc")
+	err := Deduplicate(key)
+	c.Assert(err, gc.IsNil)
 	Sort(key)
 	expect := []string{
 		"Phil Pennock <phil.pennock@spodhuis.org>",
-		"Phil Pennock <phil.pennock@globnix.org>",
 		"Phil Pennock <pdp@exim.org>",
+		"Phil Pennock <phil.pennock@globnix.org>",
 		"Phil Pennock <pdp@spodhuis.org>",
 		"Phil Pennock <pdp@spodhuis.demon.nl>"}
-	for i := range key.userIds {
-		assert.Equal(c, expect[i], key.userIds[i].Keywords)
+	for i := range key.UserIDs {
+		c.Assert(key.UserIDs[i].Keywords, gc.Equals, expect[i])
 	}
 }
-*/
 
-/*
 func (s *ResolveSuite) TestKeyExpiration(c *gc.C) {
+	defer patchNow(time.Date(2013, time.January, 1, 0, 0, 0, 0, time.UTC))()
+
 	key := MustInputAscKey(c, "lp1195901.asc")
-	Resolve(key)
+	err := Deduplicate(key)
+	c.Assert(err, gc.IsNil)
+	Sort(key)
 
-	key.Visit(func(rec PacketRecord) error {
-		if sig, is := rec.(*Signature); is {
-			if sig.Signature != nil && sig.Signature.KeyLifetimeSecs != nil {
-				t.Logf("Key expiration %d", *sig.Signature.KeyLifetimeSecs)
-			}
-		}
-		return nil
-	})
+	c.Assert(key.Subkeys, gc.HasLen, 7)
+	c.Assert(key.Subkeys[0].UUID, gc.Equals, "6c949d8098859e7816e6b33d54d50118a1b8dfc9")
+	c.Assert(key.Subkeys[1].UUID, gc.Equals, "3745e9590264de539613d833ad83b9366e3d6be3")
 }
-*/
-
-/*
-func (s *ResolveSuite) TestPrimaryUidFallback(c *gc.C) {
-	f := MustInput(c, "snowcrash.gpg")
-	var key *Pubkey
-	for keyRead := range ReadKeys(f) {
-		assert.Nil(c, keyRead.Error)
-		key = keyRead.Pubkey
-	}
-	assert.NotNil(c, key)
-	assert.NotEmpty(c, key.PrimaryUid)
-	c.Log(key.PrimaryUid)
-}
-*/
 
 // TestUnsuppIgnored tests parsing key material containing
 // packets which are not normally part of an exported public key --

@@ -17,10 +17,48 @@
 
 package openpgp
 
-import (
-	"sort"
-	"strings"
-)
+import "sort"
+
+func lessSelfSigs(i, j *SelfSigs) (bool, bool) {
+	iValid := i.Valid()
+	jValid := j.Valid()
+	if iValid != jValid {
+		// Valid comes before invalid
+		return iValid, true
+	}
+	if !iValid {
+		_, iRevokedOk := i.RevokedSince()
+		_, jRevokedOk := j.RevokedSince()
+		if iRevokedOk != jRevokedOk {
+			// Non-revoked comes before revoked
+			return !iRevokedOk, true
+		}
+	}
+
+	iPrimarySince, iPrimaryOk := i.PrimarySince()
+	jPrimarySince, jPrimaryOk := j.PrimarySince()
+	if iPrimaryOk != jPrimaryOk {
+		// Primary comes before non-primary
+		return iPrimaryOk, true
+	}
+	if iPrimaryOk {
+		// Most recent primary certification comes first
+		return jPrimarySince.Unix() < iPrimarySince.Unix(), true
+	}
+
+	iValidSince, iValidOk := i.ValidSince()
+	jValidSince, jValidOk := j.ValidSince()
+	if iValidOk != jValidOk {
+		// Self-certified comes before non-self-certified
+		return iValidOk, true
+	}
+	if iValidOk {
+		// Most recently certified comes first
+		return jValidSince.Unix() < iValidSince.Unix(), true
+	}
+
+	return false, false
+}
 
 type uidSorter struct {
 	*Pubkey
@@ -29,29 +67,13 @@ type uidSorter struct {
 func (s *uidSorter) Len() int { return len(s.UserIDs) }
 
 func (s *uidSorter) Less(i, j int) bool {
-	iSig := maxSelfSig(s.Pubkey, s.UserIDs[i].Signatures)
-	jSig := maxSelfSig(s.Pubkey, s.UserIDs[j].Signatures)
-	return sigLess(iSig, jSig)
-}
-
-func sigLess(iSig *Signature, jSig *Signature) bool {
-	if iSig != nil && jSig != nil {
-		if iSig.Primary != jSig.Primary {
-			return iSig.Primary
-		}
-		return iSig.Creation.Unix() > jSig.Creation.Unix()
+	iss := s.UserIDs[i].SelfSigs(s.Pubkey)
+	jss := s.UserIDs[j].SelfSigs(s.Pubkey)
+	less, ok := lessSelfSigs(iss, jss)
+	if ok {
+		return less
 	}
-	return iSig != nil
-}
-
-func maxSelfSig(pubkey *Pubkey, sigs []*Signature) *Signature {
-	var recent *Signature
-	for _, sig := range sigs {
-		if strings.HasPrefix(pubkey.UUID, sig.RIssuerKeyID) && (recent == nil || sig.Creation.Unix() > recent.Creation.Unix()) {
-			recent = sig
-		}
-	}
-	return recent
+	return s.UserIDs[i].Keywords < s.UserIDs[j].Keywords
 }
 
 func (s *uidSorter) Swap(i, j int) {
@@ -65,9 +87,10 @@ type uatSorter struct {
 func (s *uatSorter) Len() int { return len(s.UserAttributes) }
 
 func (s *uatSorter) Less(i, j int) bool {
-	iSig := maxSelfSig(s.Pubkey, s.UserAttributes[i].Signatures)
-	jSig := maxSelfSig(s.Pubkey, s.UserAttributes[j].Signatures)
-	return sigLess(iSig, jSig)
+	iss := s.UserAttributes[i].SelfSigs(s.Pubkey)
+	jss := s.UserAttributes[j].SelfSigs(s.Pubkey)
+	less, _ := lessSelfSigs(iss, jss)
+	return less
 }
 
 func (s *uatSorter) Swap(i, j int) {
@@ -81,6 +104,12 @@ type subkeySorter struct {
 func (s *subkeySorter) Len() int { return len(s.Subkeys) }
 
 func (s *subkeySorter) Less(i, j int) bool {
+	iss := s.Subkeys[i].SelfSigs(s.Pubkey)
+	jss := s.Subkeys[j].SelfSigs(s.Pubkey)
+	less, ok := lessSelfSigs(iss, jss)
+	if ok {
+		return less
+	}
 	return s.Subkeys[i].Creation.Unix() < s.Subkeys[j].Creation.Unix()
 }
 
@@ -102,7 +131,7 @@ func (s *sigSorter) Swap(i, j int) {
 	s.sigs[i], s.sigs[j] = s.sigs[j], s.sigs[i]
 }
 
-// Sort reorders the key material
+// Sort reorders the key material based on precedence rules.
 func Sort(pubkey *Pubkey) {
 	for _, node := range pubkey.contents() {
 		switch p := node.(type) {

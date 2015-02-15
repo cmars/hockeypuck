@@ -121,28 +121,34 @@ func (uat *UserAttribute) userAttributePacket() (*packet.UserAttribute, error) {
 }
 
 func (uat *UserAttribute) SelfSigs(pubkey *Pubkey) *SelfSigs {
-	result := &SelfSigs{}
+	result := &SelfSigs{target: uat}
 	for _, sig := range uat.Signatures {
 		// Skip non-self-certifications.
 		if !strings.HasPrefix(pubkey.UUID, sig.RIssuerKeyID) {
 			continue
 		}
+		checkSig := &CheckSig{
+			Pubkey:    pubkey,
+			Signature: sig,
+			Error:     pubkey.verifyUserAttrSelfSig(uat, sig),
+		}
+		if checkSig.Error != nil {
+			result.Errors = append(result.Errors, checkSig)
+			continue
+		}
 		switch sig.SigType {
 		case 0x30: // packet.SigTypeCertRevocation
-			result.Revocations = append(result.Revocations, &CheckSig{
-				Pubkey:    pubkey,
-				Signature: sig,
-				Error:     pubkey.verifyUserAttrSelfSig(uat, sig),
-				target:    uat,
-			})
+			result.Revocations = append(result.Revocations, checkSig)
 		case 0x10, 0x11, 0x12, 0x13:
-			result.Certifications = append(result.Certifications, &CheckSig{
-				Pubkey:    pubkey,
-				Signature: sig,
-				Error:     pubkey.verifyUserAttrSelfSig(uat, sig),
-				target:    uat,
-			})
+			result.Certifications = append(result.Certifications, checkSig)
+			if !sig.Expiration.IsZero() {
+				result.Expirations = append(result.Expirations, checkSig)
+			}
+			if sig.Primary {
+				result.Primaries = append(result.Primaries, checkSig)
+			}
 		}
 	}
+	result.resolve()
 	return result
 }

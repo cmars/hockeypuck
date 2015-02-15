@@ -98,28 +98,31 @@ func (ss subkeySlice) without(target *Subkey) []*Subkey {
 }
 
 func (subkey *Subkey) SelfSigs(pubkey *Pubkey) *SelfSigs {
-	result := &SelfSigs{}
+	result := &SelfSigs{target: subkey}
 	for _, sig := range subkey.Signatures {
 		// Skip non-self-certifications.
 		if !strings.HasPrefix(pubkey.UUID, sig.RIssuerKeyID) {
 			continue
 		}
+		checkSig := &CheckSig{
+			Pubkey:    pubkey,
+			Signature: sig,
+			Error:     pubkey.verifyPublicKeySelfSig(&subkey.publicKeyPacket, sig),
+		}
+		if checkSig.Error != nil {
+			result.Errors = append(result.Errors, checkSig)
+			continue
+		}
 		switch sig.SigType {
 		case 0x28: // packet.SigTypeSubkeyRevocation
-			result.Revocations = append(result.Revocations, &CheckSig{
-				Pubkey:    pubkey,
-				Signature: sig,
-				Error:     pubkey.verifyPublicKeySelfSig(&subkey.publicKeyPacket, sig),
-				target:    subkey,
-			})
+			result.Revocations = append(result.Revocations, checkSig)
 		case 0x18: // packet.SigTypeSubkeyBinding
-			result.Certifications = append(result.Certifications, &CheckSig{
-				Pubkey:    pubkey,
-				Signature: sig,
-				Error:     pubkey.verifyPublicKeySelfSig(&subkey.publicKeyPacket, sig),
-				target:    subkey,
-			})
+			result.Certifications = append(result.Certifications, checkSig)
+			if !sig.Expiration.IsZero() {
+				result.Expirations = append(result.Expirations, checkSig)
+			}
 		}
 	}
+	result.resolve()
 	return result
 }

@@ -148,28 +148,34 @@ func cleanUtf8(s string) string {
 }
 
 func (uid *UserID) SelfSigs(pubkey *Pubkey) *SelfSigs {
-	result := &SelfSigs{}
+	result := &SelfSigs{target: uid}
 	for _, sig := range uid.Signatures {
 		// Skip non-self-certifications.
 		if !strings.HasPrefix(pubkey.UUID, sig.RIssuerKeyID) {
 			continue
 		}
+		checkSig := &CheckSig{
+			Pubkey:    pubkey,
+			Signature: sig,
+			Error:     pubkey.verifyUserIDSelfSig(uid, sig),
+		}
+		if checkSig.Error != nil {
+			result.Errors = append(result.Errors, checkSig)
+			continue
+		}
 		switch sig.SigType {
 		case 0x30: // packet.SigTypeCertRevocation
-			result.Revocations = append(result.Revocations, &CheckSig{
-				Pubkey:    pubkey,
-				Signature: sig,
-				Error:     pubkey.verifyUserIDSelfSig(uid, sig),
-				target:    uid,
-			})
+			result.Revocations = append(result.Revocations, checkSig)
 		case 0x10, 0x11, 0x12, 0x13:
-			result.Certifications = append(result.Certifications, &CheckSig{
-				Pubkey:    pubkey,
-				Signature: sig,
-				Error:     pubkey.verifyUserIDSelfSig(uid, sig),
-				target:    uid,
-			})
+			result.Certifications = append(result.Certifications, checkSig)
+			if !sig.Expiration.IsZero() {
+				result.Expirations = append(result.Expirations, checkSig)
+			}
+			if sig.Primary {
+				result.Primaries = append(result.Primaries, checkSig)
+			}
 		}
 	}
+	result.resolve()
 	return result
 }
