@@ -1,3 +1,5 @@
+// +build ignore
+
 /*
    Hockeypuck - OpenPGP key server
    Copyright (C) 2012-2014  Casey Marshall
@@ -26,8 +28,8 @@ import (
 	"net/url"
 	"testing"
 
-	"gopkg.in/hockeypuck/conflux.v2/recon"
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/hockeypuck/conflux.v2/recon"
 
 	"github.com/hockeypuck/hockeypuck/hkp"
 )

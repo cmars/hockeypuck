@@ -18,9 +18,7 @@
 package hkp
 
 import (
-	"bytes"
 	"encoding/hex"
-	"io/ioutil"
 	"net/http"
 	"strings"
 
@@ -28,33 +26,13 @@ import (
 	"gopkg.in/hockeypuck/conflux.v2/recon"
 )
 
-func errMissingParam(param string) error {
-	return errgo.Newf("missing required parameter: %s", param)
-}
-
-func errUnknownOperation(op string) error {
-	return errgo.Newf("unknown operation: %s", op)
-}
-
-func errInvalidMethod(method string) error {
-	return errgo.Newf("invalid HTTP method: %s", method)
-}
-
-// Request defines an interface for all HKP web requests.
-type Request interface {
-	// Response returns a channel through which to send the response.
-	Response() ResponseChan
-	// Parse interprets the URL and POST parameters according to the HKP draft specification.
-	Parse() error
-}
-
 // Operation enumerates the supported HKP operations (op parameter) in the request.
 type Operation string
 
 const (
 	OperationGet    = Operation("get")
 	OperationIndex  = Operation("index")
-	OperationVindex = Operation("vindex")
+	OperationVIndex = Operation("vindex")
 	OperationStats  = Operation("stats")
 	OperationHGet   = Operation("hget")
 )
@@ -62,7 +40,7 @@ const (
 func ParseOperation(s string) (Operation, bool) {
 	op := Operation(s)
 	switch op {
-	case OperationGet, OperationIndex, OperationVindex,
+	case OperationGet, OperationIndex, OperationVIndex,
 		OperationStats, OperationHGet:
 		return op, true
 	}
@@ -84,20 +62,19 @@ func ParseOptionSet(s string) OptionSet {
 	result := OptionSet{}
 	fields := strings.Split(s, ",")
 	for _, field := range fields {
-		result[Option[field]] = true
+		result[Option(field)] = true
 	}
 	return result
 }
 
 // Lookup contains all the parameters and options for a /pks/lookup request.
 type Lookup struct {
-	Op           Operation
-	Search       string
-	Options      OptionSet
-	Fingerprint  bool
-	Exact        bool
-	Hash         bool
-	responseChan ResponseChan
+	Op          Operation
+	Search      string
+	Options     OptionSet
+	Fingerprint bool
+	Exact       bool
+	Hash        bool
 }
 
 func ParseLookup(req *http.Request) (*Lookup, error) {
@@ -108,60 +85,60 @@ func ParseLookup(req *http.Request) (*Lookup, error) {
 
 	var l Lookup
 	var ok bool
-	// The OpenPGP HTTP Keyserver Protocol (HKP), Section 3.1.2
-	l.Operation, ok = ParseOperation(req.Form.Get("op"))
+	// OpenPGP HTTP Keyserver Protocol (HKP), Section 3.1.2
+	l.Op, ok = ParseOperation(req.Form.Get("op"))
 	if !ok {
-		return nil, errgo.Mask("invalid operation %q", req.Form.Get("op"))
+		return nil, errgo.Newf("invalid operation %q", req.Form.Get("op"))
 	}
 
-	if op != OperationStats {
-		// The OpenPGP HTTP Keyserver Protocol (HKP), Section 3.1.1
+	if l.Op != OperationStats {
+		// OpenPGP HTTP Keyserver Protocol (HKP), Section 3.1.1
 		l.Search = req.Form.Get("search")
 		if l.Search == "" {
-			return nil, errMissingParam("search")
+			return nil, errgo.Newf("missing required parameter: search")
 		}
 	}
 
 	l.Options = ParseOptionSet(req.Form.Get("options"))
 
-	// The OpenPGP HTTP Keyserver Protocol (HKP), Section 3.2.2
-	l.Fingerprint = l.Form.Get("fingerprint") == "on"
+	// OpenPGP HTTP Keyserver Protocol (HKP), Section 3.2.2
+	l.Fingerprint = req.Form.Get("fingerprint") == "on"
 
 	// Not in draft spec, SKS convention
-	l.Hash = l.Form.Get("hash") == "on"
+	l.Hash = req.Form.Get("hash") == "on"
 
-	// The OpenPGP HTTP Keyserver Protocol (HKP), Section 3.2.3
-	l.Exact = l.Form.Get("exact") == "on"
+	// OpenPGP HTTP Keyserver Protocol (HKP), Section 3.2.3
+	l.Exact = req.Form.Get("exact") == "on"
 
 	return &l, nil
 }
 
 // Add represents a valid /pks/add request content, parameters and options.
 type Add struct {
-	Keytext   string
-	OptionSet Options
+	Keytext string
+	Options OptionSet
 }
 
 func ParseAdd(req *http.Request) (*Add, error) {
 	if req.Method != "POST" {
-		return errInvalidMethod(a.Method)
+		return nil, errgo.Newf("invalid HTTP method: %s", req.Method)
 	}
 
-	var a Add
+	var add Add
 	// Parse the URL query parameters
 	err := req.ParseForm()
 	if err != nil {
-		return errgo.Mask(err)
+		return nil, errgo.Mask(err)
 	}
 
-	a.Keytext = req.Form.Get("keytext")
-	if a.Keytext == "" {
-		return errMissingParam("keytext")
+	add.Keytext = req.Form.Get("keytext")
+	if add.Keytext == "" {
+		return nil, errgo.Newf("missing required parameter: keytext")
 	}
 
-	a.Options = ParseOptionSet(req.Form.Get("options"))
+	add.Options = ParseOptionSet(req.Form.Get("options"))
 
-	return a, nil
+	return &add, nil
 }
 
 type HashQuery struct {
@@ -170,7 +147,7 @@ type HashQuery struct {
 
 func ParseHashQuery(req *http.Request) (*HashQuery, error) {
 	if req.Method != "POST" {
-		return errInvalidMethod(hq.Method)
+		return nil, errgo.Newf("invalid HTTP method: %s", req.Method)
 	}
 
 	r := req.Body
@@ -190,7 +167,7 @@ func ParseHashQuery(req *http.Request) (*HashQuery, error) {
 			return nil, errgo.Mask(err)
 		}
 		hash := make([]byte, hashlen)
-		_, err = body.Read(hash)
+		_, err = r.Read(hash)
 		if err != nil {
 			return nil, errgo.Mask(err)
 		}
