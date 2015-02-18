@@ -184,7 +184,7 @@ func (s *ResolveSuite) TestMissingUidFk(c *gc.C) {
 
 func (s *ResolveSuite) TestV3NoUidSig(c *gc.C) {
 	key := MustInputAscKey(c, "0xd46b7c827be290fe4d1f9291b1ebc61a.asc")
-	c.Assert(key.KeyID, gc.Equals, "0760df64b3d82239")
+	c.Assert(key.RKeyID, gc.Equals, "93228d3b46fd0670")
 	f := MustInput(c, "0xd46b7c827be290fe4d1f9291b1ebc61a.asc")
 	defer f.Close()
 	block, err := armor.Decode(f)

@@ -27,13 +27,16 @@ import (
 
 	"golang.org/x/crypto/openpgp/packet"
 	"gopkg.in/errgo.v1"
+
+	"github.com/hockeypuck/hockeypuck/util"
 )
 
 type publicKeyPacket struct {
 	Packet
 
-	ShortID string
-	KeyID   string
+	RFingerprint string
+	RKeyID       string
+	RShortID     string
 
 	// Creation stores the timestamp when the public key was created.
 	Creation time.Time
@@ -117,7 +120,7 @@ func (pkp *publicKeyPacket) setUnsupported(op *packet.OpaquePacket) error {
 	h.Write([]byte{0x99, byte(len(op.Contents) >> 8), byte(len(op.Contents))})
 	h.Write(op.Contents)
 	fpr := hex.EncodeToString(h.Sum(nil))
-	pkp.UUID = reverse(fpr)
+	pkp.UUID = util.Reverse(fpr)
 	return pkp.setV4IDs(pkp.UUID)
 }
 
@@ -132,7 +135,8 @@ func (pkp *publicKeyPacket) setPublicKey(pk *packet.PublicKey) error {
 	if err != nil {
 		return errgo.Mask(err)
 	}
-	pkp.UUID = reverse(fingerprint)
+	pkp.RFingerprint = util.Reverse(fingerprint)
+	pkp.UUID = pkp.RFingerprint
 	err = pkp.setV4IDs(pkp.UUID)
 	if err != nil {
 		return err
@@ -147,11 +151,11 @@ func (pkp *publicKeyPacket) setPublicKey(pk *packet.PublicKey) error {
 
 func (pkp *publicKeyPacket) setV4IDs(uuid string) error {
 	var ok bool
-	pkp.ShortID, ok = suffixID(uuid, 8)
+	pkp.RShortID, ok = suffixID(uuid, 8)
 	if !ok {
 		return errgo.Newf("invalid fingerprint %q", uuid)
 	}
-	pkp.KeyID, ok = suffixID(uuid, 16)
+	pkp.RKeyID, ok = suffixID(uuid, 16)
 	if !ok {
 		return errgo.Newf("invalid fingerprint %q", uuid)
 	}
@@ -169,9 +173,10 @@ func (pkp *publicKeyPacket) setPublicKeyV3(pk *packet.PublicKeyV3) error {
 	if err != nil {
 		return errgo.Mask(err)
 	}
-	pkp.UUID = reverse(fingerprint)
-	pkp.ShortID = fmt.Sprintf("%08x", uint32(pk.KeyId))
-	pkp.KeyID = fmt.Sprintf("%016x", pk.KeyId)
+	pkp.RFingerprint = util.Reverse(fingerprint)
+	pkp.UUID = pkp.RFingerprint
+	pkp.RShortID = util.Reverse(fmt.Sprintf("%08x", uint32(pk.KeyId)))
+	pkp.RKeyID = util.Reverse(fmt.Sprintf("%016x", pk.KeyId))
 	pkp.Creation = pk.CreationTime
 	pkp.Expiration = NeverExpires
 	if pk.DaysToExpire > 0 {
@@ -183,20 +188,12 @@ func (pkp *publicKeyPacket) setPublicKeyV3(pk *packet.PublicKeyV3) error {
 	return nil
 }
 
-func reverse(s string) string {
-	runes := []rune(s)
-	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
-		runes[i], runes[j] = runes[j], runes[i]
-	}
-	return string(runes)
-}
-
 func suffixID(rid string, n int) (string, bool) {
 	l := len(rid)
 	if l < n {
 		return "", false
 	}
-	id := reverse(rid)
+	id := util.Reverse(rid)
 	return id[l-n : l], true
 }
 

@@ -47,8 +47,8 @@ func init() {
 	NeverExpires = t
 }
 
-func WritePackets(w io.Writer, root packetNode) error {
-	for _, node := range root.contents() {
+func WritePackets(w io.Writer, key *Pubkey) error {
+	for _, node := range key.contents() {
 		op, err := newOpaquePacket(node.packet().Packet)
 		if err != nil {
 			return errgo.Mask(err)
@@ -61,13 +61,19 @@ func WritePackets(w io.Writer, root packetNode) error {
 	return nil
 }
 
-func WriteArmoredPackets(w io.Writer, root packetNode) error {
+func WriteArmoredPackets(w io.Writer, roots []*Pubkey) error {
 	armw, err := armor.Encode(w, openpgp.PublicKeyType, nil)
 	defer armw.Close()
 	if err != nil {
 		return errgo.Mask(err)
 	}
-	return WritePackets(armw, root)
+	for _, node := range roots {
+		err = WritePackets(armw, node)
+		if err != nil {
+			return errgo.Mask(err)
+		}
+	}
+	return nil
 }
 
 type OpaqueKeyring struct {

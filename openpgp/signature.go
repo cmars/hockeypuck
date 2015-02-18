@@ -25,6 +25,8 @@ import (
 
 	"golang.org/x/crypto/openpgp/packet"
 	"gopkg.in/errgo.v1"
+
+	"github.com/hockeypuck/hockeypuck/util"
 )
 
 type Signature struct {
@@ -125,7 +127,7 @@ func (sig *Signature) setSignature(s *packet.Signature) error {
 	if s.IssuerKeyId != nil {
 		binary.BigEndian.PutUint64(issuerKeyId[:], *s.IssuerKeyId)
 		sigKeyId := hex.EncodeToString(issuerKeyId[:])
-		sig.RIssuerKeyID = reverse(sigKeyId)
+		sig.RIssuerKeyID = util.Reverse(sigKeyId)
 	}
 
 	// Expiration time
@@ -151,7 +153,7 @@ func (sig *Signature) setSignatureV3(s *packet.SignatureV3) error {
 	var issuerKeyId [8]byte
 	binary.BigEndian.PutUint64(issuerKeyId[:], s.IssuerKeyId)
 	sigKeyId := hex.EncodeToString(issuerKeyId[:])
-	sig.RIssuerKeyID = reverse(sigKeyId)
+	sig.RIssuerKeyID = util.Reverse(sigKeyId)
 	return nil
 }
 
