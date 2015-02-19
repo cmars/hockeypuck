@@ -21,7 +21,11 @@ import (
 	"gopkg.in/errgo.v1"
 )
 
-func Deduplicate(root packetNode) error {
+func DropDuplicates(root packetNode) error {
+	return dedup(root, nil)
+}
+
+func CollectDuplicates(root packetNode) error {
 	return dedup(root, func(primary, _ packetNode) {
 		primary.packet().Count++
 	})

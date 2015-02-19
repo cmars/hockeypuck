@@ -101,7 +101,7 @@ func (s *ResolveSuite) TestUserIDSelfSigs(c *gc.C) {
 	defer patchNow(time.Date(2014, time.January, 1, 0, 0, 0, 0, time.UTC))()
 
 	key := MustInputAscKey(c, "lp1195901.asc")
-	err := Deduplicate(key)
+	err := DropDuplicates(key)
 	c.Assert(err, gc.IsNil)
 	Sort(key)
 	// Primary UID
@@ -114,7 +114,7 @@ func (s *ResolveSuite) TestUserIDSelfSigs(c *gc.C) {
 	}
 
 	key = MustInputAscKey(c, "lp1195901_2.asc")
-	err = Deduplicate(key)
+	err = DropDuplicates(key)
 	c.Assert(err, gc.IsNil)
 	Sort(key)
 	c.Assert(key.UserIDs[0].Keywords, gc.Equals, "Phil Pennock <phil.pennock@globnix.org>")
@@ -124,7 +124,7 @@ func (s *ResolveSuite) TestSortUserIDs(c *gc.C) {
 	defer patchNow(time.Date(2014, time.January, 1, 0, 0, 0, 0, time.UTC))()
 
 	key := MustInputAscKey(c, "lp1195901.asc")
-	err := Deduplicate(key)
+	err := DropDuplicates(key)
 	c.Assert(err, gc.IsNil)
 	Sort(key)
 	expect := []string{
@@ -142,7 +142,7 @@ func (s *ResolveSuite) TestKeyExpiration(c *gc.C) {
 	defer patchNow(time.Date(2013, time.January, 1, 0, 0, 0, 0, time.UTC))()
 
 	key := MustInputAscKey(c, "lp1195901.asc")
-	err := Deduplicate(key)
+	err := DropDuplicates(key)
 	c.Assert(err, gc.IsNil)
 	Sort(key)
 

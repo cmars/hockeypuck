@@ -37,7 +37,7 @@ var _ = gc.Suite(&SamplePacketSuite{})
 func (s *SamplePacketSuite) TestVerifyUserAttributeSig(c *gc.C) {
 	key := MustInputAscKey(c, "uat.asc")
 	c.Assert(key.UserAttributes, gc.HasLen, 1)
-	Deduplicate(key)
+	DropDuplicates(key)
 	c.Assert(key.UserAttributes, gc.HasLen, 1)
 	uat := key.UserAttributes[0]
 	c.Assert(uat.Images, gc.HasLen, 1)
@@ -140,7 +140,7 @@ func (s *SamplePacketSuite) TestDeduplicate(c *gc.C) {
 	}
 
 	c.Log()
-	err = Deduplicate(key)
+	err = CollectDuplicates(key)
 	c.Assert(err, gc.IsNil)
 
 	n2 := 0

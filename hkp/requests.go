@@ -53,7 +53,6 @@ type Option string
 const (
 	OptionMachineReadable = Option("mr")
 	OptionNotModifiable   = Option("nm")
-	OptionJSON            = Option("json")
 )
 
 type OptionSet map[Option]bool

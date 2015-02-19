@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/julienschmidt/httprouter"
 	"golang.org/x/crypto/openpgp/armor"
@@ -43,10 +44,8 @@ func (h *Handler) Lookup(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 	switch l.Op {
 	case OperationGet, OperationHGet:
 		h.get(w, l)
-	case OperationIndex:
+	case OperationIndex, OperationVIndex:
 		h.index(w, l)
-	case OperationVIndex:
-		h.vindex(w, l)
 	default:
 		httpError(w, http.StatusNotFound, errgo.Newf("operation not found: %v", l.Op))
 	}
@@ -148,18 +147,11 @@ func (h *Handler) index(w http.ResponseWriter, l *Lookup) {
 		httpError(w, http.StatusInternalServerError, errgo.Mask(err))
 	}
 
-	// TODO: support other format types besides JSON
-	h.indexJSON(w, keys)
-}
-
-func (h *Handler) vindex(w http.ResponseWriter, l *Lookup) {
-	keys, err := h.keys(l)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, errgo.Mask(err))
+	if l.Options[OptionMachineReadable] {
+		h.indexMR(w, keys, l)
+	} else {
+		h.indexJSON(w, keys)
 	}
-
-	// TODO: support other format types besides JSON
-	h.indexJSON(w, keys)
 }
 
 func (h *Handler) indexJSON(w http.ResponseWriter, keys []*openpgp.Pubkey) {
@@ -168,6 +160,49 @@ func (h *Handler) indexJSON(w http.ResponseWriter, keys []*openpgp.Pubkey) {
 	err := enc.Encode(&keys)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, errgo.Mask(err))
+	}
+}
+
+func mrTimeString(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return fmt.Sprintf("%d", t.Unix())
+}
+
+func (h *Handler) indexMR(w http.ResponseWriter, keys []*openpgp.Pubkey, l *Lookup) {
+	w.Header().Set("Content-Type", "text/plain")
+
+	fmt.Fprintln(w, "info:1:1")
+	for _, key := range keys {
+		selfsigs := key.SelfSigs()
+		if !selfsigs.Valid() {
+			continue
+		}
+
+		var keyID string
+		if l.Fingerprint {
+			keyID = key.Fingerprint()
+		} else {
+			keyID = key.KeyID()
+		}
+		keyID = strings.ToUpper(keyID)
+
+		expiresAt, _ := selfsigs.ExpiresAt()
+
+		fmt.Fprintln(w, "pub:%s:%d:%d:%d:%s:", keyID, key.Algorithm, key.BitLen,
+			key.Creation.Unix(), mrTimeString(expiresAt))
+
+		for _, uid := range key.UserIDs {
+			selfsigs := uid.SelfSigs(key)
+			validSince, ok := selfsigs.ValidSince()
+			if !ok {
+				continue
+			}
+			expiresAt, _ := selfsigs.ExpiresAt()
+			fmt.Fprintf(w, "uid:%s:%d:%s:", strings.Replace(uid.Keywords, ":", "%3a", -1),
+				validSince.Unix(), mrTimeString(expiresAt))
+		}
 	}
 }
 
@@ -185,22 +220,83 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 		return
 	}
 
+	var result struct {
+		Inserted []string `json:"inserted"`
+		Updated  []string `json:"updated"`
+		Ignored  []string `json:"ignored"`
+	}
+
 	for readKey := range openpgp.ReadKeys(armorBlock.Body) {
 		if readKey.Error != nil {
 			httpError(w, http.StatusBadRequest, errgo.Mask(err))
 			return
 		}
-		err := h.upsertKey(readKey.Pubkey)
+		err := openpgp.DropDuplicates(readKey.Pubkey)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, errgo.Mask(err))
 			return
 		}
+		status, err := h.upsertKey(readKey.Pubkey)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, errgo.Mask(err))
+			return
+		}
+
+		fp := readKey.Pubkey.QualifiedFingerprint()
+		switch status {
+		case UpdateKeyInserted:
+			result.Inserted = append(result.Inserted, fp)
+		case UpdateKeyModified:
+			result.Updated = append(result.Updated, fp)
+		case UpdateKeyIgnored:
+			result.Ignored = append(result.Ignored, fp)
+		}
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	// TODO: respond with JSON stats on updated key information
+	enc := json.NewEncoder(w)
+	enc.Encode(&result)
 }
 
-func (h *Handler) upsertKey(pubkey *openpgp.Pubkey) error {
-	panic("TODO")
+type UpdateKey int
+
+const (
+	UpdateKeyFailed   UpdateKey = iota
+	UpdateKeyInserted UpdateKey = iota
+	UpdateKeyModified UpdateKey = iota
+	UpdateKeyIgnored  UpdateKey = iota
+)
+
+func (h *Handler) insertKey(key *openpgp.Pubkey) error {
+	return h.storage.Insert([]*openpgp.Pubkey{key})
+}
+
+func (h *Handler) updateKey(key *openpgp.Pubkey) error {
+	return h.storage.Update(key)
+}
+
+func (h *Handler) upsertKey(pubkey *openpgp.Pubkey) (UpdateKey, error) {
+	lastKeys, err := h.storage.FetchKeys([]string{pubkey.RFingerprint})
+	if len(lastKeys) == 0 || IsNotFound(err) {
+		err = h.insertKey(pubkey)
+		if err != nil {
+			return UpdateKeyFailed, errgo.Mask(err)
+		}
+		return UpdateKeyInserted, nil
+	}
+	lastKey := lastKeys[0]
+	lastMD5 := lastKey.MD5
+	err = openpgp.Merge(lastKey, pubkey)
+	if err != nil {
+		return UpdateKeyFailed, errgo.Mask(err)
+	}
+	if lastMD5 != lastKey.MD5 {
+		err = h.updateKey(lastKey)
+		if err != nil {
+			return UpdateKeyFailed, errgo.Mask(err)
+		}
+		return UpdateKeyModified, nil
+	}
+	return UpdateKeyIgnored, nil
 }

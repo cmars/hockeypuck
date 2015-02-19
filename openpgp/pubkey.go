@@ -54,6 +54,43 @@ type publicKeyPacket struct {
 	Others     []*Packet
 }
 
+func algoCode(algo int) string {
+	switch algo {
+	case 1, 2, 3:
+		return "rsa"
+	case 16:
+		return "elg"
+	case 17:
+		return "dsa"
+	case 18:
+		return "ecdh"
+	case 19:
+		return "ecdsa"
+	case 20:
+		return "elg"
+	case 22:
+		return "eddsa"
+	default:
+		return "exp"
+	}
+}
+
+func (pk *publicKeyPacket) QualifiedFingerprint() string {
+	return fmt.Sprintf("%s%d/%s", algoCode(pk.Algorithm), pk.BitLen, util.Reverse(pk.RFingerprint))
+}
+
+func (pk *publicKeyPacket) ShortID() string {
+	return util.Reverse(pk.RShortID)
+}
+
+func (pk *publicKeyPacket) KeyID() string {
+	return util.Reverse(pk.RKeyID)
+}
+
+func (pk *publicKeyPacket) Fingerprint() string {
+	return util.Reverse(pk.RFingerprint)
+}
+
 // appendSignature implements signable.
 func (pk *publicKeyPacket) appendSignature(sig *Signature) {
 	pk.Signatures = append(pk.Signatures, sig)
@@ -200,6 +237,9 @@ func suffixID(rid string, n int) (string, bool) {
 type Pubkey struct {
 	publicKeyPacket
 
+	MD5    string
+	SHA256 string
+
 	Subkeys        []*Subkey
 	UserIDs        []*UserID
 	UserAttributes []*UserAttribute
@@ -293,6 +333,8 @@ func (pubkey *Pubkey) SelfSigs() *SelfSigs {
 		switch sig.SigType {
 		case 0x20: // packet.SigTypeKeyRevocation
 			result.Revocations = append(result.Revocations, checkSig)
+		case 0x1f:
+			result.Certifications = append(result.Certifications, checkSig)
 		}
 	}
 	result.resolve()

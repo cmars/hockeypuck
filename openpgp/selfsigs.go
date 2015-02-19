@@ -113,23 +113,20 @@ func (s *SelfSigs) ExpiresAt() (time.Time, bool) {
 func (s *SelfSigs) Valid() bool {
 	revoked := len(s.Revocations) > 0
 	expiration, okExpiration := s.ExpiresAt()
-	_, okPubkey := s.target.(*Pubkey)
+	_, okValid := s.ValidSince()
 	return (!revoked && // target has no revocations
 		// target does not expire or hasn't expired yet
 		(!okExpiration || expiration.Unix() > now().Unix()) &&
-		// target has self-signatures or is the primary key
-		(okPubkey || len(s.Certifications) > 0))
+		// target has non-expired self-signatures
+		okValid)
 }
 
 func (s *SelfSigs) ValidSince() (time.Time, bool) {
 	if len(s.Revocations) > 0 {
 		return zeroTime, false
 	}
-	pubkey, okPubkey := s.target.(*Pubkey)
-	if okPubkey {
-		return pubkey.Creation, true
-	}
 	for _, checkSig := range s.Certifications {
+		// Return the first non-expired self-signature creation time.
 		expiresAt := checkSig.Signature.Expiration
 		if expiresAt.IsZero() || expiresAt.Unix() > now().Unix() {
 			return checkSig.Signature.Creation, true

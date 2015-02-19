@@ -1,8 +1,16 @@
 package hkp
 
 import (
+	"errors"
+
 	"github.com/hockeypuck/hockeypuck/openpgp"
 )
+
+var ErrKeyNotFound = errors.New("key not found")
+
+func IsNotFound(err error) bool {
+	return err == ErrKeyNotFound
+}
 
 // Queryer defines the storage API for search and retrieval of public key material.
 type Queryer interface {
@@ -37,20 +45,8 @@ type Inserter interface {
 type Updater interface {
 	Inserter
 
-	// UpdatePubkey updates the stored Pubkey with the given contents.
-	UpdatePubkey(*openpgp.Pubkey)
-
-	// UpdateSubkey updates the stored Subkey with the given contents.
-	UpdateSubkey(*openpgp.Subkey)
-
-	// UpdateUserID updates the stored UserID with the given contents.
-	UpdateUserID(*openpgp.UserID)
-
-	// UpdateUserAttribute updates the stored UserAttribute with the given contents.
-	UpdateUserAttribute(*openpgp.UserAttribute)
-
-	// UpdateSignature updates the stored Signature with the given contents.
-	UpdateSignature(*openpgp.Signature)
+	// Update updates the stored Pubkey with the given contents.
+	Update(*openpgp.Pubkey) error
 }
 
 // Storage defines the API that is needed to implement a complete storage
