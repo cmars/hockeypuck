@@ -19,14 +19,24 @@ import (
 	"github.com/hockeypuck/hockeypuck/util"
 )
 
-type Handler struct {
-	storage Storage
-}
-
 func httpError(w http.ResponseWriter, statusCode int, err error) {
 	log.Errorf("HTTP %d: %v", statusCode, err)
 	statsd.Increment(fmt.Sprintf("hkp.status.%d", statusCode), 1, 1)
 	http.Error(w, http.StatusText(statusCode), statusCode)
+}
+
+type Handler struct {
+	storage Storage
+	peer    *SKSPeer
+}
+
+type HandlerOption func(h *Handler) error
+
+func NewHandler(storage Storage, peer *SKSPeer) *Handler {
+	return &Handler{
+		storage: storage,
+		peer:    peer,
+	}
 }
 
 func (h *Handler) Register(r *httprouter.Router) {
@@ -236,19 +246,21 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 			httpError(w, http.StatusInternalServerError, errgo.Mask(err))
 			return
 		}
-		status, err := h.upsertKey(readKey.Pubkey)
+		change, err := UpsertKey(h.storage, readKey.Pubkey)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, errgo.Mask(err))
 			return
 		}
 
+		h.peer.notifyKeyChange(change)
+
 		fp := readKey.Pubkey.QualifiedFingerprint()
-		switch status {
-		case UpdateKeyInserted:
+		switch change.(type) {
+		case KeyAdded:
 			result.Inserted = append(result.Inserted, fp)
-		case UpdateKeyModified:
+		case KeyReplaced:
 			result.Updated = append(result.Updated, fp)
-		case UpdateKeyIgnored:
+		case KeyNotChanged:
 			result.Ignored = append(result.Ignored, fp)
 		}
 	}
@@ -259,44 +271,63 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 	enc.Encode(&result)
 }
 
-type UpdateKey int
-
-const (
-	UpdateKeyFailed   UpdateKey = iota
-	UpdateKeyInserted UpdateKey = iota
-	UpdateKeyModified UpdateKey = iota
-	UpdateKeyIgnored  UpdateKey = iota
-)
-
-func (h *Handler) insertKey(key *openpgp.Pubkey) error {
-	return h.storage.Insert([]*openpgp.Pubkey{key})
+type KeyChange interface {
+	InsertDigests() []string
+	RemoveDigests() []string
 }
 
-func (h *Handler) updateKey(key *openpgp.Pubkey) error {
-	return h.storage.Update(key)
+type KeyAdded struct {
+	Digest string
 }
 
-func (h *Handler) upsertKey(pubkey *openpgp.Pubkey) (UpdateKey, error) {
-	lastKeys, err := h.storage.FetchKeys([]string{pubkey.RFingerprint})
+func (ka KeyAdded) InsertDigests() []string {
+	return []string{ka.Digest}
+}
+
+func (ka KeyAdded) RemoveDigests() []string {
+	return nil
+}
+
+type KeyReplaced struct {
+	OldDigest string
+	NewDigest string
+}
+
+func (kr KeyReplaced) InsertDigests() []string {
+	return []string{kr.NewDigest}
+}
+
+func (kr KeyReplaced) RemoveDigests() []string {
+	return []string{kr.OldDigest}
+}
+
+type KeyNotChanged struct{}
+
+func (knc KeyNotChanged) InsertDigests() []string { return nil }
+
+func (knc KeyNotChanged) RemoveDigests() []string { return nil }
+
+func UpsertKey(storage Storage, pubkey *openpgp.Pubkey) (KeyChange, error) {
+	lastKeys, err := storage.FetchKeys([]string{pubkey.RFingerprint})
 	if len(lastKeys) == 0 || IsNotFound(err) {
-		err = h.insertKey(pubkey)
+		err = storage.Insert([]*openpgp.Pubkey{pubkey})
 		if err != nil {
-			return UpdateKeyFailed, errgo.Mask(err)
+			return nil, errgo.Mask(err)
 		}
-		return UpdateKeyInserted, nil
+		return KeyAdded{Digest: pubkey.MD5}, nil
 	}
 	lastKey := lastKeys[0]
 	lastMD5 := lastKey.MD5
 	err = openpgp.Merge(lastKey, pubkey)
 	if err != nil {
-		return UpdateKeyFailed, errgo.Mask(err)
+		return nil, errgo.Mask(err)
 	}
 	if lastMD5 != lastKey.MD5 {
-		err = h.updateKey(lastKey)
+		err = storage.Update(lastKey)
 		if err != nil {
-			return UpdateKeyFailed, errgo.Mask(err)
+			return nil, errgo.Mask(err)
 		}
-		return UpdateKeyModified, nil
+		return KeyReplaced{OldDigest: lastMD5, NewDigest: lastKey.MD5}, nil
 	}
-	return UpdateKeyIgnored, nil
+	return KeyNotChanged{}, nil
 }

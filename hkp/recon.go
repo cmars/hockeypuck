@@ -1,5 +1,3 @@
-// +build ignore
-
 /*
    Hockeypuck - OpenPGP key server
    Copyright (C) 2012  Casey Marshall
@@ -17,7 +15,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package openpgp
+package hkp
 
 import (
 	"bytes"
@@ -27,6 +25,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"gopkg.in/errgo.v1"
@@ -37,35 +36,29 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/hockeypuck/hockeypuck"
-	"github.com/hockeypuck/hockeypuck/hkp"
+	"github.com/hockeypuck/hockeypuck/openpgp"
 )
 
-const RequestChunkSize = 100
+const requestChunkSize = 100
 
-const MaxKeyRecoveryAttempts = 3
+const maxKeyRecoveryAttempts = 10
 
-type KeyRecoveryCounter map[string]int
+type keyRecoveryCounter map[string]int
 
-type SksPeer struct {
-	*recon.Peer
+type SKSPeer struct {
+	peer       *recon.Peer
+	storage    Storage
 	settings   *hockeypuck.Settings
 	ptree      recon.PrefixTree
-	Service    *hkp.Service
-	RecoverKey chan RecoverKey
-	KeyChanges KeyChangeChan
-
-	recoverAttempts KeyRecoveryCounter
+	keyChanges chan KeyChange
 
 	t tomb.Tomb
+
+	mu              sync.Mutex
+	recoverAttempts keyRecoveryCounter
 }
 
-type RecoverKey struct {
-	Keytext  []byte
-	Source   string
-	response hkp.ResponseChan
-}
-
-func NewSksPTree(s *hockeypuck.Settings) (recon.PrefixTree, error) {
+func newSksPTree(s *hockeypuck.Settings) (recon.PrefixTree, error) {
 	if _, err := os.Stat(s.Conflux.Recon.LevelDB.Path); os.IsNotExist(err) {
 		log.Debugf("creating prefix tree at: %q", s.Conflux.Recon.LevelDB.Path)
 		err = os.MkdirAll(s.Conflux.Recon.LevelDB.Path, 0755)
@@ -76,8 +69,8 @@ func NewSksPTree(s *hockeypuck.Settings) (recon.PrefixTree, error) {
 	return leveldb.New(s.Conflux.Recon.PTreeConfig, s.Conflux.Recon.LevelDB.Path)
 }
 
-func NewSksPeer(srv *hkp.Service, s *hockeypuck.Settings) (*SksPeer, error) {
-	ptree, err := NewSksPTree(s)
+func NewSKSPeer(storage Storage, s *hockeypuck.Settings) (*SKSPeer, error) {
+	ptree, err := newSksPTree(s)
 	if err != nil {
 		return nil, errgo.Mask(err)
 	}
@@ -87,26 +80,24 @@ func NewSksPeer(srv *hkp.Service, s *hockeypuck.Settings) (*SksPeer, error) {
 	}
 
 	peer := recon.NewPeer(&s.Conflux.Recon.Settings, ptree)
-	sksPeer := &SksPeer{
-		ptree:      ptree,
-		settings:   s,
-		Peer:       peer,
-		Service:    srv,
-		KeyChanges: make(KeyChangeChan, s.OpenPGP.NWorkers*4),
-		RecoverKey: make(chan RecoverKey, s.OpenPGP.NWorkers*4),
-
-		recoverAttempts: make(KeyRecoveryCounter),
+	sksPeer := &SKSPeer{
+		ptree:           ptree,
+		storage:         storage,
+		settings:        s,
+		peer:            peer,
+		keyChanges:      make(chan KeyChange),
+		recoverAttempts: make(keyRecoveryCounter),
 	}
 	return sksPeer, nil
 }
 
-func (r *SksPeer) Start() {
-	r.t.Go(r.HandleRecovery)
-	r.t.Go(r.HandleKeyUpdates)
-	r.Peer.Start()
+func (r *SKSPeer) Start() {
+	r.t.Go(r.handleRecovery)
+	r.t.Go(r.handleKeyChanges)
+	r.peer.Start()
 }
 
-func (r *SksPeer) Stop() {
+func (r *SKSPeer) Stop() {
 	log.Info("recon processing: stopping")
 	r.t.Kill(nil)
 	err := r.t.Wait()
@@ -116,7 +107,7 @@ func (r *SksPeer) Stop() {
 	log.Info("recon processing: stopped")
 
 	log.Info("recon peer: stopping")
-	err = errgo.Mask(r.Peer.Stop())
+	err = errgo.Mask(r.peer.Stop())
 	if err != nil {
 		log.Error(errgo.Details(err))
 	}
@@ -137,47 +128,64 @@ func DigestZp(digest string) (*cf.Zp, error) {
 	return cf.Zb(cf.P_SKS, buf), nil
 }
 
-func (r *SksPeer) HandleKeyUpdates() error {
+func (r *SKSPeer) notifyKeyChange(change KeyChange) {
+	if r != nil {
+		r.keyChanges <- change
+	}
+}
+
+func (r *SKSPeer) handleKeyChanges() error {
 	for {
 		select {
 		case <-r.t.Dying():
 			return nil
-		case keyChange, ok := <-r.KeyChanges:
-			if !ok {
-				return nil
-			}
-			digestZp, err := DigestZp(keyChange.CurrentMd5)
+		case keyChange := <-r.keyChanges:
+			err := r.updateDigests(keyChange)
 			if err != nil {
-				log.Warnf("bad digest:", keyChange.CurrentMd5)
-				continue
-			}
-			log.Debugf("insert prefix tree: %q %v %v", hex.EncodeToString(digestZp.Bytes()), keyChange, keyChange.CurrentMd5)
-			r.Peer.InsertWith(func(err error) {
-				if err != nil {
-					log.Errorf("insert %q failed: %v", digestZp, err)
-				}
-				// TODO: this needs locking!
-				delete(r.recoverAttempts, digestZp.String())
-			}, digestZp)
-			if keyChange.PreviousMd5 != "" && keyChange.PreviousMd5 != keyChange.CurrentMd5 {
-				prevDigestZp, err := DigestZp(keyChange.PreviousMd5)
-				if err != nil {
-					log.Warnf("bad digest:", keyChange.PreviousMd5)
-					continue
-				}
-				log.Debugf("remove prefix tree: %q", prevDigestZp)
-				// TODO: here as well
-				r.Peer.RemoveWith(func(err error) {
-					if err != nil {
-						log.Errorf("remove %q failed: %v", prevDigestZp, err)
-					}
-				}, prevDigestZp)
+				return err
 			}
 		}
 	}
 }
 
-func (r *SksPeer) HandleRecovery() error {
+func (r *SKSPeer) clearRecoverAttempts(z *cf.Zp) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.recoverAttempts, z.String())
+}
+
+func (r *SKSPeer) updateDigests(change KeyChange) error {
+	for _, digest := range change.InsertDigests() {
+		digestZp, err := DigestZp(digest)
+		if err != nil {
+			return errgo.Notef(err, "bad digest %q", digest)
+		}
+		log.Debugf("insert into prefix tree: %q", digest)
+		r.peer.InsertWith(func(err error) {
+			if err != nil {
+				log.Errorf("insert %q failed: %v", digest, err)
+			}
+			r.clearRecoverAttempts(digestZp)
+		}, digestZp)
+	}
+
+	for _, digest := range change.RemoveDigests() {
+		digestZp, err := DigestZp(digest)
+		if err != nil {
+			return errgo.Notef(err, "bad digest %q", digest)
+		}
+		log.Debugf("remove from prefix tree: %q", digest)
+		r.peer.RemoveWith(func(err error) {
+			if err != nil {
+				log.Errorf("remove %q failed: %v", digest, err)
+			}
+		}, digestZp)
+	}
+
+	return nil
+}
+
+func (r *SKSPeer) handleRecovery() error {
 	rcvrChans := make(map[string]chan *recon.Recover)
 	defer func() {
 		for _, ch := range rcvrChans {
@@ -188,15 +196,17 @@ func (r *SksPeer) HandleRecovery() error {
 		select {
 		case <-r.t.Dying():
 			return nil
-		case rcvr, ok := <-r.Peer.RecoverChan:
+		case rcvr, ok := <-r.peer.RecoverChan:
 			if !ok {
 				return nil
 			}
+
 			// Use remote HKP host:port as peer-unique identifier
 			remoteAddr, err := rcvr.HkpAddr()
 			if err != nil {
 				continue
 			}
+
 			// Mux recoveries to per-address channels
 			rcvrChan, has := rcvrChans[remoteAddr]
 			if !has {
@@ -212,7 +222,7 @@ func (r *SksPeer) HandleRecovery() error {
 type workRecoveredReady chan interface{}
 type workRecoveredWork chan *cf.ZSet
 
-func (r *SksPeer) handleRemoteRecovery(rcvr *recon.Recover, rcvrChan chan *recon.Recover) {
+func (r *SKSPeer) handleRemoteRecovery(rcvr *recon.Recover, rcvrChan chan *recon.Recover) {
 	recovered := cf.NewZSet()
 	ready := make(workRecoveredReady)
 	work := make(workRecoveredWork)
@@ -229,7 +239,7 @@ func (r *SksPeer) handleRemoteRecovery(rcvr *recon.Recover, rcvrChan chan *recon
 			// Aggregate recovered IDs
 			recovered.AddSlice(rcvr.RemoteElements)
 			log.Debugf("recovery from %q: %d keys pending", rcvr.RemoteAddr.String(), recovered.Len())
-			r.Peer.Disable()
+			r.peer.Disable()
 		case _, ok := <-ready:
 			// Recovery worker is ready for more
 			if !ok {
@@ -241,7 +251,7 @@ func (r *SksPeer) handleRemoteRecovery(rcvr *recon.Recover, rcvrChan chan *recon
 	}
 }
 
-func (r *SksPeer) workRecovered(rcvr *recon.Recover, ready workRecoveredReady, work workRecoveredWork) {
+func (r *SKSPeer) workRecovered(rcvr *recon.Recover, ready workRecoveredReady, work workRecoveredWork) {
 	defer close(ready)
 	timer := time.NewTimer(time.Duration(3) * time.Second)
 	defer timer.Stop()
@@ -251,7 +261,7 @@ func (r *SksPeer) workRecovered(rcvr *recon.Recover, ready workRecoveredReady, w
 			return
 		case recovered, ok := <-work:
 			go func() {
-				defer r.Peer.Enable()
+				defer r.peer.Enable()
 				if !ok {
 					return
 				}
@@ -268,12 +278,12 @@ func (r *SksPeer) workRecovered(rcvr *recon.Recover, ready workRecoveredReady, w
 	}
 }
 
-func (r *SksPeer) requestRecovered(rcvr *recon.Recover, elements *cf.ZSet) error {
+func (r *SKSPeer) requestRecovered(rcvr *recon.Recover, elements *cf.ZSet) error {
 	items := elements.Items()
 	var resultErr error
 	for len(items) > 0 {
 		// Chunk requests to keep the hashquery message size and peer load reasonable.
-		chunksize := RequestChunkSize
+		chunksize := requestChunkSize
 		if chunksize > len(items) {
 			chunksize = len(items)
 		}
@@ -292,14 +302,19 @@ func (r *SksPeer) requestRecovered(rcvr *recon.Recover, elements *cf.ZSet) error
 	return resultErr
 }
 
-func (r *SksPeer) countChunk(chunk []*cf.Zp) {
+func (r *SKSPeer) incrementRecoverAttempts(z *cf.Zp) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.recoverAttempts[z.String()]++
+	return r.recoverAttempts[z.String()]
+}
+
+func (r *SKSPeer) countChunk(chunk []*cf.Zp) {
 	for _, z := range chunk {
-		// TODO: needs locking
-		r.recoverAttempts[z.String()] = r.recoverAttempts[z.String()] + 1
-		n := r.recoverAttempts[z.String()]
-		if n > MaxKeyRecoveryAttempts {
+		n := r.incrementRecoverAttempts(z)
+		if n > maxKeyRecoveryAttempts {
 			log.Warnf("giving up on key %q after failing to recover %d attempts", z, n)
-			r.InsertWith(func(err error) {
+			r.peer.InsertWith(func(err error) {
 				if err != nil {
 					log.Errorf("failed to insert %s into prefix tree to prevent further attempts", z)
 				}
@@ -308,7 +323,7 @@ func (r *SksPeer) countChunk(chunk []*cf.Zp) {
 	}
 }
 
-func (r *SksPeer) requestChunk(rcvr *recon.Recover, chunk []*cf.Zp) error {
+func (r *SKSPeer) requestChunk(rcvr *recon.Recover, chunk []*cf.Zp) error {
 	var remoteAddr string
 	remoteAddr, err := rcvr.HkpAddr()
 	if err != nil {
@@ -342,14 +357,13 @@ func (r *SksPeer) requestChunk(rcvr *recon.Recover, chunk []*cf.Zp) error {
 	// Store response in memory. Connection may timeout if we
 	// read directly from it while loading.
 	var body *bytes.Buffer
-	{
-		defer resp.Body.Close()
-		bodyBuf, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return errgo.Mask(err)
-		}
-		body = bytes.NewBuffer(bodyBuf)
+	bodyBuf, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return errgo.Mask(err)
 	}
+	body = bytes.NewBuffer(bodyBuf)
+	resp.Body.Close()
+
 	var nkeys, keyLen int
 	nkeys, err = recon.ReadInt(body)
 	if err != nil {
@@ -368,25 +382,30 @@ func (r *SksPeer) requestChunk(rcvr *recon.Recover, chunk []*cf.Zp) error {
 		}
 		log.Debugf("key# %d: %d bytes", i+1, keyLen)
 		// Merge locally
-		recoverKey := RecoverKey{
-			Keytext:  keyBuf.Bytes(),
-			Source:   rcvr.RemoteAddr.String(),
-			response: make(chan hkp.Response)}
-		go func() {
-			r.RecoverKey <- recoverKey
-		}()
-		resp := <-recoverKey.response
-		if resp, ok := resp.(*RecoverKeyResponse); ok {
-			if resp.Error() != nil {
-				log.Warnf("failed to add key: %v", resp.Error())
-			}
-		} else if resp != nil {
-			log.Warnf("failed to add key: %v", resp.Error())
-		} else {
-			log.Warnf("empty response when attempting to recover key")
+		err = r.upsertKeys(keyBuf.Bytes())
+		if err != nil {
+			return errgo.Mask(err)
 		}
 	}
 	// Read last two bytes (CRLF, why?), or SKS will complain.
 	body.Read(make([]byte, 2))
+	return nil
+}
+
+func (r *SKSPeer) upsertKeys(buf []byte) error {
+	for readKey := range openpgp.ReadKeys(bytes.NewBuffer(buf)) {
+		if readKey.Error != nil {
+			return errgo.Mask(readKey.Error)
+		}
+		err := openpgp.CollectDuplicates(readKey.Pubkey)
+		if err != nil {
+			return errgo.Mask(err)
+		}
+		change, err := UpsertKey(r.storage, readKey.Pubkey)
+		if err != nil {
+			return errgo.Mask(err)
+		}
+		r.keyChanges <- change
+	}
 	return nil
 }
