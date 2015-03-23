@@ -7,37 +7,6 @@ This fork of Hockeypuck is where it all started, but the project has since moved
 
 Current 1.0 Release: https://github.com/hockeypuck/hockeypuck
 
-Next 2.0 Release:    https://github.com/hockeypuck/server
+Next 2.0 Release:    https://github.com/hockeypuck/server (v2-unstable)
 
 Hockeypuck 1.x has several known issues and limitations. These are being addressed in Hockeypuck 2.0.
-
-Full Documentation: https://hockeypuck.github.io
-
-Developer Quickstart:
-
-Assuming that you:
- * Have a recent (1.2 or newer) version of go installed
- * Have $GOPATH/bin in your $PATH
-
-# Check out Hockeypuck sources (without compiling them yet)
-
- $ go get -d -t github.com/hockeypuck/hockeypuck
-
-# Hockeypuck uses godeps for third-party package vendoring.
-# Install it into your $GOPATH/bin.
-
- $ go get launchpad.net/godeps
- $ go install launchpad.net/godeps
-
-# Update all third-party packages in $GOPATH to the versions
-# that Hockeypuck requires:
-
- $ cd $GOPATH/src/github.com/hockeypuck/hockeypuck
- $ godeps -u dependencies
-
-# Now you're ready to build, test and install Hockeypuck
- $ go build ./...
- $ go test ./...
- $ go install github.com/hockeypuck/hockeypuck/cmd/hockeypuck
-
-```
