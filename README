@@ -1,6 +1,16 @@
 Hockeypuck: OpenPGP Key Server
 ==============================
 
+Status
+------
+This fork of Hockeypuck is where it all started, but the project has since moved.
+
+Current 1.0 Release: https://github.com/hockeypuck/hockeypuck
+
+Next 2.0 Release:    https://github.com/hockeypuck/server
+
+Hockeypuck 1.x has several known issues and limitations. These are being addressed in Hockeypuck 2.0.
+
 Full Documentation: https://hockeypuck.github.io
 
 Developer Quickstart:
