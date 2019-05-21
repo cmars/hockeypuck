@@ -1,0 +1,12 @@
+---
+- hosts: all
+
+- hosts: sks
+  sudo: yes
+  roles:
+    - config-sks
+
+- hosts: hockeypuck
+  sudo: yes
+  roles:
+    - config

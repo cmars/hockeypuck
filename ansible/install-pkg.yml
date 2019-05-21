@@ -1,0 +1,15 @@
+---
+- hosts: all
+
+- hosts: hockeypuck
+  sudo: yes
+  roles:
+    - install-pkg
+    - config
+
+- hosts: sks
+  sudo: yes
+  roles:
+    - install-sks
+    - config-sks
+

@@ -1,0 +1,20 @@
+---
+# This playbook sets up an Azure instance running one of the Ubuntu LTS images
+# to use the larger volume for /var. This is pretty important as we'll easily
+# run out of space on a default 30GB / partition when loading the full global
+# dump (both SKS and Hockeypuck will hit this wall).
+#
+- hosts: all
+  sudo: yes
+  tasks:
+   # Fail the host if we've already moved /var.
+   - shell: "[ ! -d /var/lost+found ]"
+   - shell: "[ ! -d /var.orig ]"
+
+   # rsync /var over to /mnt, then replace it with a symlink & reboot.
+   # Tried messing with mounting tables, that method wasn't so reliable.
+   - shell: rsync -avr /var/ /mnt/
+   - shell: mv /var /var.orig
+   - shell: ln -s /mnt /var
+   - shell: reboot
+

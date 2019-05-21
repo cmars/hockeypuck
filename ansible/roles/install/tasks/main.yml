@@ -1,0 +1,54 @@
+---
+- set_fact: driver="mongo"
+  when: driver is not defined
+
+# Set up Hockeypuck user, paths
+- group: name=hockeypuck
+- user: name=hockeypuck group=hockeypuck createhome=no
+- file: path={{ item }} owner=hockeypuck group=hockeypuck mode=0755 state=directory
+  with_items:
+    - /var/lib/hockeypuck
+    - /var/lib/hockeypuck/templates
+    - /var/log/hockeypuck
+    - /etc/hockeypuck
+
+# Install Hockeypuck service & binary
+- template: src=hockeypuck.conf.j2 dest=/etc/init/hockeypuck.conf owner=hockeypuck group=hockeypuck mode=0644
+- local_action: shell go build -o {{ item }} github.com/hockeypuck/server/cmd/{{ item }}
+  sudo: no
+  run_once: true
+  with_items:
+    - hockeypuck
+    - hockeypuck-load
+    - hockeypuck-pbuild
+- service: name=hockeypuck state=stopped
+- copy: src={{ item }} dest=/usr/bin/{{ item }} mode=0755
+  with_items:
+    - hockeypuck
+    - hockeypuck-load
+    - hockeypuck-pbuild
+
+- apt: name=git update_cache=yes state=latest
+- git: repo=https://github.com/hockeypuck/webroot.git dest=/var/lib/hockeypuck/www
+- copy: src={{ lookup('env', 'GOPATH') }}/src/github.com/hockeypuck/server/cmd/hockeypuck/{{ item }} dest=/var/lib/hockeypuck/templates/{{ item }}
+  with_items:
+    - index.html.tmpl
+    - stats.html.tmpl
+
+# Install MongoDB
+- apt: pkg=mongodb-server state=latest
+  when: driver == "mongo"
+- service: name=mongodb state=stopped
+  when: driver == "mongo"
+
+# Install PostgreSQL
+- apt_repository: repo='deb http://apt.postgresql.org/pub/repos/apt/ trusty-pgdg main' state=present
+  when: driver == "postgres"
+- apt_key: url='https://www.postgresql.org/media/keys/ACCC4CF8.asc' state=present
+  when: driver == "postgres"
+- apt: name=postgresql-9.4 state=latest 
+  when: driver == "postgres"
+- shell: su - postgres -c 'createuser -d -l hockeypuck' || true
+  when: driver == "postgres"
+- shell: su - hockeypuck -c 'createdb hkp' || true
+  when: driver == "postgres"
