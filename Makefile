@@ -30,6 +30,9 @@ test: test-go
 test-go:
 	go test $(project)/...
 
+test-mongodb:
+	go test $(project)/mgohkp/... -mongodb-integration
+
 #
 # Generate targets to build Go commands.
 #
