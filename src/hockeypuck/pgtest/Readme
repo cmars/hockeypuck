@@ -1,0 +1,4 @@
+Package pgtest starts and stops a postgres server, quickly and
+conveniently, for Go unit tests.
+
+http://godoc.org/github.com/kr/pgtest
