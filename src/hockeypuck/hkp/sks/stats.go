@@ -81,10 +81,17 @@ type Stats struct {
 }
 
 func NewStats() *Stats {
-	return &Stats{
-		Hourly: LoadStatMap{},
-		Daily:  LoadStatMap{},
-	}
+	stats := &Stats{}
+	stats.reset()
+	return stats
+}
+
+func (s *Stats) reset() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Total = 0
+	s.Hourly = LoadStatMap{}
+	s.Daily = LoadStatMap{}
 }
 
 func (s *Stats) prune() {
@@ -136,14 +143,14 @@ func (s *Stats) ReadFile(path string) error {
 	f, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			empty := NewStats()
-			*s = *empty
+			s.reset()
 			return nil
 		} else {
 			return errgo.Notef(err, "cannot open stats %q", path)
 		}
 	} else {
 		defer f.Close()
+		// TODO(jsing): This is modifying the maps without holding mu.
 		err = json.NewDecoder(f).Decode(s)
 		if err != nil {
 			return errgo.Notef(err, "cannot decode stats")
@@ -158,6 +165,7 @@ func (s *Stats) WriteFile(path string) error {
 		return errgo.Notef(err, "cannot open stats %q", path)
 	}
 	defer f.Close()
+	// TODO(jsing): This is reading the maps without holding mu.
 	err = json.NewEncoder(f).Encode(s)
 	if err != nil {
 		return errgo.Notef(err, "cannot encode stats")
