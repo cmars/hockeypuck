@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/Sirupsen/logrus"
+	"hockeypuck/logrus"
 	"github.com/stvp/go-udp-testing"
 )
 

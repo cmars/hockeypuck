@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/Sirupsen/logrus"
+	"hockeypuck/logrus"
 )
 
 var log = logrus.New()

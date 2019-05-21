@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Sirupsen/logrus"
+	"hockeypuck/logrus"
 	"github.com/getsentry/raven-go"
 )
 

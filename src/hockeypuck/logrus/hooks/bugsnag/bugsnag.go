@@ -3,7 +3,7 @@ package logrus_bugsnag
 import (
 	"errors"
 
-	"github.com/Sirupsen/logrus"
+	"hockeypuck/logrus"
 	"github.com/bugsnag/bugsnag-go"
 )
 
