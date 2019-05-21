@@ -251,6 +251,18 @@ func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 		return
 	}
 
+	// Drop malformed packets, since these break GPG imports.
+	for _, key := range keys {
+		var others []*openpgp.Packet
+		for _, other := range key.Others {
+			if other.Malformed {
+				continue
+			}
+			others = append(others, other)
+		}
+		key.Others = others
+	}
+
 	w.Header().Set("Content-Type", "text/plain")
 	err = openpgp.WriteArmoredPackets(w, keys)
 	if err != nil {

@@ -47,11 +47,19 @@ var _ = gc.Suite(&HandlerSuite{})
 
 func (s *HandlerSuite) SetUpTest(c *gc.C) {
 	s.storage = mock.NewStorage(
-		mock.Resolve(func([]string) ([]string, error) {
-			return []string{"accd0e320f1cb163a2aa9305257f384b1fc8ef01"}, nil
+		mock.Resolve(func(keys []string) ([]string, error) {
+			fp := "accd0e320f1cb163a2aa9305257f384b1fc8ef01"
+			if len(keys) == 1 && keys[0] == "46a4aa10053f9575b8368eec8b24bf84a5f0047a" {
+				fp = "a7400f5a48fb42b8cee8638b5759f35001aa4a64"
+			}
+			return []string{fp}, nil
 		}),
-		mock.FetchKeys(func([]string) ([]*openpgp.PrimaryKey, error) {
-			return openpgp.MustReadArmorKeys(testing.MustInput("alice_signed.asc")).MustParse(), nil
+		mock.FetchKeys(func(keys []string) ([]*openpgp.PrimaryKey, error) {
+			testFile := "alice_signed.asc"
+			if len(keys) == 1 && keys[0] == "a7400f5a48fb42b8cee8638b5759f35001aa4a64" {
+				testFile = "a7400f5a_badsigs.asc"
+			}
+			return openpgp.MustReadArmorKeys(testing.MustInput(testFile)).MustParse(), nil
 		}),
 	)
 
@@ -184,4 +192,18 @@ func (s *HandlerSuite) TestAdd(c *gc.C) {
 	err = json.Unmarshal(doc, &addRes)
 	c.Assert(err, gc.IsNil)
 	c.Assert(addRes.Ignored, gc.HasLen, 1)
+}
+
+func (s *HandlerSuite) TestFetchWithBadSigs(c *gc.C) {
+	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=0xa7400f5a48fb42b8cee8638b5759f35001aa4a64")
+	c.Assert(err, gc.IsNil)
+	armor, err := ioutil.ReadAll(res.Body)
+	res.Body.Close()
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+
+	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor)).MustParse()
+	c.Assert(keys, gc.HasLen, 1)
+	c.Assert(keys[0].ShortID(), gc.Equals, "01aa4a64")
+	c.Assert(len(keys[0].Others), gc.Equals, 0)
 }

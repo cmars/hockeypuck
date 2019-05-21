@@ -29,6 +29,7 @@ import (
 
 	"golang.org/x/crypto/openpgp"
 	"golang.org/x/crypto/openpgp/armor"
+	"golang.org/x/crypto/openpgp/errors"
 	"golang.org/x/crypto/openpgp/packet"
 	"gopkg.in/errgo.v1"
 
@@ -161,6 +162,11 @@ func (ok *OpaqueKeyring) Parse() (*PrimaryKey, error) {
 				other, err := ParseOther(badPacket, badParent)
 				if err != nil {
 					return nil, errgo.Mask(err)
+				}
+				_, isStructuralError := badPacket.Reason.(errors.StructuralError)
+				if badPacket.Reason == io.ErrUnexpectedEOF || isStructuralError {
+					log.Debugf("packet is malformed: %v", badPacket.Reason)
+					other.Malformed = true
 				}
 				pubkey.Others = append(pubkey.Others, other)
 			}
