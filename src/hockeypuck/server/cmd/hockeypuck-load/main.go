@@ -116,6 +116,7 @@ func load(settings *server.Settings, args []string) error {
 			continue
 		}
 		for _, file := range matches {
+			log.Infof("processing file %q...", file)
 			f, err := os.Open(file)
 			if err != nil {
 				log.Errorf("failed to open %q for reading: %v", file, err)
@@ -128,10 +129,16 @@ func load(settings *server.Settings, args []string) error {
 					keys = append(keys, kr.PrimaryKey)
 				}
 			}
+			log.Infof("found %d keys in %q...", len(keys), file)
 			t := time.Now()
 			n, err := st.Insert(keys)
 			if err != nil {
 				log.Errorf("some keys failed to insert from %q: %v", file, errgo.Details(err))
+				if hke, ok := err.(storage.InsertError); ok {
+					for _, err := range hke.Errors {
+						log.Errorf("insert error: %v", err)
+					}
+				}
 			}
 			if n > 0 {
 				log.Infof("inserted %d keys from %q in %v", n, file, time.Since(t))
