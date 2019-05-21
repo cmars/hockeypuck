@@ -29,8 +29,8 @@ import (
 	"time"
 
 	gc "gopkg.in/check.v1"
-	log "hockeypuck/logrus"
 	"gopkg.in/tomb.v2"
+	log "hockeypuck/logrus"
 
 	cf "hockeypuck/conflux"
 	"hockeypuck/conflux/recon"

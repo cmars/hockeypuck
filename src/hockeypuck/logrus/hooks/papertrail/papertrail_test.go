@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"hockeypuck/logrus"
 	"github.com/stvp/go-udp-testing"
+	"hockeypuck/logrus"
 )
 
 func TestWritingToUDP(t *testing.T) {

@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"hockeypuck/logrus"
 	"github.com/bugsnag/bugsnag-go"
+	"hockeypuck/logrus"
 )
 
 type notice struct {

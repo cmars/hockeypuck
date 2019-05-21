@@ -3,8 +3,8 @@ package logstash
 import (
 	"bytes"
 	"encoding/json"
-	"hockeypuck/logrus"
 	"github.com/stretchr/testify/assert"
+	"hockeypuck/logrus"
 	"testing"
 )
 

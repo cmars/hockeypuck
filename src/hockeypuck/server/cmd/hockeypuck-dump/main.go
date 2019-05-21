@@ -13,11 +13,11 @@ import (
 	"syscall"
 
 	"gopkg.in/errgo.v1"
+	"gopkg.in/tomb.v2"
 	"hockeypuck/conflux/recon"
 	"hockeypuck/hkp/sks"
 	"hockeypuck/hkp/storage"
 	"hockeypuck/openpgp"
-	"gopkg.in/tomb.v2"
 
 	"hockeypuck/server"
 	"hockeypuck/server/cmd"

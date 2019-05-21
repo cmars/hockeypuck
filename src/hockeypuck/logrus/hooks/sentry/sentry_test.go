@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"hockeypuck/logrus"
 	"github.com/getsentry/raven-go"
+	"hockeypuck/logrus"
 )
 
 const (

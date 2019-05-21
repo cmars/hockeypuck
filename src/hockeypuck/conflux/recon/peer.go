@@ -31,8 +31,8 @@ import (
 	"time"
 
 	"gopkg.in/errgo.v1"
-	log "hockeypuck/logrus"
 	"gopkg.in/tomb.v2"
+	log "hockeypuck/logrus"
 
 	cf "hockeypuck/conflux"
 )

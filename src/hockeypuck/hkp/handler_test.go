@@ -30,8 +30,8 @@ import (
 	"github.com/julienschmidt/httprouter"
 	gc "gopkg.in/check.v1"
 
-	"hockeypuck/testing"
 	"hockeypuck/openpgp"
+	"hockeypuck/testing"
 
 	"hockeypuck/hkp/storage/mock"
 )

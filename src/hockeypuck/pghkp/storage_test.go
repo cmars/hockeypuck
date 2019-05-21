@@ -27,10 +27,10 @@ import (
 	"net/url"
 	stdtesting "testing"
 
-	"hockeypuck/pgtest"
-	"hockeypuck/testing"
 	"github.com/julienschmidt/httprouter"
 	gc "gopkg.in/check.v1"
+	"hockeypuck/pgtest"
+	"hockeypuck/testing"
 
 	"hockeypuck/hkp"
 	"hockeypuck/hkp/jsonhkp"

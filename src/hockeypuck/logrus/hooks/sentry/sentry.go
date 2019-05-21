@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"hockeypuck/logrus"
 	"github.com/getsentry/raven-go"
+	"hockeypuck/logrus"
 )
 
 var (

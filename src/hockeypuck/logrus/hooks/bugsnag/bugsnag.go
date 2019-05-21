@@ -3,8 +3,8 @@ package logrus_bugsnag
 import (
 	"errors"
 
-	"hockeypuck/logrus"
 	"github.com/bugsnag/bugsnag-go"
+	"hockeypuck/logrus"
 )
 
 type bugsnagHook struct{}

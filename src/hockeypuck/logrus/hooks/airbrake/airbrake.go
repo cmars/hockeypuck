@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"hockeypuck/logrus"
 	"github.com/tobi/airbrake-go"
+	"hockeypuck/logrus"
 )
 
 // AirbrakeHook to send exceptions to an exception-tracking service compatible

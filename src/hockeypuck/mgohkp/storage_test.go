@@ -26,11 +26,11 @@ import (
 	stdtesting "testing"
 
 	"github.com/facebookgo/mgotest"
-	"hockeypuck/testing"
 	"github.com/julienschmidt/httprouter"
 	gc "gopkg.in/check.v1"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
+	"hockeypuck/testing"
 
 	"hockeypuck/hkp"
 	"hockeypuck/openpgp"
