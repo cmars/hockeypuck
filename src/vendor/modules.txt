@@ -1,4 +1,4 @@
-# github.com/BurntSushi/toml v0.0.0-20150501104042-056c9bc7be71
+# github.com/BurntSushi/toml v0.3.1
 github.com/BurntSushi/toml
 # github.com/bugsnag/bugsnag-go v1.5.2
 github.com/bugsnag/bugsnag-go
@@ -8,11 +8,11 @@ github.com/bugsnag/bugsnag-go/headers
 github.com/bugsnag/bugsnag-go/sessions
 # github.com/bugsnag/panicwrap v1.2.0
 github.com/bugsnag/panicwrap
-# github.com/carbocation/interpose v0.0.0-20150216013135-50c09d12f862
+# github.com/carbocation/interpose v0.0.0-20161206215253-723534742ba3
 github.com/carbocation/interpose
 # github.com/certifi/gocertifi v0.0.0-20190506164543-d2eda7129713
 github.com/certifi/gocertifi
-# github.com/davecgh/go-spew v1.1.0
+# github.com/davecgh/go-spew v1.1.1
 github.com/davecgh/go-spew/spew
 # github.com/facebookgo/freeport v0.0.0-20150612182905-d4adf43b75b9
 github.com/facebookgo/freeport
@@ -28,7 +28,9 @@ github.com/facebookgo/waitout
 github.com/getsentry/raven-go
 # github.com/gofrs/uuid v3.2.0+incompatible
 github.com/gofrs/uuid
-# github.com/julienschmidt/httprouter v1.1.0
+# github.com/golang/snappy v0.0.1
+github.com/golang/snappy
+# github.com/julienschmidt/httprouter v1.2.0
 github.com/julienschmidt/httprouter
 # github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 github.com/kardianos/osext
@@ -36,9 +38,10 @@ github.com/kardianos/osext
 github.com/kr/pretty
 # github.com/kr/text v0.1.0
 github.com/kr/text
-# github.com/lib/pq v0.0.0-20150502113636-93e9980741c9
+# github.com/lib/pq v1.1.1
 github.com/lib/pq
 github.com/lib/pq/oid
+github.com/lib/pq/scram
 # github.com/pkg/errors v0.8.1
 github.com/pkg/errors
 # github.com/pmezard/go-difflib v1.0.0
@@ -47,7 +50,7 @@ github.com/pmezard/go-difflib/difflib
 github.com/stretchr/testify/assert
 # github.com/stvp/go-udp-testing v0.0.0-20171104055251-c4434f09ec13
 github.com/stvp/go-udp-testing
-# github.com/syndtr/goleveldb v0.0.0-20150507033329-012f65f74744
+# github.com/syndtr/goleveldb v1.0.0
 github.com/syndtr/goleveldb/leveldb
 github.com/syndtr/goleveldb/leveldb/cache
 github.com/syndtr/goleveldb/leveldb/comparer
@@ -60,11 +63,9 @@ github.com/syndtr/goleveldb/leveldb/opt
 github.com/syndtr/goleveldb/leveldb/storage
 github.com/syndtr/goleveldb/leveldb/table
 github.com/syndtr/goleveldb/leveldb/util
-# github.com/syndtr/gosnappy v0.0.0-20150210042334-156a073208e1
-github.com/syndtr/gosnappy/snappy
 # github.com/tobi/airbrake-go v0.0.0-20151005181455-a3cdd910a3ff
 github.com/tobi/airbrake-go
-# golang.org/x/crypto v0.0.0-20150508011624-24ffb5feb331
+# golang.org/x/crypto v0.0.0-20190513172903-22d7a77e9e5f
 golang.org/x/crypto/openpgp/armor
 golang.org/x/crypto/openpgp
 golang.org/x/crypto/openpgp/packet
@@ -72,16 +73,19 @@ golang.org/x/crypto/openpgp/errors
 golang.org/x/crypto/openpgp/s2k
 golang.org/x/crypto/cast5
 golang.org/x/crypto/openpgp/elgamal
-# gopkg.in/basen.v1 v1.0.0-20150114003104-c8826fd23a9b
+# golang.org/x/net v0.0.0-20190520210107-018c4d40a106
+golang.org/x/net/context
+# gopkg.in/basen.v1 v1.0.0-20150613233243-308119dd1d4c
 gopkg.in/basen.v1
 # gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127
 gopkg.in/check.v1
-# gopkg.in/errgo.v1 v1.0.0-20141013173338-81357a83344d
+# gopkg.in/errgo.v1 v1.0.1
 gopkg.in/errgo.v1
-# gopkg.in/mgo.v2 v2.0.0-20150124113754-c6a7dce14133
+# gopkg.in/mgo.v2 v2.0.0-20180705113604-9856a29383ce
 gopkg.in/mgo.v2
 gopkg.in/mgo.v2/bson
+gopkg.in/mgo.v2/internal/sasl
 gopkg.in/mgo.v2/internal/scram
-gopkg.in/mgo.v2/sasl
-# gopkg.in/tomb.v2 v2.0.0-20140626144623-14b3d72120e8
+gopkg.in/mgo.v2/internal/json
+# gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637
 gopkg.in/tomb.v2
