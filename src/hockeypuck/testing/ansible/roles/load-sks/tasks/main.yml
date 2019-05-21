@@ -1,0 +1,4 @@
+---
+- service: name=sks state=stopped
+- shell: su - debian-sks -c 'cd /var/lib/sks; /usr/sbin/sks merge -pagesize 128 -ptree_pagesize 16 -n 2 -cache 64 {{dump_remote}}/*.pgp'
+- service: name=sks state=started

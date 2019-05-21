@@ -1,0 +1,8 @@
+---
+- hosts: hockeypuck
+  sudo: yes
+  tasks:
+   - file: path=/tmp/hockeypuck-mem.prof state=absent
+   - shell: killall -USR2 hockeypuck
+   - wait_for: path=/tmp/hockeypuck-mem.prof
+   - fetch: src=/tmp/hockeypuck-mem.prof dest={{ ansible_hostname }}-mem.pprof flat=yes

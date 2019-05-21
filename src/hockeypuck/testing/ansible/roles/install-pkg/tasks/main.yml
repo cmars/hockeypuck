@@ -1,0 +1,24 @@
+---
+- set_fact: driver="mongo"
+  when: driver is not defined
+
+- apt_repository: repo='ppa:hockeypuck/unstable'
+- apt: name=hockeypuck update_cache=yes state=latest
+
+# Install MongoDB
+- apt: pkg=mongodb-server state=latest
+  when: driver == "mongo"
+- service: name=mongodb state=stopped
+  when: driver == "mongo"
+
+# Install PostgreSQL
+- apt_repository: repo='deb http://apt.postgresql.org/pub/repos/apt/ trusty-pgdg main' state=present
+  when: driver == "postgres"
+- apt_key: url='https://www.postgresql.org/media/keys/ACCC4CF8.asc' state=present
+  when: driver == "postgres"
+- apt: name=postgresql-9.4 state=latest update_cache=yes
+  when: driver == "postgres"
+- shell: su - postgres -c 'createuser -d -l hockeypuck' || true
+  when: driver == "postgres"
+- shell: su - hockeypuck -c 'createdb hkp' || true
+  when: driver == "postgres"

@@ -1,0 +1,14 @@
+---
+- set_fact: driver="mongo"
+  when: driver is not defined
+
+- service: name=hockeypuck state=stopped
+
+- service: name=mongodb state=started
+  when: driver == "mongo"
+- service: name=postgresql state=started
+  when: driver == "postgres"
+
+- shell: su - hockeypuck -c 'hockeypuck-load -config /etc/hockeypuck/hockeypuck.conf {{dump_remote}}/\*.pgp 2>&1 >/var/log/hockeypuck/load-$(date +%Y%m%d%H%M).log'
+
+- service: name=hockeypuck state=started

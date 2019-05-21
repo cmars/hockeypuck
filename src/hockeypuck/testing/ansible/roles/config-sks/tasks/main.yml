@@ -1,0 +1,10 @@
+---
+- service: name=sks state=stopped
+- copy: src=default-sks dest=/etc/default/sks mode=0644
+- template: src={{ item }}.j2 dest=/etc/sks/{{ item }} mode=0644
+  with_items:
+   - sksconf
+   - membership
+- shell: sudo su - debian-sks -c "[ -d /var/lib/sks/DB ] || /usr/sbin/sks build"
+- service: name=sks state=started
+
