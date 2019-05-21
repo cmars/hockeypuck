@@ -91,7 +91,7 @@ func (s *MgoSuite) TestMD5(c *gc.C) {
 	session, coll := s.storage.c()
 	defer session.Close()
 	var doc keyDoc
-	err = coll.Find(bson.D{{"md5", "da84f40d830a7be2a3c0b7f2e146bfaa"}}).One(&doc)
+	err = coll.Find(bson.D{{Name: "md5", Value: "da84f40d830a7be2a3c0b7f2e146bfaa"}}).One(&doc)
 	c.Assert(err, gc.IsNil)
 
 	res, err = http.Get(s.srv.URL + "/pks/lookup?op=hget&search=da84f40d830a7be2a3c0b7f2e146bfaa")
@@ -121,7 +121,7 @@ func (s *MgoSuite) TestAddDuplicates(c *gc.C) {
 
 	session, coll := s.storage.c()
 	defer session.Close()
-	n, err := coll.Find(bson.D{{"md5", "da84f40d830a7be2a3c0b7f2e146bfaa"}}).Count()
+	n, err := coll.Find(bson.D{{Name: "md5", Value: "da84f40d830a7be2a3c0b7f2e146bfaa"}}).Count()
 	c.Assert(err, gc.IsNil)
 	c.Assert(n, gc.Equals, 1)
 }

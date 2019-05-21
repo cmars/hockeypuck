@@ -47,7 +47,6 @@ func ParseSubKey(op *packet.OpaquePacket) (*SubKey, error) {
 
 	if err = op.Serialize(&buf); err != nil {
 		return nil, errgo.Mask(err)
-		panic("unable to write internal buffer")
 	}
 	subkey := &SubKey{
 		PublicKey: PublicKey{
