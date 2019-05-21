@@ -9,6 +9,8 @@ commands = \
 	hockeypuck-load \
 	hockeypuck-pbuild
 
+all: lint test build
+
 build:
 
 clean: clean-go
@@ -16,6 +18,17 @@ clean: clean-go
 clean-go:
 	rm -rf $(PROJECTPATH)/bin
 	rm -rf $(PROJECTPATH)/pkg
+
+lint: lint-go
+
+lint-go:
+	go fmt $(project)/...
+	go vet $(project)/...
+
+test: test-go
+
+test-go:
+	go test $(project)/...
 
 #
 # Generate targets to build Go commands.
