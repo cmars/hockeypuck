@@ -29,11 +29,11 @@ import (
 	"time"
 
 	gc "gopkg.in/check.v1"
-	log "gopkg.in/hockeypuck/logrus.v0"
+	log "hockeypuck/logrus"
 	"gopkg.in/tomb.v2"
 
-	cf "gopkg.in/hockeypuck/conflux.v2"
-	"gopkg.in/hockeypuck/conflux.v2/recon"
+	cf "hockeypuck/conflux"
+	"hockeypuck/conflux/recon"
 )
 
 func init() {

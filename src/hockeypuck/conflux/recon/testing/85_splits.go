@@ -22,7 +22,7 @@
 package testing
 
 import (
-	cf "gopkg.in/hockeypuck/conflux.v2"
+	cf "hockeypuck/conflux"
 )
 
 var PtreeSplits85 = []*cf.Zp{

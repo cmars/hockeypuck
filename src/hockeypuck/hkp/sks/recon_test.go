@@ -23,9 +23,9 @@ import (
 
 	gc "gopkg.in/check.v1"
 
-	"gopkg.in/hockeypuck/conflux.v2/recon"
-	"gopkg.in/hockeypuck/hkp.v1/storage"
-	"gopkg.in/hockeypuck/hkp.v1/storage/mock"
+	"hockeypuck/conflux/recon"
+	"hockeypuck/hkp/storage"
+	"hockeypuck/hkp/storage/mock"
 )
 
 func Test(t *testing.T) { gc.TestingT(t) }

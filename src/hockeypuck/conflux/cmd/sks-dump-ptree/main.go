@@ -35,8 +35,8 @@ import (
 	"os"
 	"strings"
 
-	. "gopkg.in/hockeypuck/conflux.v2"
-	"gopkg.in/hockeypuck/conflux.v2/recon"
+	. "hockeypuck/conflux"
+	"hockeypuck/conflux/recon"
 )
 
 const (

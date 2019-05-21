@@ -31,7 +31,7 @@ import (
 
 	"gopkg.in/errgo.v1"
 
-	cf "gopkg.in/hockeypuck/conflux.v2"
+	cf "hockeypuck/conflux"
 )
 
 var (

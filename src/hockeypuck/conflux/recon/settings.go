@@ -24,7 +24,7 @@
 //
 // The Conflux recon API is versioned with gopkg. Use in your projects with:
 //
-// import "gopkg.in/hockeypuck/conflux.v2/recon"
+// import "hockeypuck/conflux/recon"
 //
 package recon
 

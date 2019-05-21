@@ -27,8 +27,8 @@ import (
 	"strings"
 
 	"gopkg.in/errgo.v1"
-	"gopkg.in/hockeypuck/hkp.v1/jsonhkp"
-	"gopkg.in/hockeypuck/openpgp.v1"
+	"hockeypuck/hkp/jsonhkp"
+	"hockeypuck/openpgp"
 )
 
 type IndexFormat interface {

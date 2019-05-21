@@ -25,7 +25,7 @@ import (
 
 	"gopkg.in/errgo.v1"
 
-	"gopkg.in/hockeypuck/openpgp.v1"
+	"hockeypuck/openpgp"
 )
 
 var ErrKeyNotFound = errors.New("key not found")

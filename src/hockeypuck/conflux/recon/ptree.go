@@ -25,7 +25,7 @@ import (
 	"errors"
 	"fmt"
 
-	cf "gopkg.in/hockeypuck/conflux.v2"
+	cf "hockeypuck/conflux"
 )
 
 type PrefixTree interface {

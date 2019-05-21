@@ -27,14 +27,14 @@ import (
 	"net/url"
 	stdtesting "testing"
 
-	"github.com/hockeypuck/pgtest"
-	"github.com/hockeypuck/testing"
+	"hockeypuck/pgtest"
+	"hockeypuck/testing"
 	"github.com/julienschmidt/httprouter"
 	gc "gopkg.in/check.v1"
 
-	"gopkg.in/hockeypuck/hkp.v1"
-	"gopkg.in/hockeypuck/hkp.v1/jsonhkp"
-	"gopkg.in/hockeypuck/openpgp.v1"
+	"hockeypuck/hkp"
+	"hockeypuck/hkp/jsonhkp"
+	"hockeypuck/openpgp"
 )
 
 func Test(t *stdtesting.T) { gc.TestingT(t) }

@@ -13,14 +13,14 @@ import (
 	"syscall"
 
 	"gopkg.in/errgo.v1"
-	"gopkg.in/hockeypuck/conflux.v2/recon"
-	"gopkg.in/hockeypuck/hkp.v1/sks"
-	"gopkg.in/hockeypuck/hkp.v1/storage"
-	"gopkg.in/hockeypuck/openpgp.v1"
+	"hockeypuck/conflux/recon"
+	"hockeypuck/hkp/sks"
+	"hockeypuck/hkp/storage"
+	"hockeypuck/openpgp"
 	"gopkg.in/tomb.v2"
 
-	"github.com/hockeypuck/server"
-	"github.com/hockeypuck/server/cmd"
+	"hockeypuck/server"
+	"hockeypuck/server/cmd"
 )
 
 var (

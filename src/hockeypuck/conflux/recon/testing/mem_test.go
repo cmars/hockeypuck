@@ -28,7 +28,7 @@ import (
 
 	gc "gopkg.in/check.v1"
 
-	"gopkg.in/hockeypuck/conflux.v2/recon"
+	"hockeypuck/conflux/recon"
 )
 
 var long = flag.Bool("long", false, "run long-running tests")

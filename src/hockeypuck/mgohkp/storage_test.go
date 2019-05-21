@@ -26,14 +26,14 @@ import (
 	stdtesting "testing"
 
 	"github.com/facebookgo/mgotest"
-	"github.com/hockeypuck/testing"
+	"hockeypuck/testing"
 	"github.com/julienschmidt/httprouter"
 	gc "gopkg.in/check.v1"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 
-	"gopkg.in/hockeypuck/hkp.v1"
-	"gopkg.in/hockeypuck/openpgp.v1"
+	"hockeypuck/hkp"
+	"hockeypuck/openpgp"
 )
 
 func Test(t *stdtesting.T) { gc.TestingT(t) }

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"gopkg.in/errgo.v1"
-	log "gopkg.in/hockeypuck/logrus.v0"
+	log "hockeypuck/logrus"
 )
 
 func Die(err error) {

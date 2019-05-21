@@ -31,10 +31,10 @@ import (
 	"time"
 
 	"gopkg.in/errgo.v1"
-	log "gopkg.in/hockeypuck/logrus.v0"
+	log "hockeypuck/logrus"
 	"gopkg.in/tomb.v2"
 
-	cf "gopkg.in/hockeypuck/conflux.v2"
+	cf "hockeypuck/conflux"
 )
 
 const SERVE = "serve"

@@ -27,10 +27,10 @@ import (
 	"gopkg.in/errgo.v1"
 	"gopkg.in/tomb.v2"
 
-	log "gopkg.in/hockeypuck/logrus.v0"
-	"gopkg.in/hockeypuck/openpgp.v1"
+	log "hockeypuck/logrus"
+	"hockeypuck/openpgp"
 
-	"gopkg.in/hockeypuck/hkp.v1/storage"
+	"hockeypuck/hkp/storage"
 )
 
 // Max delay backoff multiplier when there are SMTP errors.

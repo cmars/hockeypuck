@@ -29,7 +29,7 @@ import (
 
 	"gopkg.in/errgo.v1"
 
-	"gopkg.in/hockeypuck/openpgp.v1"
+	"hockeypuck/openpgp"
 )
 
 type Packet struct {

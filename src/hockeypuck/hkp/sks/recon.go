@@ -31,12 +31,12 @@ import (
 	"gopkg.in/errgo.v1"
 	"gopkg.in/tomb.v2"
 
-	cf "gopkg.in/hockeypuck/conflux.v2"
-	"gopkg.in/hockeypuck/conflux.v2/recon"
-	"gopkg.in/hockeypuck/conflux.v2/recon/leveldb"
-	"gopkg.in/hockeypuck/hkp.v1/storage"
-	log "gopkg.in/hockeypuck/logrus.v0"
-	"gopkg.in/hockeypuck/openpgp.v1"
+	cf "hockeypuck/conflux"
+	"hockeypuck/conflux/recon"
+	"hockeypuck/conflux/recon/leveldb"
+	"hockeypuck/hkp/storage"
+	log "hockeypuck/logrus"
+	"hockeypuck/openpgp"
 )
 
 const requestChunkSize = 100

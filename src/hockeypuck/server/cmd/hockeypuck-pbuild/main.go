@@ -8,12 +8,12 @@ import (
 	"syscall"
 
 	"gopkg.in/errgo.v1"
-	"gopkg.in/hockeypuck/hkp.v1/sks"
-	"gopkg.in/hockeypuck/hkp.v1/storage"
-	log "gopkg.in/hockeypuck/logrus.v0"
+	"hockeypuck/hkp/sks"
+	"hockeypuck/hkp/storage"
+	log "hockeypuck/logrus"
 
-	"github.com/hockeypuck/server"
-	"github.com/hockeypuck/server/cmd"
+	"hockeypuck/server"
+	"hockeypuck/server/cmd"
 )
 
 var (

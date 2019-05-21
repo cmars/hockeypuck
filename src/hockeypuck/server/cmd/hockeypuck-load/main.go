@@ -10,13 +10,13 @@ import (
 	"time"
 
 	"gopkg.in/errgo.v1"
-	"gopkg.in/hockeypuck/hkp.v1/sks"
-	"gopkg.in/hockeypuck/hkp.v1/storage"
-	log "gopkg.in/hockeypuck/logrus.v0"
-	"gopkg.in/hockeypuck/openpgp.v1"
+	"hockeypuck/hkp/sks"
+	"hockeypuck/hkp/storage"
+	log "hockeypuck/logrus"
+	"hockeypuck/openpgp"
 
-	"github.com/hockeypuck/server"
-	"github.com/hockeypuck/server/cmd"
+	"hockeypuck/server"
+	"hockeypuck/server/cmd"
 )
 
 var (

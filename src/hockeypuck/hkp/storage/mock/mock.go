@@ -20,9 +20,9 @@ package mock
 import (
 	"time"
 
-	"gopkg.in/hockeypuck/openpgp.v1"
+	"hockeypuck/openpgp"
 
-	"gopkg.in/hockeypuck/hkp.v1/storage"
+	"hockeypuck/hkp/storage"
 )
 
 type MethodCall struct {

@@ -24,7 +24,7 @@
 //
 // The Conflux leveldb API is versioned with gopkg. Use in your projects with:
 //
-// import "gopkg.in/hockeypuck/conflux.v2/recon/leveldb"
+// import "hockeypuck/conflux/recon/leveldb"
 //
 package leveldb
 
@@ -36,8 +36,8 @@ import (
 
 	"github.com/syndtr/goleveldb/leveldb"
 
-	cf "gopkg.in/hockeypuck/conflux.v2"
-	"gopkg.in/hockeypuck/conflux.v2/recon"
+	cf "hockeypuck/conflux"
+	"hockeypuck/conflux/recon"
 )
 
 type prefixTree struct {
