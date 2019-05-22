@@ -1,0 +1,44 @@
+hockeypuck (1.0.1) bionic; urgency=medium
+
+  [ Joel Sing ]
+  * Initial README and .gitignore
+  * Squash merge github.com/hockeypuck/packaging at 1be94a6a.
+  * Move scripts into a separate directory.
+  * Document hockeypuck subtrees.
+  * Merge commit 'e263fdf06008f8ab5aa1d116e09317b11e8dfe1c' as 'src/hockeypuck/conflux'
+  * Merge commit '547481fd09f6e2241b14e267a5deddece0227bc4' as 'src/hockeypuck/hkp'
+  * Merge commit 'bf43df5ac52c73e23fc3b2a09bb519aa76efa0e2' as 'src/hockeypuck/logrus'
+  * Merge commit '31c49c0f74e4d74ab406fed93406452d90f8e298' as 'src/hockeypuck/mgohkp'
+  * Merge commit '1f22021942c1f9685d3b9531a355f122dfb62102' as 'src/hockeypuck/openpgp'
+  * Merge commit '2b536c3de0809ad2e2326195dbf0e58a8224348b' as 'src/hockeypuck/pghkp'
+  * Merge commit 'c88932516c77bcf9528315dedb61f0acf842b63f' as 'src/hockeypuck/server'
+  * More hockeypuck subtrees
+  * Rewrite hockeypuck imports.
+  * Convert dependencies to go mod
+  * Fix incorrect logrus imports on vendored code.
+  * Vendor dependencies via 'go mod vendor'
+  * Provide initial Makefile
+  * gofmt
+  * Ensure hockeypuck server has no unexpected arguments
+  * Improve hockeypuck-load logging
+  * Merge commit 'eaa0c669027ace098ee2cc4f4fd2169e68c8e414' as 'src/hockeypuck/testing'
+  * Merge commit '29aca47cd0261b613faf221600c7d89f44c4e5de' as 'src/hockeypuck/pgtest'
+
+  [ Casey Marshall ]
+  * Fix row scan type for RenotifyAll.
+
+  [ Simon Law ]
+  * Match username or domain part of email addresses
+
+  [ Joel Sing ]
+  * Update vendored dependencies
+  * Add lint/test targets and fix various lint errors.
+  * Export jsonhkp.publicKey (as PublicKey)
+  * Fix locking related bug in Stats.ReadFile
+  * Fix various tests and a bug in Stats.ReadFile
+  * Handle each key in a separate database transaction
+  * Avoid incorrect use of sync.WaitGroup and improve skew
+  * Fix bad NewStats merge.
+  * Simplify packaging and release process
+
+ -- Joel Sing <joel.sing@canonical.com>  Thu, 23 May 2019 01:11:20 +1000
