@@ -6,6 +6,7 @@ project = hockeypuck
 
 commands = \
 	hockeypuck \
+	hockeypuck-dump \
 	hockeypuck-load \
 	hockeypuck-pbuild
 
@@ -18,6 +19,18 @@ clean: clean-go
 clean-go:
 	rm -rf $(PROJECTPATH)/bin
 	rm -rf $(PROJECTPATH)/pkg
+
+dch:
+	gbp dch --debian-tag='%(version)s' -D bionic --git-log --first-parent
+
+deb-src:
+	debuild -S -sa -I.git
+
+install-build-depends:
+	sudo apt install \
+	    debhelper \
+	    git-buildpackage \
+	    golang-1.12  # Requires ppa:canonical-sysadmins/golang
 
 lint: lint-go
 
