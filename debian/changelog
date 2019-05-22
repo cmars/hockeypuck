@@ -1,3 +1,9 @@
+hockeypuck (2.0.3) bionic; urgency=medium
+
+  * Place postgresql related tests under integration flag
+
+ -- Joel Sing <joel.sing@canonical.com>  Thu, 23 May 2019 03:16:55 +1000
+
 hockeypuck (2.0.2) bionic; urgency=medium
 
   * Keep GOCACHE inside the project
