@@ -1,3 +1,9 @@
+hockeypuck (2.0.2) bionic; urgency=medium
+
+  * Keep GOCACHE inside the project
+
+ -- Joel Sing <joel.sing@canonical.com>  Thu, 23 May 2019 02:19:44 +1000
+
 hockeypuck (2.0.1) bionic; urgency=medium
 
   * Correct build dependencies.
