@@ -155,7 +155,7 @@ func (st *storage) MatchMD5(md5s []string) ([]string, error) {
 	var result []string
 	var doc keyDoc
 
-	iter := c.Find(bson.D{{"md5", bson.D{{"$in", md5s}}}}).Iter()
+	iter := c.Find(bson.D{{Name: "md5", Value: bson.D{{Name: "$in", Value: md5s}}}}).Iter()
 	for iter.Next(&doc) {
 		result = append(result, doc.RFingerprint)
 	}
@@ -191,7 +191,7 @@ func (st *storage) Resolve(keyids []string) ([]string, error) {
 	}
 
 	if len(regexes) > 0 {
-		iter := c.Find(bson.D{{"rfingerprint", bson.D{{"$in", regexes}}}}).Iter()
+		iter := c.Find(bson.D{{Name: "rfingerprint", Value: bson.D{{Name: "$in", Value: regexes}}}}).Iter()
 		for iter.Next(&doc) {
 			result = append(result, doc.RFingerprint)
 		}
@@ -200,7 +200,7 @@ func (st *storage) Resolve(keyids []string) ([]string, error) {
 			return nil, errgo.Mask(err)
 		}
 
-		iter = c.Find(bson.D{{"subkeys", bson.D{{"$elemMatch", bson.D{{"$in", regexes}}}}}}).Iter()
+		iter = c.Find(bson.D{{Name: "subkeys", Value: bson.D{{Name: "$elemMatch", Value: bson.D{{Name: "$in", Value: regexes}}}}}}).Iter()
 		for iter.Next(&doc) {
 			result = append(result, doc.SubKeys...)
 		}
@@ -232,7 +232,7 @@ func (st *storage) MatchKeyword(keywords []string) ([]string, error) {
 	var result []string
 	var doc keyDoc
 
-	iter := c.Find(bson.D{{"keywords", bson.D{{"$elemMatch", bson.D{{"$in", match}}}}}}).Limit(100).Iter()
+	iter := c.Find(bson.D{{Name: "keywords", Value: bson.D{{Name: "$elemMatch", Value: bson.D{{Name: "$in", Value: match}}}}}}).Limit(100).Iter()
 	for iter.Next(&doc) {
 		result = append(result, doc.RFingerprint)
 	}
@@ -250,7 +250,7 @@ func (st *storage) ModifiedSince(t time.Time) ([]string, error) {
 	var result []string
 	var doc keyDoc
 
-	iter := c.Find(bson.D{{"mtime", bson.D{{"$gt", t.Unix()}}}}).Limit(100).Iter()
+	iter := c.Find(bson.D{{Name: "mtime", Value: bson.D{{Name: "$gt", Value: t.Unix()}}}}).Limit(100).Iter()
 	for iter.Next(&doc) {
 		result = append(result, doc.RFingerprint)
 	}
@@ -273,7 +273,7 @@ func (st *storage) FetchKeys(rfps []string) ([]*openpgp.PrimaryKey, error) {
 	var doc keyDoc
 	fps := make(map[string]bool)
 
-	iter := c.Find(bson.D{{"rfingerprint", bson.D{{"$in", rfps}}}}).Limit(100).Iter()
+	iter := c.Find(bson.D{{Name: "rfingerprint", Value: bson.D{{Name: "$in", Value: rfps}}}}).Limit(100).Iter()
 	for iter.Next(&doc) {
 		pubkey, err := readOneKey(doc.Packets, doc.RFingerprint)
 		if err != nil {
@@ -287,7 +287,7 @@ func (st *storage) FetchKeys(rfps []string) ([]*openpgp.PrimaryKey, error) {
 		return nil, errgo.Mask(err)
 	}
 
-	iter = c.Find(bson.D{{"subkeys", bson.D{{"$elemMatch", bson.D{{"$in", rfps}}}}}}).Limit(100).Iter()
+	iter = c.Find(bson.D{{Name: "subkeys", Value: bson.D{{Name: "$elemMatch", Value: bson.D{{Name: "$in", Value: rfps}}}}}}).Limit(100).Iter()
 	for iter.Next(&doc) {
 		pubkey, err := readOneKey(doc.Packets, doc.RFingerprint)
 		if err != nil {
@@ -319,7 +319,7 @@ func (st *storage) FetchKeyrings(rfps []string) ([]*hkpstorage.Keyring, error) {
 	var result []*hkpstorage.Keyring
 	var doc keyDoc
 
-	iter := c.Find(bson.D{{"rfingerprint", bson.D{{"$in", rfps}}}}).Limit(100).Iter()
+	iter := c.Find(bson.D{{Name: "rfingerprint", Value: bson.D{{Name: "$in", Value: rfps}}}}).Limit(100).Iter()
 	for iter.Next(&doc) {
 		pubkey, err := readOneKey(doc.Packets, doc.RFingerprint)
 		if err != nil {
@@ -419,19 +419,19 @@ func (st *storage) Update(key *openpgp.PrimaryKey, lastMD5 string) error {
 	}
 
 	now := time.Now().Unix()
-	update := bson.D{{"$set", bson.D{
-		{"mtime", now},
-		{"md5", key.MD5},
-		{"keywords", keywords(key)},
-		{"packets", buf.Bytes()},
-		{"subkeys", subkeys(key)},
+	update := bson.D{{Name: "$set", Value: bson.D{
+		{Name: "mtime", Value: now},
+		{Name: "md5", Value: key.MD5},
+		{Name: "keywords", Value: keywords(key)},
+		{Name: "packets", Value: buf.Bytes()},
+		{Name: "subkeys", Value: subkeys(key)},
 	}}}
 
 	session, c := st.c()
 	defer session.Close()
 
 	var doc keyDoc
-	info, err := c.Find(bson.D{{"md5", lastMD5}}).Apply(mgo.Change{
+	info, err := c.Find(bson.D{{Name: "md5", Value: lastMD5}}).Apply(mgo.Change{
 		Update: update,
 	}, &doc)
 	if err != nil {
@@ -514,7 +514,7 @@ func (st *storage) RenotifyAll() error {
 		MD5 string `bson:"md5"`
 	}
 
-	q := c.Find(nil).Select(bson.D{{"md5", 1}})
+	q := c.Find(nil).Select(bson.D{{Name: "md5", Value: 1}})
 	iter := q.Iter()
 	for iter.Next(&result) {
 		st.Notify(hkpstorage.KeyAdded{Digest: result.MD5})

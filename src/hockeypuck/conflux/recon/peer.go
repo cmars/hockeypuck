@@ -323,7 +323,7 @@ var defaultTimeout = 300 * time.Second
 func (p *Peer) setReadDeadline(conn net.Conn, d time.Duration) {
 	err := conn.SetReadDeadline(time.Now().Add(d))
 	if err != nil {
-		log.Warningf("failed to set read deadline: %v")
+		log.Warningf("failed to set read deadline: %v", err)
 	}
 }
 
