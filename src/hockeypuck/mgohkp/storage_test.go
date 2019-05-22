@@ -19,6 +19,7 @@ package mgohkp
 
 import (
 	"bytes"
+	"flag"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -36,7 +37,18 @@ import (
 	"hockeypuck/openpgp"
 )
 
-func Test(t *stdtesting.T) { gc.TestingT(t) }
+var mongodbTest = flag.Bool("mongodb-integration", false, "Run mongodb integration tests")
+
+func init() {
+	flag.Parse()
+}
+
+func Test(t *stdtesting.T) {
+	if !*mongodbTest {
+		t.Skip("skipping mongodb integration test, specify -mongodb-integration to run")
+	}
+	gc.TestingT(t)
+}
 
 type MgoSuite struct {
 	storage *storage

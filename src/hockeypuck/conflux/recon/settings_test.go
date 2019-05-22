@@ -91,7 +91,7 @@ filters=["something","else"]
 		"invalid toml",
 		`nope`,
 		nil,
-		`.*(Expected key separator '=', but got '\\n' instead|Bare keys cannot contain '\\n').*`,
+		`.*bare keys cannot contain.*`,
 	}, {
 		"invalid http net",
 		`
@@ -108,7 +108,7 @@ httpNet="tcp"
 httpAddr="/dev/null"
 `,
 		nil,
-		`.*missing port in address /dev/null.*`,
+		`.*missing port in address.*`,
 	}, {
 		"invalid recon net",
 		`
@@ -130,7 +130,7 @@ reconNet="tcp"
 reconAddr=":nope"
 `,
 		nil,
-		`.*unknown port tcp/nope.*`,
+		`.*unknown port.*`,
 	}, {
 		"new-style recon partners",
 		`
