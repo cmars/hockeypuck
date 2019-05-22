@@ -1,3 +1,10 @@
+hockeypuck (2.0.1) bionic; urgency=medium
+
+  * Correct build dependencies.
+  * Bump major to 2.x.
+
+ -- Joel Sing <joel.sing@canonical.com>  Thu, 23 May 2019 01:48:11 +1000
+
 hockeypuck (1.0.1) bionic; urgency=medium
 
   [ Joel Sing ]
