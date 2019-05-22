@@ -81,17 +81,10 @@ type Stats struct {
 }
 
 func NewStats() *Stats {
-	stats := &Stats{}
-	stats.reset()
-	return stats
-}
-
-func (s *Stats) reset() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.Total = 0
-	s.Hourly = LoadStatMap{}
-	s.Daily = LoadStatMap{}
+	return &Stats{
+		Hourly: LoadStatMap{},
+		Daily:  LoadStatMap{},
+	}
 }
 
 func (s *Stats) reset() {
