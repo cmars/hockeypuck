@@ -2,6 +2,7 @@
 *.swp
 *~
 .githubtoken
+.gocache
 .venv
 /bin
 /pkg

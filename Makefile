@@ -1,5 +1,6 @@
 PROJECTPATH = $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 export GOPATH := $(PROJECTPATH)
+export GOCACHE := $(GOPATH)/.gocache
 export PATH := /usr/lib/go-1.12/bin:$(PATH)
 
 project = hockeypuck
@@ -17,6 +18,7 @@ build:
 clean: clean-go
 
 clean-go:
+	go clean -cache
 	rm -rf $(PROJECTPATH)/bin
 	rm -rf $(PROJECTPATH)/pkg
 
