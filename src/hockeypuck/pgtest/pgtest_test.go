@@ -2,13 +2,25 @@ package pgtest
 
 import (
 	"database/sql"
+	"flag"
 	"testing"
 
 	_ "github.com/lib/pq"
 	gc "gopkg.in/check.v1"
 )
 
-func Test(t *testing.T) { gc.TestingT(t) }
+var postgresqlTest = flag.Bool("postgresql-integration", false, "Run postgresql integration tests")
+
+func init() {
+	flag.Parse()
+}
+
+func Test(t *testing.T) {
+	if !*postgresqlTest {
+		t.Skip("skipping postgresql integration test, specify -postgresql-integration to run")
+	}
+	gc.TestingT(t)
+}
 
 type S struct {
 	PGSuite

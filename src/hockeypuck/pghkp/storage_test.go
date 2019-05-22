@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
+	"flag"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -37,7 +38,18 @@ import (
 	"hockeypuck/openpgp"
 )
 
-func Test(t *stdtesting.T) { gc.TestingT(t) }
+var postgresqlTest = flag.Bool("postgresql-integration", false, "Run postgresql integration tests")
+
+func init() {
+	flag.Parse()
+}
+
+func Test(t *stdtesting.T) {
+	if !*postgresqlTest {
+		t.Skip("skipping postgresql integration test, specify -postgresql-integration to run")
+	}
+	gc.TestingT(t)
+}
 
 type S struct {
 	pgtest.PGSuite
