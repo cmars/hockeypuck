@@ -87,18 +87,19 @@ func NewStats() *Stats {
 	}
 }
 
+// reset resets statistics. The caller must hold s.mu.
 func (s *Stats) reset() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.Total = 0
 	s.Hourly = LoadStatMap{}
 	s.Daily = LoadStatMap{}
 }
 
 func (s *Stats) prune() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	yesterday := time.Now().UTC().Add(-24 * time.Hour)
 	lastWeek := time.Now().UTC().Add(-24 * 7 * time.Hour)
-	s.mu.Lock()
 	for k := range s.Hourly {
 		if k.Before(yesterday) {
 			delete(s.Hourly, k)
@@ -109,66 +110,65 @@ func (s *Stats) prune() {
 			delete(s.Daily, k)
 		}
 	}
-	s.mu.Unlock()
 }
 
 func (s *Stats) Update(kc storage.KeyChange) {
 	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	s.Hourly.update(time.Now().UTC().Truncate(time.Hour), kc)
 	s.Daily.update(time.Now().UTC().Truncate(24*time.Hour), kc)
 	switch kc.(type) {
 	case storage.KeyAdded:
 		s.Total++
 	}
-	s.mu.Unlock()
 }
 
 func (s *Stats) clone() *Stats {
 	s.mu.Lock()
-	result := &Stats{
-		Total:  s.Total,
-		Hourly: LoadStatMap{},
-		Daily:  LoadStatMap{},
-	}
+	defer s.mu.Unlock()
+
+	clone := NewStats()
+	clone.Total = s.Total
 	for k, v := range s.Hourly {
-		result.Hourly[k] = v
+		clone.Hourly[k] = v
 	}
 	for k, v := range s.Daily {
-		result.Daily[k] = v
+		clone.Daily[k] = v
 	}
-	s.mu.Unlock()
-	return result
+	return clone
 }
 
 func (s *Stats) ReadFile(path string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	f, err := os.Open(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			s.reset()
-			return nil
-		} else {
-			return errgo.Notef(err, "cannot open stats %q", path)
-		}
-	} else {
-		defer f.Close()
-		// TODO(jsing): This is modifying the maps without holding mu.
-		err = json.NewDecoder(f).Decode(s)
-		if err != nil {
-			return errgo.Notef(err, "cannot decode stats")
-		}
+	if os.IsNotExist(err) {
+		s.reset()
+		return nil
+	} else if err != nil {
+		return errgo.Notef(err, "cannot open stats %q", path)
+	}
+	defer f.Close()
+
+	if err := json.NewDecoder(f).Decode(s); err != nil {
+		return errgo.Notef(err, "cannot decode stats")
 	}
 	return nil
 }
 
 func (s *Stats) WriteFile(path string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	f, err := os.Create(path)
 	if err != nil {
 		return errgo.Notef(err, "cannot open stats %q", path)
 	}
 	defer f.Close()
-	// TODO(jsing): This is reading the maps without holding mu.
-	err = json.NewEncoder(f).Encode(s)
-	if err != nil {
+
+	if err := json.NewEncoder(f).Encode(s); err != nil {
 		return errgo.Notef(err, "cannot encode stats")
 	}
 	return nil
