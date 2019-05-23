@@ -52,6 +52,10 @@ type Packet struct {
 	// been able to filter out invalid content.
 	Parsed bool
 
+	// Malformed indicates whether the packet contents are identified but
+	// cannot be parsed due to being malformed.
+	Malformed bool
+
 	// Count indicates the number of times this packet occurs in the keyring.
 	Count int
 

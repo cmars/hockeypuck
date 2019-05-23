@@ -36,6 +36,37 @@ import (
 	"hockeypuck/hkp/storage/mock"
 )
 
+type testKey struct {
+	fp   string
+	rfp  string
+	sid  string
+	file string
+}
+
+var (
+	testKeyDefault = &testKey{
+		fp:   "10fe8cf1b483f7525039aa2a361bc1f023e0dcca",
+		rfp:  "accd0e320f1cb163a2aa9305257f384b1fc8ef01",
+		sid:  "23e0dcca",
+		file: "alice_signed.asc",
+	}
+	testKeyBadSigs = &testKey{
+		fp:   "a7400f5a48fb42b8cee8638b5759f35001aa4a64",
+		rfp:  "46a4aa10053f9575b8368eec8b24bf84a5f0047a",
+		sid:  "01aa4a64",
+		file: "a7400f5a_badsigs.asc",
+	}
+
+	testKeys = map[string]*testKey{
+		testKeyDefault.fp: testKeyDefault,
+		testKeyBadSigs.fp: testKeyBadSigs,
+	}
+	testKeysRFP = map[string]*testKey{
+		testKeyDefault.rfp: testKeyDefault,
+		testKeyBadSigs.rfp: testKeyBadSigs,
+	}
+)
+
 func Test(t *stdtesting.T) { gc.TestingT(t) }
 
 type HandlerSuite struct {
@@ -47,11 +78,19 @@ var _ = gc.Suite(&HandlerSuite{})
 
 func (s *HandlerSuite) SetUpTest(c *gc.C) {
 	s.storage = mock.NewStorage(
-		mock.Resolve(func([]string) ([]string, error) {
-			return []string{"accd0e320f1cb163a2aa9305257f384b1fc8ef01"}, nil
+		mock.Resolve(func(keys []string) ([]string, error) {
+			tk := testKeyDefault
+			if len(keys) == 1 && testKeysRFP[keys[0]] != nil {
+				tk = testKeysRFP[keys[0]]
+			}
+			return []string{tk.fp}, nil
 		}),
-		mock.FetchKeys(func([]string) ([]*openpgp.PrimaryKey, error) {
-			return openpgp.MustReadArmorKeys(testing.MustInput("alice_signed.asc")).MustParse(), nil
+		mock.FetchKeys(func(keys []string) ([]*openpgp.PrimaryKey, error) {
+			tk := testKeyDefault
+			if len(keys) == 1 && testKeys[keys[0]] != nil {
+				tk = testKeys[keys[0]]
+			}
+			return openpgp.MustReadArmorKeys(testing.MustInput(tk.file)).MustParse(), nil
 		}),
 	)
 
@@ -67,7 +106,9 @@ func (s *HandlerSuite) TearDownTest(c *gc.C) {
 }
 
 func (s *HandlerSuite) TestGetKeyID(c *gc.C) {
-	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=0x23e0dcca")
+	tk := testKeyDefault
+
+	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=0x" + tk.sid)
 	c.Assert(err, gc.IsNil)
 	armor, err := ioutil.ReadAll(res.Body)
 	res.Body.Close()
@@ -76,7 +117,7 @@ func (s *HandlerSuite) TestGetKeyID(c *gc.C) {
 
 	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor)).MustParse()
 	c.Assert(keys, gc.HasLen, 1)
-	c.Assert(keys[0].ShortID(), gc.Equals, "23e0dcca")
+	c.Assert(keys[0].ShortID(), gc.Equals, tk.sid)
 	c.Assert(keys[0].UserIDs, gc.HasLen, 1)
 	c.Assert(keys[0].UserIDs[0].Keywords, gc.Equals, "alice <alice@example.com>")
 
@@ -114,8 +155,10 @@ func (s *HandlerSuite) TestGetMD5(c *gc.C) {
 }
 
 func (s *HandlerSuite) TestIndexAlice(c *gc.C) {
+	tk := testKeyDefault
+
 	for _, op := range []string{"index", "vindex"} {
-		res, err := http.Get(fmt.Sprintf("%s/pks/lookup?op=%s&search=0x23e0dcca", s.srv.URL, op))
+		res, err := http.Get(fmt.Sprintf("%s/pks/lookup?op=%s&search=0x"+tk.sid, s.srv.URL, op))
 		c.Assert(err, gc.IsNil)
 		doc, err := ioutil.ReadAll(res.Body)
 		res.Body.Close()
@@ -137,7 +180,9 @@ func (s *HandlerSuite) TestIndexAlice(c *gc.C) {
 }
 
 func (s *HandlerSuite) TestIndexAliceMR(c *gc.C) {
-	res, err := http.Get(fmt.Sprintf("%s/pks/lookup?op=vindex&options=mr&search=0x23e0dcca", s.srv.URL))
+	tk := testKeyDefault
+
+	res, err := http.Get(fmt.Sprintf("%s/pks/lookup?op=vindex&options=mr&search=0x"+tk.sid, s.srv.URL))
 	c.Assert(err, gc.IsNil)
 	doc, err := ioutil.ReadAll(res.Body)
 	res.Body.Close()
@@ -184,4 +229,20 @@ func (s *HandlerSuite) TestAdd(c *gc.C) {
 	err = json.Unmarshal(doc, &addRes)
 	c.Assert(err, gc.IsNil)
 	c.Assert(addRes.Ignored, gc.HasLen, 1)
+}
+
+func (s *HandlerSuite) TestFetchWithBadSigs(c *gc.C) {
+	tk := testKeyBadSigs
+
+	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=0x" + tk.fp)
+	c.Assert(err, gc.IsNil)
+	armor, err := ioutil.ReadAll(res.Body)
+	res.Body.Close()
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+
+	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor)).MustParse()
+	c.Assert(keys, gc.HasLen, 1)
+	c.Assert(keys[0].ShortID(), gc.Equals, tk.sid)
+	c.Assert(len(keys[0].Others), gc.Equals, 0)
 }

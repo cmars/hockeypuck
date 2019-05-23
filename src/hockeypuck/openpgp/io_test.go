@@ -261,3 +261,14 @@ func (s *SamplePacketSuite) TestRevocationCert(c *gc.C) {
 	}
 	c.Assert(count, gc.Equals, 1)
 }
+
+func (s *SamplePacketSuite) TestMalformedSignatures(c *gc.C) {
+	key := MustInputAscKey("a7400f5a_nobadsigs.asc")
+	c.Assert(len(key.Others), gc.Equals, 0)
+
+	key = MustInputAscKey("a7400f5a_badsigs.asc")
+	c.Assert(len(key.Others), gc.Equals, 3)
+	for _, other := range key.Others {
+		c.Assert(other.Malformed, gc.Equals, true)
+	}
+}
