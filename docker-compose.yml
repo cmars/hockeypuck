@@ -1,0 +1,30 @@
+version: '2'
+services:
+  hockeypuck:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    ports:
+    - "11370:11370"
+    - "11371:11371"
+    restart: always
+    depends_on:
+    - postgres
+    volumes:
+    - ./contrib/docker-compose/etc:/hockeypuck/etc
+    - hkp_data:/hockeypuck/data
+
+  postgres:
+    image: postgres:11
+    restart: always
+    environment:
+    - POSTGRES_USER=docker
+    - POSTGRES_PASSWORD=docker
+    - POSTGRES_DB=hkp
+    volumes:
+    - pg_data:/var/lib/postgresql/data
+
+volumes:
+  hkp_data: {}
+  pg_data: {}
+
