@@ -1,13 +1,6 @@
-# Canonical IS Hockeypuck
+# Hockeypuck
 
-This repo contains a version of the hockeypuck OpenPGP key server.
-
-The Launchpad project can be found
-[here](https://launchpad.net/canonical-is-hockeypuck).
-
-The code for this repository can be cloned with:
-
-  git clone git+ssh://git.launchpad.net/canonical-is-hockeypuck
+Hockeypuck is an OpenPGP public keyserver. 
 
 ## Building
 
@@ -26,17 +19,14 @@ In order to release a new version of hockeypuck:
   git tag -s -u <keyid> -m 'x.y.z release' x.y.z
   git push --tags
   make deb-src
-  dput ppa:canonical-sysadmins/hockeypuck-devel ../hockeypuck\_x.y.z\_source.changes
+  dput <your ppa> ../hockeypuck\_x.y.z\_source.changes
 
 Where `x.y.z` is the appropriate version number.
-This will upload the debian source package to the
-[hockeypuck devel PPA](https://launchpad.net/~canonical-sysadmins/+archive/ubuntu/hockeypuck-devel)
-for building.
-Once built the packages will be available for testing and promotion.
+This will upload the debian source package to the Launchpad PPA for building.
 
 ## Subtrees
 
-The hockeypuck source code has been pulled in as subtrees.
+The hockeypuck source code has been aggregated from several Github projects as subtrees.
 These were added with the following commands:
 
   git subtree add --prefix=src/hockeypuck/conflux https://github.com/hockeypuck/conflux master --squash
