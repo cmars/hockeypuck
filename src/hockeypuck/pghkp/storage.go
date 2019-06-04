@@ -421,10 +421,10 @@ func readOneKey(b []byte, rfingerprint string) (*openpgp.PrimaryKey, error) {
 	return result, nil
 }
 
-func (st *storage) insertKey(key *openpgp.PrimaryKey) (retErr error) {
+func (st *storage) insertKey(key *openpgp.PrimaryKey) (isDuplicate bool, retErr error) {
 	tx, err := st.Begin()
 	if err != nil {
-		return errgo.Mask(err)
+		return false, errgo.Mask(err)
 	}
 	defer func() {
 		if retErr != nil {
@@ -438,14 +438,14 @@ func (st *storage) insertKey(key *openpgp.PrimaryKey) (retErr error) {
 		"SELECT $1::TEXT, $2::TIMESTAMP, $3::TIMESTAMP, $4::TEXT, $5::JSONB, to_tsvector($6) " +
 		"WHERE NOT EXISTS (SELECT 1 FROM keys WHERE rfingerprint = $1)")
 	if err != nil {
-		return errgo.Mask(err)
+		return false, errgo.Mask(err)
 	}
 	defer stmt.Close()
 
 	subStmt, err := tx.Prepare("INSERT INTO subkeys (rfingerprint, rsubfp) " +
 		"SELECT $1::TEXT, $2::TEXT WHERE NOT EXISTS (SELECT 1 FROM subkeys WHERE rsubfp = $2)")
 	if err != nil {
-		return errgo.Mask(err)
+		return false, errgo.Mask(err)
 	}
 	defer subStmt.Close()
 
@@ -455,21 +455,36 @@ func (st *storage) insertKey(key *openpgp.PrimaryKey) (retErr error) {
 	jsonKey := jsonhkp.NewPrimaryKey(key)
 	jsonBuf, err := json.Marshal(jsonKey)
 	if err != nil {
-		return errgo.Notef(err, "cannot serialize rfp=%q", key.RFingerprint)
+		return false, errgo.Notef(err, "cannot serialize rfp=%q", key.RFingerprint)
 	}
 
 	jsonStr := string(jsonBuf)
 	keyword := strings.Join(keywords(key), " & ")
 	if _, err := stmt.Exec(&key.RFingerprint, &now, &now, &key.MD5, &jsonStr, &keyword); err != nil {
-		return errgo.Notef(err, "cannot insert rfp=%q", key.RFingerprint)
+		return false, errgo.Notef(err, "cannot insert rfp=%q", key.RFingerprint)
 	}
+	var subKeysInserted int64
 	for _, subKey := range key.SubKeys {
-		if _, err := subStmt.Exec(&key.RFingerprint, &subKey.RFingerprint); err != nil {
-			return errgo.Notef(err, "cannot insert rsubfp=%q", subKey.RFingerprint)
+		result, err := subStmt.Exec(&key.RFingerprint, &subKey.RFingerprint)
+		if err != nil {
+			return false, errgo.Notef(err, "cannot insert rsubfp=%q", subKey.RFingerprint)
+		}
+		if rowsAffected, err := result.RowsAffected(); err != nil {
+			// We arrive here if the DB driver doesn't
+			// support RowsAffected, although lib/pq is
+			// known to support it.  If it doesn't, then
+			// something has gone badly awry!
+			return false, errgo.Notef(err, "rows affected not available when inserting rsubfp=%q", subKey.RFingerprint)
+		} else {
+			subKeysInserted += rowsAffected
 		}
 	}
 
-	return nil
+	if subKeysInserted == 0 {
+		return true, nil
+	} else {
+		return false, nil
+	}
 }
 
 func (st *storage) Insert(keys []*openpgp.PrimaryKey) (n int, retErr error) {
@@ -480,7 +495,12 @@ func (st *storage) Insert(keys []*openpgp.PrimaryKey) (n int, retErr error) {
 			return n, result
 		}
 
-		if err := st.insertKey(key); err != nil {
+		isDuplicate, err := st.insertKey(key)
+		if isDuplicate {
+			result.Duplicates = append(result.Duplicates, key)
+			continue
+		}
+		if err != nil {
 			result.Errors = append(result.Errors, err)
 			continue
 		}
