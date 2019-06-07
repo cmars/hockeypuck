@@ -464,16 +464,16 @@ func (st *storage) insertKey(key *openpgp.PrimaryKey) (isDuplicate bool, retErr 
 	if err != nil {
 		return false, errgo.Notef(err, "cannot insert rfp=%q", key.RFingerprint)
 	}
-	var rowsAffected int64
-	if rowsAffected, err = result.RowsAffected(); err != nil {
+
+	var keysInserted int64
+	if keysInserted, err = result.RowsAffected(); err != nil {
 		// We arrive here if the DB driver doesn't support
 		// RowsAffected, although lib/pq is known to support it.
 		// If it doesn't, then something has gone badly awry!
 		return false, errgo.Notef(err, "rows affected not available when inserting rfp=%q", key.RFingerprint)
 	}
-	keyInserted := rowsAffected != 0
 
-	var subKeysInserted int64
+	var rowsAffected int64
 	for _, subKey := range key.SubKeys {
 		result, err := subStmt.Exec(&key.RFingerprint, &subKey.RFingerprint)
 		if err != nil {
@@ -483,10 +483,10 @@ func (st *storage) insertKey(key *openpgp.PrimaryKey) (isDuplicate bool, retErr 
 			// See above.
 			return false, errgo.Notef(err, "rows affected not available when inserting rsubfp=%q", subKey.RFingerprint)
 		}
-		subKeysInserted += rowsAffected
+		keysInserted += rowsAffected
 	}
 
-	return !keyInserted && (subKeysInserted == 0), nil
+	return keysInserted == 0, nil
 }
 
 func (st *storage) Insert(keys []*openpgp.PrimaryKey) (n int, retErr error) {
