@@ -1,3 +1,14 @@
+hockeypuck (2.0.5) bionic; urgency=medium
+
+  [ Paul Collins ]
+  * pghkp: report duplicates when inserting
+  * insertKey: flag duplicate keys that have no subkeys
+
+  [ Joel Sing ]
+  * Add hockeypuck website content
+
+ -- Joel Sing <joel.sing@canonical.com>  Fri, 07 Jun 2019 12:14:46 +0200
+
 hockeypuck (2.0.4) bionic; urgency=medium
 
   * Drop malformed packets when serving armoured key ring.
