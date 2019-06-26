@@ -459,8 +459,8 @@ func (st *storage) insertKey(key *openpgp.PrimaryKey) (isDuplicate bool, retErr 
 	}
 
 	jsonStr := string(jsonBuf)
-	keyword := strings.Join(keywords(key), " & ")
-	result, err := stmt.Exec(&key.RFingerprint, &now, &now, &key.MD5, &jsonStr, &keyword)
+	keywords := keywordsTSVector(key)
+	result, err := stmt.Exec(&key.RFingerprint, &now, &now, &key.MD5, &jsonStr, &keywords)
 	if err != nil {
 		return false, errgo.Notef(err, "cannot insert rfp=%q", key.RFingerprint)
 	}
@@ -538,10 +538,10 @@ func (st *storage) Update(key *openpgp.PrimaryKey, lastMD5 string) (retErr error
 	if err != nil {
 		return errgo.Notef(err, "cannot serialize rfp=%q", key.RFingerprint)
 	}
-	keyword := strings.Join(keywords(key), " & ")
+	keywords := keywordsTSVector(key)
 	_, err = tx.Exec("UPDATE keys SET mtime = $1, md5 = $2, keywords = to_tsvector($3), doc = $4 "+
 		"WHERE rfingerprint = $5",
-		&now, &key.MD5, &keyword, jsonBuf, &key.RFingerprint)
+		&now, &key.MD5, &keywords, jsonBuf, &key.RFingerprint)
 	if err != nil {
 		return errgo.Mask(err)
 	}
@@ -561,9 +561,50 @@ func (st *storage) Update(key *openpgp.PrimaryKey, lastMD5 string) (retErr error
 	return nil
 }
 
-// keywords returns a slice of searchable tokens extracted
-// from the given UserID packet keywords string.
-func keywords(key *openpgp.PrimaryKey) []string {
+func keywordsTSVector(key *openpgp.PrimaryKey) string {
+	keywords := keywordsFromKey(key)
+	tsv, err := keywordsToTSVector(keywords)
+	if err != nil {
+		// In this case we've found a key that generated
+		// an invalid tsvector - this is pretty much guaranteed
+		// to be a bogus key, since having a valid key with
+		// user IDs that exceed limits is highly unlikely.
+		// In the future we should catch this earlier and
+		// reject it as a bad key, but for now we just skip
+		// storing keyword information.
+		log.Warningf("keywords for rfp=%q exceeds limit, ignoring: %v", key.RFingerprint, err)
+		return ""
+	}
+	return tsv
+}
+
+// keywordsToTSVector converts a slice of keywords to a
+// PostgreSQL tsvector. If the resulting tsvector would
+// be considered invalid by PostgreSQL an error is
+// returned instead.
+func keywordsToTSVector(keywords []string) (string, error) {
+	const (
+		lexemeLimit   = 2048            // 2KB for single lexeme
+		tsvectorLimit = 1 * 1024 * 1024 // 1MB for lexemes + positions
+	)
+	for _, k := range keywords {
+		if l := len([]byte(k)); l >= lexemeLimit {
+			return "", fmt.Errorf("keyword exceeds limit (%d >= %d)", l, lexemeLimit)
+		}
+	}
+	tsv := strings.Join(keywords, " & ")
+
+	// Allow overhead of 8 bytes for position per keyword.
+	if l := len([]byte(tsv)) + len(keywords)*8; l >= tsvectorLimit {
+		return "", fmt.Errorf("keywords exceeds limit (%d >= %d)", l, tsvectorLimit)
+	}
+	return tsv, nil
+}
+
+// keywordsFromKey returns a slice of searchable tokens
+// extracted from the UserID packets keywords string of
+// the given key.
+func keywordsFromKey(key *openpgp.PrimaryKey) []string {
 	m := make(map[string]bool)
 	for _, uid := range key.UserIDs {
 		s := strings.ToLower(uid.Keywords)
