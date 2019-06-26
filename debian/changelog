@@ -1,3 +1,9 @@
+hockeypuck (2.0.6) bionic; urgency=medium
+
+  * Handle keywords that exceed tsvector limits.
+
+ -- Joel Sing <joel.sing@canonical.com>  Thu, 27 Jun 2019 02:03:29 +1000
+
 hockeypuck (2.0.5) bionic; urgency=medium
 
   [ Paul Collins ]
