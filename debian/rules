@@ -10,4 +10,4 @@ VERSION_GIT_COMMIT=$(shell cat $(CURDIR)/version-git-commit)
 GO_BUILD_LDFLAGS=-ldflags "-X github.com/hockeypuck/server.version ${VERSION_RELEASE}"
 
 %:
-	dh $@
+	dh $@ --with systemd
