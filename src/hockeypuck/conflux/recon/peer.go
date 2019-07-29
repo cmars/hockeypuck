@@ -247,7 +247,7 @@ func (p *Peer) flush() {
 	for _, z := range p.insertElements {
 		err := p.ptree.Insert(z)
 		if err != nil {
-			log.Warningf("cannot insert %q into prefix tree: %v", z, errgo.Details(err))
+			log.Warningf("cannot insert %q (%s) into prefix tree: %v", z, z.FullKeyHash(), errgo.Details(err))
 		}
 	}
 	if len(p.insertElements) > 0 {
@@ -257,7 +257,7 @@ func (p *Peer) flush() {
 	for _, z := range p.removeElements {
 		err := p.ptree.Remove(z)
 		if err != nil {
-			log.Warningf("cannot remove %q from prefix tree: %v", z, errgo.Details(err))
+			log.Warningf("cannot remove %q (%s) from prefix tree: %v", z, z.FullKeyHash(), errgo.Details(err))
 		}
 	}
 	if len(p.removeElements) > 0 {
