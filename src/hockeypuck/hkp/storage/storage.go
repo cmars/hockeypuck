@@ -57,9 +57,9 @@ type Queryer interface {
 	// The MD5 is calculated using the "SKS method".
 	MatchMD5([]string) ([]string, error)
 
-	// MatchID returns the matching RFingerprint IDs for the given public key IDs.
-	// Key IDs may be short (last 4 bytes), long (last 10 bytes) or full (20 byte)
-	// hexadecimal key IDs.
+	// Resolve returns the matching RFingerprint IDs for the given public key IDs.
+	// Key IDs are typically short (8 hex digits), long (16 digits) or full (40 digits).
+	// Both keys IDs and subkey IDs are matched against.
 	Resolve([]string) ([]string, error)
 
 	// MatchKeyword returns the matching RFingerprint IDs for the given keyword search.

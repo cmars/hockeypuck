@@ -37,7 +37,6 @@ import (
 const (
 	defaultDBName         = "hkp"
 	defaultCollectionName = "keys"
-	maxFingerprintLen     = 40
 )
 
 type storage struct {
@@ -183,11 +182,7 @@ func (st *storage) Resolve(keyids []string) ([]string, error) {
 
 	var regexes []interface{}
 	for _, keyid := range keyids {
-		if len(keyid) < maxFingerprintLen {
-			regexes = append(regexes, bson.RegEx{Pattern: "^" + keyid})
-		} else {
-			result = append(result, keyid)
-		}
+		regexes = append(regexes, bson.RegEx{Pattern: "^" + keyid})
 	}
 
 	if len(regexes) > 0 {
