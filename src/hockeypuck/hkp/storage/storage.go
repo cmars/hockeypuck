@@ -59,7 +59,7 @@ type Queryer interface {
 
 	// Resolve returns the matching RFingerprint IDs for the given public key IDs.
 	// Key IDs are typically short (8 hex digits), long (16 digits) or full (40 digits).
-	// Both keys IDs and subkey IDs are matched against.
+	// Matches are made against key IDs and subkey IDs.
 	Resolve([]string) ([]string, error)
 
 	// MatchKeyword returns the matching RFingerprint IDs for the given keyword search.
