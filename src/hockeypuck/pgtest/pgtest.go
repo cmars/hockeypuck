@@ -92,6 +92,9 @@ func (s *PGSuite) SetUpTest(c *gc.C) {
 // temporary data directory.
 // If an error occurs, the test will fail.
 func (s *PGSuite) TearDownTest(c *gc.C) {
+	if s.cmd == nil {
+		return
+	}
 	err := s.cmd.Process.Signal(os.Interrupt)
 	c.Assert(err, gc.IsNil)
 	err = s.cmd.Wait()
