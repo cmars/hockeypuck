@@ -39,8 +39,7 @@ import (
 )
 
 const (
-	maxFingerprintLen = 40
-	maxInsertErrors   = 100
+	maxInsertErrors = 100
 )
 
 type storage struct {
@@ -194,19 +193,15 @@ func (st *storage) Resolve(keyids []string) (_ []string, retErr error) {
 	var subKeyIDs []string
 	for _, keyid := range keyids {
 		keyid = strings.ToLower(keyid)
-		if len(keyid) < maxFingerprintLen {
-			var rfp string
-			row := stmt.QueryRow(keyid)
-			err = row.Scan(&rfp)
-			if err == sql.ErrNoRows {
-				subKeyIDs = append(subKeyIDs, keyid)
-			} else if err != nil {
-				return nil, errgo.Mask(err)
-			}
-			result = append(result, rfp)
-		} else {
-			result = append(result, keyid)
+		var rfp string
+		row := stmt.QueryRow(keyid)
+		err = row.Scan(&rfp)
+		if err == sql.ErrNoRows {
+			subKeyIDs = append(subKeyIDs, keyid)
+		} else if err != nil {
+			return nil, errgo.Mask(err)
 		}
+		result = append(result, rfp)
 	}
 
 	if len(subKeyIDs) > 0 {
@@ -231,17 +226,13 @@ func (st *storage) resolveSubKeys(keyids []string) ([]string, error) {
 
 	for _, keyid := range keyids {
 		keyid = strings.ToLower(keyid)
-		if len(keyid) < maxFingerprintLen {
-			var rfp string
-			row := stmt.QueryRow(keyid)
-			err = row.Scan(&rfp)
-			if err != nil && err != sql.ErrNoRows {
-				return nil, errgo.Mask(err)
-			}
-			result = append(result, rfp)
-		} else {
-			result = append(result, keyid)
+		var rfp string
+		row := stmt.QueryRow(keyid)
+		err = row.Scan(&rfp)
+		if err != nil && err != sql.ErrNoRows {
+			return nil, errgo.Mask(err)
 		}
+		result = append(result, rfp)
 	}
 
 	return result, nil
