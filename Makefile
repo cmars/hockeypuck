@@ -26,7 +26,7 @@ dch:
 	gbp dch --debian-tag='%(version)s' -D bionic --git-log --first-parent
 
 deb-src:
-	debuild -S -sa -I.git
+	debuild -S -sa -I -I.gocache
 
 install-build-depends:
 	sudo apt install \
