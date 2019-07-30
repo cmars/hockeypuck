@@ -197,7 +197,10 @@ func (s *S) TestResolve(c *gc.C) {
 		// contiguous words, usernames, domains and email addresses match
 		"casey", "marshall", "marshal", "casey+marshall", "cAseY+MArSHaLL",
 		"casey.marshall@gmail.com", "casey.marshall@gazzang.com",
-		"casey.marshall", "gmail.com"} {
+		"casey.marshall", "gmail.com",
+
+		// full textual IDs that include characters special to tsquery match
+		"Casey+Marshall+<casey.marshall@gmail.com>"} {
 		comment := gc.Commentf("search=%s", search)
 		res, err = http.Get(s.srv.URL + "/pks/lookup?op=get&search=" + search)
 		c.Assert(err, gc.IsNil, comment)
