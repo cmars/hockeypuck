@@ -1,3 +1,11 @@
+hockeypuck (2.0.7) bionic; urgency=medium
+
+  * add systemd unit file, and install it
+  * include the prefix tree key in full-key hash format when logging
+  * match by subkey ID, and do not pass through non-existent full-length IDs
+
+ -- Paul Collins <paul.collins@canonical.com>  Wed, 31 Jul 2019 08:50:15 +1200
+
 hockeypuck (2.0.6) bionic; urgency=medium
 
   * Handle keywords that exceed tsvector limits.
