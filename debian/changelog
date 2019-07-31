@@ -1,3 +1,12 @@
+hockeypuck (2.0.8) bionic; urgency=medium
+
+  * use plainto_tsquery instead of preparing the query ourselves
+  * pg_config prints a hint on failure; report it
+  * include the public key ID when logging parse errors
+  * include the public key ID when reporting additions and changes
+
+ -- Paul Collins <paul.collins@canonical.com>  Thu, 01 Aug 2019 09:22:34 +1200
+
 hockeypuck (2.0.7) bionic; urgency=medium
 
   * add systemd unit file, and install it
