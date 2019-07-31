@@ -82,9 +82,13 @@ func (s *S) SetUpTest(c *gc.C) {
 }
 
 func (s *S) TearDownTest(c *gc.C) {
-	s.srv.Close()
-	s.db.Exec("DROP DATABASE hkp")
-	s.db.Close()
+	if s.srv != nil {
+		s.srv.Close()
+	}
+	if s.db != nil {
+		s.db.Exec("DROP DATABASE hkp")
+		s.db.Close()
+	}
 	s.PGSuite.TearDownTest(c)
 }
 

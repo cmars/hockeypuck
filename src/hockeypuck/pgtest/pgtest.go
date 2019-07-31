@@ -92,6 +92,9 @@ func (s *PGSuite) SetUpTest(c *gc.C) {
 // temporary data directory.
 // If an error occurs, the test will fail.
 func (s *PGSuite) TearDownTest(c *gc.C) {
+	if s.cmd == nil {
+		return
+	}
 	err := s.cmd.Process.Signal(os.Interrupt)
 	c.Assert(err, gc.IsNil)
 	err = s.cmd.Wait()
@@ -102,7 +105,12 @@ func (s *PGSuite) TearDownTest(c *gc.C) {
 
 func maybeInitdb(c *gc.C) {
 	out, err := exec.Command("pg_config", "--bindir").Output()
-	c.Assert(err, gc.IsNil, gc.Commentf("pg_config"))
+	gcComment := "pg_config"
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		// pg_config prints a hint on failure, so let's report it.
+		gcComment = gcComment + ": " + string(exitErr.Stderr)
+	}
+	c.Assert(err, gc.IsNil, gc.Commentf(gcComment))
 
 	bindir := string(bytes.TrimSpace(out))
 	postgres = filepath.Join(bindir, "postgres")
