@@ -240,14 +240,13 @@ func (st *storage) resolveSubKeys(keyids []string) ([]string, error) {
 
 func (st *storage) MatchKeyword(search []string) ([]string, error) {
 	var result []string
-	stmt, err := st.Prepare("SELECT rfingerprint FROM keys WHERE keywords @@ to_tsquery($1) LIMIT $2")
+	stmt, err := st.Prepare("SELECT rfingerprint FROM keys WHERE keywords @@ plainto_tsquery($1) LIMIT $2")
 	if err != nil {
 		return nil, errgo.Mask(err)
 	}
 	defer stmt.Close()
 
 	for _, term := range search {
-		term = strings.Join(strings.Split(strings.ToLower(term), " "), " & ")
 		err = func() error {
 			rows, err := stmt.Query(term, 100)
 			if err != nil {
