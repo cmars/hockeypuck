@@ -114,6 +114,7 @@ type KeyChange interface {
 }
 
 type KeyAdded struct {
+	KeyID  string
 	Digest string
 }
 
@@ -126,11 +127,13 @@ func (ka KeyAdded) RemoveDigests() []string {
 }
 
 func (ka KeyAdded) String() string {
-	return fmt.Sprintf("key %q added", ka.Digest)
+	return fmt.Sprintf("key 0x%s with hash %s added", ka.KeyID, ka.Digest)
 }
 
 type KeyReplaced struct {
+	OldKeyID  string
 	OldDigest string
+	NewKeyID  string
 	NewDigest string
 }
 
@@ -143,7 +146,7 @@ func (kr KeyReplaced) RemoveDigests() []string {
 }
 
 func (kr KeyReplaced) String() string {
-	return fmt.Sprintf("key %q replaced %q", kr.NewDigest, kr.OldDigest)
+	return fmt.Sprintf("key 0x%s with hash %s replaced key 0x%s with hash %s", kr.NewKeyID, kr.NewDigest, kr.OldKeyID, kr.OldDigest)
 }
 
 type KeyNotChanged struct{}
@@ -194,7 +197,7 @@ func UpsertKey(storage Storage, pubkey *openpgp.PrimaryKey) (kc KeyChange, err e
 		if err != nil {
 			return nil, errgo.Mask(err)
 		}
-		return KeyAdded{Digest: pubkey.MD5}, nil
+		return KeyAdded{KeyID: pubkey.KeyID(), Digest: pubkey.MD5}, nil
 	} else if err != nil {
 		return nil, errgo.Mask(err)
 	}
@@ -202,6 +205,7 @@ func UpsertKey(storage Storage, pubkey *openpgp.PrimaryKey) (kc KeyChange, err e
 	if pubkey.UUID != lastKey.UUID {
 		return nil, errgo.Newf("upsert key %q lookup failed, found mismatch %q", pubkey.UUID, lastKey.UUID)
 	}
+	lastKeyID := lastKey.KeyID()
 	lastMD5 := lastKey.MD5
 	err = openpgp.Merge(lastKey, pubkey)
 	if err != nil {
@@ -212,7 +216,7 @@ func UpsertKey(storage Storage, pubkey *openpgp.PrimaryKey) (kc KeyChange, err e
 		if err != nil {
 			return nil, errgo.Mask(err)
 		}
-		return KeyReplaced{OldDigest: lastMD5, NewDigest: lastKey.MD5}, nil
+		return KeyReplaced{OldKeyID: lastKeyID, OldDigest: lastMD5, NewKeyID: lastKey.KeyID(), NewDigest: lastKey.MD5}, nil
 	}
 	return KeyNotChanged{}, nil
 }
