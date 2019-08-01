@@ -93,7 +93,7 @@ type Updater interface {
 	// Update updates the stored PrimaryKey with the given contents, if the current
 	// contents of the key in storage matches the given digest. If it does not
 	// match, the update should be retried again later.
-	Update(pubkey *openpgp.PrimaryKey, priorMD5 string) error
+	Update(pubkey *openpgp.PrimaryKey, priorID string, priorMD5 string) error
 }
 
 type Notifier interface {
@@ -212,7 +212,7 @@ func UpsertKey(storage Storage, pubkey *openpgp.PrimaryKey) (kc KeyChange, err e
 		return nil, errgo.Mask(err)
 	}
 	if lastMD5 != lastKey.MD5 {
-		err = storage.Update(lastKey, lastMD5)
+		err = storage.Update(lastKey, lastID, lastMD5)
 		if err != nil {
 			return nil, errgo.Mask(err)
 		}
