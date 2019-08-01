@@ -121,13 +121,28 @@ func (p *Peer) log(label string) *log.Entry {
 	return p.logFields(label, log.Fields{})
 }
 
+func (p *Peer) logConn(label string, conn net.Conn) *log.Entry {
+	return p.logFields(label, log.Fields{"remoteaddr": conn.RemoteAddr()})
+}
+
 func (p *Peer) logFields(label string, fields log.Fields) *log.Entry {
 	fields["label"] = fmt.Sprintf("%s %s", label, p.settings.ReconAddr)
 	return log.WithFields(fields)
 }
 
+func (p *Peer) logConnFields(label string, conn net.Conn, fields log.Fields) *log.Entry {
+	fields["remoteaddr"] = conn.RemoteAddr()
+	return p.logFields(label, fields)
+}
+
 func (p *Peer) logErr(label string, err error) *log.Entry {
 	return p.logFields(label, log.Fields{"error": errgo.Details(err)})
+}
+
+func (p *Peer) logConnErr(label string, conn net.Conn, err error) *log.Entry {
+	fields := log.Fields{}
+	fields["remoteaddr"] = conn.RemoteAddr()
+	return p.logErr(label, err)
 }
 
 func (p *Peer) StartMode(mode PeerMode) {
@@ -318,7 +333,7 @@ func (p *Peer) Serve() error {
 		p.t.Go(func() error {
 			err = p.Accept(conn)
 			if errgo.Cause(err) == ErrPeerBusy {
-				p.logErr(GOSSIP, err).Debug()
+				p.logConnErr(GOSSIP, conn, err).Debug()
 			} else if err != nil {
 				p.logErr(SERVE, err).Errorf("recon with %v failed", conn.RemoteAddr())
 			}

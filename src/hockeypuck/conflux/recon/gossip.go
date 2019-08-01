@@ -165,14 +165,14 @@ func (p *Peer) clientRecon(conn net.Conn, remoteConfig *Config) error {
 	for step := range p.interactWithServer(conn) {
 		if step.err != nil {
 			if step.err == ErrReconDone {
-				p.log(GOSSIP).Info("reconcilation done")
+				p.logConn(GOSSIP, conn).Info("reconcilation done")
 				break
 			} else {
 				err := WriteMsg(w, &Error{&textMsg{Text: step.err.Error()}})
 				if err != nil {
-					p.logErr(GOSSIP, err).Error()
+					p.logConnErr(GOSSIP, conn, err).Error()
 				}
-				p.logErr(GOSSIP, step.err).Error("step error")
+				p.logConnErr(GOSSIP, conn, step.err).Error("step error")
 				break
 			}
 		} else {
@@ -192,9 +192,9 @@ func (p *Peer) clientRecon(conn net.Conn, remoteConfig *Config) error {
 				}
 			}
 		}
-		p.log(GOSSIP).Debugf("add step: %v", step)
+		p.logConn(GOSSIP, conn).Debugf("add step: %v", step)
 		respSet.AddAll(step.elements)
-		p.log(GOSSIP).Infof("recover set now %d elements", respSet.Len())
+		p.logConn(GOSSIP, conn).Infof("recover set now %d elements", respSet.Len())
 	}
 	return nil
 }
@@ -210,18 +210,18 @@ func (p *Peer) interactWithServer(conn net.Conn) msgProgressChan {
 			p.setReadDeadline(conn, defaultTimeout)
 			msg, err := ReadMsg(conn)
 			if err != nil {
-				p.logErr(GOSSIP, err).Error("interact: read msg")
+				p.logConnErr(GOSSIP, conn, err).Error("interact: read msg")
 				out <- &msgProgress{err: err}
 				return
 			}
-			p.logFields(GOSSIP, log.Fields{"msg": msg}).Debug("interact")
+			p.logConnFields(GOSSIP, conn, log.Fields{"msg": msg}).Debug("interact")
 			switch m := msg.(type) {
 			case *ReconRqstPoly:
 				resp = p.handleReconRqstPoly(m)
 			case *ReconRqstFull:
 				resp = p.handleReconRqstFull(m)
 			case *Elements:
-				p.logFields(GOSSIP, log.Fields{"nelements": m.ZSet.Len()}).Debug()
+				p.logConnFields(GOSSIP, conn, log.Fields{"nelements": m.ZSet.Len()}).Debug()
 				resp = &msgProgress{elements: m.ZSet}
 			case *Done:
 				resp = &msgProgress{err: ErrReconDone}
