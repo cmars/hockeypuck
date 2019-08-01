@@ -496,6 +496,7 @@ func (st *storage) Insert(keys []*openpgp.PrimaryKey) (n int, retErr error) {
 		}
 
 		st.Notify(hkpstorage.KeyAdded{
+			ID:     key.KeyID(),
 			Digest: key.MD5,
 		})
 		n++
@@ -507,7 +508,7 @@ func (st *storage) Insert(keys []*openpgp.PrimaryKey) (n int, retErr error) {
 	return n, nil
 }
 
-func (st *storage) Update(key *openpgp.PrimaryKey, lastMD5 string) (retErr error) {
+func (st *storage) Update(key *openpgp.PrimaryKey, lastID string, lastMD5 string) (retErr error) {
 	tx, err := st.Begin()
 	if err != nil {
 		return errgo.Mask(err)
@@ -545,7 +546,9 @@ func (st *storage) Update(key *openpgp.PrimaryKey, lastMD5 string) (retErr error
 	}
 
 	st.Notify(hkpstorage.KeyReplaced{
+		OldID:     lastID,
 		OldDigest: lastMD5,
+		NewID:     key.KeyID(),
 		NewDigest: key.MD5,
 	})
 	return nil
