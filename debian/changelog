@@ -1,3 +1,9 @@
+hockeypuck (2.0.9) bionic; urgency=medium
+
+  * set ID fields in overlooked KeyAdded and KeyReplaced values, fixing logging
+
+ -- Paul Collins <paul.collins@canonical.com>  Fri, 02 Aug 2019 08:42:20 +1200
+
 hockeypuck (2.0.8) bionic; urgency=medium
 
   * use plainto_tsquery instead of preparing the query ourselves
