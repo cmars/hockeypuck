@@ -657,19 +657,19 @@ func (rwc *reconWithClient) sendRequest(p *Peer, req *requestEntry) error {
 }
 
 func (rwc *reconWithClient) handleReply(p *Peer, msg ReconMsg, req *requestEntry) error {
-	rwc.Peer.logFields(SERVE, log.Fields{"msg": msg}).Debug("handleReply")
+	rwc.Peer.logConnFields(SERVE, rwc.conn, log.Fields{"msg": msg}).Debug("handleReply")
 	switch m := msg.(type) {
 	case *SyncFail:
 		if req.node.IsLeaf() {
 			return errgo.New("Syncfail received at leaf node")
 		}
-		rwc.Peer.log(SERVE).Debug("SyncFail: pushing children")
+		rwc.Peer.logConn(SERVE, rwc.conn).Debug("SyncFail: pushing children")
 		children, err := req.node.Children()
 		if err != nil {
 			return errgo.Mask(err)
 		}
 		for i, childNode := range children {
-			rwc.Peer.logFields(SERVE, log.Fields{"childNode": childNode.Key()}).Debug("push")
+			rwc.Peer.logConnFields(SERVE, rwc.conn, log.Fields{"childNode": childNode.Key()}).Debug("push")
 			if i == 0 {
 				rwc.pushRequest(&requestEntry{key: childNode.Key(), node: childNode})
 			} else {
@@ -687,7 +687,7 @@ func (rwc *reconWithClient) handleReply(p *Peer, msg ReconMsg, req *requestEntry
 		localNeeds := cf.ZSetDiff(m.ZSet, local)
 		remoteNeeds := cf.ZSetDiff(local, m.ZSet)
 		elementsMsg := &Elements{ZSet: remoteNeeds}
-		rwc.Peer.logFields(SERVE, log.Fields{
+		rwc.Peer.logConnFields(SERVE, rwc.conn, log.Fields{
 			"msg": elementsMsg,
 		}).Debug("handleReply: sending")
 		rwc.messages = append(rwc.messages, elementsMsg)
@@ -699,7 +699,7 @@ func (rwc *reconWithClient) handleReply(p *Peer, msg ReconMsg, req *requestEntry
 }
 
 func (rwc *reconWithClient) flushQueue() error {
-	rwc.Peer.log(SERVE).Debug("flush queue")
+	rwc.Peer.logConn(SERVE, rwc.conn).Debug("flush queue")
 	rwc.messages = append(rwc.messages, &Flush{})
 	err := WriteMsg(rwc.bwr, rwc.messages...)
 	if err != nil {
@@ -718,7 +718,7 @@ func (rwc *reconWithClient) flushQueue() error {
 var zeroTime time.Time
 
 func (p *Peer) interactWithClient(conn net.Conn, remoteConfig *Config, bitstring *cf.Bitstring) error {
-	p.log(SERVE).Debug("interacting with client")
+	p.logConn(SERVE, conn).Debug("interacting with client")
 	p.setReadDeadline(conn, defaultTimeout)
 
 	recon := reconWithClient{
@@ -742,11 +742,11 @@ func (p *Peer) interactWithClient(conn net.Conn, remoteConfig *Config, bitstring
 	recon.pushRequest(&requestEntry{node: root, key: bitstring})
 	for !recon.isDone() {
 		bottom := recon.topBottom()
-		p.logFields(SERVE, log.Fields{"bottom": bottom}).Debug("interact")
+		p.logConnFields(SERVE, conn, log.Fields{"bottom": bottom}).Debug("interact")
 		switch {
 		case bottom == nil:
 			req := recon.popRequest()
-			p.logFields(SERVE, log.Fields{
+			p.logConnFields(SERVE, conn, log.Fields{
 				"popRequest": req,
 			}).Debug("interact: sending...")
 			err = recon.sendRequest(p, req)
@@ -754,11 +754,11 @@ func (p *Peer) interactWithClient(conn net.Conn, remoteConfig *Config, bitstring
 				return err
 			}
 		case bottom.state == reconStateFlushEnded:
-			p.log(SERVE).Debug("interact: flush ended, popBottom")
+			p.logConn(SERVE, conn).Debug("interact: flush ended, popBottom")
 			recon.popBottom()
 			recon.flushing = false
 		case bottom.state == reconStateBottom:
-			p.logFields(SERVE, log.Fields{
+			p.logConnFields(SERVE, conn, log.Fields{
 				"queueLength": len(recon.bottomQ),
 			}).Debug()
 			var msg ReconMsg
@@ -798,7 +798,7 @@ func (p *Peer) interactWithClient(conn net.Conn, remoteConfig *Config, bitstring
 					if err != nil {
 						return errgo.Mask(err)
 					}
-					p.logFields(SERVE, log.Fields{"msg": msg}).Debug("reply")
+					p.logConnFields(SERVE, conn, log.Fields{"msg": msg}).Debug("reply")
 					err = recon.handleReply(p, msg, bottom.requestEntry)
 					if err != nil {
 						return errgo.Mask(err)
@@ -825,7 +825,7 @@ func (p *Peer) sendItems(items []*cf.Zp, conn net.Conn, remoteConfig *Config) er
 			RemoteAddr:     conn.RemoteAddr(),
 			RemoteConfig:   remoteConfig,
 			RemoteElements: items}:
-			p.log(SERVE).Infof("recovered %d items", len(items))
+			p.logConn(SERVE, conn).Infof("recovered %d items", len(items))
 		default:
 			p.mu.Lock()
 			p.full = true
