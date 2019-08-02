@@ -140,9 +140,7 @@ func (p *Peer) logErr(label string, err error) *log.Entry {
 }
 
 func (p *Peer) logConnErr(label string, conn net.Conn, err error) *log.Entry {
-	fields := log.Fields{}
-	fields["remoteaddr"] = conn.RemoteAddr()
-	return p.logErr(label, err)
+	return p.logConnFields(label, conn, log.Fields{"error": errgo.Details(err)})
 }
 
 func (p *Peer) StartMode(mode PeerMode) {
