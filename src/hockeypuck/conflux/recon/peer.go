@@ -362,7 +362,7 @@ func (p *Peer) remoteConfig(conn net.Conn, role string, config *Config) (*Config
 	})
 	t.Go(func() error {
 		<-ch
-		p.logFields(role, log.Fields{"config": config}).Debug("writing config")
+		p.logConnFields(role, conn, log.Fields{"config": config}).Debug("writing config")
 		err := WriteMsg(w, config)
 		if err != nil {
 			return errgo.Mask(err)
@@ -375,7 +375,7 @@ func (p *Peer) remoteConfig(conn net.Conn, role string, config *Config) (*Config
 	})
 	t.Go(func() error {
 		<-ch
-		p.logFields(role, log.Fields{"remoteAddr": conn.RemoteAddr()}).Debug("reading remote config")
+		p.logConn(role, conn).Debug("reading remote config")
 		var msg ReconMsg
 		msg, err := ReadMsg(conn)
 		if err != nil {
@@ -450,18 +450,18 @@ func (p *Peer) handleConfig(conn net.Conn, role string, failResp string) (_ *Con
 		return nil, errgo.Mask(err)
 	}
 
-	p.logFields(role, log.Fields{"remoteConfig": remoteConfig}).Debug()
+	p.logConnFields(role, conn, log.Fields{"remoteConfig": remoteConfig}).Debug()
 
 	if failResp == "" {
 		if remoteConfig.BitQuantum != config.BitQuantum {
 			failResp = "mismatched bitquantum"
-			p.logFields(role, log.Fields{
+			p.logConnFields(role, conn, log.Fields{
 				"remoteBitquantum": remoteConfig.BitQuantum,
 				"localBitquantum":  config.BitQuantum,
 			}).Error("mismatched BitQuantum values")
 		} else if remoteConfig.MBar != config.MBar {
 			failResp = "mismatched mbar"
-			p.logFields(role, log.Fields{
+			p.logConnFields(role, conn, log.Fields{
 				"remoteMBar": remoteConfig.MBar,
 				"localMBar":  config.MBar,
 			}).Error("mismatched MBar")
@@ -472,20 +472,20 @@ func (p *Peer) handleConfig(conn net.Conn, role string, failResp string) (_ *Con
 	if failResp != "" {
 		err = conn.SetWriteDeadline(time.Now().Add(3 * time.Second))
 		if err != nil {
-			p.logErr(role, err)
+			p.logConnErr(role, conn, err)
 		}
 
 		err = WriteString(w, RemoteConfigFailed)
 		if err != nil {
-			p.logErr(role, err)
+			p.logConnErr(role, conn, err)
 		}
 		err = WriteString(w, failResp)
 		if err != nil {
-			p.logErr(role, err)
+			p.logConnErr(role, conn, err)
 		}
 		err = w.Flush()
 		if err != nil {
-			p.logErr(role, err)
+			p.logConnErr(role, conn, err)
 		}
 
 		return nil, errgo.Newf("cannot peer: %v", failResp)
@@ -502,12 +502,10 @@ func (p *Peer) handleConfig(conn net.Conn, role string, failResp string) (_ *Con
 func (p *Peer) Accept(conn net.Conn) (_err error) {
 	defer conn.Close()
 
-	p.logFields(SERVE, log.Fields{
-		"remoteAddr": conn.RemoteAddr(),
-	}).Debug("accepted connection")
+	p.logConn(SERVE, conn).Debug("accepted connection")
 	defer func() {
 		if _err != nil {
-			p.logErr(SERVE, _err).Error()
+			p.logConnErr(SERVE, conn, _err).Error()
 		}
 	}()
 
@@ -650,7 +648,7 @@ func (rwc *reconWithClient) sendRequest(p *Peer, req *requestEntry) error {
 			Size:    req.node.Size(),
 			Samples: req.node.SValues()}
 	}
-	p.logFields(SERVE, log.Fields{"msg": msg}).Debug("sendRequest")
+	p.logConnFields(SERVE, rwc.conn, log.Fields{"msg": msg}).Debug("sendRequest")
 	rwc.messages = append(rwc.messages, msg)
 	rwc.pushBottom(&bottomEntry{requestEntry: req})
 	return nil
