@@ -12,6 +12,7 @@ import (
 
 	"github.com/carbocation/interpose"
 	"github.com/julienschmidt/httprouter"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gopkg.in/errgo.v1"
 	"gopkg.in/tomb.v2"
 
@@ -123,6 +124,13 @@ func NewServer(settings *Settings) (*Server, error) {
 			return nil, errgo.Mask(err)
 		}
 	}
+
+	registerMetrics()
+	s.st.Subscribe(metricsStorageNotifier)
+	ph := promhttp.Handler()
+	s.r.GET("/metrics", func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+		ph.ServeHTTP(w, req)
+	})
 
 	return s, nil
 }
