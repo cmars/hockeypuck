@@ -9,19 +9,19 @@ import (
 )
 
 var metrics = struct {
-	keysAdded   prometheus.Gauge
-	keysUpdated prometheus.Gauge
+	keysAdded   prometheus.Counter
+	keysUpdated prometheus.Counter
 	// TODO(pjdc): Track KeyNotChanged? i.e. .Upsert called yielding no change
 }{
-	keysAdded: prometheus.NewGauge(
-		prometheus.GaugeOpts{
+	keysAdded: prometheus.NewCounter(
+		prometheus.CounterOpts{
 			Namespace: "hockeypuck",
 			Name:      "keys_added",
 			Help:      "New keys added since startup",
 		},
 	),
-	keysUpdated: prometheus.NewGauge(
-		prometheus.GaugeOpts{
+	keysUpdated: prometheus.NewCounter(
+		prometheus.CounterOpts{
 			Namespace: "hockeypuck",
 			Name:      "keys_updated",
 			Help:      "Keys updated since startup",
