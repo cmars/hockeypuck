@@ -122,7 +122,7 @@ func (p *Peer) log(label string) *log.Entry {
 }
 
 func (p *Peer) logConn(label string, conn net.Conn) *log.Entry {
-	return p.logFields(label, log.Fields{"remoteaddr": conn.RemoteAddr()})
+	return p.logFields(label, log.Fields{"remoteAddr": conn.RemoteAddr()})
 }
 
 func (p *Peer) logFields(label string, fields log.Fields) *log.Entry {
@@ -131,7 +131,7 @@ func (p *Peer) logFields(label string, fields log.Fields) *log.Entry {
 }
 
 func (p *Peer) logConnFields(label string, conn net.Conn, fields log.Fields) *log.Entry {
-	fields["remoteaddr"] = conn.RemoteAddr()
+	fields["remoteAddr"] = conn.RemoteAddr()
 	return p.logFields(label, fields)
 }
 
