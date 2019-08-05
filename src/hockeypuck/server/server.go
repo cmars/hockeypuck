@@ -41,7 +41,7 @@ type statusCodeResponseWriter struct {
 }
 
 func NewStatusCodeResponseWriter(w http.ResponseWriter) *statusCodeResponseWriter {
-	// WriteHeader(int) is not called if our response implicitly
+	// WriteHeader is not called if our response implicitly
 	// returns 200 OK, so we default to that status code.
 	return &statusCodeResponseWriter{w, http.StatusOK}
 }
@@ -73,13 +73,13 @@ func NewServer(settings *Settings) (*Server, error) {
 			start := time.Now()
 			scrw := NewStatusCodeResponseWriter(rw)
 			next.ServeHTTP(scrw, req)
-			f := log.Fields{
-				req.Method:   req.URL.String(),
-				"duration":   time.Since(start).String(),
-				"from":       req.RemoteAddr,
-				"host":       req.Host,
-				"statuscode": scrw.statusCode,
-				"user-agent": req.UserAgent(),
+			fields := log.Fields{
+				req.Method:    req.URL.String(),
+				"duration":    time.Since(start).String(),
+				"from":        req.RemoteAddr,
+				"host":        req.Host,
+				"status-code": scrw.statusCode,
+				"user-agent":  req.UserAgent(),
 			}
 			proxyHeaders := []string{
 				"x-forwarded-for",
@@ -88,10 +88,10 @@ func NewServer(settings *Settings) (*Server, error) {
 			}
 			for _, ph := range proxyHeaders {
 				if v := req.Header.Get(ph); v != "" {
-					f[ph] = v
+					fields[ph] = v
 				}
 			}
-			log.WithFields(f).Info()
+			log.WithFields(fields).Info()
 		})
 	})
 	s.middle.UseHandler(s.r)
