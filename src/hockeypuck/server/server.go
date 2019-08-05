@@ -74,9 +74,10 @@ func NewServer(settings *Settings) (*Server, error) {
 			start := time.Now()
 			scrw := NewStatusCodeResponseWriter(rw)
 			next.ServeHTTP(scrw, req)
+			duration := time.Since(start)
 			fields := log.Fields{
 				req.Method:    req.URL.String(),
-				"duration":    time.Since(start).String(),
+				"duration":    duration.String(),
 				"from":        req.RemoteAddr,
 				"host":        req.Host,
 				"status-code": scrw.statusCode,
@@ -93,6 +94,7 @@ func NewServer(settings *Settings) (*Server, error) {
 				}
 			}
 			log.WithFields(fields).Info()
+			recordHTTPRequestDuration(req.Method, scrw.statusCode, duration)
 		})
 	})
 	s.middle.UseHandler(s.r)
