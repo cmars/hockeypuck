@@ -66,15 +66,17 @@ func (p *Peer) Gossip() error {
 						p.logErr(GOSSIP, err).Error("choosePartner")
 					}
 				} else {
+					start := time.Now()
 					err = p.InitiateRecon(peer)
 					if errgo.Cause(err) == ErrPeerBusy {
 						p.logErr(GOSSIP, err).Debug()
 						recordReconBusyPeer(peer)
 					} else if err != nil {
 						p.logErr(GOSSIP, err).Errorf("recon with %v failed", peer)
-						recordReconFailure(peer)
+						recordReconFailure(peer, time.Since(start))
+					} else {
+						recordReconSuccess(peer, time.Since(start))
 					}
-					recordReconSuccess(peer)
 				}
 
 				p.readRelease()

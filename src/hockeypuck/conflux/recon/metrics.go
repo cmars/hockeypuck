@@ -3,6 +3,7 @@ package recon
 import (
 	"net"
 	"sync"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -12,6 +13,7 @@ var metrics = struct {
 	reconBusyPeer  *prometheus.CounterVec
 	reconFailure   *prometheus.CounterVec
 	reconSuccess   *prometheus.CounterVec
+	reconDuration  *prometheus.HistogramVec
 }{
 	itemsRecovered: prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -53,6 +55,17 @@ var metrics = struct {
 			"peer",
 		},
 	),
+	reconDuration: prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: "conflux",
+			Name:      "reconciliation_duration_seconds",
+			Help:      "Time spent performing a reconciliation",
+		},
+		[]string{
+			"peer",
+			"result",
+		},
+	),
 }
 
 var metricsRegister sync.Once
@@ -63,11 +76,20 @@ func registerMetrics() {
 		prometheus.MustRegister(metrics.reconFailure)
 		prometheus.MustRegister(metrics.reconSuccess)
 		prometheus.MustRegister(metrics.itemsRecovered)
+		prometheus.MustRegister(metrics.reconDuration)
 	})
 }
 
 func labelPeer(peer net.Addr) prometheus.Labels {
 	labels := prometheus.Labels{"peer": "unknown"}
+	if h, _, err := net.SplitHostPort(peer.String()); err == nil {
+		labels["peer"] = h
+	}
+	return labels
+}
+
+func labelPeerResult(peer net.Addr, result string) prometheus.Labels {
+	labels := prometheus.Labels{"peer": "unknown", "result": result}
 	if h, _, err := net.SplitHostPort(peer.String()); err == nil {
 		labels["peer"] = h
 	}
@@ -82,10 +104,12 @@ func recordReconBusyPeer(peer net.Addr) {
 	metrics.reconBusyPeer.With(labelPeer(peer)).Inc()
 }
 
-func recordReconFailure(peer net.Addr) {
+func recordReconFailure(peer net.Addr, duration time.Duration) {
 	metrics.reconFailure.With(labelPeer(peer)).Inc()
+	metrics.reconDuration.With(labelPeerResult(peer, "failure")).Observe(duration.Seconds())
 }
 
-func recordReconSuccess(peer net.Addr) {
+func recordReconSuccess(peer net.Addr, duration time.Duration) {
 	metrics.reconSuccess.With(labelPeer(peer)).Inc()
+	metrics.reconDuration.With(labelPeerResult(peer, "success")).Observe(duration.Seconds())
 }

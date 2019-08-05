@@ -333,14 +333,16 @@ func (p *Peer) Serve() error {
 		}
 		p.t.Go(func() error {
 			err = p.Accept(conn)
+			start := time.Now()
 			if errgo.Cause(err) == ErrPeerBusy {
 				p.logConnErr(GOSSIP, conn, err).Debug()
 				recordReconBusyPeer(conn.RemoteAddr())
 			} else if err != nil {
 				p.logErr(SERVE, err).Errorf("recon with %v failed", conn.RemoteAddr())
-				recordReconFailure(conn.RemoteAddr())
+				recordReconFailure(conn.RemoteAddr(), time.Since(start))
+			} else {
+				recordReconSuccess(conn.RemoteAddr(), time.Since(start))
 			}
-			recordReconSuccess(conn.RemoteAddr())
 			return nil
 		})
 		p.muDie.Unlock()
