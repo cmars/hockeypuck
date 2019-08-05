@@ -1,3 +1,10 @@
+hockeypuck (2.0.10) bionic; urgency=medium
+
+  * capture and log the HTTP status code, and some other headers
+  * conflux: log remote address
+
+ -- Paul Collins <paul.collins@canonical.com>  Tue, 06 Aug 2019 10:27:58 +1200
+
 hockeypuck (2.0.9) bionic; urgency=medium
 
   * set ID fields in overlooked KeyAdded and KeyReplaced values, fixing logging
