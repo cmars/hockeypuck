@@ -347,6 +347,9 @@ func (s *Server) Stop() {
 	if s.sksPeer != nil {
 		s.sksPeer.Stop()
 	}
+	if s.metricsListener != nil {
+		s.metricsListener.Stop()
+	}
 	s.t.Kill(nil)
 	s.t.Wait()
 }
