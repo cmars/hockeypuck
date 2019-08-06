@@ -46,6 +46,8 @@ const (
 	requestChunkSize = 100
 )
 
+const httpClientTimeout = 30
+
 type keyRecoveryCounter map[string]int
 
 type Peer struct {
@@ -53,6 +55,7 @@ type Peer struct {
 	storage  storage.Storage
 	settings *recon.Settings
 	ptree    recon.PrefixTree
+	http     *http.Client
 
 	path  string
 	stats *Stats
@@ -87,11 +90,14 @@ func NewPeer(st storage.Storage, path string, s *recon.Settings) (*Peer, error) 
 
 	peer := recon.NewPeer(s, ptree)
 	sksPeer := &Peer{
-		ptree:    ptree,
+		peer:     peer,
 		storage:  st,
 		settings: s,
-		peer:     peer,
-		path:     path,
+		ptree:    ptree,
+		http: &http.Client{
+			Timeout: httpClientTimeout * time.Second,
+		},
+		path: path,
 	}
 	sksPeer.readStats()
 	st.Subscribe(sksPeer.updateDigests)
@@ -287,7 +293,7 @@ func (r *Peer) requestChunk(rcvr *recon.Recover, chunk []*cf.Zp) error {
 	}
 
 	url := fmt.Sprintf("http://%s/pks/hashquery", remoteAddr)
-	resp, err := http.Post(url, "sks/hashquery", bytes.NewReader(hqBuf.Bytes()))
+	resp, err := r.http.Post(url, "sks/hashquery", bytes.NewReader(hqBuf.Bytes()))
 	if err != nil {
 		return errgo.Mask(err)
 	}
