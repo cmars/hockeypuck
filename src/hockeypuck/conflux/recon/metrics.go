@@ -13,7 +13,7 @@ const (
 	SERVER = "server"
 )
 
-var metrics = struct {
+var reconMetrics = struct {
 	itemsRecovered      *prometheus.CounterVec
 	reconBusyPeer       *prometheus.CounterVec
 	reconDuration       *prometheus.HistogramVec
@@ -76,12 +76,12 @@ var metricsRegister sync.Once
 
 func registerMetrics() {
 	metricsRegister.Do(func() {
-		prometheus.MustRegister(metrics.itemsRecovered)
-		prometheus.MustRegister(metrics.reconBusyPeer)
-		prometheus.MustRegister(metrics.reconDuration)
-		prometheus.MustRegister(metrics.reconEventTimestamp)
-		prometheus.MustRegister(metrics.reconFailure)
-		prometheus.MustRegister(metrics.reconSuccess)
+		prometheus.MustRegister(reconMetrics.itemsRecovered)
+		prometheus.MustRegister(reconMetrics.reconBusyPeer)
+		prometheus.MustRegister(reconMetrics.reconDuration)
+		prometheus.MustRegister(reconMetrics.reconEventTimestamp)
+		prometheus.MustRegister(reconMetrics.reconFailure)
+		prometheus.MustRegister(reconMetrics.reconSuccess)
 	})
 }
 
@@ -93,26 +93,26 @@ func hostFromPeer(peer net.Addr) string {
 }
 
 func recordItemsRecovered(peer net.Addr, items int) {
-	metrics.itemsRecovered.WithLabelValues(hostFromPeer(peer)).Add(float64(items))
+	reconMetrics.itemsRecovered.WithLabelValues(hostFromPeer(peer)).Add(float64(items))
 }
 
 func recordReconBusyPeer(peer net.Addr, role string) {
-	metrics.reconBusyPeer.WithLabelValues(hostFromPeer(peer)).Inc()
-	metrics.reconEventTimestamp.WithLabelValues(hostFromPeer(peer), "busy", role, role).Set(float64(time.Now().Unix()))
+	reconMetrics.reconBusyPeer.WithLabelValues(hostFromPeer(peer)).Inc()
+	reconMetrics.reconEventTimestamp.WithLabelValues(hostFromPeer(peer), "busy", role, role).Set(float64(time.Now().Unix()))
 }
 
 func recordReconFailure(peer net.Addr, duration time.Duration, role string) {
-	metrics.reconDuration.WithLabelValues(hostFromPeer(peer), "failure").Observe(duration.Seconds())
-	metrics.reconEventTimestamp.WithLabelValues(hostFromPeer(peer), "failure", role).Set(float64(time.Now().Unix()))
-	metrics.reconFailure.WithLabelValues(hostFromPeer(peer)).Inc()
+	reconMetrics.reconDuration.WithLabelValues(hostFromPeer(peer), "failure").Observe(duration.Seconds())
+	reconMetrics.reconEventTimestamp.WithLabelValues(hostFromPeer(peer), "failure", role).Set(float64(time.Now().Unix()))
+	reconMetrics.reconFailure.WithLabelValues(hostFromPeer(peer)).Inc()
 }
 
 func recordReconInitiate(peer net.Addr, role string) {
-	metrics.reconEventTimestamp.WithLabelValues(hostFromPeer(peer), "initiate", role).Set(float64(time.Now().Unix()))
+	reconMetrics.reconEventTimestamp.WithLabelValues(hostFromPeer(peer), "initiate", role).Set(float64(time.Now().Unix()))
 }
 
 func recordReconSuccess(peer net.Addr, duration time.Duration, role string) {
-	metrics.reconDuration.WithLabelValues(hostFromPeer(peer), "success").Observe(duration.Seconds())
-	metrics.reconEventTimestamp.WithLabelValues(hostFromPeer(peer), "success", role).Set(float64(time.Now().Unix()))
-	metrics.reconSuccess.WithLabelValues(hostFromPeer(peer)).Inc()
+	reconMetrics.reconDuration.WithLabelValues(hostFromPeer(peer), "success").Observe(duration.Seconds())
+	reconMetrics.reconEventTimestamp.WithLabelValues(hostFromPeer(peer), "success", role).Set(float64(time.Now().Unix()))
+	reconMetrics.reconSuccess.WithLabelValues(hostFromPeer(peer)).Inc()
 }

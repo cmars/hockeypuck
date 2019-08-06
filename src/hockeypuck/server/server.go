@@ -19,17 +19,19 @@ import (
 	"hockeypuck/hkp/sks"
 	"hockeypuck/hkp/storage"
 	log "hockeypuck/logrus"
+	"hockeypuck/metrics"
 	"hockeypuck/mgohkp"
 	"hockeypuck/pghkp"
 )
 
 type Server struct {
-	settings  *Settings
-	st        storage.Storage
-	middle    *interpose.Middleware
-	r         *httprouter.Router
-	sksPeer   *sks.Peer
-	logWriter io.WriteCloser
+	settings        *Settings
+	st              storage.Storage
+	middle          *interpose.Middleware
+	r               *httprouter.Router
+	sksPeer         *sks.Peer
+	logWriter       io.WriteCloser
+	metricsListener *metrics.Metrics
 
 	t                 tomb.Tomb
 	hkpAddr, hkpsAddr string
@@ -102,6 +104,8 @@ func NewServer(settings *Settings) (*Server, error) {
 	if err != nil {
 		return nil, errgo.Mask(err)
 	}
+
+	s.metricsListener = metrics.NewMetrics(&settings.Metrics)
 
 	options := []hkp.HandlerOption{hkp.StatsFunc(s.stats)}
 	if settings.IndexTemplate != "" {
@@ -285,6 +289,10 @@ func (s *Server) Start() error {
 
 	if s.sksPeer != nil {
 		s.sksPeer.Start()
+	}
+
+	if s.metricsListener != nil {
+		s.metricsListener.Start()
 	}
 
 	return nil

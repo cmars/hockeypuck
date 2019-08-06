@@ -5,30 +5,36 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gopkg.in/tomb.v2"
+
+	log "hockeypuck/logrus"
 )
 
 type Metrics struct {
+	s   *Settings
 	mux *http.ServeMux
 	t   tomb.Tomb
 }
 
-const (
-	// TODO(pjdc): become settings later
-	metricsAddr = ":9626"
-	metricsPath = "/metrics"
-)
+func NewMetrics(s *Settings) *Metrics {
+	if s == nil {
+		s = DefaultSettings()
+	}
 
-func NewMetrics() *Metrics {
 	m := &Metrics{
+		s:   s,
 		mux: http.NewServeMux(),
 	}
-	m.mux.Handle(metricsPath, promhttp.Handler())
+	m.mux.Handle(m.s.MetricsPath, promhttp.Handler())
 
 	return m
 }
 
 func (m *Metrics) Start() {
 	m.t.Go(func() error {
-		return http.ListenAndServe(metricsAddr, m.mux)
+		if err := http.ListenAndServe(m.s.MetricsAddr, m.mux); err != nil {
+			log.Errorf("failed to serve metrics: %v", err)
+			return err
+		}
+		return nil
 	})
 }

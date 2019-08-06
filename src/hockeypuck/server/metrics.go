@@ -10,7 +10,7 @@ import (
 	"hockeypuck/hkp/storage"
 )
 
-var metrics = struct {
+var serverMetrics = struct {
 	httpRequestDuration *prometheus.HistogramVec
 	keysAdded           prometheus.Counter
 	keysIgnored         prometheus.Counter
@@ -51,25 +51,25 @@ var metricsRegister sync.Once
 
 func registerMetrics() {
 	metricsRegister.Do(func() {
-		prometheus.MustRegister(metrics.httpRequestDuration)
-		prometheus.MustRegister(metrics.keysAdded)
-		prometheus.MustRegister(metrics.keysIgnored)
-		prometheus.MustRegister(metrics.keysUpdated)
+		prometheus.MustRegister(serverMetrics.httpRequestDuration)
+		prometheus.MustRegister(serverMetrics.keysAdded)
+		prometheus.MustRegister(serverMetrics.keysIgnored)
+		prometheus.MustRegister(serverMetrics.keysUpdated)
 	})
 }
 
 func metricsStorageNotifier(kc storage.KeyChange) error {
 	switch kc.(type) {
 	case storage.KeyAdded:
-		metrics.keysAdded.Inc()
+		serverMetrics.keysAdded.Inc()
 	case storage.KeyNotChanged:
-		metrics.keysIgnored.Inc()
+		serverMetrics.keysIgnored.Inc()
 	case storage.KeyReplaced:
-		metrics.keysUpdated.Inc()
+		serverMetrics.keysUpdated.Inc()
 	}
 	return nil
 }
 
 func recordHTTPRequestDuration(method string, statusCode int, duration time.Duration) {
-	metrics.httpRequestDuration.WithLabelValues(method, strconv.Itoa(statusCode)).Observe(duration.Seconds())
+	serverMetrics.httpRequestDuration.WithLabelValues(method, strconv.Itoa(statusCode)).Observe(duration.Seconds())
 }

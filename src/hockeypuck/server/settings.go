@@ -22,6 +22,7 @@ import (
 	"gopkg.in/errgo.v1"
 
 	"hockeypuck/conflux/recon"
+	"hockeypuck/metrics"
 )
 
 type confluxConfig struct {
@@ -115,6 +116,8 @@ type Settings struct {
 	HKP  HKPConfig   `toml:"hkp"`
 	HKPS *HKPSConfig `toml:"hkps"`
 
+	Metrics metrics.Settings `toml:"metrics"`
+
 	OpenPGP OpenPGPConfig `toml:"openpgp"`
 
 	LogFile  string `toml:"logfile"`
@@ -134,6 +137,7 @@ const (
 )
 
 func DefaultSettings() Settings {
+	metricsSettings := metrics.DefaultSettings()
 	reconSettings := recon.DefaultSettings()
 	return Settings{
 		Conflux: confluxConfig{
@@ -147,6 +151,7 @@ func DefaultSettings() Settings {
 		HKP: HKPConfig{
 			Bind: DefaultHKPBind,
 		},
+		Metrics:  *metricsSettings,
 		OpenPGP:  DefaultOpenPGP(),
 		LogLevel: DefaultLogLevel,
 		Software: "Hockeypuck",

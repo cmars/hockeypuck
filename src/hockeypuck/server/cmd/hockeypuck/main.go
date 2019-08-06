@@ -9,7 +9,6 @@ import (
 
 	"gopkg.in/errgo.v1"
 
-	"hockeypuck/metrics"
 	"hockeypuck/server"
 	"hockeypuck/server/cmd"
 )
@@ -51,9 +50,6 @@ func main() {
 	}
 
 	srv.Start()
-
-	m := metrics.NewMetrics()
-	m.Start()
 
 	c := make(chan os.Signal)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR1, syscall.SIGUSR2)
