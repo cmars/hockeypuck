@@ -12,7 +12,6 @@ import (
 
 	"github.com/carbocation/interpose"
 	"github.com/julienschmidt/httprouter"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gopkg.in/errgo.v1"
 	"gopkg.in/tomb.v2"
 
@@ -20,17 +19,19 @@ import (
 	"hockeypuck/hkp/sks"
 	"hockeypuck/hkp/storage"
 	log "hockeypuck/logrus"
+	"hockeypuck/metrics"
 	"hockeypuck/mgohkp"
 	"hockeypuck/pghkp"
 )
 
 type Server struct {
-	settings  *Settings
-	st        storage.Storage
-	middle    *interpose.Middleware
-	r         *httprouter.Router
-	sksPeer   *sks.Peer
-	logWriter io.WriteCloser
+	settings        *Settings
+	st              storage.Storage
+	middle          *interpose.Middleware
+	r               *httprouter.Router
+	sksPeer         *sks.Peer
+	logWriter       io.WriteCloser
+	metricsListener *metrics.Metrics
 
 	t                 tomb.Tomb
 	hkpAddr, hkpsAddr string
@@ -104,6 +105,8 @@ func NewServer(settings *Settings) (*Server, error) {
 		return nil, errgo.Mask(err)
 	}
 
+	s.metricsListener = metrics.NewMetrics(settings.Metrics)
+
 	options := []hkp.HandlerOption{hkp.StatsFunc(s.stats)}
 	if settings.IndexTemplate != "" {
 		options = append(options, hkp.IndexTemplate(settings.IndexTemplate))
@@ -129,10 +132,6 @@ func NewServer(settings *Settings) (*Server, error) {
 
 	registerMetrics()
 	s.st.Subscribe(metricsStorageNotifier)
-	ph := promhttp.Handler()
-	s.r.GET("/metrics", func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-		ph.ServeHTTP(w, req)
-	})
 
 	return s, nil
 }
@@ -292,6 +291,10 @@ func (s *Server) Start() error {
 		s.sksPeer.Start()
 	}
 
+	if s.metricsListener != nil {
+		s.metricsListener.Start()
+	}
+
 	return nil
 }
 
@@ -343,6 +346,9 @@ func (s *Server) Stop() {
 
 	if s.sksPeer != nil {
 		s.sksPeer.Stop()
+	}
+	if s.metricsListener != nil {
+		s.metricsListener.Stop()
 	}
 	s.t.Kill(nil)
 	s.t.Wait()
