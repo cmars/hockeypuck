@@ -40,11 +40,11 @@ import (
 	"hockeypuck/openpgp"
 )
 
-const RECON = "recon"
-
-const requestChunkSize = 100
-
-const maxKeyRecoveryAttempts = 10
+const (
+	RECON = "recon"
+	maxKeyRecoveryAttempts = 10
+	requestChunkSize = 100
+)
 
 type keyRecoveryCounter map[string]int
 
