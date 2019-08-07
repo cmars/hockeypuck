@@ -41,12 +41,11 @@ import (
 )
 
 const (
-	RECON = "recon"
+	RECON                  = "recon"
+	httpClientTimeout      = 30
 	maxKeyRecoveryAttempts = 10
-	requestChunkSize = 100
+	requestChunkSize       = 100
 )
-
-const httpClientTimeout = 30
 
 type keyRecoveryCounter map[string]int
 
