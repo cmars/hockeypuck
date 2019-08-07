@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -39,9 +40,11 @@ import (
 	"hockeypuck/openpgp"
 )
 
-const requestChunkSize = 100
-
-const maxKeyRecoveryAttempts = 10
+const (
+	RECON = "recon"
+	maxKeyRecoveryAttempts = 10
+	requestChunkSize = 100
+)
 
 type keyRecoveryCounter map[string]int
 
@@ -95,6 +98,19 @@ func NewPeer(st storage.Storage, path string, s *recon.Settings) (*Peer, error) 
 	return sksPeer, nil
 }
 
+func (p *Peer) log(label string) *log.Entry {
+	return p.logFields(label, log.Fields{})
+}
+
+func (p *Peer) logAddr(label string, addr net.Addr) *log.Entry {
+	return p.logFields(label, log.Fields{"remoteAddr": addr})
+}
+
+func (p *Peer) logFields(label string, fields log.Fields) *log.Entry {
+	fields["label"] = fmt.Sprintf("%s %s", label, p.settings.ReconAddr)
+	return log.WithFields(fields)
+}
+
 func StatsFilename(path string) string {
 	dir, base := filepath.Dir(path), filepath.Base(path)
 	return filepath.Join(dir, "."+base+".stats")
@@ -105,13 +121,13 @@ func (p *Peer) readStats() {
 	stats := NewStats()
 	err := stats.ReadFile(fn)
 	if err != nil {
-		log.Warningf("cannot open stats %q: %v", fn, err)
+		p.log(RECON).Warningf("cannot open stats %q: %v", fn, err)
 		stats = NewStats()
 	}
 
 	root, err := p.ptree.Root()
 	if err != nil {
-		log.Warningf("error accessing prefix tree root: %v", err)
+		p.log(RECON).Warningf("error accessing prefix tree root: %v", err)
 	} else {
 		stats.Total = root.Size()
 	}
@@ -123,7 +139,7 @@ func (p *Peer) writeStats() {
 	fn := StatsFilename(p.path)
 	err := p.stats.WriteFile(fn)
 	if err != nil {
-		log.Warningf("cannot write stats %q: %v", fn, err)
+		p.log(RECON).Warningf("cannot write stats %q: %v", fn, err)
 	}
 }
 
@@ -151,24 +167,24 @@ func (r *Peer) Start() {
 }
 
 func (r *Peer) Stop() {
-	log.Info("recon processing: stopping")
+	r.log(RECON).Info("recon processing: stopping")
 	r.t.Kill(nil)
 	err := r.t.Wait()
 	if err != nil {
-		log.Error(errgo.Details(err))
+		r.log(RECON).Error(errgo.Details(err))
 	}
-	log.Info("recon processing: stopped")
+	r.log(RECON).Info("recon processing: stopped")
 
-	log.Info("recon peer: stopping")
+	r.log(RECON).Info("recon peer: stopping")
 	err = errgo.Mask(r.peer.Stop())
 	if err != nil {
-		log.Error(errgo.Details(err))
+		r.log(RECON).Error(errgo.Details(err))
 	}
-	log.Info("recon peer: stopped")
+	r.log(RECON).Info("recon peer: stopped")
 
 	err = r.ptree.Close()
 	if err != nil {
-		log.Errorf("error closing prefix tree: %v", errgo.Details(err))
+		r.log(RECON).Errorf("error closing prefix tree: %v", errgo.Details(err))
 	}
 
 	r.writeStats()
@@ -208,7 +224,12 @@ func (r *Peer) handleRecovery() error {
 		case <-r.t.Dying():
 			return nil
 		case rcvr := <-r.peer.RecoverChan:
-			r.requestRecovered(rcvr)
+			r.logAddr(RECON, rcvr.RemoteAddr).Infof("%d items to recover", len(rcvr.RemoteElements))
+			if err := r.requestRecovered(rcvr); err != nil {
+				r.logAddr(RECON, rcvr.RemoteAddr).Errorf("recovery completed with errors: %v", err)
+			} else {
+				r.logAddr(RECON, rcvr.RemoteAddr).Info("recovery complete")
+			}
 		}
 	}
 }
@@ -243,6 +264,7 @@ func (r *Peer) requestChunk(rcvr *recon.Recover, chunk []*cf.Zp) error {
 	if err != nil {
 		return errgo.Mask(err)
 	}
+	r.logAddr(RECON, rcvr.RemoteAddr).Debugf("requesting %d keys from %q via hashquery", len(chunk), remoteAddr)
 	// Make an sks hashquery request
 	hqBuf := bytes.NewBuffer(nil)
 	err = recon.WriteInt(hqBuf, len(chunk))
@@ -289,7 +311,7 @@ func (r *Peer) requestChunk(rcvr *recon.Recover, chunk []*cf.Zp) error {
 	if err != nil {
 		return errgo.Mask(err)
 	}
-	log.Debugf("hashquery response from %q: %d keys found", remoteAddr, nkeys)
+	r.logAddr(RECON, rcvr.RemoteAddr).Debugf("hashquery response from %q: %d keys found", remoteAddr, nkeys)
 	for i := 0; i < nkeys; i++ {
 		keyLen, err = recon.ReadInt(body)
 		if err != nil {
@@ -300,11 +322,11 @@ func (r *Peer) requestChunk(rcvr *recon.Recover, chunk []*cf.Zp) error {
 		if err != nil {
 			return errgo.Mask(err)
 		}
-		log.Debugf("key# %d: %d bytes", i+1, keyLen)
+		r.logAddr(RECON, rcvr.RemoteAddr).Debugf("key# %d: %d bytes", i+1, keyLen)
 		// Merge locally
-		err = r.upsertKeys(keyBuf.Bytes())
+		err = r.upsertKeys(rcvr, keyBuf.Bytes())
 		if err != nil {
-			log.Errorf("cannot upsert: %v", err)
+			r.logAddr(RECON, rcvr.RemoteAddr).Errorf("cannot upsert: %v", err)
 		}
 	}
 	// Read last two bytes (CRLF, why?), or SKS will complain.
@@ -312,7 +334,7 @@ func (r *Peer) requestChunk(rcvr *recon.Recover, chunk []*cf.Zp) error {
 	return nil
 }
 
-func (r *Peer) upsertKeys(buf []byte) error {
+func (r *Peer) upsertKeys(rcvr *recon.Recover, buf []byte) error {
 	for readKey := range openpgp.ReadKeys(bytes.NewBuffer(buf)) {
 		if readKey.Error != nil {
 			return errgo.Mask(readKey.Error)
@@ -322,10 +344,11 @@ func (r *Peer) upsertKeys(buf []byte) error {
 		if err != nil {
 			return errgo.Mask(err)
 		}
-		_, err = storage.UpsertKey(r.storage, readKey.PrimaryKey)
+		keyChange, err := storage.UpsertKey(r.storage, readKey.PrimaryKey)
 		if err != nil {
 			return errgo.Mask(err)
 		}
+		r.logAddr(RECON, rcvr.RemoteAddr).Debug(keyChange)
 	}
 	return nil
 }

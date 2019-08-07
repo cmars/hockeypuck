@@ -149,14 +149,17 @@ func (kr KeyReplaced) String() string {
 	return fmt.Sprintf("key 0x%s with hash %s replaced key 0x%s with hash %s", kr.NewID, kr.NewDigest, kr.OldID, kr.OldDigest)
 }
 
-type KeyNotChanged struct{}
+type KeyNotChanged struct {
+	ID     string
+	Digest string
+}
 
 func (knc KeyNotChanged) InsertDigests() []string { return nil }
 
 func (knc KeyNotChanged) RemoveDigests() []string { return nil }
 
 func (knc KeyNotChanged) String() string {
-	return "key not changed"
+	return fmt.Sprintf("key 0x%s with hash %s not changed", knc.ID, knc.Digest)
 }
 
 type InsertError struct {
@@ -218,5 +221,5 @@ func UpsertKey(storage Storage, pubkey *openpgp.PrimaryKey) (kc KeyChange, err e
 		}
 		return KeyReplaced{OldID: lastID, OldDigest: lastMD5, NewID: lastKey.KeyID(), NewDigest: lastKey.MD5}, nil
 	}
-	return KeyNotChanged{}, nil
+	return KeyNotChanged{ID: lastID, Digest: lastMD5}, nil
 }
