@@ -1,3 +1,4 @@
+// Package metrics provides a simple http server that exposes Prometheus metrics.
 package metrics
 
 import (
@@ -14,6 +15,20 @@ type Metrics struct {
 	s   *Settings
 	srv *http.Server
 	t   tomb.Tomb
+}
+
+type Settings struct {
+	MetricsAddr string `toml:"metricsAddr"`
+	MetricsPath string `toml:"metricsPath"`
+}
+
+var defaultSettings = Settings{
+	MetricsAddr: ":9626",
+	MetricsPath: "/metrics",
+}
+
+func DefaultSettings() *Settings {
+	return &defaultSettings
 }
 
 func NewMetrics(s *Settings) *Metrics {
