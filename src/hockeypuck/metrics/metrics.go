@@ -1,4 +1,4 @@
-// Package metrics provides a simple http server that exposes Prometheus metrics.
+// Package metrics provides a simple HTTP server that exposes Prometheus metrics.
 package metrics
 
 import (
