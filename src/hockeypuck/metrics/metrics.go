@@ -12,7 +12,7 @@ import (
 
 type Metrics struct {
 	s   *Settings
-	mux *http.ServeMux
+	srv *http.Server
 	t   tomb.Tomb
 }
 
@@ -21,23 +21,32 @@ func NewMetrics(s *Settings) *Metrics {
 		s = DefaultSettings()
 	}
 
-	m := &Metrics{
-		s:   s,
-		mux: http.NewServeMux(),
-	}
-	m.mux.Handle(m.s.MetricsPath, promhttp.Handler())
+	mux := http.NewServeMux()
+	mux.Handle(s.MetricsPath, promhttp.Handler())
 
-	return m
+	return &Metrics{
+		s: s,
+		srv: &http.Server{
+			Addr:    s.MetricsAddr,
+			Handler: mux,
+		},
+	}
 }
 
 func (m *Metrics) Start() {
 	m.t.Go(func() error {
 		log.Info("metrics: starting")
-		if err := http.ListenAndServe(m.s.MetricsAddr, m.mux); err != nil {
-			log.Errorf("failed to serve metrics: %v", err)
-			return err
+		if err := m.srv.ListenAndServe(); err != nil {
+			if err != http.ErrServerClosed {
+				log.Errorf("failed to serve metrics: %v", err)
+				return err
+			}
 		}
-		return nil
+		return tomb.ErrDying
+	})
+	m.t.Go(func() error {
+		<-m.t.Dying()
+		return m.srv.Close()
 	})
 }
 
