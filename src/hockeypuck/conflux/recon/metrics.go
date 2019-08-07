@@ -42,6 +42,7 @@ var metrics = struct {
 			Namespace: "conflux",
 			Name:      "reconciliation_duration_seconds",
 			Help:      "Time spent performing a reconciliation",
+			Buckets:   prometheus.ExponentialBuckets(0.001, 10, 7), // 1ms to 1000s (16m40s)
 		},
 		[]string{"peer", "result"},
 	),
