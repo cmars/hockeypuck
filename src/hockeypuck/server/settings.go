@@ -116,7 +116,7 @@ type Settings struct {
 	HKP  HKPConfig   `toml:"hkp"`
 	HKPS *HKPSConfig `toml:"hkps"`
 
-	Metrics metrics.Settings `toml:"metrics"`
+	Metrics *metrics.Settings `toml:"metrics"`
 
 	OpenPGP OpenPGPConfig `toml:"openpgp"`
 
@@ -151,7 +151,7 @@ func DefaultSettings() Settings {
 		HKP: HKPConfig{
 			Bind: DefaultHKPBind,
 		},
-		Metrics:  *metricsSettings,
+		Metrics:  metricsSettings,
 		OpenPGP:  DefaultOpenPGP(),
 		LogLevel: DefaultLogLevel,
 		Software: "Hockeypuck",

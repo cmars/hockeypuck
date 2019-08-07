@@ -105,7 +105,7 @@ func NewServer(settings *Settings) (*Server, error) {
 		return nil, errgo.Mask(err)
 	}
 
-	s.metricsListener = metrics.NewMetrics(&settings.Metrics)
+	s.metricsListener = metrics.NewMetrics(settings.Metrics)
 
 	options := []hkp.HandlerOption{hkp.StatsFunc(s.stats)}
 	if settings.IndexTemplate != "" {
