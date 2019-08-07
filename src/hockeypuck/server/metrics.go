@@ -11,11 +11,19 @@ import (
 )
 
 var metrics = struct {
+	httpRequestDuration *prometheus.HistogramVec
 	keysAdded           prometheus.Counter
 	keysIgnored         prometheus.Counter
 	keysUpdated         prometheus.Counter
-	httpRequestDuration *prometheus.HistogramVec
 }{
+	httpRequestDuration: prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: "hockeypuck",
+			Name:      "http_request_duration_seconds",
+			Help:      "Time spent generating HTTP responses",
+		},
+		[]string{"method", "status_code"},
+	),
 	keysAdded: prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Namespace: "hockeypuck",
@@ -37,27 +45,16 @@ var metrics = struct {
 			Help:      "Keys updated since startup",
 		},
 	),
-	httpRequestDuration: prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Namespace: "hockeypuck",
-			Name:      "http_request_duration_seconds",
-			Help:      "Time spent generating HTTP responses",
-		},
-		[]string{
-			"method",
-			"status_code",
-		},
-	),
 }
 
 var metricsRegister sync.Once
 
 func registerMetrics() {
 	metricsRegister.Do(func() {
+		prometheus.MustRegister(metrics.httpRequestDuration)
 		prometheus.MustRegister(metrics.keysAdded)
 		prometheus.MustRegister(metrics.keysIgnored)
 		prometheus.MustRegister(metrics.keysUpdated)
-		prometheus.MustRegister(metrics.httpRequestDuration)
 	})
 }
 
@@ -74,6 +71,5 @@ func metricsStorageNotifier(kc storage.KeyChange) error {
 }
 
 func recordHTTPRequestDuration(method string, statusCode int, duration time.Duration) {
-	labels := prometheus.Labels{"method": method, "status_code": strconv.Itoa(statusCode)}
-	metrics.httpRequestDuration.With(labels).Observe(duration.Seconds())
+	metrics.httpRequestDuration.WithLabelValues(method, strconv.Itoa(statusCode)).Observe(duration.Seconds())
 }
