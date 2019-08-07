@@ -1,3 +1,12 @@
+hockeypuck (2.0.11) bionic; urgency=medium
+
+  * add prometheus metrics to hockeypuck
+  * switch to a separate metrics listener
+  * more and better logging for recon and recovery
+  * 30 second timeout for hashquery POST requests
+
+ -- Paul Collins <paul.collins@canonical.com>  Wed, 07 Aug 2019 17:21:18 +1200
+
 hockeypuck (2.0.10) bionic; urgency=medium
 
   * capture and log the HTTP status code, and some other headers
