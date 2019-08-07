@@ -67,15 +67,16 @@ func (p *Peer) Gossip() error {
 					}
 				} else {
 					start := time.Now()
+					recordReconInitiate(peer, CLIENT)
 					err = p.InitiateRecon(peer)
 					if errgo.Cause(err) == ErrPeerBusy {
 						p.logErr(GOSSIP, err).Debug()
-						recordReconBusyPeer(peer)
+						recordReconBusyPeer(peer, CLIENT)
 					} else if err != nil {
 						p.logErr(GOSSIP, err).Errorf("recon with %v failed", peer)
-						recordReconFailure(peer, time.Since(start))
+						recordReconFailure(peer, time.Since(start), CLIENT)
 					} else {
-						recordReconSuccess(peer, time.Since(start))
+						recordReconSuccess(peer, time.Since(start), CLIENT)
 					}
 				}
 
