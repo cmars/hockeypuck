@@ -107,6 +107,9 @@ func NewPeer(settings *Settings, tree PrefixTree) *Peer {
 		ptree:       tree,
 	}
 	p.cond = sync.NewCond(&p.mu)
+
+	registerMetrics()
+
 	return p
 }
 
@@ -330,10 +333,16 @@ func (p *Peer) Serve() error {
 		}
 		p.t.Go(func() error {
 			err = p.Accept(conn)
+			start := time.Now()
+			recordReconInitiate(conn.RemoteAddr(), SERVER)
 			if errgo.Cause(err) == ErrPeerBusy {
 				p.logConnErr(GOSSIP, conn, err).Debug()
+				recordReconBusyPeer(conn.RemoteAddr(), SERVER)
 			} else if err != nil {
 				p.logErr(SERVE, err).Errorf("recon with %v failed", conn.RemoteAddr())
+				recordReconFailure(conn.RemoteAddr(), time.Since(start), SERVER)
+			} else {
+				recordReconSuccess(conn.RemoteAddr(), time.Since(start), SERVER)
 			}
 			return nil
 		})
@@ -824,6 +833,7 @@ func (p *Peer) sendItems(items []*cf.Zp, conn net.Conn, remoteConfig *Config) er
 			RemoteConfig:   remoteConfig,
 			RemoteElements: items}:
 			p.logConn(SERVE, conn).Infof("recovered %d items", len(items))
+			recordItemsRecovered(conn.RemoteAddr(), len(items))
 		default:
 			p.mu.Lock()
 			p.full = true

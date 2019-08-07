@@ -12,6 +12,7 @@ import (
 
 	"github.com/carbocation/interpose"
 	"github.com/julienschmidt/httprouter"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gopkg.in/errgo.v1"
 	"gopkg.in/tomb.v2"
 
@@ -73,9 +74,10 @@ func NewServer(settings *Settings) (*Server, error) {
 			start := time.Now()
 			scrw := NewStatusCodeResponseWriter(rw)
 			next.ServeHTTP(scrw, req)
+			duration := time.Since(start)
 			fields := log.Fields{
 				req.Method:    req.URL.String(),
-				"duration":    time.Since(start).String(),
+				"duration":    duration.String(),
 				"from":        req.RemoteAddr,
 				"host":        req.Host,
 				"status-code": scrw.statusCode,
@@ -92,6 +94,7 @@ func NewServer(settings *Settings) (*Server, error) {
 				}
 			}
 			log.WithFields(fields).Info()
+			recordHTTPRequestDuration(req.Method, scrw.statusCode, duration)
 		})
 	})
 	s.middle.UseHandler(s.r)
@@ -123,6 +126,13 @@ func NewServer(settings *Settings) (*Server, error) {
 			return nil, errgo.Mask(err)
 		}
 	}
+
+	registerMetrics()
+	s.st.Subscribe(metricsStorageNotifier)
+	ph := promhttp.Handler()
+	s.r.GET("/metrics", func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+		ph.ServeHTTP(w, req)
+	})
 
 	return s, nil
 }
