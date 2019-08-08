@@ -98,7 +98,7 @@ func recordItemsRecovered(peer net.Addr, items int) {
 
 func recordReconBusyPeer(peer net.Addr, role string) {
 	reconMetrics.reconBusyPeer.WithLabelValues(hostFromPeer(peer)).Inc()
-	reconMetrics.reconEventTimestamp.WithLabelValues(hostFromPeer(peer), "busy", role, role).Set(float64(time.Now().Unix()))
+	reconMetrics.reconEventTimestamp.WithLabelValues(hostFromPeer(peer), "busy", role).Set(float64(time.Now().Unix()))
 }
 
 func recordReconFailure(peer net.Addr, duration time.Duration, role string) {
