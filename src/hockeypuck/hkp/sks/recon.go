@@ -242,7 +242,6 @@ func (r *Peer) handleRecovery() error {
 func (r *Peer) requestRecovered(rcvr *recon.Recover) error {
 	items := rcvr.RemoteElements
 	errCount := 0
-	var resultErr error
 	for len(items) > 0 {
 		// Chunk requests to keep the hashquery message size and peer load reasonable.
 		chunksize := requestChunkSize
@@ -254,14 +253,14 @@ func (r *Peer) requestRecovered(rcvr *recon.Recover) error {
 
 		err := r.requestChunk(rcvr, chunk)
 		if err != nil {
-			resultErr = err
+			r.logAddr(RECON, rcvr.RemoteAddr).Errorf("failed to request chunk of %d keys: %v", len(chunk), err)
 			errCount += 1
 		}
 	}
-	if resultErr != nil {
-		resultErr = errgo.Notef(resultErr, "%d errors requesting chunks, most recently", errCount)
+	if errCount > 0 {
+		return errgo.Newf("%d errors requesting chunks", errCount)
 	}
-	return resultErr
+	return nil
 }
 
 func (r *Peer) requestChunk(rcvr *recon.Recover, chunk []*cf.Zp) error {
