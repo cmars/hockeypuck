@@ -1,3 +1,11 @@
+hockeypuck (2.0.12) bionic; urgency=medium
+
+  * remove duplicate role from WithLabelValues in recordReconBusyPeer
+  * get/hget: write required trailing newline
+  * pghkp: use only "IF NOT EXISTS" schema statements
+
+ -- Paul Collins <paul.collins@canonical.com>  Mon, 19 Aug 2019 16:16:47 +1200
+
 hockeypuck (2.0.11) bionic; urgency=medium
 
   * add prometheus metrics to hockeypuck
