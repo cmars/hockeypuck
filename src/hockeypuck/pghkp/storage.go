@@ -54,30 +54,27 @@ var _ hkpstorage.Storage = (*storage)(nil)
 
 var crTablesSQL = []string{
 	`CREATE TABLE IF NOT EXISTS keys (
-rfingerprint TEXT NOT NULL,
+rfingerprint TEXT NOT NULL PRIMARY KEY,
 doc jsonb NOT NULL,
 ctime TIMESTAMP WITH TIME ZONE NOT NULL,
 mtime TIMESTAMP WITH TIME ZONE NOT NULL,
-md5 TEXT NOT NULL,
+md5 TEXT NOT NULL UNIQUE,
 keywords tsvector
 )`,
 	`CREATE TABLE IF NOT EXISTS subkeys (
 rfingerprint TEXT NOT NULL,
-rsubfp TEXT NOT NULL
-)`,
+rsubfp TEXT NOT NULL PRIMARY KEY,
+FOREIGN KEY (rfingerprint) REFERENCES keys(rfingerprint)
+)
+`,
 }
 
 var crIndexesSQL = []string{
-	`ALTER TABLE keys ADD CONSTRAINT keys_pk PRIMARY KEY (rfingerprint);`,
-	`ALTER TABLE keys ADD CONSTRAINT keys_md5 UNIQUE (md5);`,
-	`CREATE INDEX keys_rfp ON keys(rfingerprint text_pattern_ops);`,
-	`CREATE INDEX keys_ctime ON keys (ctime);`,
-	`CREATE INDEX keys_mtime ON keys (mtime);`,
-	`CREATE INDEX keys_keywords ON keys USING gin(keywords);`,
-
-	`ALTER TABLE subkeys ADD CONSTRAINT subkeys_pk PRIMARY KEY (rsubfp);`,
-	`ALTER TABLE subkeys ADD CONSTRAINT subkeys_fk FOREIGN KEY (rfingerprint) REFERENCES keys(rfingerprint);`,
-	`CREATE INDEX subkeys_rfp ON subkeys(rsubfp text_pattern_ops);`,
+	`CREATE INDEX IF NOT EXISTS keys_rfp ON keys(rfingerprint text_pattern_ops);`,
+	`CREATE INDEX IF NOT EXISTS keys_ctime ON keys (ctime);`,
+	`CREATE INDEX IF NOT EXISTS keys_mtime ON keys (mtime);`,
+	`CREATE INDEX IF NOT EXISTS keys_keywords ON keys USING gin(keywords);`,
+	`CREATE INDEX IF NOT EXISTS subkeys_rfp ON subkeys(rsubfp text_pattern_ops);`,
 }
 
 var drConstraintsSQL = []string{
