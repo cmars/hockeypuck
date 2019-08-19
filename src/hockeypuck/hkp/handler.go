@@ -268,6 +268,12 @@ func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 	if err != nil {
 		log.Errorf("get %q: error writing armored keys: %v", l.Search, err)
 	}
+	// Write a trailing newline as required by the HKP spec
+	// (§3.1.2.1) and as expected by many tools, e.g. RPM.
+	_, err = w.Write([]byte("\n"))
+	if err != nil {
+		log.Errorf("get %q: failed to write trailing newline: %v", l.Search, err)
+	}
 }
 
 func (h *Handler) index(w http.ResponseWriter, l *Lookup, f IndexFormat) {
