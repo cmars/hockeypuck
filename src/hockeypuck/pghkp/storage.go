@@ -106,9 +106,12 @@ func New(db *sql.DB) (hkpstorage.Storage, error) {
 	}
 	err := st.createTables()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errgo.NoteMask(err, "failed to create tables")
 	}
-	st.createIndexes()
+	err = st.createIndexes()
+	if err != nil {
+		return nil, errgo.NoteMask(err, "failed to create indexes")
+	}
 	return st, nil
 }
 
@@ -122,13 +125,14 @@ func (st *storage) createTables() error {
 	return nil
 }
 
-func (st *storage) createIndexes() {
+func (st *storage) createIndexes() error {
 	for _, crIndexSQL := range crIndexesSQL {
 		_, err := st.Exec(crIndexSQL)
 		if err != nil {
-			log.Warningf("error executing %q: %v", crIndexSQL, err)
+			return errgo.Mask(err)
 		}
 	}
+	return nil
 }
 
 type keyDoc struct {
