@@ -109,7 +109,7 @@ func (ok *OpaqueKeyring) Parse() (*PrimaryKey, error) {
 				signablePacket = nil
 				subkey, err := ParseSubKey(opkt)
 				if err != nil {
-					log.Debugf("unreadable subkey packet: %v", err)
+					log.Debugf("unreadable subkey packet in key 0x%s: %v", pubkey.KeyID(), err)
 					badPacket = opkt
 				} else {
 					pubkey.SubKeys = append(pubkey.SubKeys, subkey)
@@ -119,7 +119,7 @@ func (ok *OpaqueKeyring) Parse() (*PrimaryKey, error) {
 				signablePacket = nil
 				uid, err := ParseUserID(opkt, pubkey.UUID)
 				if err != nil {
-					log.Debugf("unreadable user id packet: %v", err)
+					log.Debugf("unreadable user id packet in key 0x%s: %v", pubkey.KeyID(), err)
 					badPacket = opkt
 				} else {
 					pubkey.UserIDs = append(pubkey.UserIDs, uid)
@@ -129,7 +129,7 @@ func (ok *OpaqueKeyring) Parse() (*PrimaryKey, error) {
 				signablePacket = nil
 				uat, err := ParseUserAttribute(opkt, pubkey.UUID)
 				if err != nil {
-					log.Debugf("unreadable user attribute packet: %v", err)
+					log.Debugf("unreadable user attribute packet in key 0x%s: %v", pubkey.KeyID(), err)
 					badPacket = opkt
 				} else {
 					pubkey.UserAttributes = append(pubkey.UserAttributes, uat)
@@ -142,7 +142,7 @@ func (ok *OpaqueKeyring) Parse() (*PrimaryKey, error) {
 				} else {
 					sig, err := ParseSignature(opkt, pubkey.UUID, signablePacket.uuid())
 					if err != nil {
-						log.Debugf("unreadable signature packet: %v", err)
+						log.Debugf("unreadable signature packet in key 0x%s: %v", pubkey.KeyID(), err)
 						badPacket = opkt
 					} else {
 						signablePacket.appendSignature(sig)
@@ -165,7 +165,7 @@ func (ok *OpaqueKeyring) Parse() (*PrimaryKey, error) {
 				}
 				_, isStructuralError := badPacket.Reason.(errors.StructuralError)
 				if badPacket.Reason == io.ErrUnexpectedEOF || isStructuralError {
-					log.Debugf("packet is malformed: %v", badPacket.Reason)
+					log.Debugf("malformed packet in key 0x%s: %v", pubkey.KeyID(), badPacket.Reason)
 					other.Malformed = true
 				}
 				pubkey.Others = append(pubkey.Others, other)

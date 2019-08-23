@@ -57,9 +57,9 @@ type Queryer interface {
 	// The MD5 is calculated using the "SKS method".
 	MatchMD5([]string) ([]string, error)
 
-	// MatchID returns the matching RFingerprint IDs for the given public key IDs.
-	// Key IDs may be short (last 4 bytes), long (last 10 bytes) or full (20 byte)
-	// hexadecimal key IDs.
+	// Resolve returns the matching RFingerprint IDs for the given public key IDs.
+	// Key IDs are typically short (8 hex digits), long (16 digits) or full (40 digits).
+	// Matches are made against key IDs and subkey IDs.
 	Resolve([]string) ([]string, error)
 
 	// MatchKeyword returns the matching RFingerprint IDs for the given keyword search.
@@ -93,7 +93,7 @@ type Updater interface {
 	// Update updates the stored PrimaryKey with the given contents, if the current
 	// contents of the key in storage matches the given digest. If it does not
 	// match, the update should be retried again later.
-	Update(pubkey *openpgp.PrimaryKey, priorMD5 string) error
+	Update(pubkey *openpgp.PrimaryKey, priorID string, priorMD5 string) error
 }
 
 type Notifier interface {
@@ -114,6 +114,7 @@ type KeyChange interface {
 }
 
 type KeyAdded struct {
+	ID     string
 	Digest string
 }
 
@@ -126,11 +127,13 @@ func (ka KeyAdded) RemoveDigests() []string {
 }
 
 func (ka KeyAdded) String() string {
-	return fmt.Sprintf("key %q added", ka.Digest)
+	return fmt.Sprintf("key 0x%s with hash %s added", ka.ID, ka.Digest)
 }
 
 type KeyReplaced struct {
+	OldID     string
 	OldDigest string
+	NewID     string
 	NewDigest string
 }
 
@@ -143,17 +146,20 @@ func (kr KeyReplaced) RemoveDigests() []string {
 }
 
 func (kr KeyReplaced) String() string {
-	return fmt.Sprintf("key %q replaced %q", kr.NewDigest, kr.OldDigest)
+	return fmt.Sprintf("key 0x%s with hash %s replaced key 0x%s with hash %s", kr.NewID, kr.NewDigest, kr.OldID, kr.OldDigest)
 }
 
-type KeyNotChanged struct{}
+type KeyNotChanged struct {
+	ID     string
+	Digest string
+}
 
 func (knc KeyNotChanged) InsertDigests() []string { return nil }
 
 func (knc KeyNotChanged) RemoveDigests() []string { return nil }
 
 func (knc KeyNotChanged) String() string {
-	return "key not changed"
+	return fmt.Sprintf("key 0x%s with hash %s not changed", knc.ID, knc.Digest)
 }
 
 type InsertError struct {
@@ -194,7 +200,7 @@ func UpsertKey(storage Storage, pubkey *openpgp.PrimaryKey) (kc KeyChange, err e
 		if err != nil {
 			return nil, errgo.Mask(err)
 		}
-		return KeyAdded{Digest: pubkey.MD5}, nil
+		return KeyAdded{ID: pubkey.KeyID(), Digest: pubkey.MD5}, nil
 	} else if err != nil {
 		return nil, errgo.Mask(err)
 	}
@@ -202,17 +208,18 @@ func UpsertKey(storage Storage, pubkey *openpgp.PrimaryKey) (kc KeyChange, err e
 	if pubkey.UUID != lastKey.UUID {
 		return nil, errgo.Newf("upsert key %q lookup failed, found mismatch %q", pubkey.UUID, lastKey.UUID)
 	}
+	lastID := lastKey.KeyID()
 	lastMD5 := lastKey.MD5
 	err = openpgp.Merge(lastKey, pubkey)
 	if err != nil {
 		return nil, errgo.Mask(err)
 	}
 	if lastMD5 != lastKey.MD5 {
-		err = storage.Update(lastKey, lastMD5)
+		err = storage.Update(lastKey, lastID, lastMD5)
 		if err != nil {
 			return nil, errgo.Mask(err)
 		}
-		return KeyReplaced{OldDigest: lastMD5, NewDigest: lastKey.MD5}, nil
+		return KeyReplaced{OldID: lastID, OldDigest: lastMD5, NewID: lastKey.KeyID(), NewDigest: lastKey.MD5}, nil
 	}
-	return KeyNotChanged{}, nil
+	return KeyNotChanged{ID: lastID, Digest: lastMD5}, nil
 }

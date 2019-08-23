@@ -1,3 +1,67 @@
+hockeypuck (2.0.12) bionic; urgency=medium
+
+  * remove duplicate role from WithLabelValues in recordReconBusyPeer
+  * get/hget: write required trailing newline
+  * pghkp: use only "IF NOT EXISTS" schema statements
+
+ -- Paul Collins <paul.collins@canonical.com>  Mon, 19 Aug 2019 16:16:47 +1200
+
+hockeypuck (2.0.11) bionic; urgency=medium
+
+  * add prometheus metrics to hockeypuck
+  * switch to a separate metrics listener
+  * more and better logging for recon and recovery
+  * 30 second timeout for hashquery POST requests
+
+ -- Paul Collins <paul.collins@canonical.com>  Wed, 07 Aug 2019 17:21:18 +1200
+
+hockeypuck (2.0.10) bionic; urgency=medium
+
+  * capture and log the HTTP status code, and some other headers
+  * conflux: log remote address
+
+ -- Paul Collins <paul.collins@canonical.com>  Tue, 06 Aug 2019 10:27:58 +1200
+
+hockeypuck (2.0.9) bionic; urgency=medium
+
+  * set ID fields in overlooked KeyAdded and KeyReplaced values, fixing logging
+
+ -- Paul Collins <paul.collins@canonical.com>  Fri, 02 Aug 2019 08:42:20 +1200
+
+hockeypuck (2.0.8) bionic; urgency=medium
+
+  * use plainto_tsquery instead of preparing the query ourselves
+  * pg_config prints a hint on failure; report it
+  * include the public key ID when logging parse errors
+  * include the public key ID when reporting additions and changes
+
+ -- Paul Collins <paul.collins@canonical.com>  Thu, 01 Aug 2019 09:22:34 +1200
+
+hockeypuck (2.0.7) bionic; urgency=medium
+
+  * add systemd unit file, and install it
+  * include the prefix tree key in full-key hash format when logging
+  * match by subkey ID, and do not pass through non-existent full-length IDs
+
+ -- Paul Collins <paul.collins@canonical.com>  Wed, 31 Jul 2019 08:50:15 +1200
+
+hockeypuck (2.0.6) bionic; urgency=medium
+
+  * Handle keywords that exceed tsvector limits.
+
+ -- Joel Sing <joel.sing@canonical.com>  Thu, 27 Jun 2019 02:03:29 +1000
+
+hockeypuck (2.0.5) bionic; urgency=medium
+
+  [ Paul Collins ]
+  * pghkp: report duplicates when inserting
+  * insertKey: flag duplicate keys that have no subkeys
+
+  [ Joel Sing ]
+  * Add hockeypuck website content
+
+ -- Joel Sing <joel.sing@canonical.com>  Fri, 07 Jun 2019 12:14:46 +0200
+
 hockeypuck (2.0.4) bionic; urgency=medium
 
   * Drop malformed packets when serving armoured key ring.

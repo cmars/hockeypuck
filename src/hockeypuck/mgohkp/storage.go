@@ -37,7 +37,6 @@ import (
 const (
 	defaultDBName         = "hkp"
 	defaultCollectionName = "keys"
-	maxFingerprintLen     = 40
 )
 
 type storage struct {
@@ -183,11 +182,7 @@ func (st *storage) Resolve(keyids []string) ([]string, error) {
 
 	var regexes []interface{}
 	for _, keyid := range keyids {
-		if len(keyid) < maxFingerprintLen {
-			regexes = append(regexes, bson.RegEx{Pattern: "^" + keyid})
-		} else {
-			result = append(result, keyid)
-		}
+		regexes = append(regexes, bson.RegEx{Pattern: "^" + keyid})
 	}
 
 	if len(regexes) > 0 {
@@ -398,6 +393,7 @@ func (st *storage) Insert(keys []*openpgp.PrimaryKey) (int, error) {
 			continue
 		}
 		st.Notify(hkpstorage.KeyAdded{
+			ID:     key.KeyID(),
 			Digest: key.MD5,
 		})
 		n++
@@ -409,7 +405,7 @@ func (st *storage) Insert(keys []*openpgp.PrimaryKey) (int, error) {
 	return n, nil
 }
 
-func (st *storage) Update(key *openpgp.PrimaryKey, lastMD5 string) error {
+func (st *storage) Update(key *openpgp.PrimaryKey, lastID string, lastMD5 string) error {
 	openpgp.Sort(key)
 
 	var buf bytes.Buffer
@@ -443,7 +439,9 @@ func (st *storage) Update(key *openpgp.PrimaryKey, lastMD5 string) error {
 	}
 
 	st.Notify(hkpstorage.KeyReplaced{
+		OldID:     lastID,
 		OldDigest: lastMD5,
+		NewID:     key.KeyID(),
 		NewDigest: key.MD5,
 	})
 	return nil

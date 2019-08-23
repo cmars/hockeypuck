@@ -19,20 +19,38 @@ import (
 	"hockeypuck/hkp/sks"
 	"hockeypuck/hkp/storage"
 	log "hockeypuck/logrus"
+	"hockeypuck/metrics"
 	"hockeypuck/mgohkp"
 	"hockeypuck/pghkp"
 )
 
 type Server struct {
-	settings  *Settings
-	st        storage.Storage
-	middle    *interpose.Middleware
-	r         *httprouter.Router
-	sksPeer   *sks.Peer
-	logWriter io.WriteCloser
+	settings        *Settings
+	st              storage.Storage
+	middle          *interpose.Middleware
+	r               *httprouter.Router
+	sksPeer         *sks.Peer
+	logWriter       io.WriteCloser
+	metricsListener *metrics.Metrics
 
 	t                 tomb.Tomb
 	hkpAddr, hkpsAddr string
+}
+
+type statusCodeResponseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func NewStatusCodeResponseWriter(w http.ResponseWriter) *statusCodeResponseWriter {
+	// WriteHeader is not called if our response implicitly
+	// returns 200 OK, so we default to that status code.
+	return &statusCodeResponseWriter{w, http.StatusOK}
+}
+
+func (scrw *statusCodeResponseWriter) WriteHeader(code int) {
+	scrw.statusCode = code
+	scrw.ResponseWriter.WriteHeader(code)
 }
 
 func NewServer(settings *Settings) (*Server, error) {
@@ -55,12 +73,29 @@ func NewServer(settings *Settings) (*Server, error) {
 	s.middle.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 			start := time.Now()
-			next.ServeHTTP(rw, req)
-			log.WithFields(log.Fields{
-				req.Method: req.URL.String(),
-				"duration": time.Since(start).String(),
-				"from":     req.RemoteAddr,
-			}).Info()
+			scrw := NewStatusCodeResponseWriter(rw)
+			next.ServeHTTP(scrw, req)
+			duration := time.Since(start)
+			fields := log.Fields{
+				req.Method:    req.URL.String(),
+				"duration":    duration.String(),
+				"from":        req.RemoteAddr,
+				"host":        req.Host,
+				"status-code": scrw.statusCode,
+				"user-agent":  req.UserAgent(),
+			}
+			proxyHeaders := []string{
+				"x-forwarded-for",
+				"x-forwarded-host",
+				"x-forwarded-server",
+			}
+			for _, ph := range proxyHeaders {
+				if v := req.Header.Get(ph); v != "" {
+					fields[ph] = v
+				}
+			}
+			log.WithFields(fields).Info()
+			recordHTTPRequestDuration(req.Method, scrw.statusCode, duration)
 		})
 	})
 	s.middle.UseHandler(s.r)
@@ -69,6 +104,8 @@ func NewServer(settings *Settings) (*Server, error) {
 	if err != nil {
 		return nil, errgo.Mask(err)
 	}
+
+	s.metricsListener = metrics.NewMetrics(settings.Metrics)
 
 	options := []hkp.HandlerOption{hkp.StatsFunc(s.stats)}
 	if settings.IndexTemplate != "" {
@@ -92,6 +129,9 @@ func NewServer(settings *Settings) (*Server, error) {
 			return nil, errgo.Mask(err)
 		}
 	}
+
+	registerMetrics()
+	s.st.Subscribe(metricsStorageNotifier)
 
 	return s, nil
 }
@@ -251,6 +291,10 @@ func (s *Server) Start() error {
 		s.sksPeer.Start()
 	}
 
+	if s.metricsListener != nil {
+		s.metricsListener.Start()
+	}
+
 	return nil
 }
 
@@ -302,6 +346,9 @@ func (s *Server) Stop() {
 
 	if s.sksPeer != nil {
 		s.sksPeer.Stop()
+	}
+	if s.metricsListener != nil {
+		s.metricsListener.Stop()
 	}
 	s.t.Kill(nil)
 	s.t.Wait()

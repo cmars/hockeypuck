@@ -39,8 +39,7 @@ import (
 )
 
 const (
-	maxFingerprintLen = 40
-	maxInsertErrors   = 100
+	maxInsertErrors = 100
 )
 
 type storage struct {
@@ -55,30 +54,27 @@ var _ hkpstorage.Storage = (*storage)(nil)
 
 var crTablesSQL = []string{
 	`CREATE TABLE IF NOT EXISTS keys (
-rfingerprint TEXT NOT NULL,
+rfingerprint TEXT NOT NULL PRIMARY KEY,
 doc jsonb NOT NULL,
 ctime TIMESTAMP WITH TIME ZONE NOT NULL,
 mtime TIMESTAMP WITH TIME ZONE NOT NULL,
-md5 TEXT NOT NULL,
+md5 TEXT NOT NULL UNIQUE,
 keywords tsvector
 )`,
 	`CREATE TABLE IF NOT EXISTS subkeys (
 rfingerprint TEXT NOT NULL,
-rsubfp TEXT NOT NULL
-)`,
+rsubfp TEXT NOT NULL PRIMARY KEY,
+FOREIGN KEY (rfingerprint) REFERENCES keys(rfingerprint)
+)
+`,
 }
 
 var crIndexesSQL = []string{
-	`ALTER TABLE keys ADD CONSTRAINT keys_pk PRIMARY KEY (rfingerprint);`,
-	`ALTER TABLE keys ADD CONSTRAINT keys_md5 UNIQUE (md5);`,
-	`CREATE INDEX keys_rfp ON keys(rfingerprint text_pattern_ops);`,
-	`CREATE INDEX keys_ctime ON keys (ctime);`,
-	`CREATE INDEX keys_mtime ON keys (mtime);`,
-	`CREATE INDEX keys_keywords ON keys USING gin(keywords);`,
-
-	`ALTER TABLE subkeys ADD CONSTRAINT subkeys_pk PRIMARY KEY (rsubfp);`,
-	`ALTER TABLE subkeys ADD CONSTRAINT subkeys_fk FOREIGN KEY (rfingerprint) REFERENCES keys(rfingerprint);`,
-	`CREATE INDEX subkeys_rfp ON subkeys(rsubfp text_pattern_ops);`,
+	`CREATE INDEX IF NOT EXISTS keys_rfp ON keys(rfingerprint text_pattern_ops);`,
+	`CREATE INDEX IF NOT EXISTS keys_ctime ON keys(ctime);`,
+	`CREATE INDEX IF NOT EXISTS keys_mtime ON keys(mtime);`,
+	`CREATE INDEX IF NOT EXISTS keys_keywords ON keys USING gin(keywords);`,
+	`CREATE INDEX IF NOT EXISTS subkeys_rfp ON subkeys(rsubfp text_pattern_ops);`,
 }
 
 var drConstraintsSQL = []string{
@@ -110,9 +106,12 @@ func New(db *sql.DB) (hkpstorage.Storage, error) {
 	}
 	err := st.createTables()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errgo.NoteMask(err, "failed to create tables")
 	}
-	st.createIndexes()
+	err = st.createIndexes()
+	if err != nil {
+		return nil, errgo.NoteMask(err, "failed to create indexes")
+	}
 	return st, nil
 }
 
@@ -126,13 +125,14 @@ func (st *storage) createTables() error {
 	return nil
 }
 
-func (st *storage) createIndexes() {
+func (st *storage) createIndexes() error {
 	for _, crIndexSQL := range crIndexesSQL {
 		_, err := st.Exec(crIndexSQL)
 		if err != nil {
-			log.Warningf("error executing %q: %v", crIndexSQL, err)
+			return errgo.Mask(err)
 		}
 	}
+	return nil
 }
 
 type keyDoc struct {
@@ -194,19 +194,15 @@ func (st *storage) Resolve(keyids []string) (_ []string, retErr error) {
 	var subKeyIDs []string
 	for _, keyid := range keyids {
 		keyid = strings.ToLower(keyid)
-		if len(keyid) < maxFingerprintLen {
-			var rfp string
-			row := stmt.QueryRow(keyid)
-			err = row.Scan(&rfp)
-			if err == sql.ErrNoRows {
-				subKeyIDs = append(subKeyIDs, keyid)
-			} else if err != nil {
-				return nil, errgo.Mask(err)
-			}
-			result = append(result, rfp)
-		} else {
-			result = append(result, keyid)
+		var rfp string
+		row := stmt.QueryRow(keyid)
+		err = row.Scan(&rfp)
+		if err == sql.ErrNoRows {
+			subKeyIDs = append(subKeyIDs, keyid)
+		} else if err != nil {
+			return nil, errgo.Mask(err)
 		}
+		result = append(result, rfp)
 	}
 
 	if len(subKeyIDs) > 0 {
@@ -231,17 +227,13 @@ func (st *storage) resolveSubKeys(keyids []string) ([]string, error) {
 
 	for _, keyid := range keyids {
 		keyid = strings.ToLower(keyid)
-		if len(keyid) < maxFingerprintLen {
-			var rfp string
-			row := stmt.QueryRow(keyid)
-			err = row.Scan(&rfp)
-			if err != nil && err != sql.ErrNoRows {
-				return nil, errgo.Mask(err)
-			}
-			result = append(result, rfp)
-		} else {
-			result = append(result, keyid)
+		var rfp string
+		row := stmt.QueryRow(keyid)
+		err = row.Scan(&rfp)
+		if err != nil && err != sql.ErrNoRows {
+			return nil, errgo.Mask(err)
 		}
+		result = append(result, rfp)
 	}
 
 	return result, nil
@@ -249,14 +241,13 @@ func (st *storage) resolveSubKeys(keyids []string) ([]string, error) {
 
 func (st *storage) MatchKeyword(search []string) ([]string, error) {
 	var result []string
-	stmt, err := st.Prepare("SELECT rfingerprint FROM keys WHERE keywords @@ to_tsquery($1) LIMIT $2")
+	stmt, err := st.Prepare("SELECT rfingerprint FROM keys WHERE keywords @@ plainto_tsquery($1) LIMIT $2")
 	if err != nil {
 		return nil, errgo.Mask(err)
 	}
 	defer stmt.Close()
 
 	for _, term := range search {
-		term = strings.Join(strings.Split(strings.ToLower(term), " "), " & ")
 		err = func() error {
 			rows, err := stmt.Query(term, 100)
 			if err != nil {
@@ -421,10 +412,10 @@ func readOneKey(b []byte, rfingerprint string) (*openpgp.PrimaryKey, error) {
 	return result, nil
 }
 
-func (st *storage) insertKey(key *openpgp.PrimaryKey) (retErr error) {
+func (st *storage) insertKey(key *openpgp.PrimaryKey) (isDuplicate bool, retErr error) {
 	tx, err := st.Begin()
 	if err != nil {
-		return errgo.Mask(err)
+		return false, errgo.Mask(err)
 	}
 	defer func() {
 		if retErr != nil {
@@ -438,14 +429,14 @@ func (st *storage) insertKey(key *openpgp.PrimaryKey) (retErr error) {
 		"SELECT $1::TEXT, $2::TIMESTAMP, $3::TIMESTAMP, $4::TEXT, $5::JSONB, to_tsvector($6) " +
 		"WHERE NOT EXISTS (SELECT 1 FROM keys WHERE rfingerprint = $1)")
 	if err != nil {
-		return errgo.Mask(err)
+		return false, errgo.Mask(err)
 	}
 	defer stmt.Close()
 
 	subStmt, err := tx.Prepare("INSERT INTO subkeys (rfingerprint, rsubfp) " +
 		"SELECT $1::TEXT, $2::TEXT WHERE NOT EXISTS (SELECT 1 FROM subkeys WHERE rsubfp = $2)")
 	if err != nil {
-		return errgo.Mask(err)
+		return false, errgo.Mask(err)
 	}
 	defer subStmt.Close()
 
@@ -455,21 +446,38 @@ func (st *storage) insertKey(key *openpgp.PrimaryKey) (retErr error) {
 	jsonKey := jsonhkp.NewPrimaryKey(key)
 	jsonBuf, err := json.Marshal(jsonKey)
 	if err != nil {
-		return errgo.Notef(err, "cannot serialize rfp=%q", key.RFingerprint)
+		return false, errgo.Notef(err, "cannot serialize rfp=%q", key.RFingerprint)
 	}
 
 	jsonStr := string(jsonBuf)
-	keyword := strings.Join(keywords(key), " & ")
-	if _, err := stmt.Exec(&key.RFingerprint, &now, &now, &key.MD5, &jsonStr, &keyword); err != nil {
-		return errgo.Notef(err, "cannot insert rfp=%q", key.RFingerprint)
-	}
-	for _, subKey := range key.SubKeys {
-		if _, err := subStmt.Exec(&key.RFingerprint, &subKey.RFingerprint); err != nil {
-			return errgo.Notef(err, "cannot insert rsubfp=%q", subKey.RFingerprint)
-		}
+	keywords := keywordsTSVector(key)
+	result, err := stmt.Exec(&key.RFingerprint, &now, &now, &key.MD5, &jsonStr, &keywords)
+	if err != nil {
+		return false, errgo.Notef(err, "cannot insert rfp=%q", key.RFingerprint)
 	}
 
-	return nil
+	var keysInserted int64
+	if keysInserted, err = result.RowsAffected(); err != nil {
+		// We arrive here if the DB driver doesn't support
+		// RowsAffected, although lib/pq is known to support it.
+		// If it doesn't, then something has gone badly awry!
+		return false, errgo.Notef(err, "rows affected not available when inserting rfp=%q", key.RFingerprint)
+	}
+
+	var rowsAffected int64
+	for _, subKey := range key.SubKeys {
+		result, err := subStmt.Exec(&key.RFingerprint, &subKey.RFingerprint)
+		if err != nil {
+			return false, errgo.Notef(err, "cannot insert rsubfp=%q", subKey.RFingerprint)
+		}
+		if rowsAffected, err = result.RowsAffected(); err != nil {
+			// See above.
+			return false, errgo.Notef(err, "rows affected not available when inserting rsubfp=%q", subKey.RFingerprint)
+		}
+		keysInserted += rowsAffected
+	}
+
+	return keysInserted == 0, nil
 }
 
 func (st *storage) Insert(keys []*openpgp.PrimaryKey) (n int, retErr error) {
@@ -480,12 +488,16 @@ func (st *storage) Insert(keys []*openpgp.PrimaryKey) (n int, retErr error) {
 			return n, result
 		}
 
-		if err := st.insertKey(key); err != nil {
+		if isDuplicate, err := st.insertKey(key); err != nil {
 			result.Errors = append(result.Errors, err)
+			continue
+		} else if isDuplicate {
+			result.Duplicates = append(result.Duplicates, key)
 			continue
 		}
 
 		st.Notify(hkpstorage.KeyAdded{
+			ID:     key.KeyID(),
 			Digest: key.MD5,
 		})
 		n++
@@ -497,7 +509,7 @@ func (st *storage) Insert(keys []*openpgp.PrimaryKey) (n int, retErr error) {
 	return n, nil
 }
 
-func (st *storage) Update(key *openpgp.PrimaryKey, lastMD5 string) (retErr error) {
+func (st *storage) Update(key *openpgp.PrimaryKey, lastID string, lastMD5 string) (retErr error) {
 	tx, err := st.Begin()
 	if err != nil {
 		return errgo.Mask(err)
@@ -518,10 +530,10 @@ func (st *storage) Update(key *openpgp.PrimaryKey, lastMD5 string) (retErr error
 	if err != nil {
 		return errgo.Notef(err, "cannot serialize rfp=%q", key.RFingerprint)
 	}
-	keyword := strings.Join(keywords(key), " & ")
+	keywords := keywordsTSVector(key)
 	_, err = tx.Exec("UPDATE keys SET mtime = $1, md5 = $2, keywords = to_tsvector($3), doc = $4 "+
 		"WHERE rfingerprint = $5",
-		&now, &key.MD5, &keyword, jsonBuf, &key.RFingerprint)
+		&now, &key.MD5, &keywords, jsonBuf, &key.RFingerprint)
 	if err != nil {
 		return errgo.Mask(err)
 	}
@@ -535,15 +547,58 @@ func (st *storage) Update(key *openpgp.PrimaryKey, lastMD5 string) (retErr error
 	}
 
 	st.Notify(hkpstorage.KeyReplaced{
+		OldID:     lastID,
 		OldDigest: lastMD5,
+		NewID:     key.KeyID(),
 		NewDigest: key.MD5,
 	})
 	return nil
 }
 
-// keywords returns a slice of searchable tokens extracted
-// from the given UserID packet keywords string.
-func keywords(key *openpgp.PrimaryKey) []string {
+func keywordsTSVector(key *openpgp.PrimaryKey) string {
+	keywords := keywordsFromKey(key)
+	tsv, err := keywordsToTSVector(keywords)
+	if err != nil {
+		// In this case we've found a key that generated
+		// an invalid tsvector - this is pretty much guaranteed
+		// to be a bogus key, since having a valid key with
+		// user IDs that exceed limits is highly unlikely.
+		// In the future we should catch this earlier and
+		// reject it as a bad key, but for now we just skip
+		// storing keyword information.
+		log.Warningf("keywords for rfp=%q exceeds limit, ignoring: %v", key.RFingerprint, err)
+		return ""
+	}
+	return tsv
+}
+
+// keywordsToTSVector converts a slice of keywords to a
+// PostgreSQL tsvector. If the resulting tsvector would
+// be considered invalid by PostgreSQL an error is
+// returned instead.
+func keywordsToTSVector(keywords []string) (string, error) {
+	const (
+		lexemeLimit   = 2048            // 2KB for single lexeme
+		tsvectorLimit = 1 * 1024 * 1024 // 1MB for lexemes + positions
+	)
+	for _, k := range keywords {
+		if l := len([]byte(k)); l >= lexemeLimit {
+			return "", fmt.Errorf("keyword exceeds limit (%d >= %d)", l, lexemeLimit)
+		}
+	}
+	tsv := strings.Join(keywords, " & ")
+
+	// Allow overhead of 8 bytes for position per keyword.
+	if l := len([]byte(tsv)) + len(keywords)*8; l >= tsvectorLimit {
+		return "", fmt.Errorf("keywords exceeds limit (%d >= %d)", l, tsvectorLimit)
+	}
+	return tsv, nil
+}
+
+// keywordsFromKey returns a slice of searchable tokens
+// extracted from the UserID packets keywords string of
+// the given key.
+func keywordsFromKey(key *openpgp.PrimaryKey) []string {
 	m := make(map[string]bool)
 	for _, uid := range key.UserIDs {
 		s := strings.ToLower(uid.Keywords)

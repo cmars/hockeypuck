@@ -25,6 +25,7 @@ package conflux
 import (
 	"bytes"
 	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 )
@@ -160,6 +161,11 @@ func reversed(b []byte) []byte {
 		result[i] = b[l-i-1]
 	}
 	return result
+}
+
+// FullKeyHash returns Zp in the format of a full-key hash.
+func (zp *Zp) FullKeyHash() string {
+	return hex.EncodeToString(zp.Bytes())
 }
 
 // Bytes returns the byte representation of Zp.

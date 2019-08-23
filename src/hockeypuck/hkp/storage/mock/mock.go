@@ -54,7 +54,7 @@ type modifiedSinceFunc func(time.Time) ([]string, error)
 type fetchKeysFunc func([]string) ([]*openpgp.PrimaryKey, error)
 type fetchKeyringsFunc func([]string) ([]*storage.Keyring, error)
 type insertFunc func([]*openpgp.PrimaryKey) (int, error)
-type updateFunc func(*openpgp.PrimaryKey, string) error
+type updateFunc func(*openpgp.PrimaryKey, string, string) error
 type renotifyAllFunc func() error
 
 type Storage struct {
@@ -156,10 +156,10 @@ func (m *Storage) Insert(keys []*openpgp.PrimaryKey) (int, error) {
 	}
 	return 0, nil
 }
-func (m *Storage) Update(key *openpgp.PrimaryKey, lastMD5 string) error {
+func (m *Storage) Update(key *openpgp.PrimaryKey, lastID string, lastMD5 string) error {
 	m.record("Update", key)
 	if m.update != nil {
-		return m.update(key, lastMD5)
+		return m.update(key, lastID, lastMD5)
 	}
 	return nil
 }

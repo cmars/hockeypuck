@@ -18,7 +18,7 @@ build:
 clean: clean-go
 
 clean-go:
-	go clean -cache
+	rm -rf $(PROJECTPATH)/.gocache
 	rm -rf $(PROJECTPATH)/bin
 	rm -rf $(PROJECTPATH)/pkg
 
@@ -26,7 +26,7 @@ dch:
 	gbp dch --debian-tag='%(version)s' -D bionic --git-log --first-parent
 
 deb-src:
-	debuild -S -sa -I.git
+	debuild -S -sa -I
 
 install-build-depends:
 	sudo apt install \

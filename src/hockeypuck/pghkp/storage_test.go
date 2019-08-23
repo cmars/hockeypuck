@@ -82,9 +82,13 @@ func (s *S) SetUpTest(c *gc.C) {
 }
 
 func (s *S) TearDownTest(c *gc.C) {
-	s.srv.Close()
-	s.db.Exec("DROP DATABASE hkp")
-	s.db.Close()
+	if s.srv != nil {
+		s.srv.Close()
+	}
+	if s.db != nil {
+		s.db.Exec("DROP DATABASE hkp")
+		s.db.Close()
+	}
 	s.PGSuite.TearDownTest(c)
 }
 
@@ -189,10 +193,18 @@ func (s *S) TestResolve(c *gc.C) {
 		// subkeys
 		"0xdb769d16cdb9ad53", "0xe9ebaf4195c1826c", "0x6cdc23d76cba8ca9",
 
+		// full fingerprint subkeys
+		"0xb62a1252f26aebafee124e1fdb769d16cdb9ad53",
+		"0x5b28eca0cc5033df4f00038be9ebaf4195c1826c",
+		"0x313988d090243bb576b88b4f6cdc23d76cba8ca9",
+
 		// contiguous words, usernames, domains and email addresses match
 		"casey", "marshall", "marshal", "casey+marshall", "cAseY+MArSHaLL",
 		"casey.marshall@gmail.com", "casey.marshall@gazzang.com",
-		"casey.marshall", "gmail.com"} {
+		"casey.marshall", "gmail.com",
+
+		// full textual IDs that include characters special to tsquery match
+		"Casey+Marshall+<casey.marshall@gmail.com>"} {
 		comment := gc.Commentf("search=%s", search)
 		res, err = http.Get(s.srv.URL + "/pks/lookup?op=get&search=" + search)
 		c.Assert(err, gc.IsNil, comment)
