@@ -4,7 +4,7 @@ Upstream-Contact: Casey Marshall <cmars@cmarstech.com>
 Source: https://github.com/hockeypuck/hockeypuck
 
 Files: *
-Copyright: 2012-2015 Casey Marshall <cmars@cmarstech.com>
+Copyright: 2012-2019 Casey Marshall <cmars@cmarstech.com>
 Comment: Where not otherwise specified by included third-party package
  dependencies, these terms apply to all files in the package.
 License: AGPL-3
