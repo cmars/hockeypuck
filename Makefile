@@ -1,6 +1,7 @@
 PROJECTPATH = $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 export GOPATH := $(PROJECTPATH)
 export GOCACHE := $(GOPATH)/.gocache
+export GOROOT :=
 export PATH := /usr/lib/go-1.12/bin:$(PATH)
 
 project = hockeypuck
@@ -29,8 +30,10 @@ deb-src:
 	debuild -S -sa -I
 
 install-build-depends:
-	sudo apt install \
+	sudo apt-add-repository -y ppa:canonical-sysadmins/golang
+	sudo apt install -y \
 	    debhelper \
+		dh-systemd \
 	    git-buildpackage \
 	    golang-1.12  # Requires ppa:canonical-sysadmins/golang
 
