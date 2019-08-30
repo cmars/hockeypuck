@@ -1,10 +1,5 @@
 #!/bin/bash
 
-if [[ -z "$EDITOR" || ! -x "$EDITOR" ]]; then
-	echo "EDITOR unset; assuming nano"
-	EDITOR=/bin/nano
-fi
-
 set -euo pipefail
 
 CONFIG=$SNAP_COMMON/config
@@ -14,4 +9,4 @@ if [ ! -e "$CONFIG" ]; then
 	[ -d "$SNAP_COMMON/www" ] || cp -r $SNAP/www $SNAP_COMMON/www
 fi
 
-exec $EDITOR $CONFIG
+exec sensible-editor $CONFIG
