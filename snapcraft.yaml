@@ -33,10 +33,15 @@ apps:
 
 parts:
   hockeypuck:
-    build-snaps: go
+    build-environment:
+      # https://github.com/golang/go/issues/33840
+      - CGO_ENABLED: "0"
+    build-snaps:
+      - go
     plugin: make
     make-parameters:
       - prefix=
+    source: .
 
   wrappers:
     plugin: dump

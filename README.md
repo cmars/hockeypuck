@@ -16,6 +16,19 @@ To locally build the hockeypuck binaries:
   make install-build-depends
   make
 
+## Building a Snap
+
+First, install snapcraft from the Snap store.  There is no version of
+snapcraft in the any Ubuntu release's archive new enough, so if it's
+installed, then remove it:
+
+  sudo apt remove snapcraft
+  snap install snapcraft
+
+Then:
+
+  snapcraft snap
+
 ## Building a Release
 
 In order to release a new version of hockeypuck:
