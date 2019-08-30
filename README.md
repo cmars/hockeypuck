@@ -18,16 +18,30 @@ To locally build the hockeypuck binaries:
 
 ## Building a Snap
 
-First, install snapcraft from the Snap store.  There is no version of
-snapcraft in the any Ubuntu release's archive new enough, so if it's
-installed, then remove it:
+If it's installed, remove the snapcraft Ubuntu package:
 
   sudo apt remove snapcraft
+
+Install snapcraft from the Snap store:
+
   snap install snapcraft
 
-Then:
+Confirm that you're using a recent enough version of snapcraft:
+
+  $ which snapcraft
+  /snap/bin/snapcraft
+  $ snapcraft version
+  snapcraft, version 3.7.2
+  $ _
+
+Now you can build the snap:
 
   snapcraft snap
+
+snapcraft defaults to building in a multipass VM.  If you're already
+in a throwaway environment, you can build the snap as follows instead:
+
+  SNAPCRAFT_BUILD_ENVIRONMENT=host snapcraft snap
 
 ## Building a Release
 
