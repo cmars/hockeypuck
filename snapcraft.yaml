@@ -21,10 +21,12 @@ apps:
   dump:
     command: bin/hockeypuck-dump-wrapper
     plugs:
+      - home
       - network
   load:
     command: bin/hockeypuck-load-wrapper
     plugs:
+      - home
       - network
   pbuild:
     command: bin/hockeypuck-pbuild-wrapper
