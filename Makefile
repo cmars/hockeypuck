@@ -3,6 +3,7 @@ export GOPATH := $(PROJECTPATH)
 export GOCACHE := $(GOPATH)/.gocache
 export PATH := /usr/lib/go-1.12/bin:$(PATH)
 
+prefix = /usr
 project = hockeypuck
 
 commands = \
@@ -27,6 +28,16 @@ dch:
 
 deb-src:
 	debuild -S -sa -I
+
+install:
+	mkdir -p -m 0755 $(DESTDIR)/$(prefix)/bin
+	cp -a bin/hockeypuck* $(DESTDIR)/$(prefix)/bin
+	mkdir -p -m 0755 $(DESTDIR)/etc/hockeypuck
+	cp -a contrib/config/hockeypuck.conf* $(DESTDIR)/etc/hockeypuck
+	mkdir -p -m 0755 $(DESTDIR)/var/lib/hockeypuck/templates
+	cp -a contrib/templates/*.tmpl $(DESTDIR)/var/lib/hockeypuck/templates
+	mkdir -p -m 0755 $(DESTDIR)/var/lib/hockeypuck/www
+	cp -a contrib/webroot/* $(DESTDIR)/var/lib/hockeypuck/www
 
 install-build-depends:
 	sudo apt install \

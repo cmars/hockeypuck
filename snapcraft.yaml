@@ -1,0 +1,50 @@
+name: hockeypuck
+version: git
+summary: keyserver
+description: |
+    Hockeypuck is a keyserver.
+
+base: core18
+confinement: strict
+grade: stable
+
+apps:
+  hockeypuck:
+    command: bin/hockeypuck-wrapper
+    daemon: simple
+    plugs:
+      - network
+      - network-bind
+  config:
+    command: hockeypuck-config-wrapper
+  dump:
+    command: bin/hockeypuck-dump-wrapper
+    plugs:
+      - network
+  load:
+    command: bin/hockeypuck-load-wrapper
+    plugs:
+      - network
+  pbuild:
+    command: bin/hockeypuck-pbuild-wrapper
+    plugs:
+      - network
+
+parts:
+  # There's no convenient way to add a PPA while
+  # building a snap, so we'll just build Go here.
+  go:
+    source-depth: 1
+    source-tag: go1.12.9
+
+  hockeypuck:
+    after: [go]
+    plugin: make
+    make-parameters:
+      - prefix=
+
+  wrappers:
+    plugin: dump
+    source: src/hockeypuck/server/snap
+    organize:
+      "*-wrapper": bin/

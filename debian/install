@@ -1,4 +1,0 @@
-bin/hockeypuck* usr/bin
-contrib/config/hockeypuck.conf* etc/hockeypuck
-contrib/templates/*.tmpl var/lib/hockeypuck/templates
-contrib/webroot/* var/lib/hockeypuck/www
