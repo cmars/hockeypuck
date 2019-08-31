@@ -1,9 +1,0 @@
----
-- hosts: hockeypuck
-  sudo: yes
-  roles:
-    - load-hockeypuck
-- hosts: sks
-  sudo: yes
-  roles:
-    - load-sks
