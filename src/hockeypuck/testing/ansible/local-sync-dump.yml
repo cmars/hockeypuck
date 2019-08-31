@@ -1,4 +1,0 @@
----
-- hosts: localhost
-  tasks:
-   - local_action: shell rsync --exclude sks-dump-allfiles.tar -avr {{ dump_source }} {{ dump_local }}

@@ -1,5 +1,0 @@
----
-- hosts: hockeypuck
-  sudo: yes
-  roles:
-    - load-hockeypuck
