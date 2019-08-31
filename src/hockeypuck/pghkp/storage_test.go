@@ -277,7 +277,6 @@ func (s *S) TestEd25519(c *gc.C) {
 		c.Assert(keys[0].ShortID(), gc.Equals, "e68e311d")
 		c.Assert(keys[0].UserIDs, gc.HasLen, 2)
 		c.Assert(keys[0].UserIDs[0].Keywords, gc.Equals, "Casey Marshall <casey.marshall@canonical.com>")
-		// crypto/openpgp doesn't yet understand ed25519 keys.
-		c.Assert(keys[0].Parsed, gc.Equals, false)
+		c.Assert(keys[0].Parsed, gc.Equals, true)
 	}
 }
