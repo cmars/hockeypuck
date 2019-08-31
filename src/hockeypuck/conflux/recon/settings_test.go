@@ -127,10 +127,10 @@ reconAddr="flarb"
 httpNet="tcp"
 httpAddr="1.2.3.4:8080"
 reconNet="tcp"
-reconAddr=":nope"
+reconAddr=":-1"
 `,
 		nil,
-		`.*unknown port.*`,
+		`.*invalid port.*`,
 	}, {
 		"new-style recon partners",
 		`
