@@ -272,3 +272,17 @@ func (s *SamplePacketSuite) TestMalformedSignatures(c *gc.C) {
 		c.Assert(other.Malformed, gc.Equals, true)
 	}
 }
+
+func (s *SamplePacketSuite) TestECCSelfSigs(c *gc.C) {
+	keys := MustInputAscKeys("ecc_keys.asc")
+	c.Assert(keys, gc.HasLen, 6)
+	for i, key := range keys {
+		ss := key.SelfSigs()
+		c.Assert(ss.Errors, gc.HasLen, 0, gc.Commentf("errors in key #%d: %+v", i, ss.Errors))
+		c.Assert(ss.Valid(), gc.Equals, true, gc.Commentf("invalid key #%d", i))
+		c.Assert(key.UserIDs, gc.HasLen, 1)
+		ss = key.UserIDs[0].SelfSigs(key)
+		c.Assert(ss.Errors, gc.HasLen, 0, gc.Commentf("errors in key #%d: %+v", i, ss.Errors))
+		c.Assert(ss.Valid(), gc.Equals, true, gc.Commentf("invalid key #%d", i))
+	}
+}
