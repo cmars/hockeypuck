@@ -5,7 +5,6 @@
 package openpgp
 
 import (
-	"crypto/rsa"
 	"io"
 	"time"
 
@@ -71,9 +70,9 @@ type KeyRing interface {
 	DecryptionKeys() []Key
 }
 
-// primaryIdentity returns the Identity marked as primary or the first identity
+// PrimaryIdentity returns the Identity marked as primary or the first identity
 // if none are so marked.
-func (e *Entity) primaryIdentity() *Identity {
+func (e *Entity) PrimaryIdentity() *Identity {
 	var firstIdentity *Identity
 	for _, ident := range e.Identities {
 		if firstIdentity == nil {
@@ -86,9 +85,9 @@ func (e *Entity) primaryIdentity() *Identity {
 	return firstIdentity
 }
 
-// encryptionKey returns the best candidate Key for encrypting a message to the
+// EncryptionKey returns the best candidate Key for encrypting a message to the
 // given Entity.
-func (e *Entity) encryptionKey(now time.Time) (Key, bool) {
+func (e *Entity) EncryptionKey(now time.Time) (Key, bool) {
 	candidateSubkey := -1
 
 	// Iterate the keys to find the newest key
@@ -97,7 +96,7 @@ func (e *Entity) encryptionKey(now time.Time) (Key, bool) {
 		if subkey.Sig.FlagsValid &&
 			subkey.Sig.FlagEncryptCommunications &&
 			subkey.PublicKey.PubKeyAlgo.CanEncrypt() &&
-			!subkey.Sig.KeyExpired(now) &&
+			!subkey.PublicKey.KeyExpired(subkey.Sig, now) &&
 			(maxTime.IsZero() || subkey.Sig.CreationTime.After(maxTime)) {
 			candidateSubkey = i
 			maxTime = subkey.Sig.CreationTime
@@ -113,10 +112,10 @@ func (e *Entity) encryptionKey(now time.Time) (Key, bool) {
 	// the primary key doesn't have any usage metadata then we
 	// assume that the primary key is ok. Or, if the primary key is
 	// marked as ok to encrypt to, then we can obviously use it.
-	i := e.primaryIdentity()
+	i := e.PrimaryIdentity()
 	if !i.SelfSignature.FlagsValid || i.SelfSignature.FlagEncryptCommunications &&
 		e.PrimaryKey.PubKeyAlgo.CanEncrypt() &&
-		!i.SelfSignature.KeyExpired(now) {
+		!e.PrimaryKey.KeyExpired(i.SelfSignature, now) {
 		return Key{e, e.PrimaryKey, e.PrivateKey, i.SelfSignature}, true
 	}
 
@@ -124,16 +123,16 @@ func (e *Entity) encryptionKey(now time.Time) (Key, bool) {
 	return Key{}, false
 }
 
-// signingKey return the best candidate Key for signing a message with this
+// SigningKey return the best candidate Key for signing a message with this
 // Entity.
-func (e *Entity) signingKey(now time.Time) (Key, bool) {
+func (e *Entity) SigningKey(now time.Time) (Key, bool) {
 	candidateSubkey := -1
 
 	for i, subkey := range e.Subkeys {
 		if subkey.Sig.FlagsValid &&
 			subkey.Sig.FlagSign &&
 			subkey.PublicKey.PubKeyAlgo.CanSign() &&
-			!subkey.Sig.KeyExpired(now) {
+			!subkey.PublicKey.KeyExpired(subkey.Sig, now) {
 			candidateSubkey = i
 			break
 		}
@@ -146,9 +145,9 @@ func (e *Entity) signingKey(now time.Time) (Key, bool) {
 
 	// If we have no candidate subkey then we assume that it's ok to sign
 	// with the primary key.
-	i := e.primaryIdentity()
+	i := e.PrimaryIdentity()
 	if !i.SelfSignature.FlagsValid || i.SelfSignature.FlagSign &&
-		!i.SelfSignature.KeyExpired(now) {
+		!e.PrimaryKey.KeyExpired(i.SelfSignature, now) {
 		return Key{e, e.PrimaryKey, e.PrivateKey, i.SelfSignature}, true
 	}
 
@@ -424,7 +423,10 @@ func addUserID(e *Entity, packets *packet.Reader, pkt *packet.UserId) error {
 			if err = e.PrimaryKey.VerifyUserIdSignature(pkt.Id, e.PrimaryKey, sig); err != nil {
 				return errors.StructuralError("user ID self-signature invalid: " + err.Error())
 			}
-			identity.SelfSignature = sig
+			if identity.SelfSignature == nil || sig.CreationTime.After(identity.SelfSignature.CreationTime) {
+				identity.SelfSignature = sig
+			}
+			identity.Signatures = append(identity.Signatures, sig)
 			e.Identities[pkt.Id] = identity
 		} else {
 			identity.Signatures = append(identity.Signatures, sig)
@@ -497,94 +499,6 @@ func shouldReplaceSubkeySig(existingSig, potentialNewSig *packet.Signature) bool
 	return potentialNewSig.CreationTime.After(existingSig.CreationTime)
 }
 
-const defaultRSAKeyBits = 2048
-
-// NewEntity returns an Entity that contains a fresh RSA/RSA keypair with a
-// single identity composed of the given full name, comment and email, any of
-// which may be empty but must not contain any of "()<>\x00".
-// If config is nil, sensible defaults will be used.
-func NewEntity(name, comment, email string, config *packet.Config) (*Entity, error) {
-	creationTime := config.Now()
-
-	bits := defaultRSAKeyBits
-	if config != nil && config.RSABits != 0 {
-		bits = config.RSABits
-	}
-
-	uid := packet.NewUserId(name, comment, email)
-	if uid == nil {
-		return nil, errors.InvalidArgumentError("user id field contained invalid characters")
-	}
-	signingPriv, err := rsa.GenerateKey(config.Random(), bits)
-	if err != nil {
-		return nil, err
-	}
-	encryptingPriv, err := rsa.GenerateKey(config.Random(), bits)
-	if err != nil {
-		return nil, err
-	}
-
-	e := &Entity{
-		PrimaryKey: packet.NewRSAPublicKey(creationTime, &signingPriv.PublicKey),
-		PrivateKey: packet.NewRSAPrivateKey(creationTime, signingPriv),
-		Identities: make(map[string]*Identity),
-	}
-	isPrimaryId := true
-	e.Identities[uid.Id] = &Identity{
-		Name:   uid.Id,
-		UserId: uid,
-		SelfSignature: &packet.Signature{
-			CreationTime: creationTime,
-			SigType:      packet.SigTypePositiveCert,
-			PubKeyAlgo:   packet.PubKeyAlgoRSA,
-			Hash:         config.Hash(),
-			IsPrimaryId:  &isPrimaryId,
-			FlagsValid:   true,
-			FlagSign:     true,
-			FlagCertify:  true,
-			IssuerKeyId:  &e.PrimaryKey.KeyId,
-		},
-	}
-	err = e.Identities[uid.Id].SelfSignature.SignUserId(uid.Id, e.PrimaryKey, e.PrivateKey, config)
-	if err != nil {
-		return nil, err
-	}
-
-	// If the user passes in a DefaultHash via packet.Config,
-	// set the PreferredHash for the SelfSignature.
-	if config != nil && config.DefaultHash != 0 {
-		e.Identities[uid.Id].SelfSignature.PreferredHash = []uint8{hashToHashId(config.DefaultHash)}
-	}
-
-	// Likewise for DefaultCipher.
-	if config != nil && config.DefaultCipher != 0 {
-		e.Identities[uid.Id].SelfSignature.PreferredSymmetric = []uint8{uint8(config.DefaultCipher)}
-	}
-
-	e.Subkeys = make([]Subkey, 1)
-	e.Subkeys[0] = Subkey{
-		PublicKey:  packet.NewRSAPublicKey(creationTime, &encryptingPriv.PublicKey),
-		PrivateKey: packet.NewRSAPrivateKey(creationTime, encryptingPriv),
-		Sig: &packet.Signature{
-			CreationTime:              creationTime,
-			SigType:                   packet.SigTypeSubkeyBinding,
-			PubKeyAlgo:                packet.PubKeyAlgoRSA,
-			Hash:                      config.Hash(),
-			FlagsValid:                true,
-			FlagEncryptStorage:        true,
-			FlagEncryptCommunications: true,
-			IssuerKeyId:               &e.PrimaryKey.KeyId,
-		},
-	}
-	e.Subkeys[0].PublicKey.IsSubkey = true
-	e.Subkeys[0].PrivateKey.IsSubkey = true
-	err = e.Subkeys[0].Sig.SignKey(e.Subkeys[0].PublicKey, e.PrivateKey, config)
-	if err != nil {
-		return nil, err
-	}
-	return e, nil
-}
-
 // SerializePrivate serializes an Entity, including private key material, but
 // excluding signatures from other entities, to the given Writer.
 // Identities and subkeys are re-signed in case they changed since NewEntry.
@@ -625,6 +539,67 @@ func (e *Entity) SerializePrivate(w io.Writer, config *packet.Config) (err error
 	return nil
 }
 
+// SerializePrivate serializes an Entity, including private key material, to
+// the given Writer. For now, it must only be used on an Entity returned from
+// NewEntity.
+// If config is nil, sensible defaults will be used.
+// TODO::notes this is a temp function to avoid break other things
+func (e *Entity) SerializePrivateNoSign(w io.Writer, config *packet.Config) (err error) {
+	err = e.PrivateKey.Serialize(w)
+	if err != nil {
+		return
+	}
+	err = e.serializeIdentities(w)
+	if err != nil {
+		return err
+	}
+	for _, subkey := range e.Subkeys {
+		err = subkey.PrivateKey.Serialize(w)
+		if err != nil {
+			return
+		}
+		err = subkey.Sig.Serialize(w)
+		if err != nil {
+			return
+		}
+	}
+	return nil
+}
+
+func (e *Entity) serializeIdentities(w io.Writer) (err error) {
+	for _, ident := range e.Identities {
+		err = ident.UserId.Serialize(w)
+		if err != nil {
+			return err
+		}
+		for _, sig := range ident.Signatures {
+			err = sig.Serialize(w)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return
+}
+
+// SelfSign sign an Entity, on both Identities and Subkeys
+//TODO:: temp fucntion self sign call first before encrypt keys
+func (e *Entity) SelfSign(config *packet.Config) (err error) {
+	for _, ident := range e.Identities {
+		err = ident.SelfSignature.SignUserId(ident.UserId.Id, e.PrimaryKey, e.PrivateKey, config)
+		if err != nil {
+			return
+		}
+	}
+	for _, subkey := range e.Subkeys {
+		err = subkey.Sig.SignKey(subkey.PublicKey, e.PrivateKey, config)
+		if err != nil {
+			return
+		}
+	}
+	return nil
+}
+
 // Serialize writes the public part of the given Entity to w, including
 // signatures from other entities. No private key material will be output.
 func (e *Entity) Serialize(w io.Writer) error {
@@ -634,10 +609,6 @@ func (e *Entity) Serialize(w io.Writer) error {
 	}
 	for _, ident := range e.Identities {
 		err = ident.UserId.Serialize(w)
-		if err != nil {
-			return err
-		}
-		err = ident.SelfSignature.Serialize(w)
 		if err != nil {
 			return err
 		}
