@@ -11,7 +11,7 @@ services:
     depends_on:
     - postgres
     volumes:
-    - ./contrib/docker-compose/etc:/hockeypuck/etc
+    - ./contrib/docker-compose/hockeypuck/etc:/hockeypuck/etc
     - hkp_data:/hockeypuck/data
 
   postgres:
