@@ -22,6 +22,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"sort"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/openpgp/armor"
@@ -237,4 +238,45 @@ func (s *ResolveSuite) TestMergeAddSig(c *gc.C) {
 	err := Merge(unsignedKeys[0], signedKeys[0])
 	c.Assert(err, gc.IsNil)
 	c.Assert(hasExpectedSig(unsignedKeys[0]), gc.Equals, true)
+}
+
+func (s *ResolveSuite) TestSelfSignedOnly_BadSigs(c *gc.C) {
+	key := MustInputAscKey("badselfsig.asc")
+	// Key material contains some uid signatures by a colleague and a forged
+	// uid packet with an invalid signature packet.
+	c.Assert(key.UserIDs, gc.HasLen, 5)
+	c.Assert(key.SubKeys, gc.HasLen, 3)
+
+	c.Assert(SelfSignedOnly(key), gc.IsNil)
+	c.Assert(key.UserIDs, gc.HasLen, 2)
+	for _, uid := range key.UserIDs {
+		c.Logf("uid %v", uid.Keywords)
+		if strings.Contains(uid.Keywords, "gazzang") {
+			c.Assert(uid.Signatures, gc.HasLen, 2)
+		} else {
+			c.Assert(uid.Signatures, gc.HasLen, 1)
+		}
+	}
+	c.Assert(key.SubKeys, gc.HasLen, 3)
+	for _, sub := range key.SubKeys {
+		if sub.KeyID() == "db769d16cdb9ad53" {
+			c.Assert(sub.Signatures, gc.HasLen, 2)
+		} else {
+			c.Assert(sub.Signatures, gc.HasLen, 1)
+		}
+	}
+}
+
+func (s *ResolveSuite) TestSelfSignedOnly_V3SigDropped(c *gc.C) {
+	key := MustInputAscKey("0ff16c87.asc")
+	c.Assert(key.UserIDs, gc.HasLen, 9)
+	c.Assert(key.SubKeys, gc.HasLen, 1)
+
+	c.Assert(SelfSignedOnly(key), gc.IsNil)
+	c.Assert(key.UserIDs, gc.HasLen, 9)
+	for _, uid := range key.UserIDs {
+		c.Assert(uid.Signatures, gc.HasLen, 1)
+	}
+	// v3 signature on a v4 packet is dropped
+	c.Assert(key.SubKeys, gc.HasLen, 0)
 }

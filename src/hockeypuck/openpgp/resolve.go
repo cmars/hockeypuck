@@ -24,7 +24,7 @@ import (
 	"gopkg.in/errgo.v1"
 )
 
-func SelfSignedOnly(key *PrimaryKey) {
+func SelfSignedOnly(key *PrimaryKey) error {
 	var userIDs []*UserID
 	var userAttributes []*UserAttribute
 	var subKeys []*SubKey
@@ -75,6 +75,7 @@ func SelfSignedOnly(key *PrimaryKey) {
 	key.UserIDs = userIDs
 	key.UserAttributes = userAttributes
 	key.SubKeys = subKeys
+	return key.updateMD5()
 }
 
 func DropDuplicates(key *PrimaryKey) error {
