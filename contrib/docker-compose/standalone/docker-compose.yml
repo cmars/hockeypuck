@@ -1,0 +1,48 @@
+version: '2'
+services:
+  hockeypuck:
+    image: hockeypuck/hockeypuck:sub-pool
+    ports:
+    - "11370:11370"
+    - "11371:11371"
+    restart: always
+    depends_on:
+    - postgres
+    volumes:
+    - ./hockeypuck/etc:/hockeypuck/etc
+    - hkp_data:/hockeypuck/data
+
+  postgres:
+    image: postgres:11
+    restart: always
+    environment:
+    - POSTGRES_USER=${POSTGRES_USER}
+    - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    - POSTGRES_DB=hkp
+    volumes:
+    - pg_data:/var/lib/postgresql/data
+
+#  nginx:
+#    image: nginx:1.17.13
+#    ports:
+#    - "80:80"
+#    - "443:443"
+#    restart: always
+#    volumes:
+#    - ./nginx/conf.d:/etc/nginx/conf.d
+#    - ./data/certbot/conf:/etc/letsencrypt
+#    - ./data/certbot/www:/var/www/certbot
+#    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+
+#  certbot:
+#    image: certbot/certbot
+#    restart: always
+#    volumes:
+#    - ./data/certbot/conf:/etc/letsencrypt
+#    - ./data/certbot/www:/var/www/certbot
+#    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
+volumes:
+  hkp_data: {}
+  pg_data: {}
+
