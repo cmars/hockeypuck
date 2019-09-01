@@ -5,6 +5,9 @@ export PATH := /usr/lib/go-1.12/bin:$(PATH)
 
 project = hockeypuck
 
+prefix = /usr
+statedir = /var/lib/$(project)
+
 commands = \
 	hockeypuck \
 	hockeypuck-dump \
@@ -27,6 +30,16 @@ dch:
 
 deb-src:
 	debuild -S -sa -I
+
+install:
+	mkdir -p -m 0755 $(DESTDIR)/$(prefix)/bin
+	cp -a bin/hockeypuck* $(DESTDIR)/$(prefix)/bin
+	mkdir -p -m 0755 $(DESTDIR)/etc/hockeypuck
+	cp -a contrib/config/hockeypuck.conf* $(DESTDIR)/etc/hockeypuck
+	mkdir -p -m 0755 $(DESTDIR)$(statedir)/templates
+	cp -a contrib/templates/*.tmpl $(DESTDIR)$(statedir)/templates
+	mkdir -p -m 0755 $(DESTDIR)$(statedir)/www
+	cp -a contrib/webroot/* $(DESTDIR)$(statedir)/www
 
 install-build-depends:
 	sudo apt install \
