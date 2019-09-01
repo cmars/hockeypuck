@@ -1,3 +1,10 @@
+hockeypuck (2.0.13) bionic; urgency=medium
+
+  * support for gnupg 2.x ECC keys
+  * misc test fixes
+
+ -- Casey Marshall <casey.marshall@canonical.com>  Sun, 01 Sep 2019 14:08:26 -0500
+
 hockeypuck (2.0.12) bionic; urgency=medium
 
   * remove duplicate role from WithLabelValues in recordReconBusyPeer
