@@ -265,7 +265,9 @@ func (h *Handler) keys(l *Lookup) ([]*openpgp.PrimaryKey, error) {
 	}
 	if h.selfSignedOnly {
 		for _, key := range keys {
-			openpgp.SelfSignedOnly(key)
+			if err := openpgp.SelfSignedOnly(key); err != nil {
+				return nil, errgo.Mask(err)
+			}
 		}
 	}
 	return keys, nil
