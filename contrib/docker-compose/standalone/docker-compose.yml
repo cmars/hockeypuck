@@ -1,0 +1,72 @@
+version: '2'
+services:
+  hockeypuck:
+    image: hockeypuck/hockeypuck:sub-pool
+    ports:
+    - "11370:11370"
+    - "11371:11371"
+    - "9626"
+    restart: always
+    depends_on:
+    - postgres
+    volumes:
+    - ./hockeypuck/etc:/hockeypuck/etc
+    - hkp_data:/hockeypuck/data
+    - pgp_import:/hockeypuck/import
+
+  import-keys:
+    image: ubuntu:18.04
+    entrypoint: /bin/bash
+    tty: true
+    volumes:
+    - pgp_import:/import
+
+  postgres:
+    image: postgres:11
+    restart: always
+    environment:
+    - POSTGRES_USER=${POSTGRES_USER}
+    - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    - POSTGRES_DB=hkp
+    volumes:
+    - pg_data:/var/lib/postgresql/data
+
+  prometheus:
+    image: prom/prometheus:v2.12.0
+    ports:
+    - "9090"
+    restart: always
+    depends_on:
+    - hockeypuck
+    volumes:
+    - prom_data:/prometheus
+    - ./prometheus/etc:/etc/prometheus
+
+  nginx:
+    image: nginx:1.17.3
+    ports:
+    - "80:80"
+    - "443:443"
+    restart: always
+    depends_on:
+    - hockeypuck
+    - prometheus
+    volumes:
+    - ./nginx/conf.d:/etc/nginx/conf.d
+    - ./data/certbot/conf:/etc/letsencrypt
+    - ./data/certbot/www:/var/www/certbot
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+
+  certbot:
+    image: certbot/certbot
+    restart: always
+    volumes:
+    - ./data/certbot/conf:/etc/letsencrypt
+    - ./data/certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
+volumes:
+  hkp_data: {}
+  pg_data: {}
+  prom_data: {}
+  pgp_import: {}

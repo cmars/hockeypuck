@@ -1,0 +1,30 @@
+server {
+    listen 80;
+    server_name FQDN;
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+server {
+    listen 443 ssl;
+    server_name FQDN;
+    ssl_certificate /etc/letsencrypt/live/FQDN/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/FQDN/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+    location /monitoring/prometheus {
+        proxy_pass http://prometheus:9090;
+        sub_filter_types text/html;
+        sub_filter_once off;
+        sub_filter '="/' '="/monitoring/prometheus/';
+        sub_filter 'var PATH_PREFIX = "";' 'var PATH_PREFIX = "/monitoring/prometheus";';
+        rewrite ^/monitoring/prometheus/?$ /monitoring/prometheus/graph redirect;
+        rewrite ^/monitoring/prometheus/(.*)$ /$1 break;
+    }
+    location / {
+        proxy_pass http://hockeypuck:11371;
+    }
+}
