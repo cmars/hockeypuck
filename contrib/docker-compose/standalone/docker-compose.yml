@@ -28,6 +28,8 @@ services:
     - "80:80"
     - "443:443"
     restart: always
+    depends_on:
+    - hockeypuck
     volumes:
     - ./nginx/conf.d:/etc/nginx/conf.d
     - ./data/certbot/conf:/etc/letsencrypt
