@@ -11,6 +11,14 @@ services:
     volumes:
     - ./hockeypuck/etc:/hockeypuck/etc
     - hkp_data:/hockeypuck/data
+    - pgp_import:/hockeypuck/import
+
+  import-keys:
+    image: ubuntu:18.04
+    entrypoint: /bin/bash
+    tty: true
+    volumes:
+    - pgp_import:/import
 
   postgres:
     image: postgres:11
@@ -47,4 +55,4 @@ services:
 volumes:
   hkp_data: {}
   pg_data: {}
-
+  pgp_import: {}
