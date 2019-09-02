@@ -5,6 +5,7 @@ services:
     ports:
     - "11370:11370"
     - "11371:11371"
+    - "9626"
     restart: always
     depends_on:
     - postgres
@@ -30,6 +31,17 @@ services:
     volumes:
     - pg_data:/var/lib/postgresql/data
 
+  prometheus:
+    image: prom/prometheus:v2.12.0
+    ports:
+    - "9090"
+    restart: always
+    depends_on:
+    - hockeypuck
+    volumes:
+    - prom_data:/prometheus
+    - ./prometheus/etc:/etc/prometheus
+
   nginx:
     image: nginx:1.17.3
     ports:
@@ -38,6 +50,7 @@ services:
     restart: always
     depends_on:
     - hockeypuck
+    - prometheus
     volumes:
     - ./nginx/conf.d:/etc/nginx/conf.d
     - ./data/certbot/conf:/etc/letsencrypt
@@ -55,4 +68,5 @@ services:
 volumes:
   hkp_data: {}
   pg_data: {}
+  prom_data: {}
   pgp_import: {}
