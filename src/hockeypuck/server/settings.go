@@ -44,10 +44,19 @@ const (
 
 type HKPConfig struct {
 	Bind string `toml:"bind"`
+
+	Queries queryConfig `toml:"queries"`
+}
+
+type queryConfig struct {
+	// Only respond with verified self-signed key material in queries
+	SelfSignedOnly bool `toml:"selfSignedOnly"`
+	// Only allow fingerprint / key ID queries; no UID keyword searching allowed
+	FingerprintOnly bool `toml:"keywordSearchDisabled"`
 }
 
 type HKPSConfig struct {
-	HKPConfig
+	Bind string `toml:"bind"`
 	Cert string `toml:"cert"`
 	Key  string `toml:"key"`
 }
