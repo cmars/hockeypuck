@@ -22,25 +22,25 @@ services:
     volumes:
     - pg_data:/var/lib/postgresql/data
 
-#  nginx:
-#    image: nginx:1.17.13
-#    ports:
-#    - "80:80"
-#    - "443:443"
-#    restart: always
-#    volumes:
-#    - ./nginx/conf.d:/etc/nginx/conf.d
-#    - ./data/certbot/conf:/etc/letsencrypt
-#    - ./data/certbot/www:/var/www/certbot
-#    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+  nginx:
+    image: nginx:1.17.13
+    ports:
+    - "80:80"
+    - "443:443"
+    restart: always
+    volumes:
+    - ./nginx/conf.d:/etc/nginx/conf.d
+    - ./data/certbot/conf:/etc/letsencrypt
+    - ./data/certbot/www:/var/www/certbot
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
 
-#  certbot:
-#    image: certbot/certbot
-#    restart: always
-#    volumes:
-#    - ./data/certbot/conf:/etc/letsencrypt
-#    - ./data/certbot/www:/var/www/certbot
-#    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+  certbot:
+    image: certbot/certbot
+    restart: always
+    volumes:
+    - ./data/certbot/conf:/etc/letsencrypt
+    - ./data/certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
 volumes:
   hkp_data: {}
