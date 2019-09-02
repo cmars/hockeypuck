@@ -314,7 +314,10 @@ func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 
 func (h *Handler) index(w http.ResponseWriter, l *Lookup, f IndexFormat) {
 	keys, err := h.keys(l)
-	if err != nil {
+	if err == errKeywordSearchNotAvailable {
+		httpError(w, http.StatusBadRequest, errgo.Mask(err))
+		return
+	} else if err != nil {
 		httpError(w, http.StatusInternalServerError, errgo.Mask(err))
 		return
 	}
