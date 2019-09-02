@@ -24,6 +24,60 @@ import (
 	"gopkg.in/errgo.v1"
 )
 
+func SelfSignedOnly(key *PrimaryKey) error {
+	var userIDs []*UserID
+	var userAttributes []*UserAttribute
+	var subKeys []*SubKey
+	for _, uid := range key.UserIDs {
+		ss := uid.SelfSigs(key)
+		var certs []*Signature
+		for _, cert := range ss.Certifications {
+			if cert.Error == nil {
+				certs = append(certs, cert.Signature)
+			}
+		}
+		if len(certs) > 0 {
+			uid.Signatures = certs
+			userIDs = append(userIDs, uid)
+		}
+	}
+	for _, uat := range key.UserAttributes {
+		ss := uat.SelfSigs(key)
+		var certs []*Signature
+		for _, cert := range ss.Certifications {
+			if cert.Error == nil {
+				certs = append(certs, cert.Signature)
+			}
+		}
+		if len(certs) > 0 {
+			uat.Signatures = certs
+			userAttributes = append(userAttributes, uat)
+		}
+	}
+	for _, subKey := range key.SubKeys {
+		ss := subKey.SelfSigs(key)
+		var certs []*Signature
+		for _, cert := range ss.Revocations {
+			if cert.Error == nil {
+				certs = append(certs, cert.Signature)
+			}
+		}
+		for _, cert := range ss.Certifications {
+			if cert.Error == nil {
+				certs = append(certs, cert.Signature)
+			}
+		}
+		if len(certs) > 0 {
+			subKey.Signatures = certs
+			subKeys = append(subKeys, subKey)
+		}
+	}
+	key.UserIDs = userIDs
+	key.UserAttributes = userAttributes
+	key.SubKeys = subKeys
+	return key.updateMD5()
+}
+
 func DropDuplicates(key *PrimaryKey) error {
 	err := dedup(key, nil)
 	if err != nil {

@@ -107,7 +107,11 @@ func NewServer(settings *Settings) (*Server, error) {
 
 	s.metricsListener = metrics.NewMetrics(settings.Metrics)
 
-	options := []hkp.HandlerOption{hkp.StatsFunc(s.stats)}
+	options := []hkp.HandlerOption{
+		hkp.StatsFunc(s.stats),
+		hkp.SelfSignedOnly(settings.HKP.Queries.SelfSignedOnly),
+		hkp.FingerprintOnly(settings.HKP.Queries.FingerprintOnly),
+	}
 	if settings.IndexTemplate != "" {
 		options = append(options, hkp.IndexTemplate(settings.IndexTemplate))
 	}
