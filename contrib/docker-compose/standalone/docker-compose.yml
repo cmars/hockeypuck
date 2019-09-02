@@ -1,7 +1,7 @@
 version: '2'
 services:
   hockeypuck:
-    image: hockeypuck/hockeypuck:sub-pool
+    image: hockeypuck/hockeypuck:2.0.14
     ports:
     - "11370:11370"
     - "11371:11371"
