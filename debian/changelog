@@ -1,3 +1,11 @@
+hockeypuck (2.0.14) bionic; urgency=medium
+
+  * add option to disable keyword searches
+  * add option to send only valid self-signed packets in responses
+  * added example standalone docker-compose deployment
+
+ -- Casey Marshall <casey.marshall@canonical.com>  Mon, 02 Sep 2019 16:42:39 -0500
+
 hockeypuck (2.0.13) bionic; urgency=medium
 
   * support for gnupg 2.x ECC keys
