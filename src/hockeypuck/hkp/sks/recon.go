@@ -241,7 +241,7 @@ func (r *Peer) handleRecovery() error {
 
 func (r *Peer) requestRecovered(rcvr *recon.Recover) error {
 	items := rcvr.RemoteElements
-	var resultErr error
+	errCount := 0
 	for len(items) > 0 {
 		// Chunk requests to keep the hashquery message size and peer load reasonable.
 		chunksize := requestChunkSize
@@ -253,14 +253,14 @@ func (r *Peer) requestRecovered(rcvr *recon.Recover) error {
 
 		err := r.requestChunk(rcvr, chunk)
 		if err != nil {
-			if resultErr == nil {
-				resultErr = errgo.Mask(err)
-			} else {
-				resultErr = errgo.Notef(resultErr, "%s", errgo.Details(err))
-			}
+			r.logAddr(RECON, rcvr.RemoteAddr).Errorf("failed to request chunk of %d keys: %v", len(chunk), err)
+			errCount += 1
 		}
 	}
-	return resultErr
+	if errCount > 0 {
+		return errgo.Newf("%d errors requesting chunks", errCount)
+	}
+	return nil
 }
 
 func (r *Peer) requestChunk(rcvr *recon.Recover, chunk []*cf.Zp) error {
@@ -294,7 +294,7 @@ func (r *Peer) requestChunk(rcvr *recon.Recover, chunk []*cf.Zp) error {
 	url := fmt.Sprintf("http://%s/pks/hashquery", remoteAddr)
 	resp, err := r.http.Post(url, "sks/hashquery", bytes.NewReader(hqBuf.Bytes()))
 	if err != nil {
-		return errgo.Mask(err)
+		return errgo.NoteMask(err, "failed to query hashes")
 	}
 
 	// Store response in memory. Connection may timeout if we
