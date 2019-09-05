@@ -1,3 +1,10 @@
+hockeypuck (2.0.13) bionic; urgency=medium
+
+  * snapcraft.yaml for in-tree builds
+  * don't use errgo.Notef to collect all errors in requestRecovered
+
+ -- Paul Collins <paul.collins@canonical.com>  Fri, 06 Sep 2019 09:49:41 +1200
+
 hockeypuck (2.0.12) bionic; urgency=medium
 
   * remove duplicate role from WithLabelValues in recordReconBusyPeer
