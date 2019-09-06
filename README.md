@@ -64,7 +64,7 @@ in a throwaway environment, you can build the snap as follows instead:
 
 Or use LXD for a lighter-weight isolated build:
 
-    SNAPCRAFT_BUILD_ENVIRONMENT=host snapcraft snap
+    SNAPCRAFT_BUILD_ENVIRONMENT=lxd snapcraft snap
 
 ## Ubuntu package maintainers
 
