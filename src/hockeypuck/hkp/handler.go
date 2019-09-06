@@ -45,6 +45,8 @@ const (
 	fingerprintKeyIDLen = 40
 )
 
+var errKeywordSearchNotAvailable = errgo.New("keyword search is not available")
+
 func httpError(w http.ResponseWriter, statusCode int, err error) {
 	if statusCode != http.StatusNotFound {
 		log.Errorf("HTTP %d: %v", statusCode, errgo.Details(err))
@@ -60,6 +62,9 @@ type Handler struct {
 
 	statsTemplate *template.Template
 	statsFunc     func() (interface{}, error)
+
+	selfSignedOnly  bool
+	fingerprintOnly bool
 }
 
 type HandlerOption func(h *Handler) error
@@ -116,6 +121,20 @@ func StatsTemplate(path string, extra ...string) HandlerOption {
 func StatsFunc(f func() (interface{}, error)) HandlerOption {
 	return func(h *Handler) error {
 		h.statsFunc = f
+		return nil
+	}
+}
+
+func SelfSignedOnly(selfSignedOnly bool) HandlerOption {
+	return func(h *Handler) error {
+		h.selfSignedOnly = selfSignedOnly
+		return nil
+	}
+}
+
+func FingerprintOnly(fingerprintOnly bool) HandlerOption {
+	return func(h *Handler) error {
+		h.fingerprintOnly = fingerprintOnly
 		return nil
 	}
 }
@@ -229,6 +248,9 @@ func (h *Handler) resolve(l *Lookup) ([]string, error) {
 			return h.storage.Resolve([]string{keyID})
 		}
 	}
+	if h.fingerprintOnly {
+		return nil, errKeywordSearchNotAvailable
+	}
 	return h.storage.MatchKeyword([]string{l.Search})
 }
 
@@ -237,12 +259,26 @@ func (h *Handler) keys(l *Lookup) ([]*openpgp.PrimaryKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	return h.storage.FetchKeys(rfps)
+	keys, err := h.storage.FetchKeys(rfps)
+	if err != nil {
+		return nil, errgo.Mask(err)
+	}
+	if h.selfSignedOnly {
+		for _, key := range keys {
+			if err := openpgp.SelfSignedOnly(key); err != nil {
+				return nil, errgo.Mask(err)
+			}
+		}
+	}
+	return keys, nil
 }
 
 func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 	keys, err := h.keys(l)
-	if err != nil {
+	if err == errKeywordSearchNotAvailable {
+		httpError(w, http.StatusBadRequest, errgo.Mask(err))
+		return
+	} else if err != nil {
 		httpError(w, http.StatusInternalServerError, errgo.Mask(err))
 		return
 	}
@@ -278,7 +314,10 @@ func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 
 func (h *Handler) index(w http.ResponseWriter, l *Lookup, f IndexFormat) {
 	keys, err := h.keys(l)
-	if err != nil {
+	if err == errKeywordSearchNotAvailable {
+		httpError(w, http.StatusBadRequest, errgo.Mask(err))
+		return
+	} else if err != nil {
 		httpError(w, http.StatusInternalServerError, errgo.Mask(err))
 		return
 	}
