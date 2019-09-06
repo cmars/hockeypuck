@@ -28,6 +28,7 @@ import (
 	"errors"
 	"hash"
 	"io"
+	"math"
 	"math/big"
 
 	"golang.org/x/crypto/internal/randutil"
@@ -203,14 +204,8 @@ func (priv *PrivateKey) Validate() error {
 
 // GenerateKey generates an RSA keypair of the given bit size using the
 // random source random (for example, crypto/rand.Reader).
-func GenerateKey(random io.Reader, bits int) (*PrivateKey, error) {
-	return GenerateMultiPrimeKey(random, 2, bits)
-}
-
-// GenerateKeyWithPrimes generates an RSA keypair of the given bit size using
-// the random source random and the given prepopulated primes.
-func GenerateKeyWithPrimes(random io.Reader, bits int, primes []*big.Int) (*PrivateKey, error) {
-	return GenerateMultiPrimeKeyWithPrimes(random, 2, bits, primes)
+func GenerateKey(random io.Reader, bits int, primes []*big.Int) (*PrivateKey, error) {
+	return GenerateMultiPrimeKey(random, 2, bits, primes)
 }
 
 // GenerateMultiPrimeKey generates a multi-prime RSA keypair of the given bit
@@ -224,14 +219,7 @@ func GenerateKeyWithPrimes(random io.Reader, bits int, primes []*big.Int) (*Priv
 //
 // [1] US patent 4405829 (1972, expired)
 // [2] http://www.cacr.math.uwaterloo.ca/techreports/2006/cacr2006-16.pdf
-func GenerateMultiPrimeKey(random io.Reader, nprimes int, bits int) (*PrivateKey, error) {
-	var prepopulatedPrimes []*big.Int
-	return GenerateMultiPrimeKeyWithPrimes(random, nprimes, bits, prepopulatedPrimes);
-}
-
-// GenerateMultiPrimeKeyWithPrimes generates a multi-prime RSA keypair of the
-// given bit size, using the given random source and prepopulated primes.
-func GenerateMultiPrimeKeyWithPrimes(random io.Reader, nprimes int, bits int, prepopulatedPrimes []*big.Int) (*PrivateKey, error) {
+func GenerateMultiPrimeKey(random io.Reader, nprimes int, bits int, prepopulatedPrimes []*big.Int) (*PrivateKey, error) {
 	randutil.MaybeReadByte(random)
 
 	priv := new(PrivateKey)
@@ -241,8 +229,19 @@ func GenerateMultiPrimeKeyWithPrimes(random io.Reader, nprimes int, bits int, pr
 		return nil, errors.New("crypto/rsa: GenerateMultiPrimeKey: nprimes must be >= 2")
 	}
 
-	if bits < 1024 {
-		return nil, errors.New("crypto/rsa: bits must be >= 1024")
+	if bits < 64 {
+		primeLimit := float64(uint64(1) << uint(bits/nprimes))
+		// pi approximates the number of primes less than primeLimit
+		pi := primeLimit / (math.Log(primeLimit) - 1)
+		// Generated primes start with 11 (in binary) so we can only
+		// use a quarter of them.
+		pi /= 4
+		// Use a factor of two to ensure that key generation terminates
+		// in a reasonable amount of time.
+		pi /= 2
+		if pi <= float64(nprimes) {
+			return nil, errors.New("crypto/rsa: too few primes of given length to generate an RSA key")
+		}
 	}
 
 	primes := make([]*big.Int, nprimes)

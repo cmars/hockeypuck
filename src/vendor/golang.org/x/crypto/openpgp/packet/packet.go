@@ -10,10 +10,10 @@ import (
 	"bytes"
 	"bufio"
 	"crypto/cipher"
+	"io"
+
 	"golang.org/x/crypto/openpgp/errors"
 	"golang.org/x/crypto/openpgp/internal/algorithm"
-	"golang.org/x/crypto/rsa"
-	"io"
 )
 
 // readFull is the same as io.ReadFull except that reading zero bytes returns
@@ -424,18 +424,16 @@ const (
 type PublicKeyAlgorithm uint8
 
 const (
-	PubKeyAlgoRSA     PublicKeyAlgorithm = 1
-	PubKeyAlgoElGamal PublicKeyAlgorithm = 16
-	PubKeyAlgoDSA     PublicKeyAlgorithm = 17
+	PubKeyAlgoRSA            PublicKeyAlgorithm = 1
+	PubKeyAlgoRSAEncryptOnly PublicKeyAlgorithm = 2
+	PubKeyAlgoRSASignOnly    PublicKeyAlgorithm = 3
+	PubKeyAlgoElGamal        PublicKeyAlgorithm = 16
+	PubKeyAlgoDSA            PublicKeyAlgorithm = 17
 	// RFC 6637, Section 5.
 	PubKeyAlgoECDH  PublicKeyAlgorithm = 18
 	PubKeyAlgoECDSA PublicKeyAlgorithm = 19
 	// https://www.ietf.org/archive/id/draft-koch-eddsa-for-openpgp-04.txt
 	PubKeyAlgoEdDSA PublicKeyAlgorithm = 22
-
-	// Deprecated in RFC 4880, Section 13.5. Use key flags instead.
-	PubKeyAlgoRSAEncryptOnly PublicKeyAlgorithm = 2
-	PubKeyAlgoRSASignOnly    PublicKeyAlgorithm = 3
 )
 
 // CanEncrypt returns true if it's possible to encrypt a message to a public
@@ -483,18 +481,6 @@ func (cipher CipherFunction) blockSize() int {
 // new returns a fresh instance of the given cipher.
 func (cipher CipherFunction) new(key []byte) (block cipher.Block) {
 	return algorithm.CipherFunction(cipher).New(key)
-}
-
-// padToKeySize left-pads a MPI with zeroes to match the length of the
-// specified RSA public.
-func padToKeySize(pub *rsa.PublicKey, b []byte) []byte {
-	k := (pub.N.BitLen() + 7) / 8
-	if len(b) >= k {
-		return b
-	}
-	bb := make([]byte, k)
-	copy(bb[len(bb)-len(b):], b)
-	return bb
 }
 
 // CompressionAlgo Represents the different compression algorithms
