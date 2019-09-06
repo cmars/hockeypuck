@@ -85,11 +85,10 @@ This will upload the debian source package to the Launchpad PPA for building.
 
 ## Quick start with Docker
 
-Easiest way to run Hockeypuck locally is with `docker-compose`:
+A quick and easy way to run Hockeypuck locally is with `docker-compose`:
 
     docker-compose up
 
 # About
 
 Copyright 2019, The Hockeypuck Developers; see CONTRIBUTORS and LICENSE for details.
-
