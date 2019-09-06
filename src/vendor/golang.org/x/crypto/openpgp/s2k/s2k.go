@@ -13,7 +13,6 @@ import (
 	"strconv"
 
 	"golang.org/x/crypto/openpgp/errors"
-	"golang.org/x/crypto/openpgp/internal/algorithm"
 )
 
 // Config collects configuration parameters for s2k key-stretching
@@ -21,46 +20,41 @@ import (
 // values. Currently, Config is used only by the Serialize function in
 // this package.
 type Config struct {
-	// S2KMode is the mode of s2k function.
-	// It can be 0 (simple), 1(salted), 3(iterated)
-	// 2(reserved) 100-110(private/experimental).
-	S2KMode uint8
 	// Hash is the default hash function to be used. If
-	// nil, SHA256 is used.
+	// nil, SHA1 is used.
 	Hash crypto.Hash
 	// S2KCount is only used for symmetric encryption. It
 	// determines the strength of the passphrase stretching when
 	// the said passphrase is hashed to produce a key. S2KCount
-	// should be between 65536 and 65011712, inclusive. If Config
-	// is nil or S2KCount is 0, the value 16777216 used. Not all
+	// should be between 1024 and 65011712, inclusive. If Config
+	// is nil or S2KCount is 0, the value 65536 used. Not all
 	// values in the above range can be represented. S2KCount will
 	// be rounded up to the next representable value if it cannot
-	// be encoded exactly. See RFC 4880 Section 3.7.1.3.
+	// be encoded exactly. When set, it is strongly encrouraged to
+	// use a value that is at least 65536. See RFC 4880 Section
+	// 3.7.1.3.
 	S2KCount int
 }
 
 func (c *Config) hash() crypto.Hash {
 	if c == nil || uint(c.Hash) == 0 {
-		return crypto.SHA256
+		// SHA1 is the historical default in this package.
+		return crypto.SHA1
 	}
 
 	return c.Hash
 }
 
-// EncodedCount get encoded count
-func (c *Config) EncodedCount() uint8 {
-	return c.encodedCount()
-}
-
 func (c *Config) encodedCount() uint8 {
 	if c == nil || c.S2KCount == 0 {
-		return 224 // The common case. Correspoding to 16777216
+		return 96 // The common case. Correspoding to 65536
 	}
 
 	i := c.S2KCount
 	switch {
-	case i < 65536:
-		i = 65536
+	// Behave like GPG. Should we make 65536 the lowest value used?
+	case i < 1024:
+		i = 1024
 	case i > 65011712:
 		i = 65011712
 	}
@@ -74,11 +68,11 @@ func (c *Config) encodedCount() uint8 {
 // if i is not in the above range (encodedCount above takes care to
 // pass i in the correct range). See RFC 4880 Section 3.7.7.1.
 func encodeCount(i int) uint8 {
-	if i < 65536 || i > 65011712 {
+	if i < 1024 || i > 65011712 {
 		panic("count arg i outside the required range")
 	}
 
-	for encoded := 96; encoded < 256; encoded++ {
+	for encoded := 0; encoded < 256; encoded++ {
 		count := decodeCount(uint8(encoded))
 		if count >= i {
 			return uint8(encoded)
@@ -229,11 +223,29 @@ func Serialize(w io.Writer, key []byte, rand io.Reader, passphrase []byte, c *Co
 	return nil
 }
 
+// hashToHashIdMapping contains pairs relating OpenPGP's hash identifier with
+// Go's crypto.Hash type. See RFC 4880, section 9.4.
+var hashToHashIdMapping = []struct {
+	id   byte
+	hash crypto.Hash
+	name string
+}{
+	{1, crypto.MD5, "MD5"},
+	{2, crypto.SHA1, "SHA1"},
+	{3, crypto.RIPEMD160, "RIPEMD160"},
+	{8, crypto.SHA256, "SHA256"},
+	{9, crypto.SHA384, "SHA384"},
+	{10, crypto.SHA512, "SHA512"},
+	{11, crypto.SHA224, "SHA224"},
+}
+
 // HashIdToHash returns a crypto.Hash which corresponds to the given OpenPGP
 // hash id.
 func HashIdToHash(id byte) (h crypto.Hash, ok bool) {
-	if hash, ok := algorithm.HashById[id]; ok {
-		return hash.HashFunc(), true
+	for _, m := range hashToHashIdMapping {
+		if m.id == id {
+			return m.hash, true
+		}
 	}
 	return 0, false
 }
@@ -241,17 +253,20 @@ func HashIdToHash(id byte) (h crypto.Hash, ok bool) {
 // HashIdToString returns the name of the hash function corresponding to the
 // given OpenPGP hash id.
 func HashIdToString(id byte) (name string, ok bool) {
-	if hash, ok := algorithm.HashById[id]; ok {
-		return hash.String(), true
+	for _, m := range hashToHashIdMapping {
+		if m.id == id {
+			return m.name, true
+		}
 	}
+
 	return "", false
 }
 
 // HashIdToHash returns an OpenPGP hash id which corresponds the given Hash.
 func HashToHashId(h crypto.Hash) (id byte, ok bool) {
-	for id, hash := range algorithm.HashById {
-		if hash.HashFunc() == h {
-			return id, true
+	for _, m := range hashToHashIdMapping {
+		if m.hash == h {
+			return m.id, true
 		}
 	}
 	return 0, false
