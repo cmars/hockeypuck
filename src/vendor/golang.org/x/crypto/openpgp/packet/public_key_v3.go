@@ -7,6 +7,7 @@ package packet
 import (
 	"crypto"
 	"crypto/md5"
+	"crypto/rsa"
 	"encoding/binary"
 	"fmt"
 	"hash"
@@ -16,8 +17,6 @@ import (
 	"time"
 
 	"golang.org/x/crypto/openpgp/errors"
-	"golang.org/x/crypto/openpgp/internal/encoding"
-	"golang.org/x/crypto/rsa"
 )
 
 // PublicKeyV3 represents older, version 3 public keys. These keys are less secure and
@@ -33,7 +32,7 @@ type PublicKeyV3 struct {
 	KeyId        uint64
 	IsSubkey     bool
 
-	n, e encoding.Field
+	n, e parsedMPI
 }
 
 // newRSAPublicKeyV3 returns a PublicKey that wraps the given rsa.PublicKey.
@@ -43,8 +42,8 @@ func newRSAPublicKeyV3(creationTime time.Time, pub *rsa.PublicKey) *PublicKeyV3 
 	pk := &PublicKeyV3{
 		CreationTime: creationTime,
 		PublicKey:    pub,
-		n:            new(encoding.MPI).SetBig(pub.N),
-		e:            new(encoding.MPI).SetBig(big.NewInt(int64(pub.E))),
+		n:            fromBig(pub.N),
+		e:            fromBig(big.NewInt(int64(pub.E))),
 	}
 
 	pk.setFingerPrintAndKeyId()
@@ -80,37 +79,35 @@ func (pk *PublicKeyV3) parse(r io.Reader) (err error) {
 func (pk *PublicKeyV3) setFingerPrintAndKeyId() {
 	// RFC 4880, section 12.2
 	fingerPrint := md5.New()
-	fingerPrint.Write(pk.n.Bytes())
-	fingerPrint.Write(pk.e.Bytes())
+	fingerPrint.Write(pk.n.bytes)
+	fingerPrint.Write(pk.e.bytes)
 	fingerPrint.Sum(pk.Fingerprint[:0])
-	pk.KeyId = binary.BigEndian.Uint64(pk.n.Bytes()[len(pk.n.Bytes())-8:])
+	pk.KeyId = binary.BigEndian.Uint64(pk.n.bytes[len(pk.n.bytes)-8:])
 }
 
 // parseRSA parses RSA public key material from the given Reader. See RFC 4880,
 // section 5.5.2.
 func (pk *PublicKeyV3) parseRSA(r io.Reader) (err error) {
-	pk.n = new(encoding.MPI)
-	if _, err = pk.n.ReadFrom(r); err != nil {
+	if pk.n.bytes, pk.n.bitLength, err = readMPI(r); err != nil {
 		return
 	}
-	pk.e = new(encoding.MPI)
-	if _, err = pk.e.ReadFrom(r); err != nil {
+	if pk.e.bytes, pk.e.bitLength, err = readMPI(r); err != nil {
 		return
 	}
 
 	// RFC 4880 Section 12.2 requires the low 8 bytes of the
 	// modulus to form the key id.
-	if len(pk.n.Bytes()) < 8 {
+	if len(pk.n.bytes) < 8 {
 		return errors.StructuralError("v3 public key modulus is too short")
 	}
-	if len(pk.e.Bytes()) > 3 {
+	if len(pk.e.bytes) > 3 {
 		err = errors.UnsupportedError("large public exponent")
 		return
 	}
-	rsa := &rsa.PublicKey{N: new(big.Int).SetBytes(pk.n.Bytes())}
-	for i := 0; i < len(pk.e.Bytes()); i++ {
+	rsa := &rsa.PublicKey{N: new(big.Int).SetBytes(pk.n.bytes)}
+	for i := 0; i < len(pk.e.bytes); i++ {
 		rsa.E <<= 8
-		rsa.E |= int(pk.e.Bytes()[i])
+		rsa.E |= int(pk.e.bytes[i])
 	}
 	pk.PublicKey = rsa
 	return
@@ -123,8 +120,8 @@ func (pk *PublicKeyV3) SerializeSignaturePrefix(w io.Writer) {
 	var pLength uint16
 	switch pk.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoRSASignOnly:
-		pLength += pk.n.EncodedLength()
-		pLength += pk.e.EncodedLength()
+		pLength += 2 + uint16(len(pk.n.bytes))
+		pLength += 2 + uint16(len(pk.e.bytes))
 	default:
 		panic("unknown public key algorithm")
 	}
@@ -138,8 +135,8 @@ func (pk *PublicKeyV3) Serialize(w io.Writer) (err error) {
 
 	switch pk.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoRSASignOnly:
-		length += int(pk.n.EncodedLength())
-		length += int(pk.e.EncodedLength())
+		length += 2 + len(pk.n.bytes)
+		length += 2 + len(pk.e.bytes)
 	default:
 		panic("unknown public key algorithm")
 	}
@@ -178,11 +175,7 @@ func (pk *PublicKeyV3) serializeWithoutHeaders(w io.Writer) (err error) {
 
 	switch pk.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoRSASignOnly:
-		if _, err = w.Write(pk.n.EncodedBytes()); err != nil {
-			return
-		}
-		_, err = w.Write(pk.e.EncodedBytes())
-		return
+		return writeMPIs(w, pk.n, pk.e)
 	}
 	return errors.InvalidArgumentError("bad public-key algorithm")
 }
@@ -215,7 +208,7 @@ func (pk *PublicKeyV3) VerifySignatureV3(signed hash.Hash, sig *SignatureV3) (er
 
 	switch pk.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly:
-		if err = rsa.VerifyPKCS1v15(pk.PublicKey, sig.Hash, hashBytes, sig.RSASignature.Bytes()); err != nil {
+		if err = rsa.VerifyPKCS1v15(pk.PublicKey, sig.Hash, hashBytes, sig.RSASignature.bytes); err != nil {
 			return errors.SignatureError("RSA verification failure")
 		}
 		return
@@ -278,7 +271,7 @@ func (pk *PublicKeyV3) KeyIdShortString() string {
 func (pk *PublicKeyV3) BitLength() (bitLength uint16, err error) {
 	switch pk.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoRSASignOnly:
-		bitLength = pk.n.BitLength()
+		bitLength = pk.n.bitLength
 	default:
 		err = errors.InvalidArgumentError("bad public-key algorithm")
 	}

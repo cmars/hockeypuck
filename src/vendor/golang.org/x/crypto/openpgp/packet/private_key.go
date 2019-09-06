@@ -10,7 +10,7 @@ import (
 	"crypto/cipher"
 	"crypto/dsa"
 	"crypto/ecdsa"
-	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha1"
 	"io"
 	"io/ioutil"
@@ -18,13 +18,9 @@ import (
 	"strconv"
 	"time"
 
-	"golang.org/x/crypto/ed25519"
-	"golang.org/x/crypto/openpgp/ecdh"
 	"golang.org/x/crypto/openpgp/elgamal"
 	"golang.org/x/crypto/openpgp/errors"
-	"golang.org/x/crypto/openpgp/internal/encoding"
 	"golang.org/x/crypto/openpgp/s2k"
-	"golang.org/x/crypto/rsa"
 )
 
 // PrivateKey represents a possibly encrypted private key. See RFC 4880,
@@ -38,24 +34,7 @@ type PrivateKey struct {
 	PrivateKey    interface{} // An *{rsa|dsa|ecdsa}.PrivateKey or a crypto.Signer.
 	sha1Checksum  bool
 	iv            []byte
-
-	// s2k related
-	salt      []byte
-	s2kConfig s2k.Config
-	s2kType   S2KType
 }
-
-//S2KType s2k packet type
-type S2KType uint8
-
-const (
-	// S2KNON unencrypt
-	S2KNON S2KType = 0
-	// S2KSHA1 sha1 sum check
-	S2KSHA1 S2KType = 254
-	// S2KCHECKSUM sum check
-	S2KCHECKSUM S2KType = 255
-)
 
 func NewRSAPrivateKey(creationTime time.Time, priv *rsa.PrivateKey) *PrivateKey {
 	pk := new(PrivateKey)
@@ -100,26 +79,10 @@ func NewSignerPrivateKey(creationTime time.Time, signer crypto.Signer) *PrivateK
 		pk.PublicKey = *NewECDSAPublicKey(creationTime, pubkey)
 	case ecdsa.PublicKey:
 		pk.PublicKey = *NewECDSAPublicKey(creationTime, &pubkey)
-	case ed25519.PublicKey:
-		pk.PublicKey = *NewEdDSAPublicKey(creationTime, pubkey)
 	default:
 		panic("openpgp: unknown crypto.Signer type in NewSignerPrivateKey")
 	}
 	pk.PrivateKey = signer
-	return pk
-}
-
-func NewECDHPrivateKey(creationTime time.Time, priv *ecdh.PrivateKey) *PrivateKey {
-	pk := new(PrivateKey)
-	pk.PublicKey = *NewECDHPublicKey(creationTime, &priv.PublicKey)
-	pk.PrivateKey = priv
-	return pk
-}
-
-func NewEdDSAPrivateKey(creationTime time.Time, priv ed25519.PrivateKey) *PrivateKey {
-	pk := new(PrivateKey)
-	pk.PublicKey = *NewEdDSAPublicKey(creationTime, priv.Public().(ed25519.PublicKey))
-	pk.PrivateKey = priv
 	return pk
 }
 
@@ -191,17 +154,30 @@ func mod64kHash(d []byte) uint16 {
 }
 
 func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
+	// TODO(agl): support encrypted private keys
 	buf := bytes.NewBuffer(nil)
 	err = pk.PublicKey.serializeWithoutHeaders(buf)
 	if err != nil {
 		return
 	}
+	buf.WriteByte(0 /* no encryption */)
 
 	privateKeyBuf := bytes.NewBuffer(nil)
-	if pk.Encrypted {
-		pk.SerializeEncrypted(privateKeyBuf)
-	} else {
-		pk.SerializeUnEncrypted(privateKeyBuf)
+
+	switch priv := pk.PrivateKey.(type) {
+	case *rsa.PrivateKey:
+		err = serializeRSAPrivateKey(privateKeyBuf, priv)
+	case *dsa.PrivateKey:
+		err = serializeDSAPrivateKey(privateKeyBuf, priv)
+	case *elgamal.PrivateKey:
+		err = serializeElGamalPrivateKey(privateKeyBuf, priv)
+	case *ecdsa.PrivateKey:
+		err = serializeECDSAPrivateKey(privateKeyBuf, priv)
+	default:
+		err = errors.InvalidArgumentError("unknown private key type")
+	}
+	if err != nil {
+		return
 	}
 
 	ptype := packetTypePrivateKey
@@ -210,7 +186,7 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 	if pk.IsSubkey {
 		ptype = packetTypePrivateSubkey
 	}
-	err = serializeHeader(w, ptype, len(contents)+len(privateKeyBytes))
+	err = serializeHeader(w, ptype, len(contents)+len(privateKeyBytes)+2)
 	if err != nil {
 		return
 	}
@@ -222,110 +198,43 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 	if err != nil {
 		return
 	}
+
+	checksum := mod64kHash(privateKeyBytes)
+	var checksumBytes [2]byte
+	checksumBytes[0] = byte(checksum >> 8)
+	checksumBytes[1] = byte(checksum)
+	_, err = w.Write(checksumBytes[:])
+
 	return
-}
-
-// SerializeUnEncrypted ..
-func (pk *PrivateKey) SerializeUnEncrypted(w io.Writer) (err error) {
-	buf := bytes.NewBuffer(nil)
-	buf.Write([]byte{uint8(S2KNON)} /* no encryption */)
-	switch priv := pk.PrivateKey.(type) {
-	case *rsa.PrivateKey:
-		err = serializeRSAPrivateKey(buf, priv)
-	case *dsa.PrivateKey:
-		err = serializeDSAPrivateKey(buf, priv)
-	case *elgamal.PrivateKey:
-		err = serializeElGamalPrivateKey(buf, priv)
-	case *ecdsa.PrivateKey:
-		err = serializeECDSAPrivateKey(buf, priv)
-	default:
-		err = errors.InvalidArgumentError("unknown private key type")
-	}
-	privateKeyBytes := buf.Bytes()
-	if pk.sha1Checksum {
-		h := sha1.New()
-		h.Write(privateKeyBytes)
-		sum := h.Sum(nil)
-		privateKeyBytes = append(privateKeyBytes, sum...)
-	} else {
-		checksum := mod64kHash(privateKeyBytes)
-		var checksumBytes [2]byte
-		checksumBytes[0] = byte(checksum >> 8)
-		checksumBytes[1] = byte(checksum)
-		privateKeyBytes = append(privateKeyBytes, checksumBytes[:]...)
-	}
-	w.Write(privateKeyBytes)
-	return
-}
-
-//SerializeEncrypted serialize encrypted privatekey
-func (pk *PrivateKey) SerializeEncrypted(w io.Writer) error {
-	privateKeyBuf := bytes.NewBuffer(nil)
-	encodedKeyBuf := bytes.NewBuffer(nil)
-	encodedKeyBuf.Write([]byte{uint8(pk.s2kType)})
-	encodedKeyBuf.Write([]byte{uint8(pk.cipher)})
-	encodedKeyBuf.Write([]byte{pk.s2kConfig.S2KMode})
-	hashID, ok := s2k.HashToHashId(pk.s2kConfig.Hash)
-	if !ok {
-		return errors.UnsupportedError("no such hash")
-	}
-	encodedKeyBuf.Write([]byte{hashID})
-	encodedKeyBuf.Write(pk.salt)
-	encodedKeyBuf.Write([]byte{pk.s2kConfig.EncodedCount()})
-
-	privateKeyBuf.Write(pk.encryptedData)
-
-	encodedKey := encodedKeyBuf.Bytes()
-	privateKeyBytes := privateKeyBuf.Bytes()
-
-	w.Write(encodedKey)
-	w.Write(pk.iv)
-	w.Write(privateKeyBytes)
-
-	return nil
 }
 
 func serializeRSAPrivateKey(w io.Writer, priv *rsa.PrivateKey) error {
-	if _, err := w.Write(new(encoding.MPI).SetBig(priv.D).EncodedBytes()); err != nil {
+	err := writeBig(w, priv.D)
+	if err != nil {
 		return err
 	}
-	if _, err := w.Write(new(encoding.MPI).SetBig(priv.Primes[1]).EncodedBytes()); err != nil {
+	err = writeBig(w, priv.Primes[1])
+	if err != nil {
 		return err
 	}
-	if _, err := w.Write(new(encoding.MPI).SetBig(priv.Primes[0]).EncodedBytes()); err != nil {
+	err = writeBig(w, priv.Primes[0])
+	if err != nil {
 		return err
 	}
-	_, err := w.Write(new(encoding.MPI).SetBig(priv.Precomputed.Qinv).EncodedBytes())
-	return err
+	return writeBig(w, priv.Precomputed.Qinv)
 }
 
 func serializeDSAPrivateKey(w io.Writer, priv *dsa.PrivateKey) error {
-	_, err := w.Write(new(encoding.MPI).SetBig(priv.X).EncodedBytes())
-	return err
+	return writeBig(w, priv.X)
 }
 
 func serializeElGamalPrivateKey(w io.Writer, priv *elgamal.PrivateKey) error {
-	_, err := w.Write(new(encoding.MPI).SetBig(priv.X).EncodedBytes())
-	return err
+	return writeBig(w, priv.X)
 }
 
 func serializeECDSAPrivateKey(w io.Writer, priv *ecdsa.PrivateKey) error {
-	_, err := w.Write(new(encoding.MPI).SetBig(priv.D).EncodedBytes())
-	return err
+	return writeBig(w, priv.D)
 }
-
-func serializeEdDSAPrivateKey(w io.Writer, priv ed25519.PrivateKey) error {
-	keySize := ed25519.PrivateKeySize - ed25519.PublicKeySize
-	_, err := w.Write(encoding.NewMPI(priv[:keySize]).EncodedBytes())
-	return err
-}
-
-func serializeECDHPrivateKey(w io.Writer, priv *ecdh.PrivateKey) error {
-	_, err := w.Write(encoding.NewMPI(priv.D).EncodedBytes())
-	return err
-}
-
-
 
 // Decrypt decrypts an encrypted private key using a passphrase.
 func (pk *PrivateKey) Decrypt(passphrase []byte) error {
@@ -370,83 +279,6 @@ func (pk *PrivateKey) Decrypt(passphrase []byte) error {
 	return pk.parsePrivateKey(data)
 }
 
-// Encrypt encrypts an unencrypted private key using a passphrase.
-func (pk *PrivateKey) Encrypt(passphrase []byte) error {
-	privateKeyBuf := bytes.NewBuffer(nil)
-	err := pk.serializePrivateKey(privateKeyBuf)
-	if err != nil {
-		return err
-	}
-
-	//Default config of private key encryption
-	pk.cipher = CipherAES256
-	pk.s2kConfig = s2k.Config{
-		S2KMode:  3, //Iterated
-		S2KCount: 65536,
-		Hash:     crypto.SHA256,
-	}
-
-	privateKeyBytes := privateKeyBuf.Bytes()
-	key := make([]byte, pk.cipher.KeySize())
-	pk.salt = make([]byte, 8)
-	rand.Read(pk.salt)
-	pk.sha1Checksum = true
-	pk.s2k = func(out, in []byte) {
-		s2k.Iterated(out, pk.s2kConfig.Hash.New(), in, pk.salt, pk.s2kConfig.S2KCount)
-	}
-	pk.s2k(key, passphrase)
-	block := pk.cipher.new(key)
-	pk.iv = make([]byte, pk.cipher.blockSize())
-	rand.Read(pk.iv)
-	cfb := cipher.NewCFBEncrypter(block, pk.iv)
-
-	if pk.sha1Checksum {
-		pk.s2kType = S2KSHA1
-		h := sha1.New()
-		h.Write(privateKeyBytes)
-		sum := h.Sum(nil)
-		privateKeyBytes = append(privateKeyBytes, sum...)
-	} else {
-		pk.s2kType = S2KCHECKSUM
-		var sum uint16
-		for i := 0; i < len(privateKeyBytes); i++ {
-			sum += uint16(privateKeyBytes[i])
-		}
-		privateKeyBytes = append(privateKeyBytes, uint8(sum>>8))
-		privateKeyBytes = append(privateKeyBytes, uint8(sum))
-	}
-
-	pk.encryptedData = make([]byte, len(privateKeyBytes))
-
-	cfb.XORKeyStream(pk.encryptedData, privateKeyBytes)
-
-	pk.Encrypted = true
-
-	pk.PrivateKey = nil
-	return err
-}
-
-func (pk *PrivateKey) serializePrivateKey(w io.Writer) (err error) {
-
-	switch priv := pk.PrivateKey.(type) {
-	case *rsa.PrivateKey:
-		err = serializeRSAPrivateKey(w, priv)
-	case *dsa.PrivateKey:
-		err = serializeDSAPrivateKey(w, priv)
-	case *elgamal.PrivateKey:
-		err = serializeElGamalPrivateKey(w, priv)
-	case *ecdsa.PrivateKey:
-		err = serializeECDSAPrivateKey(w, priv)
-	case ed25519.PrivateKey:
-		err = serializeEdDSAPrivateKey(w, priv)
-	case *ecdh.PrivateKey:
-		err = serializeECDHPrivateKey(w, priv)
-	default:
-		err = errors.InvalidArgumentError("unknown private key type")
-	}
-	return
-}
-
 func (pk *PrivateKey) parsePrivateKey(data []byte) (err error) {
 	switch pk.PublicKey.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoRSAEncryptOnly:
@@ -457,10 +289,6 @@ func (pk *PrivateKey) parsePrivateKey(data []byte) (err error) {
 		return pk.parseElGamalPrivateKey(data)
 	case PubKeyAlgoECDSA:
 		return pk.parseECDSAPrivateKey(data)
-	case PubKeyAlgoECDH:
-		return pk.parseECDHPrivateKey(data)
-	case PubKeyAlgoEdDSA:
-		return pk.parseEdDSAPrivateKey(data)
 	}
 	panic("impossible")
 }
@@ -471,25 +299,23 @@ func (pk *PrivateKey) parseRSAPrivateKey(data []byte) (err error) {
 	rsaPriv.PublicKey = *rsaPub
 
 	buf := bytes.NewBuffer(data)
-	d := new(encoding.MPI)
-	if _, err := d.ReadFrom(buf); err != nil {
-		return err
+	d, _, err := readMPI(buf)
+	if err != nil {
+		return
+	}
+	p, _, err := readMPI(buf)
+	if err != nil {
+		return
+	}
+	q, _, err := readMPI(buf)
+	if err != nil {
+		return
 	}
 
-	p := new(encoding.MPI)
-	if _, err := p.ReadFrom(buf); err != nil {
-		return err
-	}
-
-	q := new(encoding.MPI)
-	if _, err := q.ReadFrom(buf); err != nil {
-		return err
-	}
-
-	rsaPriv.D = new(big.Int).SetBytes(d.Bytes())
+	rsaPriv.D = new(big.Int).SetBytes(d)
 	rsaPriv.Primes = make([]*big.Int, 2)
-	rsaPriv.Primes[0] = new(big.Int).SetBytes(p.Bytes())
-	rsaPriv.Primes[1] = new(big.Int).SetBytes(q.Bytes())
+	rsaPriv.Primes[0] = new(big.Int).SetBytes(p)
+	rsaPriv.Primes[1] = new(big.Int).SetBytes(q)
 	if err := rsaPriv.Validate(); err != nil {
 		return err
 	}
@@ -507,12 +333,12 @@ func (pk *PrivateKey) parseDSAPrivateKey(data []byte) (err error) {
 	dsaPriv.PublicKey = *dsaPub
 
 	buf := bytes.NewBuffer(data)
-	x := new(encoding.MPI)
-	if _, err := x.ReadFrom(buf); err != nil {
-		return err
+	x, _, err := readMPI(buf)
+	if err != nil {
+		return
 	}
 
-	dsaPriv.X = new(big.Int).SetBytes(x.Bytes())
+	dsaPriv.X = new(big.Int).SetBytes(x)
 	pk.PrivateKey = dsaPriv
 	pk.Encrypted = false
 	pk.encryptedData = nil
@@ -526,12 +352,12 @@ func (pk *PrivateKey) parseElGamalPrivateKey(data []byte) (err error) {
 	priv.PublicKey = *pub
 
 	buf := bytes.NewBuffer(data)
-	x := new(encoding.MPI)
-	if _, err := x.ReadFrom(buf); err != nil {
-		return err
+	x, _, err := readMPI(buf)
+	if err != nil {
+		return
 	}
 
-	priv.X = new(big.Int).SetBytes(x.Bytes())
+	priv.X = new(big.Int).SetBytes(x)
 	pk.PrivateKey = priv
 	pk.Encrypted = false
 	pk.encryptedData = nil
@@ -541,57 +367,17 @@ func (pk *PrivateKey) parseElGamalPrivateKey(data []byte) (err error) {
 
 func (pk *PrivateKey) parseECDSAPrivateKey(data []byte) (err error) {
 	ecdsaPub := pk.PublicKey.PublicKey.(*ecdsa.PublicKey)
-	ecdsaPriv := new(ecdsa.PrivateKey)
-	ecdsaPriv.PublicKey = *ecdsaPub
 
 	buf := bytes.NewBuffer(data)
-	d := new(encoding.MPI)
-	if _, err := d.ReadFrom(buf); err != nil {
-		return err
+	d, _, err := readMPI(buf)
+	if err != nil {
+		return
 	}
 
-	ecdsaPriv.D = new(big.Int).SetBytes(d.Bytes())
-	pk.PrivateKey = ecdsaPriv
-	pk.Encrypted = false
-	pk.encryptedData = nil
-
-	return nil
-}
-
-func (pk *PrivateKey) parseECDHPrivateKey(data []byte) (err error) {
-	ecdhPub := pk.PublicKey.PublicKey.(*ecdh.PublicKey)
-	ecdhPriv := new(ecdh.PrivateKey)
-	ecdhPriv.PublicKey = *ecdhPub
-
-	buf := bytes.NewBuffer(data)
-	d := new(encoding.MPI)
-	if _, err := d.ReadFrom(buf); err != nil {
-		return err
+	pk.PrivateKey = &ecdsa.PrivateKey{
+		PublicKey: *ecdsaPub,
+		D:         new(big.Int).SetBytes(d),
 	}
-
-	ecdhPriv.D = d.Bytes()
-	pk.PrivateKey = ecdhPriv
-	pk.Encrypted = false
-	pk.encryptedData = nil
-
-	return nil
-}
-
-func (pk *PrivateKey) parseEdDSAPrivateKey(data []byte) (err error) {
-	eddsaPub := pk.PublicKey.PublicKey.(ed25519.PublicKey)
-	eddsaPriv := make(ed25519.PrivateKey, ed25519.PrivateKeySize)
-
-	buf := bytes.NewBuffer(data)
-	d := new(encoding.MPI)
-	if _, err := d.ReadFrom(buf); err != nil {
-		return err
-	}
-
-	priv := d.Bytes()
-	copy(eddsaPriv[32-len(priv):32], priv)
-	copy(eddsaPriv[32:], eddsaPub[:])
-
-	pk.PrivateKey = eddsaPriv
 	pk.Encrypted = false
 	pk.encryptedData = nil
 
