@@ -13,6 +13,7 @@ import (
 	"strconv"
 
 	"golang.org/x/crypto/openpgp/errors"
+	"golang.org/x/crypto/openpgp/internal/algorithm"
 )
 
 // Config collects configuration parameters for s2k key-stretching
@@ -20,6 +21,10 @@ import (
 // values. Currently, Config is used only by the Serialize function in
 // this package.
 type Config struct {
+	// S2KMode is the mode of s2k function.
+	// It can be 0 (simple), 1(salted), 3(iterated)
+	// 2(reserved) 100-110(private/experimental).
+	S2KMode uint8
 	// Hash is the default hash function to be used. If
 	// nil, SHA1 is used.
 	Hash crypto.Hash
@@ -43,6 +48,11 @@ func (c *Config) hash() crypto.Hash {
 	}
 
 	return c.Hash
+}
+
+// EncodedCount get encoded count
+func (c *Config) EncodedCount() uint8 {
+	return c.encodedCount()
 }
 
 func (c *Config) encodedCount() uint8 {
@@ -223,29 +233,11 @@ func Serialize(w io.Writer, key []byte, rand io.Reader, passphrase []byte, c *Co
 	return nil
 }
 
-// hashToHashIdMapping contains pairs relating OpenPGP's hash identifier with
-// Go's crypto.Hash type. See RFC 4880, section 9.4.
-var hashToHashIdMapping = []struct {
-	id   byte
-	hash crypto.Hash
-	name string
-}{
-	{1, crypto.MD5, "MD5"},
-	{2, crypto.SHA1, "SHA1"},
-	{3, crypto.RIPEMD160, "RIPEMD160"},
-	{8, crypto.SHA256, "SHA256"},
-	{9, crypto.SHA384, "SHA384"},
-	{10, crypto.SHA512, "SHA512"},
-	{11, crypto.SHA224, "SHA224"},
-}
-
 // HashIdToHash returns a crypto.Hash which corresponds to the given OpenPGP
 // hash id.
 func HashIdToHash(id byte) (h crypto.Hash, ok bool) {
-	for _, m := range hashToHashIdMapping {
-		if m.id == id {
-			return m.hash, true
-		}
+	if hash, ok := algorithm.HashById[id]; ok {
+		return hash.HashFunc(), true
 	}
 	return 0, false
 }
@@ -253,20 +245,17 @@ func HashIdToHash(id byte) (h crypto.Hash, ok bool) {
 // HashIdToString returns the name of the hash function corresponding to the
 // given OpenPGP hash id.
 func HashIdToString(id byte) (name string, ok bool) {
-	for _, m := range hashToHashIdMapping {
-		if m.id == id {
-			return m.name, true
-		}
+	if hash, ok := algorithm.HashById[id]; ok {
+		return hash.String(), true
 	}
-
 	return "", false
 }
 
 // HashIdToHash returns an OpenPGP hash id which corresponds the given Hash.
 func HashToHashId(h crypto.Hash) (id byte, ok bool) {
-	for _, m := range hashToHashIdMapping {
-		if m.hash == h {
-			return m.id, true
+	for id, hash := range algorithm.HashById {
+		if hash.HashFunc() == h {
+			return id, true
 		}
 	}
 	return 0, false
