@@ -84,14 +84,28 @@ github.com/syndtr/goleveldb/leveldb/table
 github.com/syndtr/goleveldb/leveldb/util
 # github.com/tobi/airbrake-go v0.0.0-20151005181455-a3cdd910a3ff
 github.com/tobi/airbrake-go
-# golang.org/x/crypto v0.0.0-20190513172903-22d7a77e9e5f
+# golang.org/x/crypto v0.0.0-20190513172903-22d7a77e9e5f => github.com/ProtonMail/crypto v2.0.0+incompatible
 golang.org/x/crypto/openpgp/armor
 golang.org/x/crypto/openpgp
 golang.org/x/crypto/openpgp/errors
 golang.org/x/crypto/openpgp/packet
+golang.org/x/crypto/ed25519
+golang.org/x/crypto/openpgp/ecdh
+golang.org/x/crypto/openpgp/internal/algorithm
 golang.org/x/crypto/openpgp/s2k
-golang.org/x/crypto/cast5
+golang.org/x/crypto/rsa
 golang.org/x/crypto/openpgp/elgamal
+golang.org/x/crypto/openpgp/internal/ecc
+golang.org/x/crypto/openpgp/internal/encoding
+golang.org/x/crypto/ed25519/internal/edwards25519
+golang.org/x/crypto/curve25519
+golang.org/x/crypto/openpgp/aes/keywrap
+golang.org/x/crypto/cast5
+golang.org/x/crypto/internal/randutil
+golang.org/x/crypto/rand
+golang.org/x/crypto/bitcurves
+golang.org/x/crypto/brainpool
+golang.org/x/crypto/internal/syscall/unix
 # golang.org/x/net v0.0.0-20190613194153-d28f0bde5980
 golang.org/x/net/context
 # golang.org/x/sys v0.0.0-20190801041406-cbf593c0f2f3
