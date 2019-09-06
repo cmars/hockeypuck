@@ -169,6 +169,7 @@ func NewEdDSAPublicKey(creationTime time.Time, pub ed25519.PublicKey) *PublicKey
 	return pk
 }
 
+
 func (pk *PublicKey) parse(r io.Reader) (err error) {
 	// RFC 4880, section 5.5.2
 	var buf [6]byte
@@ -582,7 +583,7 @@ func (pk *PublicKey) VerifySignature(signed hash.Hash, sig *Signature) (err erro
 	switch pk.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly:
 		rsaPublicKey, _ := pk.PublicKey.(*rsa.PublicKey)
-		err = rsa.VerifyPKCS1v15(rsaPublicKey, sig.Hash, hashBytes, padToKeySize(rsaPublicKey, sig.RSASignature.Bytes()))
+		err = rsa.VerifyPKCS1v15(rsaPublicKey, sig.Hash, hashBytes, sig.RSASignature.Bytes())
 		if err != nil {
 			return errors.SignatureError("RSA verification failure")
 		}
@@ -611,8 +612,8 @@ func (pk *PublicKey) VerifySignature(signed hash.Hash, sig *Signature) (err erro
 		sigS := sig.EdDSASigS.Bytes()
 
 		eddsaSig := make([]byte, ed25519.SignatureSize)
-		copy(eddsaSig[32-len(sigR):32], sigR)
-		copy(eddsaSig[64-len(sigS):], sigS)
+		copy(eddsaSig[:32], sigR)
+		copy(eddsaSig[32:], sigS)
 
 		if !ed25519.Verify(eddsaPublicKey, hashBytes, eddsaSig) {
 			return errors.SignatureError("EdDSA verification failure")
@@ -647,7 +648,7 @@ func (pk *PublicKey) VerifySignatureV3(signed hash.Hash, sig *SignatureV3) (err 
 	switch pk.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly:
 		rsaPublicKey := pk.PublicKey.(*rsa.PublicKey)
-		if err = rsa.VerifyPKCS1v15(rsaPublicKey, sig.Hash, hashBytes, padToKeySize(rsaPublicKey, sig.RSASignature.Bytes())); err != nil {
+		if err = rsa.VerifyPKCS1v15(rsaPublicKey, sig.Hash, hashBytes, sig.RSASignature.Bytes()); err != nil {
 			return errors.SignatureError("RSA verification failure")
 		}
 		return
@@ -812,17 +813,4 @@ func (pk *PublicKey) BitLength() (bitLength uint16, err error) {
 		err = errors.InvalidArgumentError("bad public-key algorithm")
 	}
 	return
-}
-
-// KeyExpired returns whether sig is a self-signature of a key that has
-// expired or is created in the future.
-func (pk *PublicKey) KeyExpired(sig *Signature, currentTime time.Time) bool {
-	if pk.CreationTime.After(currentTime) {
-		return true
-	}
-	if sig.KeyLifetimeSecs == nil {
-		return false
-	}
-	expiry := pk.CreationTime.Add(time.Duration(*sig.KeyLifetimeSecs) * time.Second)
-	return currentTime.After(expiry)
 }

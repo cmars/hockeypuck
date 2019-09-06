@@ -183,15 +183,10 @@ func Encrypt(ciphertext io.Writer, to []*Entity, signed *Entity, hints *FileHint
 	return encrypt(ciphertext, to, signed, hints, packet.SigTypeBinary, config)
 }
 
-// writeAndSign writes the data as a payload package and, optionally, signs
-// it. hints contains optional information, that is also encrypted,
-// that aids the recipients in processing the message. The resulting
-// WriteCloser must be closed after the contents of the file have been
-// written. If config is nil, sensible defaults will be used.
-func writeAndSign(payload io.WriteCloser, candidateHashes []uint8, signed *Entity, hints *FileHints, sigType packet.SignatureType, config *packet.Config) (plaintext io.WriteCloser, err error) {
+func encrypt(ciphertext io.Writer, to []*Entity, signed *Entity, hints *FileHints, sigType packet.SignatureType, config *packet.Config) (plaintext io.WriteCloser, err error) {
 	var signer *packet.PrivateKey
 	if signed != nil {
-		signKey, ok := signed.SigningKey(config.Now())
+		signKey, ok := signed.signingKey(config.Now())
 		if !ok {
 			return nil, errors.InvalidArgumentError("no valid signing keys")
 		}
@@ -201,6 +196,62 @@ func writeAndSign(payload io.WriteCloser, candidateHashes []uint8, signed *Entit
 		}
 		if signer.Encrypted {
 			return nil, errors.InvalidArgumentError("signing key must be decrypted")
+		}
+	}
+
+	// These are the possible ciphers that we'll use for the message.
+	candidateCiphers := []uint8{
+		uint8(packet.CipherAES128),
+		uint8(packet.CipherAES256),
+		uint8(packet.CipherCAST5),
+	}
+	// These are the possible hash functions that we'll use for the signature.
+	candidateHashes := []uint8{
+		hashToHashId(crypto.SHA256),
+		hashToHashId(crypto.SHA512),
+		hashToHashId(crypto.SHA1),
+		hashToHashId(crypto.RIPEMD160),
+	}
+	// In the event that a recipient doesn't specify any supported ciphers
+	// or hash functions, these are the ones that we assume that every
+	// implementation supports.
+	defaultCiphers := candidateCiphers[len(candidateCiphers)-1:]
+	defaultHashes := candidateHashes[0:3]
+
+	encryptKeys := make([]Key, len(to))
+	for i := range to {
+		var ok bool
+		encryptKeys[i], ok = to[i].encryptionKey(config.Now())
+		if !ok {
+			return nil, errors.InvalidArgumentError("cannot encrypt a message to key id " + strconv.FormatUint(to[i].PrimaryKey.KeyId, 16) + " because it has no encryption keys")
+		}
+
+		sig := to[i].primaryIdentity().SelfSignature
+
+		preferredSymmetric := sig.PreferredSymmetric
+		if len(preferredSymmetric) == 0 {
+			preferredSymmetric = defaultCiphers
+		}
+		preferredHashes := sig.PreferredHash
+		if len(preferredHashes) == 0 {
+			preferredHashes = defaultHashes
+		}
+		candidateCiphers = intersectPreferences(candidateCiphers, preferredSymmetric)
+		candidateHashes = intersectPreferences(candidateHashes, preferredHashes)
+	}
+
+	if len(candidateCiphers) == 0 || len(candidateHashes) == 0 {
+		return nil, errors.InvalidArgumentError("cannot encrypt because recipient set shares no common algorithms")
+	}
+
+	cipher := packet.CipherFunction(candidateCiphers[0])
+	// If the cipher specified by config is a candidate, we'll use that.
+	configuredCipher := config.Cipher()
+	for _, c := range candidateCiphers {
+		cipherFunc := packet.CipherFunction(c)
+		if cipherFunc == configuredCipher {
+			cipher = cipherFunc
+			break
 		}
 	}
 
@@ -231,6 +282,22 @@ func writeAndSign(payload io.WriteCloser, candidateHashes []uint8, signed *Entit
 		return nil, errors.InvalidArgumentError("cannot encrypt because no candidate hash functions are compiled in. (Wanted " + name + " in this case.)")
 	}
 
+	symKey := make([]byte, cipher.KeySize())
+	if _, err := io.ReadFull(config.Random(), symKey); err != nil {
+		return nil, err
+	}
+
+	for _, key := range encryptKeys {
+		if err := packet.SerializeEncryptedKey(ciphertext, key.PublicKey, cipher, symKey, config); err != nil {
+			return nil, err
+		}
+	}
+
+	encryptedData, err := packet.SerializeSymmetricallyEncrypted(ciphertext, cipher, symKey, config)
+	if err != nil {
+		return
+	}
+
 	if signer != nil {
 		ops := &packet.OnePassSignature{
 			SigType:    sigType,
@@ -239,7 +306,7 @@ func writeAndSign(payload io.WriteCloser, candidateHashes []uint8, signed *Entit
 			KeyId:      signer.KeyId,
 			IsLast:     true,
 		}
-		if err := ops.Serialize(payload); err != nil {
+		if err := ops.Serialize(encryptedData); err != nil {
 			return nil, err
 		}
 	}
@@ -248,12 +315,12 @@ func writeAndSign(payload io.WriteCloser, candidateHashes []uint8, signed *Entit
 		hints = &FileHints{}
 	}
 
-	w := payload
+	w := encryptedData
 	if signer != nil {
 		// If we need to write a signature packet after the literal
 		// data then we need to stop literalData from closing
 		// encryptedData.
-		w = noOpCloser{w}
+		w = noOpCloser{encryptedData}
 
 	}
 	var epochSeconds uint32
@@ -270,121 +337,9 @@ func writeAndSign(payload io.WriteCloser, candidateHashes []uint8, signed *Entit
 		if err != nil {
 			return nil, err
 		}
-		return signatureWriter{payload, literalData, hash, wrappedHash, h, signer, sigType, config}, nil
+		return signatureWriter{encryptedData, literalData, hash, wrappedHash, h, signer, sigType, config}, nil
 	}
 	return literalData, nil
-}
-
-// encrypt encrypts a message to a number of recipients and, optionally, signs
-// it. hints contains optional information, that is also encrypted, that aids
-// the recipients in processing the message. The resulting WriteCloser must
-// be closed after the contents of the file have been written.
-// If config is nil, sensible defaults will be used.
-func encrypt(ciphertext io.Writer, to []*Entity, signed *Entity, hints *FileHints, sigType packet.SignatureType, config *packet.Config) (plaintext io.WriteCloser, err error) {
-	if len(to) == 0 {
-		return nil, errors.InvalidArgumentError("no encryption recipient provided")
-	}
-
-	// These are the possible ciphers that we'll use for the message.
-	candidateCiphers := []uint8{
-		uint8(packet.CipherAES128),
-		uint8(packet.CipherAES256),
-		uint8(packet.CipherCAST5),
-	}
-	// These are the possible hash functions that we'll use for the signature.
-	candidateHashes := []uint8{
-		hashToHashId(crypto.SHA256),
-		hashToHashId(crypto.SHA384),
-		hashToHashId(crypto.SHA512),
-		hashToHashId(crypto.SHA1),
-		hashToHashId(crypto.RIPEMD160),
-	}
-	// In the event that a recipient doesn't specify any supported ciphers
-	// or hash functions, these are the ones that we assume that every
-	// implementation supports.
-	defaultCiphers := candidateCiphers[0:1]
-	defaultHashes := candidateHashes[0:1]
-
-	encryptKeys := make([]Key, len(to))
-	for i := range to {
-		var ok bool
-		encryptKeys[i], ok = to[i].EncryptionKey(config.Now())
-		if !ok {
-			return nil, errors.InvalidArgumentError("cannot encrypt a message to key id " + strconv.FormatUint(to[i].PrimaryKey.KeyId, 16) + " because it has no encryption keys")
-		}
-
-		sig := to[i].PrimaryIdentity().SelfSignature
-
-		preferredSymmetric := sig.PreferredSymmetric
-		if len(preferredSymmetric) == 0 {
-			preferredSymmetric = defaultCiphers
-		}
-		preferredHashes := sig.PreferredHash
-		if len(preferredHashes) == 0 {
-			preferredHashes = defaultHashes
-		}
-		candidateCiphers = intersectPreferences(candidateCiphers, preferredSymmetric)
-		candidateHashes = intersectPreferences(candidateHashes, preferredHashes)
-	}
-
-	if len(candidateCiphers) == 0 || len(candidateHashes) == 0 {
-		return nil, errors.InvalidArgumentError("cannot encrypt because recipient set shares no common algorithms")
-	}
-
-	cipher := packet.CipherFunction(candidateCiphers[0])
-	// If the cipher specified by config is a candidate, we'll use that.
-	configuredCipher := config.Cipher()
-	for _, c := range candidateCiphers {
-		cipherFunc := packet.CipherFunction(c)
-		if cipherFunc == configuredCipher {
-			cipher = cipherFunc
-			break
-		}
-	}
-
-	symKey := make([]byte, cipher.KeySize())
-	if _, err := io.ReadFull(config.Random(), symKey); err != nil {
-		return nil, err
-	}
-
-	for _, key := range encryptKeys {
-		if err := packet.SerializeEncryptedKey(ciphertext, key.PublicKey, cipher, symKey, config); err != nil {
-			return nil, err
-		}
-	}
-
-	payload, err := packet.SerializeSymmetricallyEncrypted(ciphertext, cipher, symKey, config)
-	if err != nil {
-		return
-	}
-
-	return writeAndSign(payload, candidateHashes, signed, hints, sigType, config)
-}
-
-// Sign signs a message. The resulting WriteCloser must be closed after the
-// contents of the file have been written.  hints contains optional information
-// that aids the recipients in processing the message.
-// If config is nil, sensible defaults will be used.
-func Sign(output io.Writer, signed *Entity, hints *FileHints, config *packet.Config) (input io.WriteCloser, err error) {
-	if signed == nil {
-		return nil, errors.InvalidArgumentError("no signer provided")
-	}
-
-	// These are the possible hash functions that we'll use for the signature.
-	candidateHashes := []uint8{
-		hashToHashId(crypto.SHA256),
-		hashToHashId(crypto.SHA384),
-		hashToHashId(crypto.SHA512),
-		hashToHashId(crypto.SHA1),
-		hashToHashId(crypto.RIPEMD160),
-	}
-	defaultHashes := candidateHashes[len(candidateHashes)-1:]
-	preferredHashes := signed.PrimaryIdentity().SelfSignature.PreferredHash
-	if len(preferredHashes) == 0 {
-		preferredHashes = defaultHashes
-	}
-	candidateHashes = intersectPreferences(candidateHashes, preferredHashes)
-	return writeAndSign(noOpCloser{output}, candidateHashes, signed, hints, packet.SigTypeBinary, config)
 }
 
 // signatureWriter hashes the contents of a message while passing it along to
