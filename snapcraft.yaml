@@ -1,0 +1,57 @@
+name: hockeypuck
+version: git
+summary: OpenPGP Public Keyserver
+description: |
+  Hockeypuck is an OpenPGP Key Server that implements the HTTP
+  Keyserver Protocol and the SKS database reconciliation protocol.
+
+base: core18
+confinement: strict
+grade: stable
+
+apps:
+  hockeypuck:
+    command: bin/hockeypuck-wrapper
+    daemon: simple
+    plugs:
+      - network
+      - network-bind
+  config:
+    command: hockeypuck-config-wrapper
+  dump:
+    command: bin/hockeypuck-dump-wrapper
+    plugs:
+      - home
+      - network
+  load:
+    command: bin/hockeypuck-load-wrapper
+    plugs:
+      - home
+      - network
+  pbuild:
+    command: bin/hockeypuck-pbuild-wrapper
+    plugs:
+      - network
+
+parts:
+  hockeypuck:
+    build-environment:
+      # https://github.com/golang/go/issues/33840
+      - CGO_ENABLED: "0"
+    build-snaps:
+      - go
+    plugin: make
+    make-parameters:
+      - prefix=
+      - statedir=
+    source: .
+
+  wrappers:
+    plugin: dump
+    source: src/hockeypuck/server/snap
+    organize:
+      "*-wrapper": bin/
+    stage:
+      - bin/*
+    prime:
+      - bin/*
