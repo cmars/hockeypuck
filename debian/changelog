@@ -1,9 +1,19 @@
-hockeypuck (2.0.13) bionic; urgency=medium
+hockeypuck (2.0.14) bionic; urgency=medium
 
+  * add option to disable keyword searches
+  * add option to send only valid self-signed packets in responses
+  * added example standalone docker-compose deployment
   * support for gnupg 2.x ECC keys
   * misc test fixes
 
  -- Casey Marshall <casey.marshall@canonical.com>  Sun, 01 Sep 2019 14:08:26 -0500
+
+hockeypuck (2.0.13) bionic; urgency=medium
+
+  * snapcraft.yaml for in-tree builds
+  * don't use errgo.Notef to collect all errors in requestRecovered
+
+ -- Paul Collins <paul.collins@canonical.com>  Fri, 06 Sep 2019 09:49:41 +1200
 
 hockeypuck (2.0.12) bionic; urgency=medium
 
