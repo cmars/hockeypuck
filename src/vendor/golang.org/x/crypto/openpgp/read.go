@@ -338,7 +338,7 @@ func (scr *signatureCheckReader) Read(buf []byte) (n int, err error) {
 		var ok bool
 		if scr.md.Signature, ok = p.(*packet.Signature); ok {
 			scr.md.SignatureError = scr.md.SignedBy.PublicKey.VerifySignature(scr.h, scr.md.Signature)
-			if scr.md.SignatureError == nil && scr.md.Signature.SigExpired(scr.config.Now()) {
+			if scr.md.SignatureError == nil && scr.md.Signature.KeyExpired(scr.config.Now()) {
 				scr.md.SignatureError = errors.ErrSignatureExpired
 			}
 		} else if scr.md.SignatureV3, ok = p.(*packet.SignatureV3); ok {
@@ -365,20 +365,12 @@ func (scr *signatureCheckReader) Read(buf []byte) (n int, err error) {
 // returns the signer if the signature is valid. If the signer isn't known,
 // ErrUnknownIssuer is returned.
 func CheckDetachedSignature(keyring KeyRing, signed, signature io.Reader, config *packet.Config) (signer *Entity, err error) {
-	var expectedHashes []crypto.Hash
-	return CheckDetachedSignatureAndHash(keyring, signed, signature, expectedHashes, config)
-}
-
-// CheckDetachedSignatureAndHash performs the same actions as
-// CheckDetachedSignature and checks that the expected hash functions were used.
-func CheckDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader, expectedHashes []crypto.Hash, config *packet.Config) (signer *Entity, err error) {
 	var issuerKeyId uint64
 	var hashFunc crypto.Hash
 	var sigType packet.SignatureType
 	var keys []Key
 	var p packet.Packet
 
-	expectedHashesLen := len(expectedHashes)
 	packets := packet.NewReader(signature)
 	for {
 		p, err = packets.Next()
@@ -405,15 +397,6 @@ func CheckDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader,
 			return nil, errors.StructuralError("non signature packet found")
 		}
 
-		for i, expectedHash := range expectedHashes {
-			if hashFunc == expectedHash {
-				break
-			}
-			if i + 1 == expectedHashesLen {
-				return nil, errors.StructuralError("hash algorithm mismatch with cleartext message headers")
-			}
-		}
-
 		keys = keyring.KeysByIdUsage(issuerKeyId, packet.KeyFlagSign)
 		if len(keys) > 0 {
 			break
@@ -437,7 +420,7 @@ func CheckDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader,
 		switch sig := p.(type) {
 		case *packet.Signature:
 			err = key.PublicKey.VerifySignature(h, sig)
-			if err == nil && sig.SigExpired(config.Now()) {
+			if err == nil && sig.KeyExpired(config.Now()) {
 				err = errors.ErrSignatureExpired
 			}
 		case *packet.SignatureV3:

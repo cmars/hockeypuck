@@ -98,8 +98,7 @@ func (e *EncryptedKey) Decrypt(priv *PrivateKey, config *Config) error {
 	// padding oracle attacks.
 	switch priv.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly:
-		k := priv.PrivateKey.(*rsa.PrivateKey)
-		b, err = rsa.DecryptPKCS1v15(config.Random(), k, padToKeySize(&k.PublicKey, e.encryptedMPI1.Bytes()))
+		b, err = rsa.DecryptPKCS1v15(config.Random(), priv.PrivateKey.(*rsa.PrivateKey), e.encryptedMPI1.Bytes())
 	case PubKeyAlgoElGamal:
 		c1 := new(big.Int).SetBytes(e.encryptedMPI1.Bytes())
 		c2 := new(big.Int).SetBytes(e.encryptedMPI2.Bytes())
@@ -207,8 +206,7 @@ func serializeEncryptedKeyRSA(w io.Writer, rand io.Reader, header [10]byte, pub 
 		return errors.InvalidArgumentError("RSA encryption failed: " + err.Error())
 	}
 
-	cipherMPI := encoding.NewMPI(cipherText)
-	packetLen := 10 /* header length */ + int(cipherMPI.EncodedLength())
+	packetLen := 10 /* header length */ + 2 /* mpi size */ + len(cipherText)
 
 	err = serializeHeader(w, packetTypeEncryptedKey, packetLen)
 	if err != nil {
@@ -218,7 +216,7 @@ func serializeEncryptedKeyRSA(w io.Writer, rand io.Reader, header [10]byte, pub 
 	if err != nil {
 		return err
 	}
-	_, err = w.Write(cipherMPI.EncodedBytes())
+	_, err = w.Write(encoding.NewMPI(cipherText).EncodedBytes())
 	return err
 }
 
