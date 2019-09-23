@@ -74,14 +74,14 @@ func (s *ReconSuite) pollRootConvergence(c *gc.C, peer1, peer2 *recon.Peer, ptre
 			mu.Lock()
 			root1, err := ptree1.Root()
 			c.Assert(err, gc.IsNil)
-			zs1 = cf.NewZSet(recon.MustElements(root1)...)
+			zs1 = cf.NewZSetSlice(recon.MustElements(root1))
 			mu.Unlock()
 		})
 		peer2.SetMutatedFunc(func() {
 			mu.Lock()
 			root2, err := ptree2.Root()
 			c.Assert(err, gc.IsNil)
-			zs2 = cf.NewZSet(recon.MustElements(root2)...)
+			zs2 = cf.NewZSetSlice(recon.MustElements(root2))
 			mu.Unlock()
 		})
 	POLLING:

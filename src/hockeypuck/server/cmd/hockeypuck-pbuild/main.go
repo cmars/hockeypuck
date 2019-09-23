@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"gopkg.in/errgo.v1"
+	cf "hockeypuck/conflux"
 	"hockeypuck/hkp/sks"
 	"hockeypuck/hkp/storage"
 	log "hockeypuck/logrus"
@@ -84,11 +85,12 @@ func pbuild(settings *server.Settings) error {
 	st.Subscribe(func(kc storage.KeyChange) error {
 		ka, ok := kc.(storage.KeyAdded)
 		if ok {
-			digestZp, err := sks.DigestZp(ka.Digest)
+			var digestZp cf.Zp
+			err := sks.DigestZp(ka.Digest, &digestZp)
 			if err != nil {
 				return errgo.Notef(err, "bad digest %q", ka.Digest)
 			}
-			err = ptree.Insert(digestZp)
+			err = ptree.Insert(&digestZp)
 			if err != nil {
 				return errgo.Notef(err, "failed to insert digest %q", ka.Digest)
 			}

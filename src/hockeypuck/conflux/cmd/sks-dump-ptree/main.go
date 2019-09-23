@@ -109,7 +109,7 @@ func parseKey(line string) []byte {
 }
 
 type Node struct {
-	SValues      []*Zp
+	SValues      []Zp
 	NumElements  int
 	Key          string
 	Leaf         bool
@@ -133,16 +133,16 @@ func printHex(w io.Writer, buf []byte) {
 	}
 }
 
-func unmarshalNode(buf []byte, bitQuantum int, numSamples int) (node *Node, err error) {
+func unmarshalNode(buf []byte, bitQuantum int, numSamples int) (*Node, error) {
 	r := bytes.NewBuffer(buf)
 	var keyBits, numElements int
-	numElements, err = recon.ReadInt(r)
+	numElements, err := recon.ReadInt(r)
 	if err != nil {
-		return
+		return nil, err
 	}
 	keyBits, err = recon.ReadInt(r)
 	if err != nil {
-		return
+		return nil, err
 	}
 	keyBytes := keyBits / 8
 	if keyBits%8 > 0 {
@@ -150,44 +150,44 @@ func unmarshalNode(buf []byte, bitQuantum int, numSamples int) (node *Node, err 
 	}
 	if keyBytes < 0 {
 		err = errors.New(fmt.Sprintf("Invalid bitstring length == %d", keyBytes))
-		return
+		return nil, err
 	}
 	keyData := make([]byte, keyBytes)
 	_, err = r.Read(keyData)
 	if err != nil {
-		return
+		return nil, err
 	}
 	key := NewBitstring(keyBits)
 	key.SetBytes(keyData)
-	svalues := make([]*Zp, numSamples)
+	svalues := make([]Zp, numSamples)
 	for i := 0; i < numSamples; i++ {
-		svalues[i], err = recon.ReadZp(r)
+		err := recon.ReadZp(r, &svalues[i])
 		if err != nil {
-			return
+			return nil, err
 		}
 	}
 	b := make([]byte, 1)
 	_, err = r.Read(b)
 	if err != nil {
-		return
+		return nil, err
 	}
-	node = &Node{
+	node := &Node{
 		SValues:     svalues,
 		NumElements: numElements,
 		Key:         key.String(),
 		Leaf:        b[0] == 1}
 	if node.Leaf {
 		var size int
-		size, err = recon.ReadInt(r)
+		size, err := recon.ReadInt(r)
 		if err != nil {
-			return
+			return nil, err
 		}
 		node.Fingerprints = make([]string, size)
 		for i := 0; i < size; i++ {
 			buf := make([]byte, recon.SksZpNbytes)
 			_, err = io.ReadFull(r, buf)
 			if err != nil {
-				return
+				return nil, err
 			}
 			node.Fingerprints[i] = fmt.Sprintf("%x", buf)
 		}
@@ -205,5 +205,5 @@ func unmarshalNode(buf []byte, bitQuantum int, numSamples int) (node *Node, err 
 			node.Children = append(node.Children, child.String())
 		}
 	}
-	return
+	return node, nil
 }

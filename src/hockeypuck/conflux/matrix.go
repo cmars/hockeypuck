@@ -35,7 +35,7 @@ var ErrMatrixTooNarrow = errors.New("matrix is too narrow to reduce")
 // Matrix represents a rectangular array of numbers over a finite field Z(p).
 type Matrix struct {
 	columns, rows int
-	cells         []*Zp
+	cells         []Zp
 }
 
 // NewMatrix returns a new Matrix of the given dimensions and finite field p.
@@ -43,21 +43,21 @@ func NewMatrix(columns, rows int, x *Zp) *Matrix {
 	matrix := &Matrix{
 		rows:    rows,
 		columns: columns,
-		cells:   make([]*Zp, columns*rows)}
+		cells:   make([]Zp, columns*rows)}
 	for i := 0; i < len(matrix.cells); i++ {
-		matrix.cells[i] = x.Copy()
+		matrix.cells[i].Set(x)
 	}
 	return matrix
 }
 
 // Get returns the value at the given (row, column) location.
 func (m *Matrix) Get(i, j int) *Zp {
-	return m.cells[i+(j*m.columns)]
+	return &m.cells[i+(j*m.columns)]
 }
 
 // Set sets the value at the given (row, column) location.
 func (m *Matrix) Set(i, j int, x *Zp) {
-	m.cells[i+(j*m.columns)] = x.Copy()
+	m.cells[i+(j*m.columns)].Set(x)
 }
 
 // Reduce performs Gaussian elimination on a matrix of coefficients, in-place.
@@ -80,7 +80,7 @@ func (m *Matrix) backSubstitute(j int) {
 		for j2 := j - 1; j2 >= 0; j2-- {
 			scmult := m.Get(j, j2).Copy()
 			m.rowsub(last, j, j2, scmult)
-			m.Set(j, j2, Zi(scmult.P, 0))
+			m.Set(j, j2, Zi(scmult.P(), 0))
 		}
 	}
 }
@@ -120,7 +120,7 @@ func (m *Matrix) swapRows(j1, j2 int) {
 func (m *Matrix) scmultRow(scol, j int, sc *Zp) {
 	start := j * m.columns
 	for i := scol; i < m.columns; i++ {
-		v := m.cells[start+i]
+		v := &m.cells[start+i]
 		v.Mul(v, sc)
 	}
 }
@@ -131,7 +131,7 @@ func (m *Matrix) rowsub(scol, src, dst int, scmult *Zp) {
 		if !sval.IsZero() {
 			v := m.Get(i, dst)
 			if scmult.Int64() != int64(1) {
-				v.Sub(v, Z(scmult.P).Mul(sval, scmult))
+				v.Sub(v, Z(scmult.P()).Mul(sval, scmult))
 			} else {
 				v.Sub(v, sval)
 			}

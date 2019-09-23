@@ -91,9 +91,10 @@ func (s *PtreeSuite) TestJustOneKey(c *gc.C) {
 	}
 	c.Assert(err, gc.IsNil)
 	root, err = s.ptree.Root()
-	for _, sv := range root.SValues() {
-		c.Assert(expect.Has(sv), gc.Equals, true, gc.Commentf("Unexpected svalue: %v", sv))
-		expect.Remove(sv)
+	svalues := root.SValues()
+	for i := range svalues {
+		c.Assert(expect.Contains(&svalues[i]), gc.Equals, true, gc.Commentf("Unexpected svalue: %v", &svalues[i]))
+		expect.Remove(&svalues[i])
 	}
 	c.Assert(expect.Items(), gc.HasLen, 0)
 }

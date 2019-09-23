@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"gopkg.in/errgo.v1"
+	cf "hockeypuck/conflux"
 	"hockeypuck/hkp/sks"
 	"hockeypuck/hkp/storage"
 	log "hockeypuck/logrus"
@@ -100,11 +101,12 @@ func load(settings *server.Settings, args []string) error {
 		stats.Update(kc)
 		ka, ok := kc.(storage.KeyAdded)
 		if ok {
-			digestZp, err := sks.DigestZp(ka.Digest)
+			var digestZp cf.Zp
+			err := sks.DigestZp(ka.Digest, &digestZp)
 			if err != nil {
 				return errgo.Notef(err, "bad digest %q", ka.Digest)
 			}
-			return ptree.Insert(digestZp)
+			return ptree.Insert(&digestZp)
 		}
 		return nil
 	})
