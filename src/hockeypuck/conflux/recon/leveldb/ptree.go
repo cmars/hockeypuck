@@ -46,7 +46,7 @@ type prefixTree struct {
 
 	root   *prefixNode
 	db     *leveldb.DB
-	points []*cf.Zp
+	points []cf.Zp
 }
 
 type prefixNode struct {
@@ -75,7 +75,7 @@ func mustDecodeBitstring(buf []byte) *cf.Bitstring {
 	return bs
 }
 
-func mustEncodeZZarray(arr []*cf.Zp) []byte {
+func mustEncodeZZarray(arr []cf.Zp) []byte {
 	w := bytes.NewBuffer(nil)
 	err := recon.WriteZZarray(w, arr)
 	if err != nil {
@@ -84,7 +84,7 @@ func mustEncodeZZarray(arr []*cf.Zp) []byte {
 	return w.Bytes()
 }
 
-func mustDecodeZZarray(buf []byte) []*cf.Zp {
+func mustDecodeZZarray(buf []byte) []cf.Zp {
 	arr, err := recon.ReadZZarray(bytes.NewBuffer(buf))
 	if err != nil {
 		panic(err)
@@ -133,7 +133,7 @@ func (t *prefixTree) ensureRoot() (err error) {
 	return root.upsertNode()
 }
 
-func (t *prefixTree) Points() []*cf.Zp { return t.points }
+func (t *prefixTree) Points() []cf.Zp { return t.points }
 
 func (t *prefixTree) Root() (recon.PrefixNode, error) {
 	return t.Node(cf.NewBitstring(0))
@@ -183,9 +183,9 @@ func (n *prefixNode) Config() *recon.PTreeConfig {
 	return &n.PTreeConfig
 }
 
-func (n *prefixNode) insert(z *cf.Zp, marray []*cf.Zp, bs *cf.Bitstring, depth int) error {
+func (n *prefixNode) insert(z *cf.Zp, marray []cf.Zp, bs *cf.Bitstring, depth int) error {
 	for {
-		n.updateSvalues(z, marray)
+		n.updateSvalues(marray)
 		n.NumElements++
 		var err error
 		if n.IsLeaf() {
@@ -287,10 +287,10 @@ func (n *prefixNode) split(depth int) (err error) {
 	return nil
 }
 
-func (n *prefixNode) remove(z *cf.Zp, marray []*cf.Zp, bs *cf.Bitstring, depth int) error {
+func (n *prefixNode) remove(z *cf.Zp, marray []cf.Zp, bs *cf.Bitstring, depth int) error {
 	var err error
 	for {
-		n.updateSvalues(z, marray)
+		n.updateSvalues(marray)
 		n.NumElements--
 		if n.IsLeaf() {
 			break
@@ -407,9 +407,10 @@ func (t *prefixTree) newChildNode(parent *prefixNode, childIndex int) *prefixNod
 		key = cf.NewBitstring(0)
 	}
 	n.NodeKey = mustEncodeBitstring(key)
-	svalues := make([]*cf.Zp, t.NumSamples())
+	svalues := make([]cf.Zp, t.NumSamples())
+	zOne := cf.Zi(cf.P_SKS, 1)
 	for i := 0; i < len(svalues); i++ {
-		svalues[i] = cf.Zi(cf.P_SKS, 1)
+		svalues[i].Set(zOne)
 	}
 	n.NodeSValues = mustEncodeZZarray(svalues)
 	return n
@@ -454,11 +455,12 @@ func (n *prefixNode) Children() ([]recon.PrefixNode, error) {
 	return result, nil
 }
 
-func (n *prefixNode) Elements() ([]*cf.Zp, error) {
-	var result []*cf.Zp
+func (n *prefixNode) Elements() ([]cf.Zp, error) {
+	var result []cf.Zp
 	if n.IsLeaf() {
-		for _, element := range n.NodeElements {
-			result = append(result, cf.Zb(cf.P_SKS, element))
+		result = make([]cf.Zp, len(n.NodeElements))
+		for i := range n.NodeElements {
+			result[i].In(cf.P_SKS).SetBytes(n.NodeElements[i])
 		}
 	} else {
 		children, err := n.Children()
@@ -478,7 +480,7 @@ func (n *prefixNode) Elements() ([]*cf.Zp, error) {
 
 func (n *prefixNode) Size() int { return n.NumElements }
 
-func (n *prefixNode) SValues() []*cf.Zp {
+func (n *prefixNode) SValues() []cf.Zp {
 	return mustDecodeZZarray(n.NodeSValues)
 }
 
@@ -500,13 +502,13 @@ func (n *prefixNode) Parent() (recon.PrefixNode, bool, error) {
 	return parent, true, nil
 }
 
-func (n *prefixNode) updateSvalues(z *cf.Zp, marray []*cf.Zp) {
+func (n *prefixNode) updateSvalues(marray []cf.Zp) {
 	if len(marray) != len(n.points) {
 		panic("Inconsistent NumSamples size")
 	}
 	svalues := mustDecodeZZarray(n.NodeSValues)
 	for i := 0; i < len(marray); i++ {
-		svalues[i] = cf.Z(z.P).Mul(svalues[i], marray[i])
+		svalues[i].Mul(&svalues[i], &marray[i])
 	}
 	n.NodeSValues = mustEncodeZZarray(svalues)
 }

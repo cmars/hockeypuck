@@ -195,30 +195,34 @@ func (r *Peer) Stop() {
 	r.writeStats()
 }
 
-func DigestZp(digest string) (*cf.Zp, error) {
+func DigestZp(digest string, zp *cf.Zp) error {
 	buf, err := hex.DecodeString(digest)
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return errgo.Mask(err)
 	}
 	buf = recon.PadSksElement(buf)
-	return cf.Zb(cf.P_SKS, buf), nil
+	zp.In(cf.P_SKS).SetBytes(buf)
+	zp.Norm()
+	return nil
 }
 
 func (r *Peer) updateDigests(change storage.KeyChange) error {
 	r.stats.Update(change)
 	for _, digest := range change.InsertDigests() {
-		digestZp, err := DigestZp(digest)
+		toInsert := make([]cf.Zp, 1)
+		err := DigestZp(digest, &toInsert[0])
 		if err != nil {
 			return errgo.Notef(err, "bad digest %q", digest)
 		}
-		r.peer.Insert(digestZp)
+		r.peer.Insert(toInsert...)
 	}
 	for _, digest := range change.RemoveDigests() {
-		digestZp, err := DigestZp(digest)
+		toRemove := make([]cf.Zp, 1)
+		err := DigestZp(digest, &toRemove[0])
 		if err != nil {
 			return errgo.Notef(err, "bad digest %q", digest)
 		}
-		r.peer.Remove(digestZp)
+		r.peer.Remove(toRemove...)
 	}
 	return nil
 }
@@ -263,7 +267,7 @@ func (r *Peer) requestRecovered(rcvr *recon.Recover) error {
 	return nil
 }
 
-func (r *Peer) requestChunk(rcvr *recon.Recover, chunk []*cf.Zp) error {
+func (r *Peer) requestChunk(rcvr *recon.Recover, chunk []cf.Zp) error {
 	var remoteAddr string
 	remoteAddr, err := rcvr.HkpAddr()
 	if err != nil {
@@ -276,8 +280,8 @@ func (r *Peer) requestChunk(rcvr *recon.Recover, chunk []*cf.Zp) error {
 	if err != nil {
 		return errgo.Mask(err)
 	}
-	for _, z := range chunk {
-		zb := z.Bytes()
+	for i := range chunk {
+		zb := chunk[i].Bytes()
 		zb = recon.PadSksElement(zb)
 		// Hashquery elements are 16 bytes (length_of(P_SKS)-1)
 		zb = zb[:len(zb)-1]

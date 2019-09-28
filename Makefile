@@ -22,6 +22,7 @@ build:
 clean: clean-go
 
 clean-go:
+	-chmod -R u+rwX pkg
 	rm -rf $(PROJECTPATH)/.gocache
 	rm -rf $(PROJECTPATH)/bin
 	rm -rf $(PROJECTPATH)/pkg

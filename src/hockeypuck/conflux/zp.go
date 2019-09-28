@@ -72,44 +72,47 @@ func init() {
 // arithmetic is (mod p).
 type Zp struct {
 
-	// Int is the integer's value.
-	*big.Int
+	// i is the integer's value.
+	i big.Int
 
-	// P is the prime bound of the finite field Z(p).
-	P *big.Int
+	// p is the prime bound of the finite field Z(p).
+	p *big.Int
 }
 
-// Z returns a new integer in the finite field P initialized to 0.
+// Z returns an integer in the finite field P initialized to 0.
 func Z(p *big.Int) *Zp {
-	return Zi(p, 0)
+	return &Zp{p: p}
 }
 
-// Zzp returns a new integer in the finite field P initialized to zp.
+// Zzp returns an integer in the finite field P initialized to zp.
 func Zzp(zp *Zp) *Zp {
-	return &Zp{Int: big.NewInt(0).Set(zp.Int), P: zp.P}
+	zzp := &Zp{p: zp.p}
+	zzp.i.Set(&zp.i)
+	return zzp
 }
 
-// Zi returns a new integer n in the finite field p.
+// Zi returns an integer n in the finite field p.
 func Zi(p *big.Int, n int) *Zp {
-	zp := &Zp{Int: big.NewInt(int64(n)), P: p}
+	zp := &Zp{p: p}
+	zp.i.SetInt64(int64(n))
 	zp.Norm()
 	return zp
 }
 
-// Zb returns a new integer in the finite field p from a byte representation.
+// Zb returns an integer in the finite field p from a byte representation.
 func Zb(p *big.Int, b []byte) *Zp {
 	z := Zi(p, 0)
 	z.SetBytes(b)
 	return z
 }
 
-// Zs returns a new integer from base10 string s in the finite field p.
+// Zs returns an integer from base10 string s in the finite field p.
 func Zs(p *big.Int, s string) *Zp {
-	i, ok := big.NewInt(0).SetString(s, 10)
+	zp := &Zp{p: p}
+	_, ok := zp.i.SetString(s, 10)
 	if !ok {
-		return nil
+		panic(fmt.Sprintf("invalid integer %q", s))
 	}
-	zp := &Zp{Int: i, P: p}
 	zp.Norm()
 	return zp
 }
@@ -121,10 +124,14 @@ func randbits(nbits int) *big.Int {
 	}
 	rstring := make([]byte, nbytes)
 	rand.Reader.Read(rstring)
-	rval := big.NewInt(int64(0)).SetBytes(rstring)
-	high := big.NewInt(int64(0)).Exp(big.NewInt(int64(2)), big.NewInt(int64(nbits-1)), nil)
-	rval.Add(high, big.NewInt(int64(0)).Mod(rval, high))
-	return rval
+	var rval, high, big2, exp, rem big.Int
+	rval.SetBytes(rstring)
+	big2.SetInt64(int64(2))
+	exp.SetInt64(int64(nbits - 1))
+	high.Exp(&big2, &exp, nil)
+	rem.Mod(&rval, &high)
+	rval.Add(&high, &rem)
+	return &rval
 }
 
 func randint(high *big.Int) *big.Int {
@@ -135,21 +142,24 @@ func randint(high *big.Int) *big.Int {
 	}
 	rstring := make([]byte, nbytes)
 	rand.Reader.Read(rstring)
-	rval := big.NewInt(int64(0)).SetBytes(rstring)
-	rval.Mod(rval, high)
-	return rval
+	var rval big.Int
+	rval.SetBytes(rstring)
+	rval.Mod(&rval, high)
+	return &rval
 }
 
-// Zrand returns a new random integer in the finite field p.
+// Zrand returns a random integer in the finite field p.
 func Zrand(p *big.Int) *Zp {
-	return &Zp{Int: randint(p), P: p}
+	zp := &Zp{p: p}
+	zp.i.Set(randint(p))
+	return zp
 }
 
 // Zarray returns a new array of integers, all initialized to v.
-func Zarray(p *big.Int, n int, v *Zp) []*Zp {
-	result := make([]*Zp, n)
+func Zarray(p *big.Int, n int, v *Zp) []Zp {
+	result := make([]Zp, n)
 	for i := 0; i < n; i++ {
-		result[i] = v.Copy()
+		result[i].Set(v)
 	}
 	return result
 }
@@ -163,6 +173,11 @@ func reversed(b []byte) []byte {
 	return result
 }
 
+// P returns the modulus of Zp.
+func (zp *Zp) P() *big.Int {
+	return zp.p
+}
+
 // FullKeyHash returns Zp in the format of a full-key hash.
 func (zp *Zp) FullKeyHash() string {
 	return hex.EncodeToString(zp.Bytes())
@@ -170,23 +185,30 @@ func (zp *Zp) FullKeyHash() string {
 
 // Bytes returns the byte representation of Zp.
 func (zp *Zp) Bytes() []byte {
-	return reversed(zp.Int.Bytes())
+	return reversed(zp.i.Bytes())
+}
+
+// Set sets zp to x and returns zp.
+func (zp *Zp) Set(x *Zp) *Zp {
+	zp.p = x.p
+	zp.i.Set(&x.i)
+	return zp
 }
 
 // SetBytes sets the integer from its byte representation.
 func (zp *Zp) SetBytes(b []byte) {
-	zp.Int.SetBytes(reversed(b))
+	zp.i.SetBytes(reversed(b))
 	zp.Norm()
 }
 
 // Copy returns a new Zp instance with the same value.
 func (zp *Zp) Copy() *Zp {
-	return &Zp{Int: big.NewInt(0).Set(zp.Int), P: zp.P}
+	return Zzp(zp)
 }
 
 // Norm normalizes the integer to its finite field, (mod P).
 func (zp *Zp) Norm() *Zp {
-	zp.Mod(zp.Int, zp.P)
+	zp.i.Mod(&zp.i, zp.p)
 	return zp
 }
 
@@ -194,75 +216,98 @@ func (zp *Zp) Norm() *Zp {
 // semantics.
 func (zp *Zp) Cmp(x *Zp) int {
 	zp.assertEqualP(x)
-	return zp.Int.Cmp(x.Int)
+	return (&zp.i).Cmp(&x.i)
 }
 
 // IsZero returns whether the integer is zero.
 func (zp *Zp) IsZero() bool {
-	return zp.Int.Cmp(zero) == 0
+	return zp.i.Cmp(zero) == 0
 }
 
 // Add sets the integer value to the sum of two integers, returning the result.
 func (zp *Zp) Add(x, y *Zp) *Zp {
-	zp.assertEqualP(x, y)
-	zp.Int.Add(x.Int, y.Int)
+	x.assertP(y.p)
+	zp.p = x.p
+	zp.i.Add(&x.i, &y.i)
 	zp.Norm()
 	return zp
 }
 
 // Sub sets the integer value to the difference of two integers, returning the result.
 func (zp *Zp) Sub(x, y *Zp) *Zp {
-	zp.assertEqualP(x, y)
-	zp.Int.Sub(x.Int, y.Int)
+	x.assertP(y.p)
+	zp.p = x.p
+	zp.i.Sub(&x.i, &y.i)
 	zp.Norm()
 	return zp
 }
 
 // Mul sets the integer value to the product of two integers, returning the result.
 func (zp *Zp) Mul(x, y *Zp) *Zp {
-	zp.assertEqualP(x, y)
-	zp.Int.Mul(x.Int, y.Int)
+	x.assertP(y.p)
+	zp.p = x.p
+	zp.i.Mul(&x.i, &y.i)
 	zp.Norm()
 	return zp
 }
 
 // Inv sets the integer value to its multiplicative inverse, returning the result.
 func (zp *Zp) Inv() *Zp {
-	zp.Int.ModInverse(zp.Int, zp.P)
+	zp.i.ModInverse(&zp.i, zp.p)
 	return zp
 }
 
 // Exp sets the integer value to x**y ("x to the yth power"), returning the
 // result.
 func (zp *Zp) Exp(x, y *Zp) *Zp {
-	zp.assertEqualP(x, y)
-	zp.Int.Exp(x.Int, y.Int, zp.P)
+	x.assertP(y.p)
+	zp.p = x.p
+	zp.i.Exp(&x.i, &y.i, zp.p)
 	return zp
 }
 
 // Div sets the integer value to x/y in the finite field p, returning the result.
 func (zp *Zp) Div(x, y *Zp) *Zp {
-	return zp.Mul(x, Zzp(y).Inv())
+	return zp.Mul(x, y.Copy().Inv())
 }
 
 // Neg sets the integer to its additive inverse, returning the result.
 func (zp *Zp) Neg() *Zp {
-	zp.Int.Sub(zp.P, zp.Int)
+	zp.i.Sub(zp.p, &zp.i)
 	zp.Norm()
+	return zp
+}
+
+func (zp *Zp) String() string {
+	return zp.i.String()
+}
+
+func (zp *Zp) Int64() int64 {
+	return zp.i.Int64()
+}
+
+// In sets the finite field to P on an uninitialized Zp, otherwise it asserts
+// P.
+func (zp *Zp) In(p *big.Int) *Zp {
+	if zp.p == nil {
+		zp.p = p
+	} else {
+		zp.assertP(p)
+	}
 	return zp
 }
 
 // assertP asserts an integer is in the expected finite field P.
 func (zp *Zp) assertP(p *big.Int) {
-	if zp.P.Cmp(p) != 0 {
-		panic(fmt.Sprintf("expect finite field Z(%v), was Z(%v)", p, zp.P))
+	if zp.p.Cmp(p) != 0 {
+		panic(fmt.Sprintf("expect finite field Z(%v), was Z(%v)", p, zp.p))
 	}
 }
 
 // assertEqualP asserts all integers share the same finite field P as this one.
 func (zp *Zp) assertEqualP(values ...*Zp) {
 	for _, v := range values {
-		zp.assertP(v.P)
+		zp.assertP(v.p)
 	}
 }
 
@@ -273,10 +318,18 @@ type ZSet struct {
 }
 
 // NewZSet returns a new ZSet containing the given elements.
-func NewZSet(elements ...*Zp) (zs *ZSet) {
-	zs = &ZSet{s: make(map[string]*big.Int)}
-	for _, element := range elements {
-		zs.Add(element)
+func NewZSet(elements ...*Zp) *ZSet {
+	zs := &ZSet{s: make(map[string]*big.Int, len(elements))}
+	for i := range elements {
+		zs.Add(elements[i])
+	}
+	return zs
+}
+
+func NewZSetSlice(elements []Zp) *ZSet {
+	zs := &ZSet{s: make(map[string]*big.Int, len(elements))}
+	for i := range elements {
+		zs.Add(&elements[i])
 	}
 	return zs
 }
@@ -292,11 +345,11 @@ func (zs *ZSet) Len() int {
 // Add adds an element to the set.
 func (zs *ZSet) Add(v *Zp) {
 	if zs.p == nil {
-		zs.p = v.P
+		zs.p = v.p
 	} else {
 		v.assertP(zs.p)
 	}
-	zs.s[v.String()] = v.Int
+	zs.s[v.String()] = big.NewInt(0).Set(&v.i)
 }
 
 // Remove removes an element from the set.
@@ -304,10 +357,10 @@ func (zs *ZSet) Remove(v *Zp) {
 	delete(zs.s, v.String())
 }
 
-// Has returns whether the set has the given element as a member.
-func (zs *ZSet) Has(v *Zp) bool {
-	_, has := zs.s[v.String()]
-	return has
+// Contains returns whether the set contains the given element as a member.
+func (zs *ZSet) Contains(v *Zp) bool {
+	_, ok := zs.s[v.String()]
+	return ok
 }
 
 // Equal returns whether this set is equal to another set.
@@ -325,9 +378,9 @@ func (zs *ZSet) Equal(other *ZSet) bool {
 }
 
 // AddSlice adds all the given elements to the set.
-func (zs *ZSet) AddSlice(other []*Zp) {
-	for _, v := range other {
-		zs.Add(v)
+func (zs *ZSet) AddSlice(other []Zp) {
+	for i := range other {
+		zs.Add(&other[i])
 	}
 }
 
@@ -342,9 +395,9 @@ func (zs *ZSet) AddAll(other *ZSet) {
 }
 
 // RemoveSlice removes all the given elements from the set.
-func (zs *ZSet) RemoveSlice(other []*Zp) {
-	for _, v := range other {
-		zs.Remove(v)
+func (zs *ZSet) RemoveSlice(other []Zp) {
+	for i := range other {
+		zs.Remove(&other[i])
 	}
 }
 
@@ -359,14 +412,18 @@ func (zs *ZSet) RemoveAll(other *ZSet) {
 }
 
 // Items returns a slice of all elements in the set.
-func (zs *ZSet) Items() (result []*Zp) {
+func (zs *ZSet) Items() []Zp {
 	if zs == nil {
 		return nil
 	}
+	result := make([]Zp, len(zs.s))
+	i := 0
 	for _, v := range zs.s {
-		result = append(result, &Zp{Int: v, P: zs.p})
+		result[i] = Zp{p: zs.p}
+		result[i].i.Set(v)
+		i++
 	}
-	return
+	return result
 }
 
 // String returns a string representation of the set.
@@ -387,7 +444,7 @@ func (zs *ZSet) String() string {
 }
 
 // ZpSlice is a collection of integers in a finite field.
-type ZpSlice []*Zp
+type ZpSlice []Zp
 
 // String returns a string representation of the ZpSlice.
 func (zp ZpSlice) String() string {

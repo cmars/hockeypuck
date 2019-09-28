@@ -46,7 +46,7 @@ var ErrRemoteRejectedConfig error = errors.New("remote rejected configuration")
 type Recover struct {
 	RemoteAddr     net.Addr
 	RemoteConfig   *Config
-	RemoteElements []*cf.Zp
+	RemoteElements []cf.Zp
 }
 
 func (r *Recover) String() string {
@@ -93,8 +93,8 @@ type Peer struct {
 	readers  int
 
 	muElements     sync.Mutex
-	insertElements []*cf.Zp
-	removeElements []*cf.Zp
+	insertElements []cf.Zp
+	removeElements []cf.Zp
 
 	mutatedFunc func()
 }
@@ -176,13 +176,13 @@ func (p *Peer) Flush() {
 	p.flush()
 }
 
-func (p *Peer) Insert(zs ...*cf.Zp) {
+func (p *Peer) Insert(zs ...cf.Zp) {
 	p.muElements.Lock()
 	defer p.muElements.Unlock()
 	p.insertElements = append(p.insertElements, zs...)
 }
 
-func (p *Peer) Remove(zs ...*cf.Zp) {
+func (p *Peer) Remove(zs ...cf.Zp) {
 	p.muElements.Lock()
 	defer p.muElements.Unlock()
 	p.removeElements = append(p.removeElements, zs...)
@@ -260,7 +260,8 @@ func (p *Peer) mutate() {
 func (p *Peer) flush() {
 	p.muElements.Lock()
 
-	for _, z := range p.insertElements {
+	for i := range p.insertElements {
+		z := &p.insertElements[i]
 		err := p.ptree.Insert(z)
 		if err != nil {
 			log.Warningf("cannot insert %q (%s) into prefix tree: %v", z, z.FullKeyHash(), errgo.Details(err))
@@ -270,7 +271,8 @@ func (p *Peer) flush() {
 		p.logFields("mutate", log.Fields{"elements": len(p.insertElements)}).Debugf("inserted")
 	}
 
-	for _, z := range p.removeElements {
+	for i := range p.removeElements {
+		z := &p.removeElements[i]
 		err := p.ptree.Remove(z)
 		if err != nil {
 			log.Warningf("cannot remove %q (%s) from prefix tree: %v", z, z.FullKeyHash(), errgo.Details(err))
@@ -631,10 +633,8 @@ func (rwc *reconWithClient) popRequest() *requestEntry {
 	return result
 }
 
-const maxRecoverSize = 15000
-
 func (rwc *reconWithClient) isDone() bool {
-	return len(rwc.requestQ) == 0 && len(rwc.bottomQ) == 0 && rwc.rcvrSet.Len() < maxRecoverSize
+	return len(rwc.requestQ) == 0 && len(rwc.bottomQ) == 0
 }
 
 func (rwc *reconWithClient) sendRequest(p *Peer, req *requestEntry) error {
@@ -650,7 +650,7 @@ func (rwc *reconWithClient) sendRequest(p *Peer, req *requestEntry) error {
 		}
 		msg = &ReconRqstFull{
 			Prefix:   req.key,
-			Elements: cf.NewZSet(elements...)}
+			Elements: cf.NewZSetSlice(elements)}
 	} else {
 		msg = &ReconRqstPoly{
 			Prefix:  req.key,
@@ -690,7 +690,7 @@ func (rwc *reconWithClient) handleReply(p *Peer, msg ReconMsg, req *requestEntry
 		if err != nil {
 			return err
 		}
-		local := cf.NewZSet(elements...)
+		local := cf.NewZSetSlice(elements)
 		localNeeds := cf.ZSetDiff(m.ZSet, local)
 		remoteNeeds := cf.ZSetDiff(local, m.ZSet)
 		elementsMsg := &Elements{ZSet: remoteNeeds}
@@ -825,13 +825,14 @@ func (p *Peer) interactWithClient(conn net.Conn, remoteConfig *Config, bitstring
 	return nil
 }
 
-func (p *Peer) sendItems(items []*cf.Zp, conn net.Conn, remoteConfig *Config) error {
+func (p *Peer) sendItems(items []cf.Zp, conn net.Conn, remoteConfig *Config) error {
 	if len(items) > 0 && p.t.Alive() {
 		select {
 		case p.RecoverChan <- &Recover{
 			RemoteAddr:     conn.RemoteAddr(),
 			RemoteConfig:   remoteConfig,
-			RemoteElements: items}:
+			RemoteElements: items,
+		}:
 			p.logConn(SERVE, conn).Infof("recovered %d items", len(items))
 			recordItemsRecovered(conn.RemoteAddr(), len(items))
 		default:

@@ -55,11 +55,11 @@ func abs(x int) int {
 // Interpolate returns the ratio of two polynomials RationalFn, given a set of
 // sample points and output values. The coefficients of the resulting numerator
 // and denominator represent the disjoint members in two sets being reconciled.
-func Interpolate(values []*Zp, points []*Zp, degDiff int) (*RationalFn, error) {
+func Interpolate(values []Zp, points []Zp, degDiff int) (*RationalFn, error) {
 	if abs(degDiff) > len(values) {
 		return nil, errgo.Mask(ErrInterpolate, IsInterpolateFailure)
 	}
-	p := values[0].P
+	p := values[0].P()
 	mbar := len(values)
 	if (mbar+degDiff)%2 != 0 {
 		mbar--
@@ -69,19 +69,19 @@ func Interpolate(values []*Zp, points []*Zp, degDiff int) (*RationalFn, error) {
 	matrix := NewMatrix(mbar+1, mbar, Zi(p, 0))
 	for j := 0; j < mbar; j++ {
 		accum := Zi(p, 1)
-		kj := points[j]
-		fj := values[j]
+		kj := &points[j]
+		fj := &values[j]
 		for i := 0; i < ma; i++ {
 			matrix.Set(i, j, accum)
-			accum = Z(p).Mul(accum, kj)
+			accum.Mul(accum, kj)
 		}
 		kjma := accum.Copy()
-		accum = fj.Copy().Neg()
+		accum = fj.Neg()
 		for i := ma; i < mbar; i++ {
 			matrix.Set(i, j, accum)
-			accum = Z(p).Mul(accum, kj)
+			accum.Mul(accum, kj)
 		}
-		fjkjmb := accum.Copy().Neg()
+		fjkjmb := accum.Neg()
 		matrix.Set(mbar, j, Z(p).Sub(fjkjmb, kjma))
 	}
 	err := matrix.Reduce()
@@ -89,19 +89,19 @@ func Interpolate(values []*Zp, points []*Zp, degDiff int) (*RationalFn, error) {
 		return nil, errgo.Mask(err)
 	}
 	// Fill 'A' coefficients
-	acoeffs := make([]*Zp, ma+1)
-	acoeffs[ma] = Zi(p, 1)
+	acoeffs := make([]Zp, ma+1)
+	acoeffs[ma].Set(Zi(p, 1))
 	for j := 0; j < ma; j++ {
-		acoeffs[j] = matrix.Get(mbar, j)
+		acoeffs[j].Set(matrix.Get(mbar, j))
 	}
-	apoly := NewPoly(acoeffs...)
+	apoly := NewPolySlice(acoeffs)
 	// Fill 'B' coefficients
-	bcoeffs := make([]*Zp, mb+1)
-	bcoeffs[mb] = Zi(p, 1)
+	bcoeffs := make([]Zp, mb+1)
+	bcoeffs[mb].Set(Zi(p, 1))
 	for j := 0; j < mb; j++ {
-		bcoeffs[j] = matrix.Get(mbar, j+ma)
+		bcoeffs[j].Set(matrix.Get(mbar, j+ma))
 	}
-	bpoly := NewPoly(bcoeffs...)
+	bpoly := NewPolySlice(bcoeffs)
 	// Reduce
 	g, err := PolyGcd(apoly, bpoly)
 	if err != nil {
@@ -248,7 +248,7 @@ func factorCheck(p *Poly) bool {
 		return false
 	}
 	for i := 0; i <= z.degree; i++ {
-		z.coeff[i] = Z(p.p).Mul(z.coeff[i], Zi(p.p, -1))
+		z.coeff[i].Mul(&z.coeff[i], Zi(p.p, -1))
 	}
 	zqmz, err := PolyMod(NewPoly().Add(zq, z), p)
 	if err != nil {
@@ -258,8 +258,8 @@ func factorCheck(p *Poly) bool {
 }
 
 // Generate points for rational function interpolation.
-func Zpoints(p *big.Int, n int) []*Zp {
-	points := make([]*Zp, n)
+func Zpoints(p *big.Int, n int) []Zp {
+	points := make([]Zp, n)
 	for i := 0; i < n; i++ {
 		var pi int
 		if i%2 == 0 {
@@ -267,23 +267,24 @@ func Zpoints(p *big.Int, n int) []*Zp {
 		} else {
 			pi = ((i + 1) / 2) * -1
 		}
-		points[i] = Zi(p, pi)
+		points[i].Set(Zi(p, pi))
 	}
 	return points
 }
 
 // Reconcile performs rational function interpolation on the given output
 // values at sample points, to return the disjoint values between two sets.
-func Reconcile(values []*Zp, points []*Zp, degDiff int) (*ZSet, *ZSet, error) {
+func Reconcile(values []Zp, points []Zp, degDiff int) (*ZSet, *ZSet, error) {
 	rfn, err := Interpolate(
 		values[:len(values)-1], points[:len(points)-1], degDiff)
 	if err != nil {
 		return nil, nil, errgo.Mask(err)
 	}
-	lastPoint := points[len(points)-1]
-	valFromPoly := Z(lastPoint.P).Div(
+	lastPoint := &points[len(points)-1]
+	var valFromPoly Zp
+	valFromPoly.Div(
 		rfn.Num.Eval(lastPoint), rfn.Denom.Eval(lastPoint))
-	lastValue := values[len(values)-1]
+	lastValue := &values[len(values)-1]
 	if valFromPoly.Cmp(lastValue) != 0 ||
 		!factorCheck(rfn.Num) || !factorCheck(rfn.Denom) {
 		return nil, nil, errgo.Mask(ErrLowMBar, IsInterpolateFailure)

@@ -35,7 +35,7 @@ type Poly struct {
 
 	// coeff is a list of the polynomial coefficients, ordered by ascending
 	// degree.
-	coeff []*Zp
+	coeff []Zp
 
 	// degree is the highest degree of the polynomial.
 	degree int
@@ -49,34 +49,52 @@ type Poly struct {
 //
 // For example, NewPoly(1,-2,3) represents the polynomial 3x^2 - 2x + 1.
 func NewPoly(coeff ...*Zp) *Poly {
-	p := &Poly{}
-	for i := 0; i < len(coeff); i++ {
-		if coeff[i] == nil {
-			if p.p == nil {
-				continue
-			} else {
-				coeff[i] = Z(p.p)
-			}
-		}
-		c := coeff[i].Copy().Norm()
-		p.coeff = append(p.coeff, c)
+	p := Poly{
+		coeff: make([]Zp, len(coeff)),
+	}
+	for i := range coeff {
+		c := coeff[i].Norm()
+		p.coeff[i].Set(c)
 		if !c.IsZero() {
 			p.degree = i
 		}
-		// All coefficients must be in same field
-		if p.p == nil {
-			p.p = c.P
-			// Initialize prior nils now that we know P
-			for j := 0; j <= i; j++ {
-				if p.coeff == nil {
-					p.coeff[j] = Z(p.p)
-				}
-			}
-		} else {
+		if i > 0 {
+			// All coefficients must be in same field
 			c.assertP(p.p)
+		} else {
+			p.p = c.P()
 		}
 	}
-	return p
+	return &p
+}
+
+// NewPolySlice creates a polynomial with the given coefficients in a []Zp sice.
+func NewPolySlice(coeff []Zp) *Poly {
+	p := Poly{
+		coeff: make([]Zp, len(coeff)),
+	}
+	for i := range coeff {
+		c := coeff[i].Norm()
+		p.coeff[i].Set(c)
+		if !c.IsZero() {
+			p.degree = i
+		}
+		if i > 0 {
+			// All coefficients must be in same field
+			c.assertP(p.p)
+		} else {
+			p.p = c.P()
+		}
+	}
+	return &p
+}
+
+// NewPolyP creates a polynomial of degree -1 in P. Whether such a thing
+// actually exists in mathematics is besides the point.
+func NewPolyP(p *big.Int) *Poly {
+	return &Poly{
+		p: p,
+	}
 }
 
 // String represents a polynomial in a more readable form,
@@ -85,7 +103,7 @@ func (p *Poly) String() string {
 	result := bytes.NewBuffer(nil)
 	first := true
 	for i := len(p.coeff) - 1; i >= 0; i-- {
-		c := p.coeff[i]
+		c := &p.coeff[i]
 		if c.IsZero() {
 			continue
 		}
@@ -110,7 +128,7 @@ func (p *Poly) Degree() int {
 
 // Coeff returns the coefficients for each term of the polynomial. Coefficients
 // are represented as integers in a finite field Zp.
-func (p *Poly) Coeff() []*Zp {
+func (p *Poly) Coeff() []Zp {
 	return p.coeff
 }
 
@@ -122,11 +140,7 @@ func (p *Poly) P() *big.Int {
 
 // Copy returns a deep copy of the polynomial and its term coefficients.
 func (p *Poly) Copy() *Poly {
-	newP := &Poly{degree: p.degree, p: p.p}
-	for i := 0; i <= p.degree; i++ {
-		newP.coeff = append(newP.coeff, p.coeff[i].Copy())
-	}
-	return newP
+	return NewPolySlice(p.coeff)
 }
 
 // assertP asserts that the polynomial's integer coefficients are in the finite
@@ -144,10 +158,7 @@ func (p *Poly) Equal(q *Poly) bool {
 		return false
 	}
 	for i := 0; i <= p.degree; i++ {
-		if (p.coeff[i] == nil) != (q.coeff[i] == nil) {
-			return false
-		}
-		if p.coeff[i] != nil && p.coeff[i].Cmp(q.coeff[i]) != 0 {
+		if p.coeff[i].Cmp(&q.coeff[i]) != 0 {
 			return false
 		}
 	}
@@ -162,14 +173,14 @@ func (p *Poly) Add(x, y *Poly) *Poly {
 	if y.degree > p.degree {
 		p.degree = y.degree
 	}
-	p.coeff = make([]*Zp, p.degree+1)
+	p.coeff = make([]Zp, p.degree+1)
 	for i := 0; i <= p.degree; i++ {
-		p.coeff[i] = Z(x.p)
-		if i <= x.degree && x.coeff[i] != nil {
-			p.coeff[i].Add(p.coeff[i], x.coeff[i])
+		p.coeff[i] = *Z(x.p)
+		if i <= x.degree {
+			p.coeff[i].Add(&p.coeff[i], &x.coeff[i])
 		}
-		if i <= y.degree && y.coeff[i] != nil {
-			p.coeff[i].Add(p.coeff[i], y.coeff[i])
+		if i <= y.degree {
+			p.coeff[i].Add(&p.coeff[i], &y.coeff[i])
 		}
 	}
 	p.trim()
@@ -199,16 +210,12 @@ func (p *Poly) Sub(x, y *Poly) *Poly {
 func (p *Poly) Mul(x, y *Poly) *Poly {
 	x.assertP(y.p)
 	p.p = x.p
-	p.coeff = make([]*Zp, x.degree+y.degree+1)
+	p.coeff = make([]Zp, x.degree+y.degree+1)
 	p.degree = x.degree + y.degree
 	for i := 0; i <= x.degree; i++ {
 		for j := 0; j <= y.degree; j++ {
-			zp := p.coeff[i+j]
-			if zp == nil {
-				zp = Z(p.p)
-				p.coeff[i+j] = zp
-			}
-			zp.Add(zp, Z(p.p).Mul(x.coeff[i], y.coeff[j]))
+			zp := &p.coeff[i+j]
+			zp.Add(zp.In(p.p), Z(p.p).Mul(&x.coeff[i], &y.coeff[j]))
 		}
 	}
 	p.trim()
@@ -224,20 +231,23 @@ func (p *Poly) IsConstant(c *Zp) bool {
 func (p *Poly) Eval(z *Zp) *Zp {
 	sum := Zi(p.p, 0)
 	for d := 0; d <= p.degree; d++ {
-		sum.Add(sum.Copy(), Z(p.p).Mul(p.coeff[d], Z(p.p).Exp(z, Zi(p.p, d))))
+		sum.Add(sum, Z(p.p).Mul(&p.coeff[d], Z(p.p).Exp(z, Zi(p.p, d))))
 	}
 	return sum
 }
 
 // PolyTerm creates a new Poly with a single non-zero coefficient.
 func PolyTerm(degree int, c *Zp) *Poly {
-	p := &Poly{p: c.P, degree: degree,
-		coeff: make([]*Zp, degree+1)}
+	p := &Poly{
+		coeff:  make([]Zp, degree+1),
+		degree: degree,
+		p:      c.P(),
+	}
 	for i := 0; i <= degree; i++ {
 		if i == degree {
-			p.coeff[i] = c.Copy()
+			p.coeff[i] = *c
 		} else {
-			p.coeff[i] = Z(p.p)
+			p.coeff[i] = *Z(p.p)
 		}
 	}
 	return p
@@ -246,7 +256,7 @@ func PolyTerm(degree int, c *Zp) *Poly {
 // PolyDivmod returns the quotient and remainder between two Polys.
 func PolyDivmod(x, y *Poly) (q *Poly, r *Poly, err error) {
 	x.assertP(y.p)
-	if x.IsConstant(Zi(x.p, 0)) {
+	if x.IsConstant(Z(x.p)) {
 		return NewPoly(Z(x.p)), NewPoly(Z(y.p)), nil
 	} else if y.degree > x.degree {
 		return NewPoly(Z(x.p)), x, nil
@@ -255,10 +265,10 @@ func PolyDivmod(x, y *Poly) (q *Poly, r *Poly, err error) {
 	if degDiff < 0 {
 		return nil, nil, errgo.Newf("quotient degree %d < dividend %d", x.degree, y.degree)
 	}
-	c := Z(x.p).Div(x.coeff[x.degree], y.coeff[y.degree])
+	c := Z(x.p).Div(&x.coeff[x.degree], &y.coeff[y.degree])
 	m := PolyTerm(degDiff, c)
-	my := NewPoly().Mul(m, y)
-	newX := NewPoly().Sub(x, my)
+	my := NewPolyP(x.p).Mul(m, y)
+	newX := NewPolyP(x.p).Sub(x, my)
 
 	if newX.degree < x.degree || x.degree == 0 {
 		// TODO: eliminate recursion
@@ -267,7 +277,7 @@ func PolyDivmod(x, y *Poly) (q *Poly, r *Poly, err error) {
 			return nil, nil, errgo.Mask(err)
 		}
 
-		q = NewPoly().Add(q, m)
+		q = NewPolyP(x.p).Add(q, m)
 		return q, r, nil
 	}
 	return nil, nil, errgo.New("divmod error")
@@ -286,7 +296,7 @@ func PolyMod(x, y *Poly) (*Poly, error) {
 }
 
 func polyGcd(x, y *Poly) (*Poly, error) {
-	if y.IsConstant(Zi(x.p, 0)) {
+	if y.IsConstant(Z(x.p)) {
 		return x, nil
 	}
 	_, r, err := PolyDivmod(x, y)
@@ -302,7 +312,7 @@ func PolyGcd(x, y *Poly) (*Poly, error) {
 	if err != nil {
 		return nil, errgo.Mask(err)
 	}
-	result = NewPoly().Mul(result,
+	result = NewPolyP(x.p).Mul(result,
 		NewPoly(result.coeff[result.degree].Copy().Inv()))
 	return result, nil
 }

@@ -53,7 +53,7 @@ func NewBitstring(bits int) *Bitstring {
 
 // NewZpBitstring creates a new Bitstring from a Zp integer over a finite field.
 func NewZpBitstring(zp *Zp) *Bitstring {
-	bs := NewBitstring(zp.P.BitLen())
+	bs := NewBitstring(zp.P().BitLen())
 	bs.SetBytes(zp.Bytes())
 	return bs
 }

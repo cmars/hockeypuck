@@ -116,7 +116,7 @@ func (s *ZpSuite) TestNeg(c *gc.C) {
 func (s *ZpSuite) TestSub(c *gc.C) {
 	az := zp5(4)
 	bz := zp5(3)
-	cz := az.Copy().Sub(az, bz)
+	cz := Z(az.P()).Sub(az, bz)
 	c.Assert(int64(4), gc.Equals, az.Int64())
 	c.Assert(int64(3), gc.Equals, bz.Int64())
 	c.Assert(int64(1), gc.Equals, cz.Int64())
@@ -125,7 +125,7 @@ func (s *ZpSuite) TestSub(c *gc.C) {
 func (s *ZpSuite) TestSubRoll(c *gc.C) {
 	az := zp5(1)
 	bz := zp5(3)
-	cz := az.Copy().Sub(az, bz)
+	cz := Z(az.P()).Sub(az, bz)
 	c.Assert(int64(1), gc.Equals, az.Int64())
 	c.Assert(int64(3), gc.Equals, bz.Int64())
 	c.Assert(int64(3), gc.Equals, cz.Int64()) // -2 == 3
@@ -145,20 +145,20 @@ func (s *ZpSuite) TestZSet(c *gc.C) {
 	a.Add(zp5(3))
 	items := a.Items()
 	c.Assert(items, gc.HasLen, 3)
-	c.Assert(a.Has(zp5(1)), gc.Equals, true)
-	c.Assert(a.Has(zp5(2)), gc.Equals, true)
-	c.Assert(a.Has(zp5(3)), gc.Equals, true)
+	c.Assert(a.Contains(zp5(1)), gc.Equals, true)
+	c.Assert(a.Contains(zp5(2)), gc.Equals, true)
+	c.Assert(a.Contains(zp5(3)), gc.Equals, true)
 }
 
 func (s *ZpSuite) TestZsetDisjoint(c *gc.C) {
 	zs1 := NewZSet(Zi(P_SKS, 65537), Zi(P_SKS, 65539))
 	zs2 := NewZSet(Zi(P_SKS, 65537), Zi(P_SKS, 65541))
-	c.Assert(zs1.Has(Zi(P_SKS, 65537)), gc.Equals, true)
-	c.Assert(zs2.Has(Zi(P_SKS, 65537)), gc.Equals, true)
-	c.Assert(zs1.Has(Zi(P_SKS, 65539)), gc.Equals, true)
-	c.Assert(zs2.Has(Zi(P_SKS, 65541)), gc.Equals, true)
-	c.Assert(!zs2.Has(Zi(P_SKS, 65539)), gc.Equals, true)
-	c.Assert(!zs1.Has(Zi(P_SKS, 65541)), gc.Equals, true)
+	c.Assert(zs1.Contains(Zi(P_SKS, 65537)), gc.Equals, true)
+	c.Assert(zs2.Contains(Zi(P_SKS, 65537)), gc.Equals, true)
+	c.Assert(zs1.Contains(Zi(P_SKS, 65539)), gc.Equals, true)
+	c.Assert(zs2.Contains(Zi(P_SKS, 65541)), gc.Equals, true)
+	c.Assert(!zs2.Contains(Zi(P_SKS, 65539)), gc.Equals, true)
+	c.Assert(!zs1.Contains(Zi(P_SKS, 65541)), gc.Equals, true)
 }
 
 func (s *ZpSuite) TestZSetDiff(c *gc.C) {
@@ -166,9 +166,9 @@ func (s *ZpSuite) TestZSetDiff(c *gc.C) {
 	zs2 := NewZSet(Zi(P_SKS, 65537), Zi(P_SKS, 65541))
 	zs3 := ZSetDiff(zs1, zs2)
 	zs4 := ZSetDiff(zs2, zs1)
-	c.Assert(zs3.Has(Zi(P_SKS, 65539)), gc.Equals, true)
+	c.Assert(zs3.Contains(Zi(P_SKS, 65539)), gc.Equals, true)
 	c.Assert(zs3.Items(), gc.HasLen, 1)
-	c.Assert(zs4.Has(Zi(P_SKS, 65541)), gc.Equals, true)
+	c.Assert(zs4.Contains(Zi(P_SKS, 65541)), gc.Equals, true)
 	c.Assert(zs4.Items(), gc.HasLen, 1)
 }
 
@@ -177,8 +177,8 @@ func (s *ZpSuite) TestZSetDiffEmpty(c *gc.C) {
 	zs2 := NewZSet()
 	zs3 := ZSetDiff(zs1, zs2)
 	zs4 := ZSetDiff(zs2, zs1)
-	c.Assert(zs3.Has(Zi(P_SKS, 65537)), gc.Equals, true)
-	c.Assert(zs3.Has(Zi(P_SKS, 65539)), gc.Equals, true)
+	c.Assert(zs3.Contains(Zi(P_SKS, 65537)), gc.Equals, true)
+	c.Assert(zs3.Contains(Zi(P_SKS, 65539)), gc.Equals, true)
 	c.Assert(zs3.Items(), gc.HasLen, 2)
 	c.Assert(zs4.Items(), gc.HasLen, 0)
 }

@@ -212,7 +212,7 @@ func (p *Peer) interactWithServer(conn net.Conn) msgProgressChan {
 
 		var resp *msgProgress
 		var n int
-		for (resp == nil || resp.err == nil) && n < maxRecoverSize {
+		for resp == nil || resp.err == nil {
 			p.setReadDeadline(conn, defaultTimeout)
 			msg, err := ReadMsg(conn)
 			if err != nil {
@@ -269,7 +269,7 @@ func (p *Peer) handleReconRqstPoly(rp *ReconRqstPoly, conn net.Conn) *msgProgres
 				return &msgProgress{err: errgo.Mask(err)}
 			}
 			return &msgProgress{elements: cf.NewZSet(), messages: []ReconMsg{
-				&FullElements{ZSet: cf.NewZSet(elements...)}}}
+				&FullElements{ZSet: cf.NewZSetSlice(elements)}}}
 		} else {
 			err = errgo.Notef(err, "bs=%v leaf=%v size=%d", node.Key(), node.IsLeaf(), node.Size())
 		}
@@ -282,10 +282,10 @@ func (p *Peer) handleReconRqstPoly(rp *ReconRqstPoly, conn net.Conn) *msgProgres
 	return &msgProgress{elements: remoteSet, messages: []ReconMsg{&Elements{ZSet: localSet}}}
 }
 
-func (p *Peer) solve(remoteSamples, localSamples []*cf.Zp, remoteSize, localSize int, points []*cf.Zp, conn net.Conn) (*cf.ZSet, *cf.ZSet, error) {
-	var values []*cf.Zp
-	for i, x := range remoteSamples {
-		values = append(values, cf.Z(x.P).Div(x, localSamples[i]))
+func (p *Peer) solve(remoteSamples, localSamples []cf.Zp, remoteSize, localSize int, points []cf.Zp, conn net.Conn) (*cf.ZSet, *cf.ZSet, error) {
+	values := make([]cf.Zp, len(remoteSamples))
+	for i := range remoteSamples {
+		values[i].Div(&remoteSamples[i], &localSamples[i])
 	}
 	p.logConnFields(GOSSIP, conn, log.Fields{
 		"values":  values,
@@ -307,7 +307,7 @@ func (p *Peer) handleReconRqstFull(rf *ReconRqstFull, conn net.Conn) *msgProgres
 		if err != nil {
 			return &msgProgress{err: err}
 		}
-		localset = cf.NewZSet(elements...)
+		localset = cf.NewZSetSlice(elements)
 	}
 	localNeeds := cf.ZSetDiff(rf.Elements, localset)
 	remoteNeeds := cf.ZSetDiff(localset, rf.Elements)

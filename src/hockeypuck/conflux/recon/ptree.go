@@ -33,7 +33,7 @@ type PrefixTree interface {
 	Create() error
 	Drop() error
 	Close() error
-	Points() []*cf.Zp
+	Points() []cf.Zp
 	Root() (PrefixNode, error)
 	Node(key *cf.Bitstring) (PrefixNode, error)
 	Insert(z *cf.Zp) error
@@ -44,14 +44,14 @@ type PrefixNode interface {
 	Config() *PTreeConfig
 	Parent() (PrefixNode, bool, error)
 	Key() *cf.Bitstring
-	Elements() ([]*cf.Zp, error)
+	Elements() ([]cf.Zp, error)
 	Size() int
 	Children() ([]PrefixNode, error)
-	SValues() []*cf.Zp
+	SValues() []cf.Zp
 	IsLeaf() bool
 }
 
-func MustElements(node PrefixNode) []*cf.Zp {
+func MustElements(node PrefixNode) []cf.Zp {
 	elements, err := node.Elements()
 	if err != nil {
 		panic(err)
@@ -74,7 +74,7 @@ type MemPrefixTree struct {
 	PTreeConfig
 
 	// points are the sample data points for interpolation.
-	points []*cf.Zp
+	points []cf.Zp
 
 	// Tree's root node
 	root *MemPrefixNode
@@ -82,7 +82,7 @@ type MemPrefixTree struct {
 	allElements *cf.ZSet
 }
 
-func (t *MemPrefixTree) Points() []*cf.Zp          { return t.points }
+func (t *MemPrefixTree) Points() []cf.Zp           { return t.points }
 func (t *MemPrefixTree) Root() (PrefixNode, error) { return t.root, nil }
 
 // Init configures the tree with default settings if not already set,
@@ -113,11 +113,11 @@ func Find(t PrefixTree, z *cf.Zp) (PrefixNode, error) {
 	return t.Node(bs)
 }
 
-func AddElementArray(t PrefixTree, z *cf.Zp) (marray []*cf.Zp, err error) {
+func AddElementArray(t PrefixTree, z *cf.Zp) (marray []cf.Zp, err error) {
 	points := t.Points()
-	marray = make([]*cf.Zp, len(points))
+	marray = make([]cf.Zp, len(points))
 	for i := 0; i < len(points); i++ {
-		marray[i] = cf.Z(z.P).Sub(points[i], z)
+		marray[i].Sub(&points[i], z)
 		if marray[i].IsZero() {
 			err = ErrSamplePointElement
 			return
@@ -126,11 +126,11 @@ func AddElementArray(t PrefixTree, z *cf.Zp) (marray []*cf.Zp, err error) {
 	return
 }
 
-func DelElementArray(t PrefixTree, z *cf.Zp) (marray []*cf.Zp) {
+func DelElementArray(t PrefixTree, z *cf.Zp) (marray []cf.Zp) {
 	points := t.Points()
-	marray = make([]*cf.Zp, len(points))
+	marray = make([]cf.Zp, len(points))
 	for i := 0; i < len(points); i++ {
-		marray[i] = cf.Z(z.P).Sub(points[i], z).Inv()
+		marray[i].Sub(&points[i], z).Inv()
 	}
 	return
 }
@@ -153,7 +153,7 @@ func (t *MemPrefixTree) Node(bs *cf.Bitstring) (PrefixNode, error) {
 
 // Insert a Z/Zp integer into the prefix tree
 func (t *MemPrefixTree) Insert(z *cf.Zp) error {
-	if t.allElements.Has(z) {
+	if t.allElements.Contains(z) {
 		return fmt.Errorf("duplicate: %q", z.String())
 	}
 	bs := cf.NewZpBitstring(z)
@@ -191,11 +191,11 @@ type MemPrefixNode struct {
 	// Each node will have 2**bitquantum children when leaf == false
 	children []*MemPrefixNode
 	// Zp elements stored at this node, if it's a leaf node
-	elements []*cf.Zp
+	elements []cf.Zp
 	// Number of total elements at or below this node
 	numElements int
 	// Sample values at this node
-	svalues []*cf.Zp
+	svalues []cf.Zp
 }
 
 func (n *MemPrefixNode) Config() *PTreeConfig {
@@ -232,11 +232,11 @@ func (n *MemPrefixNode) Children() ([]PrefixNode, error) {
 	return result, nil
 }
 
-func (n *MemPrefixNode) Elements() ([]*cf.Zp, error) {
+func (n *MemPrefixNode) Elements() ([]cf.Zp, error) {
 	if n.IsLeaf() {
 		return n.elements, nil
 	}
-	var result []*cf.Zp
+	var result []cf.Zp
 	for _, child := range n.children {
 		elements, err := child.Elements()
 		if err != nil {
@@ -247,14 +247,15 @@ func (n *MemPrefixNode) Elements() ([]*cf.Zp, error) {
 	return result, nil
 }
 
-func (n *MemPrefixNode) Size() int         { return n.numElements }
-func (n *MemPrefixNode) SValues() []*cf.Zp { return n.svalues }
+func (n *MemPrefixNode) Size() int        { return n.numElements }
+func (n *MemPrefixNode) SValues() []cf.Zp { return n.svalues }
 
 func (n *MemPrefixNode) init(t *MemPrefixTree) {
 	n.MemPrefixTree = t
-	n.svalues = make([]*cf.Zp, t.NumSamples())
+	n.svalues = make([]cf.Zp, t.NumSamples())
+	zOne := cf.Zi(cf.P_SKS, 1)
 	for i := 0; i < len(n.svalues); i++ {
-		n.svalues[i] = cf.Zi(cf.P_SKS, 1)
+		n.svalues[i].Set(zOne)
 	}
 }
 
@@ -262,8 +263,8 @@ func (n *MemPrefixNode) IsLeaf() bool {
 	return len(n.children) == 0
 }
 
-func (n *MemPrefixNode) insert(z *cf.Zp, marray []*cf.Zp, bs *cf.Bitstring, depth int) error {
-	n.updateSvalues(z, marray)
+func (n *MemPrefixNode) insert(z *cf.Zp, marray []cf.Zp, bs *cf.Bitstring, depth int) error {
+	n.updateSvalues(marray)
 	n.numElements++
 	if n.IsLeaf() {
 		if len(n.elements) > n.SplitThreshold() {
@@ -272,12 +273,14 @@ func (n *MemPrefixNode) insert(z *cf.Zp, marray []*cf.Zp, bs *cf.Bitstring, dept
 				return err
 			}
 		} else {
-			for _, nz := range n.elements {
-				if nz.Cmp(z) == 0 {
+			for i := range n.elements {
+				if n.elements[i].Cmp(z) == 0 {
 					return fmt.Errorf("duplicate: %q", z.String())
 				}
 			}
-			n.elements = append(n.elements, z)
+			last := len(n.elements)
+			n.elements = append(n.elements, cf.Zp{})
+			n.elements[last].Set(z)
 			return nil
 		}
 	}
@@ -300,15 +303,15 @@ func (n *MemPrefixNode) split(depth int) error {
 		n.children = append(n.children, child)
 	}
 	// Move elements into child nodes
-	for _, element := range n.elements {
-		bs := cf.NewZpBitstring(element)
+	for i := range n.elements {
+		bs := cf.NewZpBitstring(&n.elements[i])
 		childIndex := NextChild(n, bs, depth)
 		child := n.children[childIndex]
-		marray, err := AddElementArray(n.MemPrefixTree, element)
+		marray, err := AddElementArray(n.MemPrefixTree, &n.elements[i])
 		if err != nil {
 			return err
 		}
-		err = child.insert(element, marray, bs, depth+1)
+		err = child.insert(&n.elements[i], marray, bs, depth+1)
 		if err != nil {
 			return err
 		}
@@ -332,17 +335,17 @@ func NextChild(n PrefixNode, bs *cf.Bitstring, depth int) int {
 	return childIndex
 }
 
-func (n *MemPrefixNode) updateSvalues(z *cf.Zp, marray []*cf.Zp) {
+func (n *MemPrefixNode) updateSvalues(marray []cf.Zp) {
 	if len(marray) != len(n.points) {
 		panic("Inconsistent NumSamples size")
 	}
 	for i := 0; i < len(marray); i++ {
-		n.svalues[i] = cf.Z(z.P).Mul(n.svalues[i], marray[i])
+		n.svalues[i].Mul(&n.svalues[i], &marray[i])
 	}
 }
 
-func (n *MemPrefixNode) remove(z *cf.Zp, marray []*cf.Zp, bs *cf.Bitstring, depth int) error {
-	n.updateSvalues(z, marray)
+func (n *MemPrefixNode) remove(z *cf.Zp, marray []cf.Zp, bs *cf.Bitstring, depth int) error {
+	n.updateSvalues(marray)
 	n.numElements--
 	if !n.IsLeaf() {
 		if n.numElements <= n.JoinThreshold() {
@@ -372,7 +375,7 @@ func (n *MemPrefixNode) join() {
 	n.children = nil
 }
 
-func withRemoved(elements []*cf.Zp, z *cf.Zp) (result []*cf.Zp) {
+func withRemoved(elements []cf.Zp, z *cf.Zp) (result []cf.Zp) {
 	var has bool
 	for _, element := range elements {
 		if element.Cmp(z) != 0 {

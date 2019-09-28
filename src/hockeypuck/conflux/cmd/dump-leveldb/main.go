@@ -62,7 +62,7 @@ func walk(tree recon.PrefixTree) {
 
 func visit(node recon.PrefixNode) {
 	render := struct {
-		SValues      []*conflux.Zp
+		SValues      []conflux.Zp
 		NumElements  int
 		Key          string
 		Leaf         bool
