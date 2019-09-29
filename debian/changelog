@@ -1,6 +1,6 @@
-hockeypuck (2.0.15~1.gbp91f3f9) UNRELEASED; urgency=medium
+hockeypuck (2.0.15~1.gbp6f92af) UNRELEASED; urgency=medium
 
-  ** SNAPSHOT build @91f3f91d3478ad2a22fe18335f497405d3ce304e **
+  ** SNAPSHOT build @6f92af5df2742a9441d5300b5f1f36346eaeec95 **
 
   [ Paul Collins ]
   * don't use errgo.Notef to collect all errors in requestRecovered
@@ -47,7 +47,53 @@ hockeypuck (2.0.15~1.gbp91f3f9) UNRELEASED; urgency=medium
   * Address conflux memory leaks.
   * New release script, removing obsolete scripts.
 
- -- Casey Marshall <casey.marshall@canonical.com>  Sun, 29 Sep 2019 18:37:08 -0500
+  [ Paul Collins ]
+  * don't use errgo.Notef to collect all errors in requestRecovered
+  * log errors requesting chunks as they occur and just return a summary to the caller
+  * hockeypuck-config-wrapper: $EDITOR is not available to snaps; use sensible-editor instead
+  * snapcraft.yaml for in-tree builds, and install target for snapcraft and debuild
+  * use go from a snap, update summary and description
+  * update snapcraft.yaml for modern snapcraft, update README.md
+  * remove duplicate copy of templates and www, eliminate var/lib/hockeypuck
+  * add home to dump and load
+  * README.md: rewrite and expand snapcraftery
+  * format code using code blocks (four space indent)
+
+  [ Casey Marshall ]
+  * Update standalone hockeypuck image to latest release.
+  * Remove vendored go crypto packages.
+  * Merge commit '3f797f4e4c6bb715a4a3bdec4371df44531e1cd6' as 'src/vendor/golang.org/x/crypto'
+  * HKP query policy configuration options to protect gnupg.
+  * Add test coverage.
+  * Fix 400 response for op=index and keyword search disabled.
+
+  [ Paul Collins ]
+  * 2.0.13 release
+
+  [ Joel Sing ]
+  * Remove ProtonMail/crypto subtree and revendor golang.org/x/crypto.
+  * Remove reference to ProtonMail/crypto subtree.
+  * Replace golang.org/x/crypto with github.com/ProtonMail/crypto@v2.0.0
+  * Update vendored dependencies via go mod.
+  * Remove ProtonMail/crypto subtree and revendor golang.org/x/crypto.
+  * Remove reference to ProtonMail/crypto subtree.
+  * Replace golang.org/x/crypto with github.com/ProtonMail/crypto@v2.0.0
+  * Update vendored dependencies via go mod.
+
+  [ Casey Marshall ]
+  * Merge/reconcile changes from Launchpad upstream repo.
+  * Revert "Removing contrib deployment stuff that's no longer maintained."
+  * Fix snapcraft LXD instruction.
+
+  [ Paul Collins ]
+  * remove unused snap files
+
+  [ Casey Marshall ]
+  * Address conflux memory leaks.
+  * New release script, removing obsolete scripts.
+  * Release 2.0.15
+
+ -- Casey Marshall <casey.marshall@canonical.com>  Sun, 29 Sep 2019 18:37:54 -0500
 
 hockeypuck (2.0.14) bionic; urgency=medium
 
