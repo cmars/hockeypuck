@@ -140,7 +140,7 @@ func (ok *OpaqueKeyring) Parse() (*PrimaryKey, error) {
 					log.Debugf("signature out of context")
 					badPacket = opkt
 				} else {
-					sig, err := ParseSignature(opkt, pubkey.UUID, signablePacket.uuid())
+					sig, err := ParseSignature(opkt, pubkey.Creation, pubkey.UUID, signablePacket.uuid())
 					if err != nil {
 						log.Debugf("unreadable signature packet in key 0x%s: %v", pubkey.KeyID(), err)
 						badPacket = opkt

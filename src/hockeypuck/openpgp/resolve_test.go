@@ -108,7 +108,7 @@ func (s *ResolveSuite) TestUserIDSelfSigs(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	Sort(key)
 	// Primary UID
-	c.Assert(key.UserIDs[0].Keywords, gc.Equals, "Phil Pennock <phil.pennock@spodhuis.org>")
+	c.Assert(key.UserIDs[0].Keywords, gc.Equals, "Phil Pennock <pdp@exim.org>")
 	for _, uid := range key.UserIDs {
 		if uid.Keywords == "pdp@spodhuis.demon.nl" {
 			ss := uid.SelfSigs(key)
@@ -131,8 +131,8 @@ func (s *ResolveSuite) TestSortUserIDs(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	Sort(key)
 	expect := []string{
-		"Phil Pennock <phil.pennock@spodhuis.org>",
 		"Phil Pennock <pdp@exim.org>",
+		"Phil Pennock <phil.pennock@spodhuis.org>",
 		"Phil Pennock <phil.pennock@globnix.org>",
 		"Phil Pennock <pdp@spodhuis.org>",
 		"Phil Pennock <pdp@spodhuis.demon.nl>"}
@@ -150,8 +150,8 @@ func (s *ResolveSuite) TestKeyExpiration(c *gc.C) {
 	Sort(key)
 
 	c.Assert(key.SubKeys, gc.HasLen, 7)
-	c.Assert(key.SubKeys[0].UUID, gc.Equals, "6c949d8098859e7816e6b33d54d50118a1b8dfc9")
-	c.Assert(key.SubKeys[1].UUID, gc.Equals, "3745e9590264de539613d833ad83b9366e3d6be3")
+	c.Assert(key.SubKeys[0].UUID, gc.Equals, "d8f5df37774835db9035533c5e42d67d9db4afd4")
+	c.Assert(key.SubKeys[1].UUID, gc.Equals, "b416d58b79836874f1bae9cec6d402ff30597109")
 }
 
 // TestUnsuppIgnored tests parsing key material containing

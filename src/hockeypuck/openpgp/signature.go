@@ -74,7 +74,7 @@ func (ss sigSlice) without(target *Signature) []*Signature {
 	return result
 }
 
-func ParseSignature(op *packet.OpaquePacket, pubkeyUUID, scopedUUID string) (*Signature, error) {
+func ParseSignature(op *packet.OpaquePacket, keyCreationTime time.Time, pubkeyUUID, scopedUUID string) (*Signature, error) {
 	var buf bytes.Buffer
 	var err error
 
@@ -90,7 +90,7 @@ func ParseSignature(op *packet.OpaquePacket, pubkeyUUID, scopedUUID string) (*Si
 	}
 
 	// Attempt to parse the opaque packet into a public key type.
-	err = sig.parse(op)
+	err = sig.parse(op, keyCreationTime)
 	if err != nil {
 		return nil, errgo.Mask(err)
 	}
@@ -98,7 +98,7 @@ func ParseSignature(op *packet.OpaquePacket, pubkeyUUID, scopedUUID string) (*Si
 	return sig, nil
 }
 
-func (sig *Signature) parse(op *packet.OpaquePacket) error {
+func (sig *Signature) parse(op *packet.OpaquePacket, keyCreationTime time.Time) error {
 	p, err := op.Parse()
 	if err != nil {
 		return errgo.Mask(err)
@@ -106,14 +106,14 @@ func (sig *Signature) parse(op *packet.OpaquePacket) error {
 
 	switch s := p.(type) {
 	case *packet.Signature:
-		return sig.setSignature(s)
+		return sig.setSignature(s, keyCreationTime)
 	case *packet.SignatureV3:
 		return sig.setSignatureV3(s)
 	}
 	return errgo.Mask(ErrInvalidPacketType, errgo.Any)
 }
 
-func (sig *Signature) setSignature(s *packet.Signature) error {
+func (sig *Signature) setSignature(s *packet.Signature, keyCreationTime time.Time) error {
 	if s.IssuerKeyId == nil {
 		return errgo.New("missing issuer key ID")
 	}
@@ -133,7 +133,7 @@ func (sig *Signature) setSignature(s *packet.Signature) error {
 		sig.Expiration = s.CreationTime.Add(
 			time.Duration(*s.SigLifetimeSecs) * time.Second)
 	} else if s.KeyLifetimeSecs != nil {
-		sig.Expiration = s.CreationTime.Add(
+		sig.Expiration = keyCreationTime.Add(
 			time.Duration(*s.KeyLifetimeSecs) * time.Second)
 	}
 
