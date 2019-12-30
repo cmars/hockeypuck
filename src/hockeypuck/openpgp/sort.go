@@ -67,8 +67,8 @@ type uidSorter struct {
 func (s *uidSorter) Len() int { return len(s.UserIDs) }
 
 func (s *uidSorter) Less(i, j int) bool {
-	iss := s.UserIDs[i].SelfSigs(s.PrimaryKey)
-	jss := s.UserIDs[j].SelfSigs(s.PrimaryKey)
+	iss, _ := s.UserIDs[i].SigInfo(s.PrimaryKey)
+	jss, _ := s.UserIDs[j].SigInfo(s.PrimaryKey)
 	less, ok := lessSelfSigs(iss, jss)
 	if ok {
 		return less
@@ -87,8 +87,8 @@ type uatSorter struct {
 func (s *uatSorter) Len() int { return len(s.UserAttributes) }
 
 func (s *uatSorter) Less(i, j int) bool {
-	iss := s.UserAttributes[i].SelfSigs(s.PrimaryKey)
-	jss := s.UserAttributes[j].SelfSigs(s.PrimaryKey)
+	iss, _ := s.UserAttributes[i].SigInfo(s.PrimaryKey)
+	jss, _ := s.UserAttributes[j].SigInfo(s.PrimaryKey)
 	less, _ := lessSelfSigs(iss, jss)
 	return less
 }
@@ -104,8 +104,8 @@ type subkeySorter struct {
 func (s *subkeySorter) Len() int { return len(s.SubKeys) }
 
 func (s *subkeySorter) Less(i, j int) bool {
-	iss := s.SubKeys[i].SelfSigs(s.PrimaryKey)
-	jss := s.SubKeys[j].SelfSigs(s.PrimaryKey)
+	iss, _ := s.SubKeys[i].SigInfo(s.PrimaryKey)
+	jss, _ := s.SubKeys[j].SigInfo(s.PrimaryKey)
 	less, ok := lessSelfSigs(iss, jss)
 	if ok {
 		return less

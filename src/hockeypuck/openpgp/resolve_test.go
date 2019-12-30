@@ -100,7 +100,7 @@ func patchNow(t time.Time) func() {
 	}
 }
 
-func (s *ResolveSuite) TestUserIDSelfSigs(c *gc.C) {
+func (s *ResolveSuite) TestUserIDSigInfo(c *gc.C) {
 	defer patchNow(time.Date(2014, time.January, 1, 0, 0, 0, 0, time.UTC))()
 
 	key := MustInputAscKey("lp1195901.asc")
@@ -111,7 +111,7 @@ func (s *ResolveSuite) TestUserIDSelfSigs(c *gc.C) {
 	c.Assert(key.UserIDs[0].Keywords, gc.Equals, "Phil Pennock <phil.pennock@spodhuis.org>")
 	for _, uid := range key.UserIDs {
 		if uid.Keywords == "pdp@spodhuis.demon.nl" {
-			ss := uid.SelfSigs(key)
+			ss, _ := uid.SigInfo(key)
 			c.Assert(ss.Revocations, gc.HasLen, 1)
 		}
 	}
@@ -247,7 +247,7 @@ func (s *ResolveSuite) TestSelfSignedOnly_BadSigs(c *gc.C) {
 	c.Assert(key.UserIDs, gc.HasLen, 5)
 	c.Assert(key.SubKeys, gc.HasLen, 3)
 
-	c.Assert(SelfSignedOnly(key), gc.IsNil)
+	c.Assert(ValidSelfSigned(key, true), gc.IsNil)
 	c.Assert(key.UserIDs, gc.HasLen, 2)
 	for _, uid := range key.UserIDs {
 		c.Logf("uid %v", uid.Keywords)
@@ -272,11 +272,18 @@ func (s *ResolveSuite) TestSelfSignedOnly_V3SigDropped(c *gc.C) {
 	c.Assert(key.UserIDs, gc.HasLen, 9)
 	c.Assert(key.SubKeys, gc.HasLen, 1)
 
-	c.Assert(SelfSignedOnly(key), gc.IsNil)
+	c.Assert(ValidSelfSigned(key, true), gc.IsNil)
 	c.Assert(key.UserIDs, gc.HasLen, 9)
 	for _, uid := range key.UserIDs {
 		c.Assert(uid.Signatures, gc.HasLen, 1)
 	}
 	// v3 signature on a v4 packet is dropped
 	c.Assert(key.SubKeys, gc.HasLen, 0)
+}
+
+func (s *ResolveSuite) TestFakeNews(c *gc.C) {
+	key := MustInputAscKey("fakenews.asc")
+	c.Assert(key.UserAttributes, gc.HasLen, 1)
+	c.Assert(ValidSelfSigned(key, false), gc.IsNil)
+	c.Assert(key.UserAttributes, gc.HasLen, 0)
 }

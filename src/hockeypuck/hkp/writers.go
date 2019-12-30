@@ -59,7 +59,7 @@ func (*MRFormat) Write(w http.ResponseWriter, l *Lookup, keys []*openpgp.Primary
 
 	fmt.Fprintf(w, "info:1:%d\n", len(keys))
 	for _, key := range keys {
-		selfsigs := key.SelfSigs()
+		selfsigs, _ := key.SigInfo()
 		if !selfsigs.Valid() {
 			continue
 		}
@@ -78,7 +78,7 @@ func (*MRFormat) Write(w http.ResponseWriter, l *Lookup, keys []*openpgp.Primary
 			key.Creation.Unix(), mrTimeString(expiresAt))
 
 		for _, uid := range key.UserIDs {
-			selfsigs := uid.SelfSigs(key)
+			selfsigs, _ := uid.SigInfo(key)
 			validSince, ok := selfsigs.ValidSince()
 			if !ok {
 				continue

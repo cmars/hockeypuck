@@ -24,12 +24,12 @@ import (
 	"gopkg.in/errgo.v1"
 )
 
-func SelfSignedOnly(key *PrimaryKey) error {
+func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 	var userIDs []*UserID
 	var userAttributes []*UserAttribute
 	var subKeys []*SubKey
 	for _, uid := range key.UserIDs {
-		ss := uid.SelfSigs(key)
+		ss, others := uid.SigInfo(key)
 		var certs []*Signature
 		for _, cert := range ss.Certifications {
 			if cert.Error == nil {
@@ -38,11 +38,14 @@ func SelfSignedOnly(key *PrimaryKey) error {
 		}
 		if len(certs) > 0 {
 			uid.Signatures = certs
+			if !selfSignedOnly {
+				uid.Signatures = append(uid.Signatures, others...)
+			}
 			userIDs = append(userIDs, uid)
 		}
 	}
 	for _, uat := range key.UserAttributes {
-		ss := uat.SelfSigs(key)
+		ss, others := uat.SigInfo(key)
 		var certs []*Signature
 		for _, cert := range ss.Certifications {
 			if cert.Error == nil {
@@ -51,11 +54,14 @@ func SelfSignedOnly(key *PrimaryKey) error {
 		}
 		if len(certs) > 0 {
 			uat.Signatures = certs
+			if !selfSignedOnly {
+				uat.Signatures = append(uat.Signatures, others...)
+			}
 			userAttributes = append(userAttributes, uat)
 		}
 	}
 	for _, subKey := range key.SubKeys {
-		ss := subKey.SelfSigs(key)
+		ss, others := subKey.SigInfo(key)
 		var certs []*Signature
 		for _, cert := range ss.Revocations {
 			if cert.Error == nil {
@@ -69,6 +75,9 @@ func SelfSignedOnly(key *PrimaryKey) error {
 		}
 		if len(certs) > 0 {
 			subKey.Signatures = certs
+			if !selfSignedOnly {
+				subKey.Signatures = append(subKey.Signatures, others...)
+			}
 			subKeys = append(subKeys, subKey)
 		}
 	}
