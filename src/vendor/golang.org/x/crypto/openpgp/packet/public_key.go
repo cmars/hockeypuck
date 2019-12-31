@@ -126,14 +126,14 @@ func NewECDSAPublicKey(creationTime time.Time, pub *ecdsa.PublicKey) *PublicKey 
 func NewECDHPublicKey(creationTime time.Time, pub *ecdh.PublicKey) *PublicKey {
 	var pk *PublicKey
 	var curveInfo *ecc.CurveInfo
-	var kdf = encoding.NewOID([]byte{ 0x1, pub.Hash.Id(), pub.Cipher.Id() })
+	var kdf = encoding.NewOID([]byte{0x1, pub.Hash.Id(), pub.Cipher.Id()})
 	if pub.CurveType == ecc.Curve25519 {
 		pk = &PublicKey{
 			CreationTime: creationTime,
 			PubKeyAlgo:   PubKeyAlgoECDH,
 			PublicKey:    pub,
 			p:            encoding.NewMPI(pub.X.Bytes()),
-			kdf: kdf,
+			kdf:          kdf,
 		}
 		curveInfo = ecc.FindByName("Curve25519")
 	} else {
@@ -142,7 +142,7 @@ func NewECDHPublicKey(creationTime time.Time, pub *ecdh.PublicKey) *PublicKey {
 			PubKeyAlgo:   PubKeyAlgoECDH,
 			PublicKey:    pub,
 			p:            encoding.NewMPI(elliptic.Marshal(pub.Curve, pub.X, pub.Y)),
-			kdf: kdf,
+			kdf:          kdf,
 		}
 		curveInfo = ecc.FindByCurve(pub.Curve)
 	}
@@ -168,7 +168,6 @@ func NewEdDSAPublicKey(creationTime time.Time, pub ed25519.PublicKey) *PublicKey
 	pk.setFingerPrintAndKeyId()
 	return pk
 }
-
 
 func (pk *PublicKey) parse(r io.Reader) (err error) {
 	// RFC 4880, section 5.5.2
@@ -227,10 +226,22 @@ func (pk *PublicKey) parseRSA(r io.Reader) (err error) {
 		return
 	}
 
-	if len(pk.e.Bytes()) > 3 {
-		err = errors.UnsupportedError("large public exponent")
-		return
-	}
+	// XXX: Ignoring large public exponents isn't recommended but I'm doing it
+	// anyway.
+	//
+	// I'm relaxing this restriction because the application vendoring this
+	// code needs to verify signatures made by some questionable keys in the
+	// global PGP pool.
+	//
+	// Don't use this modified package for anything outside Hockeypuck.
+	//
+	// Further reading: https://www.imperialviolet.org/2012/03/16/rsae.html
+	/*
+		if len(pk.e.Bytes()) > 3 {
+			err = errors.UnsupportedError("large public exponent")
+			return
+		}
+	*/
 	rsa := &rsa.PublicKey{
 		N: new(big.Int).SetBytes(pk.n.Bytes()),
 		E: 0,
@@ -346,7 +357,7 @@ func (pk *PublicKey) parseECDH(r io.Reader) (err error) {
 	c := curveInfo.Curve
 	cType := curveInfo.CurveType
 
-	var x, y *big.Int;
+	var x, y *big.Int
 	if cType == ecc.Curve25519 {
 		x = new(big.Int)
 		x.SetBytes(pk.p.Bytes())
@@ -374,9 +385,9 @@ func (pk *PublicKey) parseECDH(r io.Reader) (err error) {
 
 	pk.PublicKey = &ecdh.PublicKey{
 		CurveType: cType,
-		Curve: c,
-		X:     x,
-		Y:     y,
+		Curve:     c,
+		X:         x,
+		Y:         y,
 		KDF: ecdh.KDF{
 			Hash:   kdfHash,
 			Cipher: kdfCipher,

@@ -147,11 +147,13 @@ func cleanUtf8(s string) string {
 	return string(runes)
 }
 
-func (uid *UserID) SelfSigs(pubkey *PrimaryKey) *SelfSigs {
-	result := &SelfSigs{target: uid}
+func (uid *UserID) SigInfo(pubkey *PrimaryKey) (*SelfSigs, []*Signature) {
+	selfSigs := &SelfSigs{target: uid}
+	var otherSigs []*Signature
 	for _, sig := range uid.Signatures {
 		// Skip non-self-certifications.
 		if !strings.HasPrefix(pubkey.UUID, sig.RIssuerKeyID) {
+			otherSigs = append(otherSigs, sig)
 			continue
 		}
 		checkSig := &CheckSig{
@@ -160,22 +162,22 @@ func (uid *UserID) SelfSigs(pubkey *PrimaryKey) *SelfSigs {
 			Error:      pubkey.verifyUserIDSelfSig(uid, sig),
 		}
 		if checkSig.Error != nil {
-			result.Errors = append(result.Errors, checkSig)
+			selfSigs.Errors = append(selfSigs.Errors, checkSig)
 			continue
 		}
 		switch sig.SigType {
 		case 0x30: // packet.SigTypeCertRevocation
-			result.Revocations = append(result.Revocations, checkSig)
+			selfSigs.Revocations = append(selfSigs.Revocations, checkSig)
 		case 0x10, 0x11, 0x12, 0x13:
-			result.Certifications = append(result.Certifications, checkSig)
+			selfSigs.Certifications = append(selfSigs.Certifications, checkSig)
 			if !sig.Expiration.IsZero() {
-				result.Expirations = append(result.Expirations, checkSig)
+				selfSigs.Expirations = append(selfSigs.Expirations, checkSig)
 			}
 			if sig.Primary {
-				result.Primaries = append(result.Primaries, checkSig)
+				selfSigs.Primaries = append(selfSigs.Primaries, checkSig)
 			}
 		}
 	}
-	result.resolve()
-	return result
+	selfSigs.resolve()
+	return selfSigs, otherSigs
 }
