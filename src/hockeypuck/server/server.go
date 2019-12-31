@@ -160,19 +160,25 @@ func DialStorage(settings *Settings) (storage.Storage, error) {
 }
 
 type stats struct {
-	Now       string      `json:"now"`
-	Version   string      `json:"version"`
-	Hostname  string      `json:"hostname"`
-	Nodename  string      `json:"nodename"`
-	Contact   string      `json:"server_contact"`
-	HTTPAddr  string      `json:"httpAddr"`
-	ReconAddr string      `json:"reconAddr"`
-	Software  string      `json:"software"`
-	Peers     []statsPeer `json:"peers"`
+	Now         string           `json:"now"`
+	Version     string           `json:"version"`
+	Hostname    string           `json:"hostname"`
+	Nodename    string           `json:"nodename"`
+	Contact     string           `json:"contact"`
+	HTTPAddr    string           `json:"httpAddr"`
+	QueryConfig statsQueryConfig `json:"queryConfig"`
+	ReconAddr   string           `json:"reconAddr"`
+	Software    string           `json:"software"`
+	Peers       []statsPeer      `json:"peers"`
 
 	Total  int
 	Hourly []loadStat
 	Daily  []loadStat
+}
+
+type statsQueryConfig struct {
+	SelfSignedOnly  bool `json:"selfSignedOnly"`
+	FingerprintOnly bool `json:"keywordSearchDisabled"`
 }
 
 type loadStat struct {
@@ -202,10 +208,14 @@ func (s *Server) stats() (interface{}, error) {
 	sksStats := s.sksPeer.Stats()
 
 	result := &stats{
-		Now:       time.Now().UTC().Format(time.RFC3339),
-		Version:   s.settings.Version,
-		Contact:   s.settings.Contact,
-		HTTPAddr:  s.settings.HKP.Bind,
+		Now:      time.Now().UTC().Format(time.RFC3339),
+		Version:  s.settings.Version,
+		Contact:  s.settings.Contact,
+		HTTPAddr: s.settings.HKP.Bind,
+		QueryConfig: statsQueryConfig{
+			SelfSignedOnly:  s.settings.HKP.Queries.SelfSignedOnly,
+			FingerprintOnly: s.settings.HKP.Queries.FingerprintOnly,
+		},
 		ReconAddr: s.settings.Conflux.Recon.Settings.ReconAddr,
 		Software:  s.settings.Software,
 

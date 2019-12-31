@@ -302,11 +302,13 @@ func (pubkey *PrimaryKey) setPublicKeyV3(pk *packet.PublicKeyV3) error {
 	return pubkey.PublicKey.setPublicKeyV3(pk)
 }
 
-func (pubkey *PrimaryKey) SelfSigs() *SelfSigs {
-	result := &SelfSigs{target: pubkey}
+func (pubkey *PrimaryKey) SigInfo() (*SelfSigs, []*Signature) {
+	selfSigs := &SelfSigs{target: pubkey}
+	var otherSigs []*Signature
 	for _, sig := range pubkey.Signatures {
 		// Skip non-self-certifications.
 		if !strings.HasPrefix(pubkey.UUID, sig.RIssuerKeyID) {
+			otherSigs = append(otherSigs, sig)
 			continue
 		}
 		checkSig := &CheckSig{
@@ -315,16 +317,16 @@ func (pubkey *PrimaryKey) SelfSigs() *SelfSigs {
 			Error:      pubkey.verifyPublicKeySelfSig(&pubkey.PublicKey, sig),
 		}
 		if checkSig.Error != nil {
-			result.Errors = append(result.Errors, checkSig)
+			selfSigs.Errors = append(selfSigs.Errors, checkSig)
 			continue
 		}
 		switch sig.SigType {
 		case 0x20: // packet.SigTypeKeyRevocation
-			result.Revocations = append(result.Revocations, checkSig)
+			selfSigs.Revocations = append(selfSigs.Revocations, checkSig)
 		}
 	}
-	result.resolve()
-	return result
+	selfSigs.resolve()
+	return selfSigs, otherSigs
 }
 
 func (pubkey *PrimaryKey) updateMD5() error {
