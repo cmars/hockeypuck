@@ -1,6 +1,6 @@
-hockeypuck (2.0.15~1.gbp6f92af) UNRELEASED; urgency=medium
+hockeypuck (2.0.16~1.gbp67a3b5) UNRELEASED; urgency=medium
 
-  ** SNAPSHOT build @6f92af5df2742a9441d5300b5f1f36346eaeec95 **
+  ** SNAPSHOT build @67a3b5838c602916bcd805a8567b79892d819154 **
 
   [ Paul Collins ]
   * don't use errgo.Notef to collect all errors in requestRecovered
@@ -92,8 +92,19 @@ hockeypuck (2.0.15~1.gbp6f92af) UNRELEASED; urgency=medium
   * Address conflux memory leaks.
   * New release script, removing obsolete scripts.
   * Release 2.0.15
+  * New release script, removing obsolete scripts.
+  * Release 2.0.15
+  * Add script to publish docker image to Github.
+  * Update FUNDING.yml
 
- -- Casey Marshall <casey.marshall@canonical.com>  Sun, 29 Sep 2019 18:37:54 -0500
+  [ Wiktor Kwapisiewicz ]
+  * Fix calculation of key expiration
+
+  [ Casey Marshall ]
+  * Expose HKP query configuration in op=stats&options=json
+  * Filter out packets with invalid self-signatures in query response.
+
+ -- Casey Marshall <casey.marshall@canonical.com>  Tue, 31 Dec 2019 15:48:50 -0600
 
 hockeypuck (2.0.14) bionic; urgency=medium
 
