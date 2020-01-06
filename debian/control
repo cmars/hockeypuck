@@ -7,7 +7,7 @@ Standards-Version: 3.9.5
 Homepage: https://hockeypuck.github.io/
 
 Package: hockeypuck
-Architecture: i386 amd64 armhf
+Architecture: amd64
 Depends: ${shlibs:Depends}, ${misc:Depends}, adduser
 Conflicts: hockeypuck (<< 2)
 Recommends:

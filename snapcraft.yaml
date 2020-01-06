@@ -5,6 +5,10 @@ description: |
   Hockeypuck is an OpenPGP Key Server that implements the HTTP
   Keyserver Protocol and the SKS database reconciliation protocol.
 
+architectures:
+- build-on: amd64
+  run-on: amd64
+
 base: core18
 confinement: strict
 grade: stable
@@ -39,7 +43,7 @@ parts:
       # https://github.com/golang/go/issues/33840
       - CGO_ENABLED: "0"
     build-snaps:
-      - go
+      - go/1.12/stable
     plugin: make
     make-parameters:
       - prefix=
