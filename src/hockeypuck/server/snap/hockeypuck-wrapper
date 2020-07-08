@@ -3,10 +3,20 @@
 set -euo pipefail
 
 CONFIG=$SNAP_COMMON/config
+ARGS="-config $CONFIG"
 if [ ! -f "$CONFIG" ]; then
 	echo "Missing config file $CONFIG."
 	echo "Use 'hockeypuck.config' to create/edit config file"
 	exit 1
 fi
 
-exec $SNAP/bin/hockeypuck -config $CONFIG
+CPUPROF="$(snapctl get cpuprof)"
+MEMPROF="$(snapctl get memprof)"
+if [ -n "$CPUPROF" ]; then
+    ARGS="$ARGS -cpuprof"
+fi
+if [ -n "$MEMPROF" ]; then
+    ARGS="$ARGS -memprof"
+fi
+
+exec $SNAP/bin/hockeypuck $ARGS

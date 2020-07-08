@@ -66,6 +66,18 @@ Or use LXD for a lighter-weight isolated build:
 
     SNAPCRAFT_BUILD_ENVIRONMENT=lxd snapcraft snap
 
+Enabling cpu or memory profiling:
+
+    sudo snap set hockeypuck cpuprof=1
+    sudo snap set hockeypuck memprof=1
+    sudo systemctl restart snap.hockeypuck.hockeypuck.service
+
+Disabling cpu or memory profiling:
+
+    sudo snap unset hockeypuck cpuprof
+    sudo snap unset hockeypuck memprof
+    sudo systemctl restart snap.hockeypuck.hockeypuck.service
+
 ## Ubuntu package maintainers
 
 In order to release a new version of hockeypuck:
