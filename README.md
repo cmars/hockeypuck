@@ -9,8 +9,8 @@ Hockeypuck is an OpenPGP public keyserver.
 With Go 1.12 installed, from this directory:
 
     export GOPATH=$(pwd)
-    go build ./src/hockeypuck/server/cmd/...
-    go install ./src/hockeypuck/server/cmd/...
+    go build hockeypuck/server/cmd/...
+    go install hockeypuck/server/cmd/...
 
 Hockeypuck binaries will be in `bin/`.
 
@@ -19,7 +19,7 @@ Hockeypuck binaries will be in `bin/`.
 The dependencies for this project are managed via Go modules.
 To update the dependencies run:
 
-    cd src
+    cd src/hockeypuck
     go get -u -m
     go mod vendor
 
