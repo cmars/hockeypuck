@@ -165,16 +165,18 @@ func DialStorage(settings *Settings) (storage.Storage, error) {
 }
 
 type stats struct {
-	Now         string           `json:"now"`
-	Version     string           `json:"version"`
-	Hostname    string           `json:"hostname"`
-	Nodename    string           `json:"nodename"`
-	Contact     string           `json:"contact"`
-	HTTPAddr    string           `json:"httpAddr"`
-	QueryConfig statsQueryConfig `json:"queryConfig"`
-	ReconAddr   string           `json:"reconAddr"`
-	Software    string           `json:"software"`
-	Peers       []statsPeer      `json:"peers"`
+	Now           string           `json:"now"`
+	Version       string           `json:"version"`
+	Hostname      string           `json:"hostname"`
+	Nodename      string           `json:"nodename"`
+	Contact       string           `json:"contact"`
+	HTTPAddr      string           `json:"httpAddr"`
+	QueryConfig   statsQueryConfig `json:"queryConfig"`
+	ReconAddr     string           `json:"reconAddr"`
+	Software      string           `json:"software"`
+	Peers         []statsPeer      `json:"peers"`
+	NumKeys       int              `json:"numkeys"`
+	ServerContact string           `json:"server_contact"`
 
 	Total  int
 	Hourly []loadStat
@@ -225,6 +227,8 @@ func (s *Server) stats() (interface{}, error) {
 		Software:  s.settings.Software,
 
 		Total: sksStats.Total,
+		NumKeys: sksStats.Total,
+		ServerContact: s.settings.Contact,
 	}
 
 	nodename, err := os.Hostname()
@@ -252,7 +256,7 @@ func (s *Server) stats() (interface{}, error) {
 		result.Peers = append(result.Peers, statsPeer{
 			Name:      k,
 			HTTPAddr:  v.HTTPAddr,
-			ReconAddr: v.ReconAddr,
+			ReconAddr: strings.ReplaceAll(v.ReconAddr, ":", " "),
 		})
 	}
 	sort.Sort(statsPeers(result.Peers))
