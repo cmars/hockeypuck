@@ -103,6 +103,43 @@ type OpenPGPConfig struct {
 	PKS      *PKSConfig `toml:"pks"`
 	NWorkers int        `toml:"nworkers"`
 	DB       DBConfig   `toml:"db"`
+
+	// NOTE: The following options will probably prevent your keyserver from
+	// perfectly reconciling with other keyservers that do not share the same
+	// policy, as key hashes will differ. This is still fine; perfect
+	// reconciliation should not be necessary in order to receive and propagate
+	// updates to keys.
+
+	// MaxKeyLength limits the total length of key material when inserting,
+	// updating or looking up key material. There is certainly an upper bound
+	// on the total length of a key that should be allowed.
+	//
+	// While a max limit on key length works as a stopgap measure to prevent
+	// propagation of hostile key material and it wasting resources, this
+	// option leaves individual keys susceptible to a denial-of-service attack.
+	// An attacker can add signatures to a target key until it crosses the
+	// limit threshold, which would then block legitimate signatures from being
+	// added past that point. So if you use this option, you should also
+	// monitor the keys that are affected by it carefully.
+	MaxKeyLength int `toml:"maxKeyLength"`
+
+	// MaxPacketLength limits the size of an OpenPGP packet. Packets above this
+	// size are just discarded. A reasonable upper bound might be 8-32k.
+	// Limiting 4k and below may drop legitimate keys and signatures.
+	//
+	// This isn't a perfect solution to key spam, but it requires an attacker
+	// to do more work by creating more keys or signing more packets, and
+	// blocks casually malicious content.
+	MaxPacketLength int `toml:"maxPacketLength"`
+
+	// Blacklist contains a list of public key fingerprints that are not
+	// allowed on this server at all. These keys are silently dropped from
+	// inserts, updates, and lookups.
+	//
+	// TODO(cmars, 2020-11-27): These same fingerprints will soon be used to
+	// also drop subkeys and signatures made with these keys -- not only from
+	// new key material, but also from lookup responses.
+	Blacklist []string `toml:"blacklist"`
 }
 
 func DefaultOpenPGP() OpenPGPConfig {

@@ -24,7 +24,7 @@ import (
 )
 
 func MustInputAscKeys(name string) []*PrimaryKey {
-	return MustReadArmorKeys(testing.MustInput(name)).MustParse()
+	return MustReadArmorKeys(testing.MustInput(name))
 }
 
 func MustInputAscKey(name string) *PrimaryKey {

@@ -44,7 +44,8 @@ const (
 
 type storage struct {
 	*sql.DB
-	dbName string
+	dbName  string
+	options []openpgp.KeyReaderOption
 
 	mu        sync.Mutex
 	listeners []func(hkpstorage.KeyChange) error
@@ -91,18 +92,19 @@ var drConstraintsSQL = []string{
 }
 
 // Dial returns PostgreSQL storage connected to the given database URL.
-func Dial(url string) (hkpstorage.Storage, error) {
+func Dial(url string, options []openpgp.KeyReaderOption) (hkpstorage.Storage, error) {
 	db, err := sql.Open("postgres", url)
 	if err != nil {
 		return nil, errgo.Mask(err)
 	}
-	return New(db)
+	return New(db, options)
 }
 
 // New returns a PostgreSQL storage implementation for an HKP service.
-func New(db *sql.DB) (hkpstorage.Storage, error) {
+func New(db *sql.DB, options []openpgp.KeyReaderOption) (hkpstorage.Storage, error) {
 	st := &storage{
-		DB: db,
+		DB:      db,
+		options: options,
 	}
 	err := st.createTables()
 	if err != nil {
@@ -390,26 +392,21 @@ func (st *storage) FetchKeyrings(rfps []string) ([]*hkpstorage.Keyring, error) {
 }
 
 func readOneKey(b []byte, rfingerprint string) (*openpgp.PrimaryKey, error) {
-	c := openpgp.ReadKeys(bytes.NewBuffer(b))
-	defer func() {
-		for _ = range c {
-		}
-	}()
-	var result *openpgp.PrimaryKey
-	for readKey := range c {
-		if readKey.Error != nil {
-			return nil, errgo.Mask(readKey.Error)
-		}
-		if result != nil {
-			return nil, errgo.Newf("multiple keys in keyring: %v, %v", result.Fingerprint(), readKey.Fingerprint())
-		}
-		if readKey.PrimaryKey.RFingerprint != rfingerprint {
-			return nil, errgo.Newf("RFingerprint mismatch: expected=%q got=%q",
-				rfingerprint, readKey.PrimaryKey.RFingerprint)
-		}
-		result = readKey.PrimaryKey
+	kr := openpgp.NewKeyReader(bytes.NewBuffer(b))
+	keys, err := kr.Read()
+	if err != nil {
+		return nil, errgo.Mask(err)
 	}
-	return result, nil
+	if len(keys) == 0 {
+		return nil, nil
+	} else if len(keys) > 1 {
+		return nil, errgo.Newf("multiple keys in keyring: %v, %v", keys[0].Fingerprint(), keys[1].Fingerprint())
+	}
+	if keys[0].RFingerprint != rfingerprint {
+		return nil, errgo.Newf("RFingerprint mismatch: expected=%q got=%q",
+			rfingerprint, keys[0].RFingerprint)
+	}
+	return keys[0], nil
 }
 
 func (st *storage) insertKey(key *openpgp.PrimaryKey) (isDuplicate bool, retErr error) {

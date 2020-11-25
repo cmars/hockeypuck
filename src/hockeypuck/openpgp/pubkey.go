@@ -226,7 +226,7 @@ type PrimaryKey struct {
 	PublicKey
 
 	MD5    string
-	SHA256 string
+	Length int
 
 	SubKeys        []*SubKey
 	UserIDs        []*UserID

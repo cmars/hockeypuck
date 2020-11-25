@@ -19,11 +19,11 @@ package mgohkp
 
 import (
 	"bytes"
-	"flag"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	stdtesting "testing"
 
 	"github.com/facebookgo/mgotest"
@@ -31,20 +31,14 @@ import (
 	gc "gopkg.in/check.v1"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
-	"hockeypuck/testing"
 
 	"hockeypuck/hkp"
 	"hockeypuck/openpgp"
+	"hockeypuck/testing"
 )
 
-var mongodbTest = flag.Bool("mongodb-integration", false, "Run mongodb integration tests")
-
-func init() {
-	flag.Parse()
-}
-
 func Test(t *stdtesting.T) {
-	if !*mongodbTest {
+	if os.Getenv("MONGODB_TESTS") == "" {
 		t.Skip("skipping mongodb integration test, specify -mongodb-integration to run")
 	}
 	gc.TestingT(t)
@@ -113,7 +107,7 @@ func (s *MgoSuite) TestMD5(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
 
-	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor)).MustParse()
+	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
 	c.Assert(keys, gc.HasLen, 1)
 	c.Assert(keys[0].ShortID(), gc.Equals, "ce353cf4")
 	c.Assert(keys[0].UserIDs, gc.HasLen, 1)
@@ -168,7 +162,7 @@ func (s *MgoSuite) TestResolve(c *gc.C) {
 		c.Assert(err, gc.IsNil)
 		c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
 
-		keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor)).MustParse()
+		keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
 		c.Assert(keys, gc.HasLen, 1)
 		c.Assert(keys[0].ShortID(), gc.Equals, "44a2d1db")
 		c.Assert(keys[0].UserIDs, gc.HasLen, 2)
@@ -204,7 +198,7 @@ func (s *MgoSuite) TestMerge(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
 
-	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor)).MustParse()
+	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
 	c.Assert(keys, gc.HasLen, 1)
 	c.Assert(keys[0].ShortID(), gc.Equals, "23e0dcca")
 	c.Assert(keys[0].UserIDs, gc.HasLen, 1)
@@ -228,7 +222,7 @@ func (s *MgoSuite) TestEd25519(c *gc.C) {
 		c.Assert(err, gc.IsNil)
 		c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
 
-		keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor)).MustParse()
+		keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
 		c.Assert(keys, gc.HasLen, 1)
 		c.Assert(keys[0].ShortID(), gc.Equals, "e68e311d")
 		c.Assert(keys[0].UserIDs, gc.HasLen, 2)

@@ -111,6 +111,8 @@ func load(settings *server.Settings, args []string) error {
 		return nil
 	})
 
+	keyReaderOptions := server.KeyReaderOptions(settings)
+
 	for _, arg := range args {
 		matches, err := filepath.Glob(arg)
 		if err != nil {
@@ -123,13 +125,11 @@ func load(settings *server.Settings, args []string) error {
 			if err != nil {
 				log.Errorf("failed to open %q for reading: %v", file, err)
 			}
-			var keys []*openpgp.PrimaryKey
-			for kr := range openpgp.ReadKeys(f) {
-				if kr.Error != nil {
-					log.Errorf("error reading key: %v", errgo.Details(kr.Error))
-				} else {
-					keys = append(keys, kr.PrimaryKey)
-				}
+			kr := openpgp.NewKeyReader(f, keyReaderOptions...)
+			keys, err := kr.Read()
+			if err != nil {
+				log.Errorf("error reading key: %v", errgo.Details(err))
+				continue
 			}
 			log.Infof("found %d keys in %q...", len(keys), file)
 			t := time.Now()

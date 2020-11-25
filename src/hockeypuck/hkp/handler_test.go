@@ -90,7 +90,7 @@ func (s *HandlerSuite) SetUpTest(c *gc.C) {
 			if len(keys) == 1 && testKeys[keys[0]] != nil {
 				tk = testKeys[keys[0]]
 			}
-			return openpgp.MustReadArmorKeys(testing.MustInput(tk.file)).MustParse(), nil
+			return openpgp.MustReadArmorKeys(testing.MustInput(tk.file)), nil
 		}),
 	)
 
@@ -115,7 +115,7 @@ func (s *HandlerSuite) TestGetKeyID(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
 
-	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor)).MustParse()
+	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
 	c.Assert(keys, gc.HasLen, 1)
 	c.Assert(keys[0].ShortID(), gc.Equals, tk.sid)
 	c.Assert(keys[0].UserIDs, gc.HasLen, 1)
@@ -241,7 +241,7 @@ func (s *HandlerSuite) TestFetchWithBadSigs(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
 
-	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor)).MustParse()
+	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
 	c.Assert(keys, gc.HasLen, 1)
 	c.Assert(keys[0].ShortID(), gc.Equals, tk.sid)
 	c.Assert(len(keys[0].Others), gc.Equals, 0)

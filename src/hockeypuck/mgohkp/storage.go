@@ -334,26 +334,21 @@ func (st *storage) FetchKeyrings(rfps []string) ([]*hkpstorage.Keyring, error) {
 }
 
 func readOneKey(b []byte, rfingerprint string) (*openpgp.PrimaryKey, error) {
-	c := openpgp.ReadKeys(bytes.NewBuffer(b))
-	defer func() {
-		for _ = range c {
-		}
-	}()
-	var result *openpgp.PrimaryKey
-	for readKey := range c {
-		if readKey.Error != nil {
-			return nil, errgo.Mask(readKey.Error)
-		}
-		if result != nil {
-			return nil, errgo.Newf("multiple keys in keyring: %v, %v", result.Fingerprint(), readKey.Fingerprint())
-		}
-		if readKey.PrimaryKey.RFingerprint != rfingerprint {
-			return nil, errgo.Newf("RFingerprint mismatch: expected=%q got=%q",
-				rfingerprint, readKey.PrimaryKey.RFingerprint)
-		}
-		result = readKey.PrimaryKey
+	kr := openpgp.NewKeyReader(bytes.NewBuffer(b))
+	keys, err := kr.Read()
+	if err != nil {
+		return nil, errgo.Mask(err)
 	}
-	return result, nil
+	if len(keys) == 0 {
+		return nil, nil
+	} else if len(keys) > 1 {
+		return nil, errgo.Newf("multiple keys in keyring: %v, %v", keys[0].Fingerprint(), keys[1].Fingerprint())
+	}
+	if keys[0].RFingerprint != rfingerprint {
+		return nil, errgo.Newf("RFingerprint mismatch: expected=%q got=%q",
+			rfingerprint, keys[0].RFingerprint)
+	}
+	return keys[0], nil
 }
 
 func (st *storage) Insert(keys []*openpgp.PrimaryKey) (int, error) {

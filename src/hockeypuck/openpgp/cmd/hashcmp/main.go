@@ -19,7 +19,7 @@ import (
 func main() {
 	var matches, misses int
 	var n int
-	for opkr := range openpgp.ReadOpaqueKeyrings(os.Stdin) {
+	for _, opkr := range openpgp.MustReadOpaqueKeys(os.Stdin) {
 		match, miss, err := testKeyring(opkr)
 		if err != nil {
 			log.Errorf("key#%d: %v", n, errgo.Details(err))

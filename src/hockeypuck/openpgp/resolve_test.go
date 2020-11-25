@@ -38,12 +38,8 @@ var _ = gc.Suite(&ResolveSuite{})
 
 func (s *ResolveSuite) TestBadSelfSigUid(c *gc.C) {
 	f := testing.MustInput("badselfsig.asc")
-	var keys []*ReadKeyResult
-	for kr := range ReadKeys(f) {
-		keys = append(keys, kr)
-	}
-	c.Assert(keys, gc.HasLen, 1)
-	c.Assert(keys[0].Error, gc.NotNil)
+	_, err := NewKeyReader(f).Read()
+	c.Assert(err, gc.NotNil)
 }
 
 func (s *ResolveSuite) TestDupSigSksDigest(c *gc.C) {
@@ -71,11 +67,9 @@ func (s *ResolveSuite) TestRoundTripSksDigest(c *gc.C) {
 	block, err := armor.Decode(f)
 	c.Assert(err, gc.IsNil)
 
-	var key *PrimaryKey
-	for keyRead := range readKeys(block.Body) {
-		c.Assert(keyRead.Error, gc.IsNil)
-		key = keyRead.PrimaryKey
-	}
+	keys := MustReadKeys(block.Body)
+	c.Assert(keys, gc.HasLen, 1)
+	key := keys[0]
 
 	var packets []*packet.OpaquePacket
 	for _, node := range key.contents() {
@@ -159,12 +153,9 @@ func (s *ResolveSuite) TestKeyExpiration(c *gc.C) {
 // trust packets, in this case.
 func (s *ResolveSuite) TestUnsuppIgnored(c *gc.C) {
 	f := testing.MustInput("snowcrash.gpg")
-	var key *PrimaryKey
-	for keyRead := range ReadKeys(f) {
-		c.Assert(keyRead.Error, gc.IsNil)
-		key = keyRead.PrimaryKey
-		break
-	}
+	keys := MustReadKeys(f)
+	c.Assert(keys, gc.HasLen, 1)
+	key := keys[0]
 	c.Assert(key, gc.NotNil)
 	for _, node := range key.contents() {
 		switch p := node.(type) {
@@ -193,7 +184,7 @@ func (s *ResolveSuite) TestV3NoUidSig(c *gc.C) {
 	block, err := armor.Decode(f)
 	c.Assert(err, gc.IsNil)
 	var kr *OpaqueKeyring
-	for opkr := range ReadOpaqueKeyrings(block.Body) {
+	for _, opkr := range MustReadOpaqueKeys(block.Body) {
 		kr = opkr
 	}
 	sort.Sort(opaquePacketSlice(kr.Packets))

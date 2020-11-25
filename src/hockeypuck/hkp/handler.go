@@ -65,6 +65,8 @@ type Handler struct {
 
 	selfSignedOnly  bool
 	fingerprintOnly bool
+
+	keyReaderOptions []openpgp.KeyReaderOption
 }
 
 type HandlerOption func(h *Handler) error
@@ -135,6 +137,13 @@ func SelfSignedOnly(selfSignedOnly bool) HandlerOption {
 func FingerprintOnly(fingerprintOnly bool) HandlerOption {
 	return func(h *Handler) error {
 		h.fingerprintOnly = fingerprintOnly
+		return nil
+	}
+}
+
+func KeyReaderOptions(opts []openpgp.KeyReaderOption) HandlerOption {
+	return func(h *Handler) error {
+		h.keyReaderOptions = opts
 		return nil
 	}
 }
@@ -211,6 +220,10 @@ func (h *Handler) HashQuery(w http.ResponseWriter, r *http.Request, _ httprouter
 			log.Errorf("error writing hashquery key %q: %v", key.RFingerprint, err)
 			return
 		}
+		log.WithFields(log.Fields{
+			"fp":     key.Fingerprint(),
+			"length": key.Length,
+		}).Info("hashquery result")
 	}
 
 	// SKS expects hashquery response to terminate with a CRLF
@@ -267,6 +280,11 @@ func (h *Handler) keys(l *Lookup) ([]*openpgp.PrimaryKey, error) {
 		if err := openpgp.ValidSelfSigned(key, h.selfSignedOnly); err != nil {
 			return nil, errgo.Mask(err)
 		}
+		log.WithFields(log.Fields{
+			"fp":     key.Fingerprint(),
+			"length": key.Length,
+			"op":     l.Op,
+		}).Info("lookup")
 	}
 	return keys, nil
 }
@@ -402,23 +420,25 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 	}
 
 	var result AddResponse
-	for readKey := range openpgp.ReadKeys(armorBlock.Body) {
-		if readKey.Error != nil {
-			httpError(w, http.StatusBadRequest, errgo.Mask(err))
-			return
-		}
-		err := openpgp.DropDuplicates(readKey.PrimaryKey)
+	kr := openpgp.NewKeyReader(armorBlock.Body, h.keyReaderOptions...)
+	keys, err := kr.Read()
+	if err != nil {
+		httpError(w, http.StatusBadRequest, errgo.Mask(err))
+		return
+	}
+	for _, key := range keys {
+		err := openpgp.DropDuplicates(key)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, errgo.Mask(err))
 			return
 		}
-		change, err := storage.UpsertKey(h.storage, readKey.PrimaryKey)
+		change, err := storage.UpsertKey(h.storage, key)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, errgo.Mask(err))
 			return
 		}
 
-		fp := readKey.PrimaryKey.QualifiedFingerprint()
+		fp := key.QualifiedFingerprint()
 		switch change.(type) {
 		case storage.KeyAdded:
 			result.Inserted = append(result.Inserted, fp)
@@ -428,6 +448,10 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 			result.Ignored = append(result.Ignored, fp)
 		}
 	}
+	log.WithFields(log.Fields{
+		"inserted": result.Inserted,
+		"updated":  result.Updated,
+	}).Info("add")
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
