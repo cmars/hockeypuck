@@ -235,12 +235,12 @@ func (r *Peer) handleRecovery() error {
 		case <-r.t.Dying():
 			return nil
 		case rcvr := <-r.peer.RecoverChan:
-			r.logAddr(RECON, rcvr.RemoteAddr).Infof("%d items to recover", len(rcvr.RemoteElements))
-			if err := r.requestRecovered(rcvr); err != nil {
-				r.logAddr(RECON, rcvr.RemoteAddr).Errorf("recovery completed with errors: %v", err)
-			} else {
-				r.logAddr(RECON, rcvr.RemoteAddr).Info("recovery complete")
-			}
+			func() {
+				defer close(rcvr.Done)
+				if err := r.requestRecovered(rcvr); err != nil {
+					r.logAddr(RECON, rcvr.RemoteAddr).Errorf("recovery completed with errors: %v", err)
+				}
+			}()
 		}
 	}
 }
@@ -323,6 +323,14 @@ func (r *Peer) requestChunk(rcvr *recon.Recover, chunk []cf.Zp) error {
 		return errgo.Mask(err)
 	}
 	r.logAddr(RECON, rcvr.RemoteAddr).Debugf("hashquery response from %q: %d keys found", remoteAddr, nkeys)
+	summary := &upsertResult{}
+	defer func() {
+		fields := r.logAddr(RECON, rcvr.RemoteAddr)
+		fields.Data["inserted"] = summary.inserted
+		fields.Data["updated"] = summary.updated
+		fields.Data["unchanged"] = summary.unchanged
+		fields.Infof("upsert")
+	}()
 	for i := 0; i < nkeys; i++ {
 		keyLen, err = recon.ReadInt(body)
 		if err != nil {
@@ -335,32 +343,54 @@ func (r *Peer) requestChunk(rcvr *recon.Recover, chunk []cf.Zp) error {
 		}
 		r.logAddr(RECON, rcvr.RemoteAddr).Debugf("key# %d: %d bytes", i+1, keyLen)
 		// Merge locally
-		err = r.upsertKeys(rcvr, keyBuf.Bytes())
+		res, err := r.upsertKeys(rcvr, keyBuf.Bytes())
 		if err != nil {
 			r.logAddr(RECON, rcvr.RemoteAddr).Errorf("cannot upsert: %v", err)
 		}
+		summary.add(res)
 	}
 	// Read last two bytes (CRLF, why?), or SKS will complain.
 	body.Read(make([]byte, 2))
 	return nil
 }
 
-func (r *Peer) upsertKeys(rcvr *recon.Recover, buf []byte) error {
+type upsertResult struct {
+	inserted  int
+	updated   int
+	unchanged int
+}
+
+func (r *upsertResult) add(r2 *upsertResult) {
+	r.inserted += r2.inserted
+	r.updated += r2.updated
+	r.unchanged += r2.unchanged
+}
+
+func (r *Peer) upsertKeys(rcvr *recon.Recover, buf []byte) (*upsertResult, error) {
 	kr := openpgp.NewKeyReader(bytes.NewBuffer(buf), r.keyReaderOptions...)
 	keys, err := kr.Read()
 	if err != nil {
-		return errgo.Mask(err)
+		return nil, errgo.Mask(err)
 	}
+	result := &upsertResult{}
 	for _, key := range keys {
 		err := openpgp.DropDuplicates(key)
 		if err != nil {
-			return errgo.Mask(err)
+			return nil, errgo.Mask(err)
 		}
 		keyChange, err := storage.UpsertKey(r.storage, key)
 		if err != nil {
-			return errgo.Mask(err)
+			return nil, errgo.Mask(err)
 		}
 		r.logAddr(RECON, rcvr.RemoteAddr).Debug(keyChange)
+		switch keyChange.(type) {
+		case storage.KeyAdded:
+			result.inserted++
+		case storage.KeyReplaced:
+			result.updated++
+		case storage.KeyNotChanged:
+			result.unchanged++
+		}
 	}
-	return nil
+	return result, nil
 }

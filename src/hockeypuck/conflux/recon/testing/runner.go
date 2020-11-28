@@ -28,9 +28,10 @@ import (
 	"sync"
 	"time"
 
+	log "hockeypuck/logrus"
+
 	gc "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
-	log "hockeypuck/logrus"
 
 	cf "hockeypuck/conflux"
 	"hockeypuck/conflux/recon"
@@ -61,75 +62,104 @@ func NewReconSuite(factory PtreeFactory) *ReconSuite {
 
 func (s *ReconSuite) pollRootConvergence(c *gc.C, peer1, peer2 *recon.Peer, ptree1, ptree2 recon.PrefixTree) error {
 	var t tomb.Tomb
+	var mu sync.Mutex
+	zs1 := cf.NewZSet()
+	zs2 := cf.NewZSet()
+	defer peer1.Stop()
+	peer1.SetMutatedFunc(func() {
+		mu.Lock()
+		root1, err := ptree1.Root()
+		c.Assert(err, gc.IsNil)
+		newZs := cf.NewZSetSlice(recon.MustElements(root1))
+		*zs1 = *newZs
+		c.Logf("peer1 now has %q", zs1)
+		mu.Unlock()
+	})
+	defer peer2.Stop()
+	peer2.SetMutatedFunc(func() {
+		mu.Lock()
+		root2, err := ptree2.Root()
+		c.Assert(err, gc.IsNil)
+		newZs := cf.NewZSetSlice(recon.MustElements(root2))
+		*zs2 = *newZs
+		c.Logf("peer2 now has %q", zs2)
+		mu.Unlock()
+	})
 	t.Go(func() error {
-		defer peer1.Stop()
-		defer peer2.Stop()
-
-		var mu sync.Mutex
-		var zs1 *cf.ZSet = cf.NewZSet()
-		var zs2 *cf.ZSet = cf.NewZSet()
-
-		timer := time.NewTimer(LongTimeout)
-		peer1.SetMutatedFunc(func() {
-			mu.Lock()
-			root1, err := ptree1.Root()
-			c.Assert(err, gc.IsNil)
-			zs1 = cf.NewZSetSlice(recon.MustElements(root1))
-			mu.Unlock()
-		})
-		peer2.SetMutatedFunc(func() {
-			mu.Lock()
-			root2, err := ptree2.Root()
-			c.Assert(err, gc.IsNil)
-			zs2 = cf.NewZSetSlice(recon.MustElements(root2))
-			mu.Unlock()
-		})
-	POLLING:
 		for {
 			select {
 			case r1, ok := <-peer1.RecoverChan:
 				if !ok {
-					break POLLING
+					return nil
 				}
 				c.Logf("peer1 recover: %v", r1)
 				for _, zp := range r1.RemoteElements {
 					c.Assert(zp, gc.NotNil)
 					peer1.Insert(zp)
 				}
+				close(r1.Done)
+			case <-time.After(ShortDelay):
+				mu.Lock()
+				if zs1.Len() > 0 && zs1.Equal(zs2) {
+					c.Logf("done: peer1 has %q, peer2 has %q", zs1, zs2)
+					t.Kill(nil)
+					mu.Unlock()
+					return nil
+				} else {
+					c.Logf("reconciling: peer1 has %q, peer2 has %q", zs1, zs2)
+				}
+				mu.Unlock()
+			case <-t.Dying():
+				return nil
+			}
+		}
+	})
+	t.Go(func() error {
+		for {
+			select {
 			case r2, ok := <-peer2.RecoverChan:
 				if !ok {
-					break POLLING
+					return nil
 				}
 				c.Logf("peer2 recover: %v", r2)
 				for _, zp := range r2.RemoteElements {
 					c.Assert(zp, gc.NotNil)
 					peer2.Insert(zp)
 				}
-			case _ = <-timer.C:
-				return fmt.Errorf("timeout waiting for convergence")
-			default:
-			}
-
-			var done bool
-			mu.Lock()
-			done = zs1.Len() > 0 && zs1.Equal(zs2)
-			mu.Unlock()
-			if done {
-				c.Logf("peer1 has %q, peer2 has %q", zs1, zs2)
+				close(r2.Done)
+			case <-time.After(ShortDelay):
+				mu.Lock()
+				if zs1.Len() > 0 && zs1.Equal(zs2) {
+					c.Logf("done: peer1 has %q, peer2 has %q", zs1, zs2)
+					t.Kill(nil)
+					mu.Unlock()
+					return nil
+				} else {
+					c.Logf("reconciling: peer1 has %q, peer2 has %q", zs1, zs2)
+				}
+				mu.Unlock()
+			case <-t.Dying():
 				return nil
 			}
 		}
-		return fmt.Errorf("set reconciliation did not converge")
+	})
+	t.Go(func() error {
+		select {
+		case <-time.After(LongTimeout):
+			panic("timeout waiting for convergence")
+		case <-t.Dying():
+			return nil
+		}
 	})
 	return t.Wait()
 }
 
 func (s *ReconSuite) pollConvergence(c *gc.C, peer1, peer2 *recon.Peer, peer1Needs, peer2Needs *cf.ZSet, timeout time.Duration) error {
 	var t tomb.Tomb
+	timer := time.NewTimer(timeout)
+	defer peer1.Stop()
+	defer peer2.Stop()
 	t.Go(func() error {
-		defer peer1.Stop()
-		defer peer2.Stop()
-		timer := time.NewTimer(timeout)
 	POLLING:
 		for {
 			select {
@@ -140,6 +170,23 @@ func (s *ReconSuite) pollConvergence(c *gc.C, peer1, peer2 *recon.Peer, peer1Nee
 				c.Logf("peer1 recover: %v", r1)
 				peer1.Insert(r1.RemoteElements...)
 				peer1Needs.RemoveSlice(r1.RemoteElements)
+				close(r1.Done)
+			case <-timer.C:
+				c.Log("peer1 still needed ", peer1Needs.Len(), ":", peer1Needs)
+				return fmt.Errorf("timeout waiting for convergence")
+			case <-time.After(ShortDelay):
+				if peer2Needs.Len() == 0 {
+					c.Log("all done!")
+					return nil
+				}
+			}
+		}
+		return fmt.Errorf("set reconciliation did not converge")
+	})
+	t.Go(func() error {
+	POLLING:
+		for {
+			select {
 			case r2, ok := <-peer2.RecoverChan:
 				if !ok {
 					break POLLING
@@ -147,17 +194,16 @@ func (s *ReconSuite) pollConvergence(c *gc.C, peer1, peer2 *recon.Peer, peer1Nee
 				c.Logf("peer2 recover: %v", r2)
 				peer2.Insert(r2.RemoteElements...)
 				peer2Needs.RemoveSlice(r2.RemoteElements)
-			case _ = <-timer.C:
-				c.Log("peer1 still needed ", peer1Needs.Len(), ":", peer1Needs)
+				close(r2.Done)
+			case <-timer.C:
 				c.Log("peer2 still needed ", peer2Needs.Len(), ":", peer2Needs)
 				return fmt.Errorf("timeout waiting for convergence")
-			default:
+			case <-time.After(ShortDelay):
+				if peer2Needs.Len() == 0 {
+					c.Log("all done!")
+					return nil
+				}
 			}
-			if peer1Needs.Len() == 0 && peer2Needs.Len() == 0 {
-				c.Log("all done!")
-				return nil
-			}
-			time.Sleep(ShortDelay)
 		}
 		return fmt.Errorf("set reconciliation did not converge")
 	})
