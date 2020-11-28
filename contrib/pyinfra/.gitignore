@@ -1,1 +1,4 @@
-pyinfra-debug.log
+/pyinfra-debug.log
+/.terraform*
+/terraform.tfstate*
+/secrets
