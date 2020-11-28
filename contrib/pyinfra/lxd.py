@@ -13,9 +13,9 @@ def ensure_container(name):
         check_output(['lxc', 'info', name])
     except CalledProcessError:
         lp_user = check_output(['bzr', 'lp-login']).decode().strip()
-        check_call(['lxc', 'launch', 'ubuntu:focal', name])
+        check_call(['lxc', 'launch', 'ubuntu:bionic', name])
         check_call(['lxc', 'exec', name, '--', 'bash', '-c', 'while [ ! -f /var/lib/cloud/instance/boot-finished ]; do sleep 1; done'])
-        check_call(['lxc', 'exec', name, '--', 'bash', '-c', 'sudo -u ubuntu ssh-import-id {}'.format(lp_user)])
+        check_call(['lxc', 'exec', name, '--', 'bash', '-c', 'sudo su - ubuntu -c "ssh-import-id {}"'.format(lp_user)])
     addrs.append(check_output(['lxc', 'exec', name, '--', 'bash', '-c', "ip addr show eth0 | awk '/inet / {print $2}' | sed 's_/.*__'"]).decode().strip())
 
 for name in containers:
