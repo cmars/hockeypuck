@@ -63,11 +63,11 @@ test-go:
 	go test $(project)/...
 
 test-mongodb:
-	go test $(project)/mgohkp/... -mongodb-integration
+	MONGODB_TESTS=1 go test $(project)/mgohkp/...
 
 test-postgresql:
-	go test $(project)/pghkp/... -postgresql-integration
-	go test $(project)/pgtest/... -postgresql-integration
+	POSTGRES_TESTS=1 go test $(project)/pghkp/...
+	POSTGRES_TESTS=1 go test $(project)/pgtest/...
 
 #
 # Generate targets to build Go commands.

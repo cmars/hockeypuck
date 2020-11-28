@@ -67,7 +67,7 @@ func (s *SamplePacketSuite) TestSksContextualDup(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 
 	var kr *OpaqueKeyring
-	for opkr := range ReadOpaqueKeyrings(bytes.NewBuffer(buf)) {
+	for _, opkr := range MustReadOpaqueKeys(bytes.NewBuffer(buf)) {
 		c.Assert(kr, gc.IsNil)
 		kr = opkr
 	}
@@ -172,15 +172,13 @@ func (s *SamplePacketSuite) TestPacketCounts(c *gc.C) {
 		defer f.Close()
 		block, err := armor.Decode(f)
 		c.Assert(err, gc.IsNil)
-		var key *PrimaryKey
-		for keyRead := range ReadKeys(block.Body) {
-			key = keyRead.PrimaryKey
+		for _, key := range MustReadKeys(block.Body) {
+			c.Assert(key, gc.NotNil)
+			c.Assert(key.UserIDs, gc.HasLen, testCase.nUserID)
+			c.Assert(key.UserAttributes, gc.HasLen, testCase.nUserAttribute)
+			c.Assert(key.SubKeys, gc.HasLen, testCase.nSubKey)
+			c.Assert(key.Signatures, gc.HasLen, testCase.nSignature)
 		}
-		c.Assert(key, gc.NotNil)
-		c.Assert(key.UserIDs, gc.HasLen, testCase.nUserID)
-		c.Assert(key.UserAttributes, gc.HasLen, testCase.nUserAttribute)
-		c.Assert(key.SubKeys, gc.HasLen, testCase.nSubKey)
-		c.Assert(key.Signatures, gc.HasLen, testCase.nSignature)
 	}
 }
 
@@ -194,7 +192,7 @@ func (s *SamplePacketSuite) TestDeduplicate(c *gc.C) {
 
 	// Parse keyring, duplicate all packet types except primary pubkey.
 	kr := &OpaqueKeyring{}
-	for opkr := range ReadOpaqueKeyrings(block.Body) {
+	for _, opkr := range MustReadOpaqueKeys(block.Body) {
 		c.Assert(opkr.Error, gc.IsNil)
 		for _, op := range opkr.Packets {
 			kr.Packets = append(kr.Packets, op)
@@ -253,13 +251,9 @@ func (s *SamplePacketSuite) TestMerge(c *gc.C) {
 }
 
 func (s *SamplePacketSuite) TestRevocationCert(c *gc.C) {
-	ch := MustReadArmorKeys(testing.MustInput("revok_cert.asc"))
-	count := 0
-	for readKey := range ch {
-		c.Assert(readKey.Error, gc.ErrorMatches, "primary public key not found")
-		count++
-	}
-	c.Assert(count, gc.Equals, 1)
+	keys, err := ReadArmorKeys(testing.MustInput("revok_cert.asc"))
+	c.Assert(err, gc.IsNil)
+	c.Assert(keys, gc.HasLen, 0)
 }
 
 func (s *SamplePacketSuite) TestMalformedSignatures(c *gc.C) {
@@ -285,4 +279,66 @@ func (s *SamplePacketSuite) TestECCSelfSigs(c *gc.C) {
 		c.Assert(ss.Errors, gc.HasLen, 0, gc.Commentf("errors in key #%d: %+v", i, ss.Errors))
 		c.Assert(ss.Valid(), gc.Equals, true, gc.Commentf("invalid key #%d", i))
 	}
+}
+
+func (s *SamplePacketSuite) TestMaxKeyLen(c *gc.C) {
+	keys, err := ReadArmorKeys(testing.MustInput("e68e311d.asc"))
+	c.Assert(err, gc.IsNil)
+	c.Assert(keys, gc.HasLen, 1)
+	keys, err = ReadArmorKeys(testing.MustInput("e68e311d.asc"), MaxKeyLen(10))
+	c.Assert(err, gc.IsNil)
+	c.Assert(keys, gc.HasLen, 0)
+}
+
+func (s *SamplePacketSuite) TestMaxPacketLen(c *gc.C) {
+	keys, err := ReadArmorKeys(testing.MustInput("uat.asc"))
+	c.Assert(err, gc.IsNil)
+	c.Assert(keys, gc.HasLen, 1)
+	c.Assert(keys[0].UserAttributes, gc.HasLen, 1)
+	// UAT packet is > 3k bytes long
+	keys, err = ReadArmorKeys(testing.MustInput("uat.asc"), MaxPacketLen(2048))
+	c.Assert(err, gc.IsNil)
+	c.Assert(keys, gc.HasLen, 1)
+	c.Assert(keys[0].UserAttributes, gc.HasLen, 0)
+}
+
+func (s *SamplePacketSuite) TestMaxKeyLenConcat(c *gc.C) {
+	block1, err := armor.Decode(testing.MustInput("uat.asc"))
+	c.Assert(err, gc.IsNil)
+	block2, err := armor.Decode(testing.MustInput("e68e311d.asc"))
+	c.Assert(err, gc.IsNil)
+	key1, err := ioutil.ReadAll(block1.Body)
+	c.Assert(err, gc.IsNil)
+	key2, err := ioutil.ReadAll(block2.Body)
+	c.Assert(err, gc.IsNil)
+
+	keys := MustReadKeys(io.MultiReader(bytes.NewBuffer(key1), bytes.NewBuffer(key2)))
+	c.Assert(err, gc.IsNil)
+	c.Assert(keys, gc.HasLen, 2)
+
+	keys = MustReadKeys(io.MultiReader(bytes.NewBuffer(key1), bytes.NewBuffer(key2)), MaxKeyLen(2048))
+	c.Assert(err, gc.IsNil)
+	c.Assert(keys, gc.HasLen, 1)
+	c.Assert(keys[0].ShortID(), gc.Equals, "e68e311d")
+
+	keys = MustReadKeys(io.MultiReader(bytes.NewBuffer(key2), bytes.NewBuffer(key1)), MaxKeyLen(2048))
+	c.Assert(err, gc.IsNil)
+	c.Assert(keys, gc.HasLen, 1)
+	c.Assert(keys[0].ShortID(), gc.Equals, "e68e311d")
+}
+
+func (s *SamplePacketSuite) TestBlacklist(c *gc.C) {
+	keys, err := ReadArmorKeys(testing.MustInput("uat.asc"))
+	c.Assert(err, gc.IsNil)
+	c.Assert(keys, gc.HasLen, 1)
+	keys, err = ReadArmorKeys(testing.MustInput("uat.asc"), Blacklist([]string{"81279eee7ec89fb781702adaf79362da44a2d1db"}))
+	c.Assert(err, gc.IsNil)
+	c.Assert(keys, gc.HasLen, 0)
+}
+
+func (s *SamplePacketSuite) TestKeyLength(c *gc.C) {
+	keys, err := ReadArmorKeys(testing.MustInput("uat.asc"))
+	c.Assert(err, gc.IsNil)
+	c.Assert(keys, gc.HasLen, 1)
+	c.Assert(keys[0].Length, gc.Equals, 8429)
 }

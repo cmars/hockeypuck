@@ -21,6 +21,7 @@ import (
 	log "hockeypuck/logrus"
 	"hockeypuck/metrics"
 	"hockeypuck/mgohkp"
+	"hockeypuck/openpgp"
 	"hockeypuck/pghkp"
 )
 
@@ -51,6 +52,20 @@ func NewStatusCodeResponseWriter(w http.ResponseWriter) *statusCodeResponseWrite
 func (scrw *statusCodeResponseWriter) WriteHeader(code int) {
 	scrw.statusCode = code
 	scrw.ResponseWriter.WriteHeader(code)
+}
+
+func KeyReaderOptions(settings *Settings) []openpgp.KeyReaderOption {
+	var opts []openpgp.KeyReaderOption
+	if settings.OpenPGP.MaxKeyLength > 0 {
+		opts = append(opts, openpgp.MaxKeyLen(settings.OpenPGP.MaxKeyLength))
+	}
+	if settings.OpenPGP.MaxPacketLength > 0 {
+		opts = append(opts, openpgp.MaxPacketLen(settings.OpenPGP.MaxPacketLength))
+	}
+	if len(settings.OpenPGP.Blacklist) > 0 {
+		opts = append(opts, openpgp.Blacklist(settings.OpenPGP.Blacklist))
+	}
+	return opts
 }
 
 func NewServer(settings *Settings) (*Server, error) {
@@ -100,7 +115,8 @@ func NewServer(settings *Settings) (*Server, error) {
 	})
 	s.middle.UseHandler(s.r)
 
-	s.sksPeer, err = sks.NewPeer(s.st, settings.Conflux.Recon.LevelDB.Path, &settings.Conflux.Recon.Settings)
+	keyReaderOptions := KeyReaderOptions(settings)
+	s.sksPeer, err = sks.NewPeer(s.st, settings.Conflux.Recon.LevelDB.Path, &settings.Conflux.Recon.Settings, keyReaderOptions)
 	if err != nil {
 		return nil, errgo.Mask(err)
 	}
@@ -111,6 +127,7 @@ func NewServer(settings *Settings) (*Server, error) {
 		hkp.StatsFunc(s.stats),
 		hkp.SelfSignedOnly(settings.HKP.Queries.SelfSignedOnly),
 		hkp.FingerprintOnly(settings.HKP.Queries.FingerprintOnly),
+		hkp.KeyReaderOptions(keyReaderOptions),
 	}
 	if settings.IndexTemplate != "" {
 		options = append(options, hkp.IndexTemplate(settings.IndexTemplate))
@@ -154,7 +171,7 @@ func DialStorage(settings *Settings) (storage.Storage, error) {
 		}
 		return mgohkp.Dial(settings.OpenPGP.DB.DSN, options...)
 	case "postgres-jsonb":
-		return pghkp.Dial(settings.OpenPGP.DB.DSN)
+		return pghkp.Dial(settings.OpenPGP.DB.DSN, KeyReaderOptions(settings))
 	}
 	return nil, errgo.Newf("storage driver %q not supported", settings.OpenPGP.DB.Driver)
 }

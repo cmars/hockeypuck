@@ -2,21 +2,15 @@ package pgtest
 
 import (
 	"database/sql"
-	"flag"
-	"testing"
+	"os"
+	stdtesting "testing"
 
 	_ "github.com/lib/pq"
 	gc "gopkg.in/check.v1"
 )
 
-var postgresqlTest = flag.Bool("postgresql-integration", false, "Run postgresql integration tests")
-
-func init() {
-	flag.Parse()
-}
-
-func Test(t *testing.T) {
-	if !*postgresqlTest {
+func Test(t *stdtesting.T) {
+	if os.Getenv("POSTGRES_TESTS") == "" {
 		t.Skip("skipping postgresql integration test, specify -postgresql-integration to run")
 	}
 	gc.TestingT(t)

@@ -21,11 +21,11 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
-	"flag"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	stdtesting "testing"
 
 	"github.com/julienschmidt/httprouter"
@@ -38,14 +38,8 @@ import (
 	"hockeypuck/openpgp"
 )
 
-var postgresqlTest = flag.Bool("postgresql-integration", false, "Run postgresql integration tests")
-
-func init() {
-	flag.Parse()
-}
-
 func Test(t *stdtesting.T) {
-	if !*postgresqlTest {
+	if os.Getenv("POSTGRES_TESTS") == "" {
 		t.Skip("skipping postgresql integration test, specify -postgresql-integration to run")
 	}
 	gc.TestingT(t)
@@ -70,7 +64,7 @@ func (s *S) SetUpTest(c *gc.C) {
 
 	s.db.Exec("DROP DATABASE hkp")
 
-	st, err := New(s.db)
+	st, err := New(s.db, nil)
 	c.Assert(err, gc.IsNil)
 	s.storage = st.(*storage)
 
@@ -149,7 +143,7 @@ func (s *S) TestMD5(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
 
-	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor)).MustParse()
+	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
 	c.Assert(keys, gc.HasLen, 1)
 	c.Assert(keys[0].ShortID(), gc.Equals, "ce353cf4")
 	c.Assert(keys[0].UserIDs, gc.HasLen, 1)
@@ -213,7 +207,7 @@ func (s *S) TestResolve(c *gc.C) {
 		c.Assert(err, gc.IsNil, comment)
 		c.Assert(res.StatusCode, gc.Equals, http.StatusOK, comment)
 
-		keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor)).MustParse()
+		keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
 		c.Assert(keys, gc.HasLen, 1)
 		c.Assert(keys[0].ShortID(), gc.Equals, "44a2d1db")
 		c.Assert(keys[0].UserIDs, gc.HasLen, 2)
@@ -247,7 +241,7 @@ func (s *S) TestMerge(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
 
-	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor)).MustParse()
+	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
 	c.Assert(keys, gc.HasLen, 1)
 	c.Assert(keys[0].ShortID(), gc.Equals, "23e0dcca")
 	c.Assert(keys[0].UserIDs, gc.HasLen, 1)
@@ -272,7 +266,7 @@ func (s *S) TestEd25519(c *gc.C) {
 		c.Assert(err, gc.IsNil, comment)
 		c.Assert(res.StatusCode, gc.Equals, http.StatusOK, comment)
 
-		keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor)).MustParse()
+		keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
 		c.Assert(keys, gc.HasLen, 1)
 		c.Assert(keys[0].ShortID(), gc.Equals, "e68e311d")
 		c.Assert(keys[0].UserIDs, gc.HasLen, 2)

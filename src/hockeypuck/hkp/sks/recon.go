@@ -50,11 +50,12 @@ const (
 type keyRecoveryCounter map[string]int
 
 type Peer struct {
-	peer     *recon.Peer
-	storage  storage.Storage
-	settings *recon.Settings
-	ptree    recon.PrefixTree
-	http     *http.Client
+	peer             *recon.Peer
+	storage          storage.Storage
+	settings         *recon.Settings
+	ptree            recon.PrefixTree
+	http             *http.Client
+	keyReaderOptions []openpgp.KeyReaderOption
 
 	path  string
 	stats *Stats
@@ -73,7 +74,7 @@ func NewPrefixTree(path string, s *recon.Settings) (recon.PrefixTree, error) {
 	return leveldb.New(s.PTreeConfig, path)
 }
 
-func NewPeer(st storage.Storage, path string, s *recon.Settings) (*Peer, error) {
+func NewPeer(st storage.Storage, path string, s *recon.Settings, opts []openpgp.KeyReaderOption) (*Peer, error) {
 	if s == nil {
 		s = recon.DefaultSettings()
 	}
@@ -96,7 +97,8 @@ func NewPeer(st storage.Storage, path string, s *recon.Settings) (*Peer, error) 
 		http: &http.Client{
 			Timeout: httpClientTimeout * time.Second,
 		},
-		path: path,
+		keyReaderOptions: opts,
+		path:             path,
 	}
 	sksPeer.readStats()
 	st.Subscribe(sksPeer.updateDigests)
@@ -344,16 +346,17 @@ func (r *Peer) requestChunk(rcvr *recon.Recover, chunk []cf.Zp) error {
 }
 
 func (r *Peer) upsertKeys(rcvr *recon.Recover, buf []byte) error {
-	for readKey := range openpgp.ReadKeys(bytes.NewBuffer(buf)) {
-		if readKey.Error != nil {
-			return errgo.Mask(readKey.Error)
-		}
-		// TODO: collect duplicates to replicate SKS hashes?
-		err := openpgp.DropDuplicates(readKey.PrimaryKey)
+	kr := openpgp.NewKeyReader(bytes.NewBuffer(buf), r.keyReaderOptions...)
+	keys, err := kr.Read()
+	if err != nil {
+		return errgo.Mask(err)
+	}
+	for _, key := range keys {
+		err := openpgp.DropDuplicates(key)
 		if err != nil {
 			return errgo.Mask(err)
 		}
-		keyChange, err := storage.UpsertKey(r.storage, readKey.PrimaryKey)
+		keyChange, err := storage.UpsertKey(r.storage, key)
 		if err != nil {
 			return errgo.Mask(err)
 		}

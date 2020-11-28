@@ -26,6 +26,7 @@ import (
 	"io"
 	"os"
 	"sort"
+	"strings"
 
 	"golang.org/x/crypto/openpgp"
 	"golang.org/x/crypto/openpgp/armor"
@@ -92,7 +93,9 @@ func (ok *OpaqueKeyring) Parse() (*PrimaryKey, error) {
 	var err error
 	var pubkey *PrimaryKey
 	var signablePacket signable
+	var length int
 	for _, opkt := range ok.Packets {
+		length += len(opkt.Contents)
 		var badPacket *packet.OpaquePacket
 		if opkt.Tag == 6 { //packet.PacketTypePublicKey:
 			if pubkey != nil {
@@ -179,50 +182,143 @@ func (ok *OpaqueKeyring) Parse() (*PrimaryKey, error) {
 	if err != nil {
 		return nil, err
 	}
+	pubkey.Length = length
 	return pubkey, nil
 }
 
-type OpaqueKeyringChan chan *OpaqueKeyring
+type OpaqueKeyReader struct {
+	r            io.Reader
+	maxKeyLen    int
+	maxPacketLen int
+	blacklist    map[string]bool
+}
 
-func ReadOpaqueKeyrings(r io.Reader) OpaqueKeyringChan {
-	c := make(OpaqueKeyringChan)
-	or := packet.NewOpaqueReader(r)
-	go func() {
-		defer close(c)
-		var op *packet.OpaquePacket
-		var err error
-		var current *OpaqueKeyring
-		for op, err = or.Next(); err == nil; op, err = or.Next() {
-			switch op.Tag {
-			case 6: //packet.PacketTypePublicKey:
-				if current != nil {
-					c <- current
-					current = nil
-				}
-				current = &OpaqueKeyring{}
-				current.setPosition(r)
-				fallthrough
-			case 2, 13, 14, 17:
-				//packet.PacketTypeUserId,
-				//packet.PacketTypeUserAttribute,
-				//packet.PacketTypePublicSubKey,
-				//packet.PacketTypeSignature
-				if current != nil {
-					current.Packets = append(current.Packets, op)
-				}
+type KeyReaderOption func(*OpaqueKeyReader) error
+
+func NewOpaqueKeyReader(r io.Reader, options ...KeyReaderOption) (*OpaqueKeyReader, error) {
+	okr := &OpaqueKeyReader{r: r, blacklist: map[string]bool{}}
+	for i := range options {
+		err := options[i](okr)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return okr, nil
+}
+
+func MaxKeyLen(maxKeyLen int) KeyReaderOption {
+	return func(or *OpaqueKeyReader) error {
+		or.maxKeyLen = maxKeyLen
+		return nil
+	}
+}
+
+func MaxPacketLen(maxPacketLen int) KeyReaderOption {
+	return func(or *OpaqueKeyReader) error {
+		or.maxPacketLen = maxPacketLen
+		return nil
+	}
+}
+
+func Blacklist(blacklist []string) KeyReaderOption {
+	return func(or *OpaqueKeyReader) error {
+		for i := range blacklist {
+			or.blacklist[strings.ToLower(blacklist[i])] = true
+		}
+		return nil
+	}
+}
+
+func (r *OpaqueKeyReader) Read() ([]*OpaqueKeyring, error) {
+	or := packet.NewOpaqueReader(r.r)
+	var op *packet.OpaquePacket
+	var err error
+	var result []*OpaqueKeyring
+	var current *OpaqueKeyring
+	var currentKeyLen int
+	var currentFingerprint string
+PARSE:
+	for op, err = or.Next(); err == nil; op, err = or.Next() {
+		packetLen := len(op.Contents)
+		if r.maxPacketLen > 0 {
+			if packetLen > r.maxPacketLen {
+				log.WithFields(log.Fields{
+					"length": packetLen,
+					"max":    r.maxPacketLen,
+				}).Warn("dropped packet")
+				continue
 			}
 		}
-		if err == io.EOF && current != nil {
-			c <- current
-		} else if err != nil {
-			if current == nil {
-				current = &OpaqueKeyring{}
+		switch op.Tag {
+		case 6: //packet.PacketTypePublicKey:
+			if current != nil {
+				result = append(result, current)
 			}
-			current.Error = errgo.Mask(err)
-			c <- current
+			current = nil
+			currentKeyLen = 0
+			currentFingerprint = ""
+
+			pubkey, err := ParsePrimaryKey(op)
+			if err != nil {
+				continue PARSE
+			}
+			fp := pubkey.Fingerprint()
+			if len(r.blacklist) > 0 {
+				if r.blacklist[fp] {
+					log.WithFields(log.Fields{
+						"fp": fp,
+					}).Warn("blacklisted key")
+					continue PARSE
+				}
+			}
+			current = &OpaqueKeyring{}
+			current.setPosition(r.r)
+			currentKeyLen = 0
+			currentFingerprint = fp
+			fallthrough
+		case 2, 13, 14, 17:
+			//packet.PacketTypeUserId,
+			//packet.PacketTypeUserAttribute,
+			//packet.PacketTypePublicSubKey,
+			//packet.PacketTypeSignature
+			if current != nil {
+				current.Packets = append(current.Packets, op)
+			}
 		}
-	}()
-	return c
+		if current != nil {
+			currentKeyLen += packetLen
+			if r.maxKeyLen > 0 && currentKeyLen > r.maxKeyLen {
+				log.WithFields(log.Fields{
+					"length": currentKeyLen,
+					"max":    r.maxKeyLen,
+					"fp":     currentFingerprint,
+				}).Warn("dropped key, max length exceeded")
+				current = nil
+				currentKeyLen = 0
+				currentFingerprint = ""
+				continue
+			}
+		}
+	}
+	if current != nil {
+		result = append(result, current)
+	}
+	if err != io.EOF {
+		return nil, err
+	}
+	return result, nil
+}
+
+func MustReadOpaqueKeys(r io.Reader, options ...KeyReaderOption) []*OpaqueKeyring {
+	or, err := NewOpaqueKeyReader(r, options...)
+	if err != nil {
+		panic(err)
+	}
+	opkrs, err := or.Read()
+	if err != nil {
+		panic(err)
+	}
+	return opkrs
 }
 
 // SksDigest calculates a cumulative message digest on all OpenPGP packets for
@@ -254,68 +350,60 @@ func sksDigestOpaque(packets []*packet.OpaquePacket, h hash.Hash) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-type ReadKeyResult struct {
-	*PrimaryKey
-	Error error
+type KeyReader struct {
+	r       io.Reader
+	options []KeyReaderOption
 }
 
-type PrimaryKeyChan chan *ReadKeyResult
+func NewKeyReader(r io.Reader, options ...KeyReaderOption) *KeyReader {
+	return &KeyReader{r: r, options: options}
+}
 
-func (c PrimaryKeyChan) MustParse() []*PrimaryKey {
-	var result []*PrimaryKey
-	for readKey := range c {
-		if readKey.Error != nil {
-			panic(readKey.Error)
-		}
-		result = append(result, readKey.PrimaryKey)
+func (r *KeyReader) Read() ([]*PrimaryKey, error) {
+	return r.readKeys()
+}
+
+func (r *KeyReader) readKeys() ([]*PrimaryKey, error) {
+	okr, err := NewOpaqueKeyReader(r.r, r.options...)
+	if err != nil {
+		return nil, err
 	}
-	return result
+	opkrs, err := okr.Read()
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*PrimaryKey, len(opkrs))
+	for i := range opkrs {
+		result[i], err = opkrs[i].Parse()
+		if err != nil {
+			return nil, err
+		}
+	}
+	return result, nil
 }
 
-// ReadKeys reads public key material from input and sends them on a channel.
-// Caller must receive all keys until the channel is closed.
-func ReadKeys(r io.Reader) PrimaryKeyChan {
-	c := make(PrimaryKeyChan)
-	go func() {
-		defer close(c)
-		for keyRead := range readKeys(r) {
-			c <- keyRead
-		}
-		if closer, ok := r.(io.Closer); ok {
-			closer.Close()
-		}
-	}()
-	return c
+func MustReadKeys(r io.Reader, options ...KeyReaderOption) []*PrimaryKey {
+	kr := NewKeyReader(r, options...)
+	keys, err := kr.Read()
+	if err != nil {
+		panic(err)
+	}
+	return keys
 }
 
-func readKeys(r io.Reader) PrimaryKeyChan {
-	c := make(PrimaryKeyChan)
-	go func() {
-		defer close(c)
-		for opkr := range ReadOpaqueKeyrings(r) {
-			pubkey, err := opkr.Parse()
-			if err != nil {
-				c <- &ReadKeyResult{Error: err}
-			} else {
-				c <- &ReadKeyResult{PrimaryKey: pubkey}
-			}
-		}
-	}()
-	return c
-}
-
-func ReadArmorKeys(r io.Reader) (PrimaryKeyChan, error) {
+func ReadArmorKeys(r io.Reader, options ...KeyReaderOption) ([]*PrimaryKey, error) {
 	block, err := armor.Decode(r)
 	if err != nil {
 		return nil, err
 	}
-	return ReadKeys(block.Body), nil
+	rdr := NewKeyReader(block.Body, options...)
+	return rdr.Read()
 }
 
-func MustReadArmorKeys(r io.Reader) PrimaryKeyChan {
-	c, err := ReadArmorKeys(r)
+func MustReadArmorKeys(r io.Reader, options ...KeyReaderOption) []*PrimaryKey {
+	keys, err := ReadArmorKeys(r, options...)
 	if err != nil {
 		panic(err)
 	}
-	return c
+	return keys
 }

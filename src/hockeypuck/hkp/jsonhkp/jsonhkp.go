@@ -103,7 +103,7 @@ type PrimaryKey struct {
 	*PublicKey
 
 	MD5       string           `json:"md5"`
-	SHA256    string           `json:"sha256,omitempty"`
+	Length    int              `json:"length"`
 	SubKeys   []*SubKey        `json:"subKeys,omitempty"`
 	UserIDs   []*UserID        `json:"userIDs,omitempty"`
 	UserAttrs []*UserAttribute `json:"userAttrs,omitempty"`
@@ -121,7 +121,7 @@ func NewPrimaryKey(from *openpgp.PrimaryKey) *PrimaryKey {
 	to := &PrimaryKey{
 		PublicKey: newPublicKey(&from.PublicKey),
 		MD5:       from.MD5,
-		SHA256:    from.SHA256,
+		Length:    from.Length,
 	}
 	for _, fromSubKey := range from.SubKeys {
 		to.SubKeys = append(to.SubKeys, NewSubKey(fromSubKey))
