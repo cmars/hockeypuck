@@ -200,7 +200,7 @@ func (p *Peer) clientRecon(conn net.Conn, remoteConfig *Config) error {
 		}
 		p.logConn(GOSSIP, conn).Debugf("add step: %v", step)
 		respSet.AddAll(step.elements)
-		p.logConn(GOSSIP, conn).Infof("recover set now %d elements", respSet.Len())
+		p.logConn(GOSSIP, conn).Debugf("recover set now %d elements", respSet.Len())
 	}
 	return nil
 }
@@ -259,11 +259,11 @@ func (p *Peer) handleReconRqstPoly(rp *ReconRqstPoly, conn net.Conn) *msgProgres
 	remoteSet, localSet, err := p.solve(
 		remoteSamples, localSamples, remoteSize, localSize, points, conn)
 	if errgo.Cause(err) == cf.ErrLowMBar {
-		p.logConn(GOSSIP, conn).Info("ReconRqstPoly: low MBar")
+		p.logConn(GOSSIP, conn).Debug("ReconRqstPoly: low MBar")
 		if node.IsLeaf() || node.Size() < (p.settings.ThreshMult*p.settings.MBar) {
 			p.logConnFields(GOSSIP, conn, log.Fields{
 				"node": node.Key(),
-			}).Info("sending full elements")
+			}).Debug("sending full elements")
 			elements, err := node.Elements()
 			if err != nil {
 				return &msgProgress{err: errgo.Mask(err)}
@@ -275,10 +275,10 @@ func (p *Peer) handleReconRqstPoly(rp *ReconRqstPoly, conn net.Conn) *msgProgres
 		}
 	}
 	if err != nil {
-		p.logConnErr(GOSSIP, conn, err).Info("ReconRqstPoly: sending SyncFail")
+		p.logConnErr(GOSSIP, conn, err).Debug("ReconRqstPoly: sending SyncFail")
 		return &msgProgress{elements: cf.NewZSet(), messages: []ReconMsg{&SyncFail{}}}
 	}
-	p.logConnFields(GOSSIP, conn, log.Fields{"localSet": localSet, "remoteSet": remoteSet}).Info("ReconRqstPoly: solved")
+	p.logConnFields(GOSSIP, conn, log.Fields{"localSet": localSet, "remoteSet": remoteSet}).Debug("ReconRqstPoly: solved")
 	return &msgProgress{elements: remoteSet, messages: []ReconMsg{&Elements{ZSet: localSet}}}
 }
 
@@ -314,6 +314,6 @@ func (p *Peer) handleReconRqstFull(rf *ReconRqstFull, conn net.Conn) *msgProgres
 	p.logConnFields(GOSSIP, conn, log.Fields{
 		"localNeeds":  localNeeds.Len(),
 		"remoteNeeds": remoteNeeds.Len(),
-	}).Info("ReconRqstFull")
+	}).Debug("ReconRqstFull")
 	return &msgProgress{elements: localNeeds, messages: []ReconMsg{&Elements{ZSet: remoteNeeds}}}
 }

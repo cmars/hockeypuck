@@ -47,6 +47,7 @@ type Recover struct {
 	RemoteAddr     net.Addr
 	RemoteConfig   *Config
 	RemoteElements []cf.Zp
+	Done           chan struct{}
 }
 
 func (r *Recover) String() string {
@@ -101,7 +102,7 @@ type Peer struct {
 
 func NewPeer(settings *Settings, tree PrefixTree) *Peer {
 	p := &Peer{
-		RecoverChan: make(RecoverChan, 1),
+		RecoverChan: make(RecoverChan),
 		settings:    settings,
 		once:        &sync.Once{},
 		ptree:       tree,
@@ -773,17 +774,11 @@ func (p *Peer) interactWithClient(conn net.Conn, remoteConfig *Config, bitstring
 
 			// Set a small read timeout to simulate non-blocking I/O
 			p.setReadDeadline(conn, time.Millisecond)
-			if err != nil {
-				return errgo.Mask(err)
-			}
 			msg, nbErr := ReadMsg(conn)
 			hasMsg = (nbErr == nil)
 
 			// Restore blocking I/O
 			p.setReadDeadline(conn, defaultTimeout)
-			if err != nil {
-				return errgo.Mask(err)
-			}
 
 			if hasMsg {
 				recon.popBottom()
@@ -827,13 +822,17 @@ func (p *Peer) interactWithClient(conn net.Conn, remoteConfig *Config, bitstring
 
 func (p *Peer) sendItems(items []cf.Zp, conn net.Conn, remoteConfig *Config) error {
 	if len(items) > 0 && p.t.Alive() {
+		done := make(chan struct{})
 		select {
 		case p.RecoverChan <- &Recover{
 			RemoteAddr:     conn.RemoteAddr(),
 			RemoteConfig:   remoteConfig,
 			RemoteElements: items,
+			Done:           done,
 		}:
-			p.logConn(SERVE, conn).Infof("recovered %d items", len(items))
+			p.logConn(SERVE, conn).Infof("recovering %d items", len(items))
+			<-done
+			p.logConn(SERVE, conn).Info("recovery complete")
 			recordItemsRecovered(conn.RemoteAddr(), len(items))
 		default:
 			p.mu.Lock()
