@@ -42,12 +42,6 @@ resource "google_compute_firewall" "hkp" {
   }
 }
 
-resource "google_compute_disk" "api" {
-  count = var.hkp_count
-  name = "vol${count.index}"
-  size = 100
-}
-
 resource "google_compute_instance" "hkp" {
   count = var.hkp_count
   name = "hkp${count.index}"
@@ -57,6 +51,7 @@ resource "google_compute_instance" "hkp" {
   boot_disk {
     initialize_params {
       image = "ubuntu-1804-bionic-v20201116"
+      size = 100
     }
   }
 
