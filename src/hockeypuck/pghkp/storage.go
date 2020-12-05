@@ -421,7 +421,10 @@ func (st *storage) insertKey(key *openpgp.PrimaryKey) (isDuplicate bool, retErr 
 			tx.Commit()
 		}
 	}()
+	return st.insertKeyTx(tx, key)
+}
 
+func (st *storage) insertKeyTx(tx *sql.Tx, key *openpgp.PrimaryKey) (isDuplicate bool, retErr error) {
 	stmt, err := tx.Prepare("INSERT INTO keys (rfingerprint, ctime, mtime, md5, doc, keywords) " +
 		"SELECT $1::TEXT, $2::TIMESTAMP, $3::TIMESTAMP, $4::TEXT, $5::JSONB, to_tsvector($6) " +
 		"WHERE NOT EXISTS (SELECT 1 FROM keys WHERE rfingerprint = $1)")
@@ -504,6 +507,65 @@ func (st *storage) Insert(keys []*openpgp.PrimaryKey) (n int, retErr error) {
 		return n, result
 	}
 	return n, nil
+}
+
+func (st *storage) Replace(key *openpgp.PrimaryKey) (_ string, retErr error) {
+	tx, err := st.Begin()
+	if err != nil {
+		return "", errors.WithStack(err)
+	}
+	defer func() {
+		if retErr != nil {
+			tx.Rollback()
+		} else {
+			retErr = tx.Commit()
+		}
+	}()
+	md5, err := st.deleteTx(tx, key.Fingerprint())
+	if err != nil {
+		return "", errors.WithStack(err)
+	}
+	_, err = st.insertKeyTx(tx, key)
+	if err != nil {
+		return "", errors.WithStack(err)
+	}
+	return md5, nil
+}
+
+func (st *storage) Delete(fp string) (_ string, retErr error) {
+	tx, err := st.Begin()
+	if err != nil {
+		return "", errors.WithStack(err)
+	}
+	defer func() {
+		if retErr != nil {
+			tx.Rollback()
+		} else {
+			retErr = tx.Commit()
+		}
+	}()
+	md5, err := st.deleteTx(tx, fp)
+	if err != nil {
+		return "", errors.WithStack(err)
+	}
+	return md5, nil
+}
+
+func (st *storage) deleteTx(tx *sql.Tx, fp string) (string, error) {
+	rfp := openpgp.Reverse(fp)
+	_, err := tx.Exec("DELETE FROM subkeys WHERE rfingerprint = $1", rfp)
+	if err != nil {
+		return "", errors.WithStack(err)
+	}
+	var md5 string
+	err = tx.QueryRow("DELETE FROM keys WHERE rfingerprint = $1 RETURNING md5", rfp).Scan(&md5)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", errors.WithStack(hkpstorage.ErrKeyNotFound)
+		}
+		return "", errors.WithStack(err)
+	}
+	return md5, nil
 }
 
 func (st *storage) Update(key *openpgp.PrimaryKey, lastID string, lastMD5 string) (retErr error) {

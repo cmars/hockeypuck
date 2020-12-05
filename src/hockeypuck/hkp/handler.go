@@ -19,6 +19,7 @@ package hkp
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/pkg/errors"
+	xopenpgp "golang.org/x/crypto/openpgp"
 	"golang.org/x/crypto/openpgp/armor"
 
 	"hockeypuck/conflux/recon"
@@ -164,6 +166,7 @@ func NewHandler(storage storage.Storage, options ...HandlerOption) (*Handler, er
 func (h *Handler) Register(r *httprouter.Router) {
 	r.GET("/pks/lookup", h.Lookup)
 	r.POST("/pks/add", h.Add)
+	r.POST("/pks/delete", h.Delete)
 	r.POST("/pks/hashquery", h.HashQuery)
 }
 
@@ -412,6 +415,17 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 		return
 	}
 
+	var signedKeytext bool
+	var signingFp string
+	if add.Keysig != "" && add.Replace {
+		signingFp, err = h.checkSignature(add.Keytext, add.Keysig)
+		if err != nil {
+			httpError(w, http.StatusBadRequest, errors.Wrap(err, "invalid signature"))
+			return
+		}
+		signedKeytext = true
+	}
+
 	// Check and decode the armor
 	armorBlock, err := armor.Decode(bytes.NewBufferString(add.Keytext))
 	if err != nil {
@@ -432,9 +446,18 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 			httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 			return
 		}
-		change, err := storage.UpsertKey(h.storage, key)
+		var change storage.KeyChange
+		if add.Replace && signedKeytext && signingFp == key.Fingerprint() {
+			change, err = storage.ReplaceKey(h.storage, key)
+		} else {
+			change, err = storage.UpsertKey(h.storage, key)
+		}
 		if err != nil {
-			httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+			if errors.Is(err, storage.ErrKeyNotFound) {
+				httpError(w, http.StatusNotFound, errors.WithStack(err))
+			} else {
+				httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+			}
 			return
 		}
 
@@ -457,4 +480,48 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 	w.WriteHeader(http.StatusOK)
 	enc := json.NewEncoder(w)
 	enc.Encode(&result)
+}
+
+func (h *Handler) Delete(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	del, err := ParseDelete(r)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, errors.WithStack(err))
+		return
+	}
+
+	signingFp, err := h.checkSignature(del.Keytext, del.Keysig)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, errors.Wrap(err, "invalid signature"))
+		return
+	}
+
+	change, err := storage.DeleteKey(h.storage, signingFp)
+	if err != nil {
+		if errors.Is(err, storage.ErrKeyNotFound) {
+			httpError(w, http.StatusNotFound, errors.WithStack(err))
+		} else {
+			httpError(w, http.StatusInternalServerError, errors.Wrap(err, "failed to delete key"))
+		}
+		return
+	}
+
+	log.WithFields(log.Fields{
+		"change":  change,
+		"deleted": []string{signingFp},
+	}).Info("delete")
+
+	return
+}
+
+func (h *Handler) checkSignature(keytext, keysig string) (string, error) {
+	keyring, err := xopenpgp.ReadArmoredKeyRing(bytes.NewBufferString(keytext))
+	if err != nil {
+		return "", errors.Wrap(err, "invalid or unsupported keytext")
+	}
+	signingKey, err := xopenpgp.CheckArmoredDetachedSignature(
+		keyring, bytes.NewBufferString(keytext), bytes.NewBufferString(keysig), nil)
+	if err != nil {
+		return "", errors.Wrap(err, "invalid signature")
+	}
+	return hex.EncodeToString(signingKey.PrimaryKey.Fingerprint[:]), nil
 }
