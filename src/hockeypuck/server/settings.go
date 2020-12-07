@@ -79,19 +79,13 @@ type SMTPConfig struct {
 }
 
 const (
-	DefaultDBDriver = "mongo"
+	DefaultDBDriver = "postgres-jsonb"
 	DefaultDBDSN    = "localhost:27017"
 )
 
 type DBConfig struct {
-	Driver string       `toml:"driver"`
-	DSN    string       `toml:"dsn"`
-	Mongo  *mongoConfig `toml:"mongo"`
-}
-
-type mongoConfig struct {
-	DB         string `toml:"db"`
-	Collection string `toml:"collection"`
+	Driver string `toml:"driver"`
+	DSN    string `toml:"dsn"`
 }
 
 const (
