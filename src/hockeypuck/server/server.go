@@ -20,7 +20,6 @@ import (
 	"hockeypuck/hkp/storage"
 	log "hockeypuck/logrus"
 	"hockeypuck/metrics"
-	"hockeypuck/mgohkp"
 	"hockeypuck/openpgp"
 	"hockeypuck/pghkp"
 )
@@ -159,17 +158,6 @@ func NewServer(settings *Settings) (*Server, error) {
 
 func DialStorage(settings *Settings) (storage.Storage, error) {
 	switch settings.OpenPGP.DB.Driver {
-	case "mongo":
-		var options []mgohkp.Option
-		if settings.OpenPGP.DB.Mongo != nil {
-			if settings.OpenPGP.DB.Mongo.DB != "" {
-				options = append(options, mgohkp.DBName(settings.OpenPGP.DB.Mongo.DB))
-			}
-			if settings.OpenPGP.DB.Mongo.Collection != "" {
-				options = append(options, mgohkp.CollectionName(settings.OpenPGP.DB.Mongo.Collection))
-			}
-		}
-		return mgohkp.Dial(settings.OpenPGP.DB.DSN, options...)
 	case "postgres-jsonb":
 		return pghkp.Dial(settings.OpenPGP.DB.DSN, KeyReaderOptions(settings))
 	}

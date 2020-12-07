@@ -13,11 +13,6 @@ require (
 	github.com/certifi/gocertifi v0.0.0-20200211180108-c7c1fbc02894 // indirect
 	github.com/cmars/basen v0.0.0-20150613233007-fe3947df716e // indirect
 	github.com/codegangsta/inject v0.0.0-20150114235600-33e0aa1cb7c0 // indirect
-	github.com/facebookgo/freeport v0.0.0-20150612182905-d4adf43b75b9 // indirect
-	github.com/facebookgo/mgotest v0.0.0-20150901200243-34c1160fa1f7
-	github.com/facebookgo/stack v0.0.0-20160209184415-751773369052 // indirect
-	github.com/facebookgo/testname v0.0.0-20150612200628-5443337c3a12 // indirect
-	github.com/facebookgo/waitout v0.0.0-20150612182919-ad2714ff0cfc // indirect
 	github.com/frankban/quicktest v1.4.0 // indirect
 	github.com/getsentry/raven-go v0.2.0
 	github.com/go-martini/martini v0.0.0-20170121215854-22fa46961aab // indirect
@@ -46,7 +41,6 @@ require (
 	gopkg.in/basen.v1 v1.0.0-20150613233243-308119dd1d4c
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f
 	gopkg.in/errgo.v1 v1.0.1
-	gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22
 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637
 	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
 )
