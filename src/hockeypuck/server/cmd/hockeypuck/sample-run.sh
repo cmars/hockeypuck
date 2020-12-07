@@ -8,12 +8,8 @@ set -e
 
 go build
 
-mongo <<EOF
-use peer1;
-db.dropDatabase();
-use peer2;
-db.dropDatabase();
-EOF
+createdb hkp-peer1
+createdb hkp-peer2
 
 ./hockeypuck -config sample-peer1.conf -cpuprof -memprof &
 ./hockeypuck -config sample-peer2.conf -cpuprof -memprof &
