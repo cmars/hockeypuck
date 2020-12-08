@@ -26,8 +26,8 @@ import (
 	"crypto/rand"
 	"math/big"
 
+	"github.com/pkg/errors"
 	gc "gopkg.in/check.v1"
-	"gopkg.in/errgo.v1"
 )
 
 type DecodeSuite struct{}
@@ -343,7 +343,7 @@ func (s *DecodeSuite) TestLowMBar(c *gc.C) {
 	}
 	points := Zpoints(p, len(values))
 	_, _, err := Reconcile(values, points, 3)
-	c.Assert(errgo.Cause(err), gc.Equals, ErrLowMBar)
+	c.Assert(errors.Is(err, ErrLowMBar), gc.Equals, true)
 }
 
 func (s *DecodeSuite) TestFactorCheck(c *gc.C) {

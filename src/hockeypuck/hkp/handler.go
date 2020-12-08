@@ -29,8 +29,8 @@ import (
 	"time"
 
 	"github.com/julienschmidt/httprouter"
+	"github.com/pkg/errors"
 	"golang.org/x/crypto/openpgp/armor"
-	"gopkg.in/errgo.v1"
 
 	"hockeypuck/conflux/recon"
 	"hockeypuck/hkp/sks"
@@ -45,11 +45,11 @@ const (
 	fingerprintKeyIDLen = 40
 )
 
-var errKeywordSearchNotAvailable = errgo.New("keyword search is not available")
+var errKeywordSearchNotAvailable = errors.New("keyword search is not available")
 
 func httpError(w http.ResponseWriter, statusCode int, err error) {
 	if statusCode != http.StatusNotFound {
-		log.Errorf("HTTP %d: %v", statusCode, errgo.Details(err))
+		log.Errorf("HTTP %d: %+v", statusCode, err)
 	}
 	http.Error(w, http.StatusText(statusCode), statusCode)
 }
@@ -75,7 +75,7 @@ func IndexTemplate(path string, extra ...string) HandlerOption {
 	return func(h *Handler) error {
 		tw, err := NewHTMLFormat(path, extra)
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 		h.indexWriter = tw
 		return nil
@@ -86,7 +86,7 @@ func VIndexTemplate(path string, extra ...string) HandlerOption {
 	return func(h *Handler) error {
 		tw, err := NewHTMLFormat(path, extra)
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 		h.vindexWriter = tw
 		return nil
@@ -113,7 +113,7 @@ func StatsTemplate(path string, extra ...string) HandlerOption {
 			t, err = t.ParseGlob(path)
 		}
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 		h.statsTemplate = t
 		return nil
@@ -155,7 +155,7 @@ func NewHandler(storage storage.Storage, options ...HandlerOption) (*Handler, er
 	for _, option := range options {
 		err := option(h)
 		if err != nil {
-			return nil, errgo.Mask(err)
+			return nil, errors.WithStack(err)
 		}
 	}
 	return h, nil
@@ -183,7 +183,7 @@ func (h *Handler) Lookup(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 	case OperationStats:
 		h.stats(w, l)
 	default:
-		httpError(w, http.StatusNotFound, errgo.Newf("operation not found: %v", l.Op))
+		httpError(w, http.StatusNotFound, errors.Errorf("operation not found: %v", l.Op))
 		return
 	}
 }
@@ -191,7 +191,7 @@ func (h *Handler) Lookup(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 func (h *Handler) HashQuery(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	hq, err := ParseHashQuery(r)
 	if err != nil {
-		httpError(w, http.StatusBadRequest, errgo.Mask(err))
+		httpError(w, http.StatusBadRequest, errors.WithStack(err))
 		return
 	}
 	var result []*openpgp.PrimaryKey
@@ -237,15 +237,15 @@ func writeHashqueryKey(w http.ResponseWriter, key *openpgp.PrimaryKey) error {
 	var buf bytes.Buffer
 	err := openpgp.WritePackets(&buf, key)
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	err = recon.WriteInt(w, buf.Len())
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	_, err = w.Write(buf.Bytes())
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	return nil
 }
@@ -274,11 +274,11 @@ func (h *Handler) keys(l *Lookup) ([]*openpgp.PrimaryKey, error) {
 	}
 	keys, err := h.storage.FetchKeys(rfps)
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	for _, key := range keys {
 		if err := openpgp.ValidSelfSigned(key, h.selfSignedOnly); err != nil {
-			return nil, errgo.Mask(err)
+			return nil, errors.WithStack(err)
 		}
 		log.WithFields(log.Fields{
 			"fp":     key.Fingerprint(),
@@ -292,14 +292,14 @@ func (h *Handler) keys(l *Lookup) ([]*openpgp.PrimaryKey, error) {
 func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 	keys, err := h.keys(l)
 	if err == errKeywordSearchNotAvailable {
-		httpError(w, http.StatusBadRequest, errgo.Mask(err))
+		httpError(w, http.StatusBadRequest, errors.WithStack(err))
 		return
 	} else if err != nil {
-		httpError(w, http.StatusInternalServerError, errgo.Mask(err))
+		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 		return
 	}
 	if len(keys) == 0 {
-		httpError(w, http.StatusNotFound, errgo.New("not found"))
+		httpError(w, http.StatusNotFound, errors.New("not found"))
 		return
 	}
 
@@ -331,14 +331,14 @@ func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 func (h *Handler) index(w http.ResponseWriter, l *Lookup, f IndexFormat) {
 	keys, err := h.keys(l)
 	if err == errKeywordSearchNotAvailable {
-		httpError(w, http.StatusBadRequest, errgo.Mask(err))
+		httpError(w, http.StatusBadRequest, errors.WithStack(err))
 		return
 	} else if err != nil {
-		httpError(w, http.StatusInternalServerError, errgo.Mask(err))
+		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 		return
 	}
 	if len(keys) == 0 {
-		httpError(w, http.StatusNotFound, errgo.New("not found"))
+		httpError(w, http.StatusNotFound, errors.New("not found"))
 		return
 	}
 
@@ -350,7 +350,7 @@ func (h *Handler) index(w http.ResponseWriter, l *Lookup, f IndexFormat) {
 
 	err = f.Write(w, l, keys)
 	if err != nil {
-		httpError(w, http.StatusInternalServerError, errgo.Mask(err))
+		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 		return
 	}
 }
@@ -360,7 +360,7 @@ func (h *Handler) indexJSON(w http.ResponseWriter, keys []*openpgp.PrimaryKey) {
 	enc := json.NewEncoder(w)
 	err := enc.Encode(&keys)
 	if err != nil {
-		httpError(w, http.StatusInternalServerError, errgo.Mask(err))
+		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 		return
 	}
 }
@@ -379,13 +379,13 @@ type StatsResponse struct {
 
 func (h *Handler) stats(w http.ResponseWriter, l *Lookup) {
 	if h.statsFunc == nil {
-		httpError(w, http.StatusBadRequest, errgo.New("stats not configured"))
+		httpError(w, http.StatusBadRequest, errors.New("stats not configured"))
 		fmt.Fprintln(w, "stats not configured")
 		return
 	}
 	data, err := h.statsFunc()
 	if err != nil {
-		httpError(w, http.StatusInternalServerError, errgo.Mask(err))
+		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 		return
 	}
 
@@ -395,7 +395,7 @@ func (h *Handler) stats(w http.ResponseWriter, l *Lookup) {
 		err = json.NewEncoder(w).Encode(data)
 	}
 	if err != nil {
-		httpError(w, http.StatusInternalServerError, errgo.Mask(err))
+		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 	}
 }
 
@@ -408,14 +408,14 @@ type AddResponse struct {
 func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	add, err := ParseAdd(r)
 	if err != nil {
-		httpError(w, http.StatusBadRequest, errgo.Mask(err))
+		httpError(w, http.StatusBadRequest, errors.WithStack(err))
 		return
 	}
 
 	// Check and decode the armor
 	armorBlock, err := armor.Decode(bytes.NewBufferString(add.Keytext))
 	if err != nil {
-		httpError(w, http.StatusBadRequest, errgo.Mask(err))
+		httpError(w, http.StatusBadRequest, errors.WithStack(err))
 		return
 	}
 
@@ -423,18 +423,18 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 	kr := openpgp.NewKeyReader(armorBlock.Body, h.keyReaderOptions...)
 	keys, err := kr.Read()
 	if err != nil {
-		httpError(w, http.StatusBadRequest, errgo.Mask(err))
+		httpError(w, http.StatusBadRequest, errors.WithStack(err))
 		return
 	}
 	for _, key := range keys {
 		err := openpgp.DropDuplicates(key)
 		if err != nil {
-			httpError(w, http.StatusInternalServerError, errgo.Mask(err))
+			httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 			return
 		}
 		change, err := storage.UpsertKey(h.storage, key)
 		if err != nil {
-			httpError(w, http.StatusInternalServerError, errgo.Mask(err))
+			httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 			return
 		}
 

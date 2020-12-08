@@ -23,13 +23,12 @@ package recon
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"math/rand"
 	"net"
 	"time"
 
-	"gopkg.in/errgo.v1"
+	"github.com/pkg/errors"
 	log "hockeypuck/logrus"
 
 	cf "hockeypuck/conflux"
@@ -60,7 +59,7 @@ func (p *Peer) Gossip() error {
 			if p.readAcquire() {
 				peer, err := p.choosePartner()
 				if err != nil {
-					if errgo.Cause(err) == ErrNoPartners {
+					if errors.Is(err, ErrNoPartners) {
 						p.log(GOSSIP).Debug("no partners to gossip with")
 					} else {
 						p.logErr(GOSSIP, err).Error("choosePartner")
@@ -69,7 +68,7 @@ func (p *Peer) Gossip() error {
 					start := time.Now()
 					recordReconInitiate(peer, CLIENT)
 					err = p.InitiateRecon(peer)
-					if errgo.Cause(err) == ErrPeerBusy {
+					if errors.Is(err, ErrPeerBusy) {
 						p.logErr(GOSSIP, err).Debug()
 						recordReconBusyPeer(peer, CLIENT)
 					} else if err != nil {
@@ -90,30 +89,18 @@ func (p *Peer) Gossip() error {
 	}
 }
 
-var ErrNoPartners error = errors.New("no recon partners configured")
-var ErrIncompatiblePeer error = errors.New("remote peer configuration is not compatible")
-var ErrPeerBusy error = errors.New("peer is busy handling another request")
-var ErrReconDone = errors.New("reconciliation done")
-
-func IsGossipBlocked(err error) bool {
-	switch err {
-	case ErrNoPartners:
-		return true
-	case ErrIncompatiblePeer:
-		return true
-	case ErrPeerBusy:
-		return true
-	}
-	return false
-}
+var ErrNoPartners error = fmt.Errorf("no recon partners configured")
+var ErrIncompatiblePeer error = fmt.Errorf("remote peer configuration is not compatible")
+var ErrPeerBusy error = fmt.Errorf("peer is busy handling another request")
+var ErrReconDone = fmt.Errorf("reconciliation done")
 
 func (p *Peer) choosePartner() (net.Addr, error) {
 	partners, err := p.settings.PartnerAddrs()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	if len(partners) == 0 {
-		return nil, errgo.Mask(ErrNoPartners, IsGossipBlocked)
+		return nil, errors.WithStack(ErrNoPartners)
 	}
 	return partners[rand.Intn(len(partners))], nil
 }
@@ -122,13 +109,13 @@ func (p *Peer) InitiateRecon(addr net.Addr) error {
 	p.log(GOSSIP).Debugf("initiating recon with peer %v", addr)
 	conn, err := net.DialTimeout(addr.Network(), addr.String(), 30*time.Second)
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	defer conn.Close()
 
 	remoteConfig, err := p.handleConfig(conn, GOSSIP, "")
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 
 	// Interact with peer
@@ -170,7 +157,7 @@ func (p *Peer) clientRecon(conn net.Conn, remoteConfig *Config) error {
 	var pendingMessages []ReconMsg
 	for step := range p.interactWithServer(conn) {
 		if step.err != nil {
-			if step.err == ErrReconDone {
+			if errors.Is(step.err, ErrReconDone) {
 				p.logConn(GOSSIP, conn).Info("reconcilation done")
 				break
 			} else {
@@ -187,14 +174,14 @@ func (p *Peer) clientRecon(conn net.Conn, remoteConfig *Config) error {
 				for _, msg := range pendingMessages {
 					err := WriteMsg(w, msg)
 					if err != nil {
-						return errgo.Mask(err)
+						return errors.WithStack(err)
 					}
 				}
 				pendingMessages = nil
 
 				err := w.Flush()
 				if err != nil {
-					return errgo.Mask(err)
+					return errors.WithStack(err)
 				}
 			}
 		}
@@ -234,7 +221,7 @@ func (p *Peer) interactWithServer(conn net.Conn) msgProgressChan {
 			case *Flush:
 				resp = &msgProgress{elements: cf.NewZSet(), flush: true}
 			default:
-				resp = &msgProgress{err: errgo.Newf("unexpected message: %v", m)}
+				resp = &msgProgress{err: errors.Errorf("unexpected message: %v", m)}
 			}
 			n += resp.elements.Len()
 			out <- resp
@@ -243,7 +230,7 @@ func (p *Peer) interactWithServer(conn net.Conn) msgProgressChan {
 	return out
 }
 
-var ErrReconRqstPolyNotFound = errors.New(
+var ErrReconRqstPolyNotFound = fmt.Errorf(
 	"peer should not receive a request for a non-existant node in ReconRqstPoly")
 
 func (p *Peer) handleReconRqstPoly(rp *ReconRqstPoly, conn net.Conn) *msgProgress {
@@ -251,14 +238,14 @@ func (p *Peer) handleReconRqstPoly(rp *ReconRqstPoly, conn net.Conn) *msgProgres
 	points := p.ptree.Points()
 	remoteSamples := rp.Samples
 	node, err := p.ptree.Node(rp.Prefix)
-	if err == ErrNodeNotFound {
+	if errors.Is(err, ErrNodeNotFound) {
 		return &msgProgress{err: ErrReconRqstPolyNotFound}
 	}
 	localSamples := node.SValues()
 	localSize := node.Size()
 	remoteSet, localSet, err := p.solve(
 		remoteSamples, localSamples, remoteSize, localSize, points, conn)
-	if errgo.Cause(err) == cf.ErrLowMBar {
+	if errors.Is(err, cf.ErrLowMBar) {
 		p.logConn(GOSSIP, conn).Debug("ReconRqstPoly: low MBar")
 		if node.IsLeaf() || node.Size() < (p.settings.ThreshMult*p.settings.MBar) {
 			p.logConnFields(GOSSIP, conn, log.Fields{
@@ -266,12 +253,12 @@ func (p *Peer) handleReconRqstPoly(rp *ReconRqstPoly, conn net.Conn) *msgProgres
 			}).Debug("sending full elements")
 			elements, err := node.Elements()
 			if err != nil {
-				return &msgProgress{err: errgo.Mask(err)}
+				return &msgProgress{err: errors.WithStack(err)}
 			}
 			return &msgProgress{elements: cf.NewZSet(), messages: []ReconMsg{
 				&FullElements{ZSet: cf.NewZSetSlice(elements)}}}
 		} else {
-			err = errgo.Notef(err, "bs=%v leaf=%v size=%d", node.Key(), node.IsLeaf(), node.Size())
+			err = errors.Wrapf(err, "bs=%v leaf=%v size=%d", node.Key(), node.IsLeaf(), node.Size())
 		}
 	}
 	if err != nil {
@@ -298,7 +285,7 @@ func (p *Peer) solve(remoteSamples, localSamples []cf.Zp, remoteSize, localSize 
 func (p *Peer) handleReconRqstFull(rf *ReconRqstFull, conn net.Conn) *msgProgress {
 	var localset *cf.ZSet
 	node, err := p.ptree.Node(rf.Prefix)
-	if err == ErrNodeNotFound {
+	if errors.Is(err, ErrNodeNotFound) {
 		localset = cf.NewZSet()
 	} else if err != nil {
 		return &msgProgress{err: err}

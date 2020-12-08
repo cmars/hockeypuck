@@ -24,7 +24,7 @@ import (
 	"net/http"
 	"strings"
 
-	"gopkg.in/errgo.v1"
+	"github.com/pkg/errors"
 
 	"hockeypuck/conflux/recon"
 )
@@ -85,7 +85,7 @@ type Lookup struct {
 func ParseLookup(req *http.Request) (*Lookup, error) {
 	err := req.ParseForm()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 
 	var l Lookup
@@ -93,14 +93,14 @@ func ParseLookup(req *http.Request) (*Lookup, error) {
 	// OpenPGP HTTP Keyserver Protocol (HKP), Section 3.1.2
 	l.Op, ok = ParseOperation(req.Form.Get("op"))
 	if !ok {
-		return nil, errgo.Newf("invalid operation %q", req.Form.Get("op"))
+		return nil, errors.Errorf("invalid operation %q", req.Form.Get("op"))
 	}
 
 	if l.Op != OperationStats {
 		// OpenPGP HTTP Keyserver Protocol (HKP), Section 3.1.1
 		l.Search = req.Form.Get("search")
 		if l.Search == "" {
-			return nil, errgo.Newf("missing required parameter: search")
+			return nil, errors.Errorf("missing required parameter: search")
 		}
 	}
 
@@ -126,19 +126,19 @@ type Add struct {
 
 func ParseAdd(req *http.Request) (*Add, error) {
 	if req.Method != "POST" {
-		return nil, errgo.Newf("invalid HTTP method: %s", req.Method)
+		return nil, errors.Errorf("invalid HTTP method: %s", req.Method)
 	}
 
 	var add Add
 	// Parse the URL query parameters
 	err := req.ParseForm()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 
 	add.Keytext = req.Form.Get("keytext")
 	if add.Keytext == "" {
-		return nil, errgo.Newf("missing required parameter: keytext")
+		return nil, errors.Errorf("missing required parameter: keytext")
 	}
 
 	add.Options = ParseOptionSet(req.Form.Get("options"))
@@ -152,7 +152,7 @@ type HashQuery struct {
 
 func ParseHashQuery(req *http.Request) (*HashQuery, error) {
 	if req.Method != "POST" {
-		return nil, errgo.Newf("invalid HTTP method: %s", req.Method)
+		return nil, errors.Errorf("invalid HTTP method: %s", req.Method)
 	}
 
 	defer req.Body.Close()
@@ -167,18 +167,18 @@ func ParseHashQuery(req *http.Request) (*HashQuery, error) {
 	// Parse hashquery POST data
 	n, err := recon.ReadInt(r)
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	hq.Digests = make([]string, n)
 	for i := 0; i < n; i++ {
 		hashlen, err := recon.ReadInt(r)
 		if err != nil {
-			return nil, errgo.Mask(err)
+			return nil, errors.WithStack(err)
 		}
 		hash := make([]byte, hashlen)
 		_, err = r.Read(hash)
 		if err != nil {
-			return nil, errgo.Mask(err)
+			return nil, errors.WithStack(err)
 		}
 		hq.Digests[i] = hex.EncodeToString(hash)
 	}

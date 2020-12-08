@@ -19,7 +19,7 @@ package server
 
 import (
 	"github.com/BurntSushi/toml"
-	"gopkg.in/errgo.v1"
+	"github.com/pkg/errors"
 
 	"hockeypuck/conflux/recon"
 	"hockeypuck/metrics"
@@ -206,12 +206,12 @@ func ParseSettings(data string) (*Settings, error) {
 	doc.Hockeypuck = DefaultSettings()
 	_, err := toml.Decode(data, &doc)
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 
 	err = doc.Hockeypuck.Conflux.Recon.Settings.Resolve()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 
 	return &doc.Hockeypuck, nil

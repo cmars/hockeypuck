@@ -26,8 +26,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
 	"golang.org/x/crypto/openpgp/packet"
-	"gopkg.in/errgo.v1"
 )
 
 type PublicKey struct {
@@ -98,15 +98,15 @@ func (pk *PublicKey) appendSignature(sig *Signature) {
 func (pkp *PublicKey) publicKeyPacket() (*packet.PublicKey, error) {
 	op, err := pkp.opaquePacket()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	p, err := op.Parse()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	pk, ok := p.(*packet.PublicKey)
 	if !ok {
-		return nil, errgo.Newf("expected public key packet, got %T", p)
+		return nil, errors.Errorf("expected public key packet, got %T", p)
 	}
 	return pk, nil
 }
@@ -114,15 +114,15 @@ func (pkp *PublicKey) publicKeyPacket() (*packet.PublicKey, error) {
 func (pkp *PublicKey) publicKeyV3Packet() (*packet.PublicKeyV3, error) {
 	op, err := pkp.opaquePacket()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	p, err := op.Parse()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	pk, ok := p.(*packet.PublicKeyV3)
 	if !ok {
-		return nil, errgo.Newf("expected public key V3 packet, got %T", p)
+		return nil, errors.Errorf("expected public key V3 packet, got %T", p)
 	}
 	return pk, nil
 }
@@ -130,7 +130,7 @@ func (pkp *PublicKey) publicKeyV3Packet() (*packet.PublicKeyV3, error) {
 func (pkp *PublicKey) parse(op *packet.OpaquePacket, subkey bool) error {
 	p, err := op.Parse()
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 
 	switch pk := p.(type) {
@@ -147,7 +147,7 @@ func (pkp *PublicKey) parse(op *packet.OpaquePacket, subkey bool) error {
 	default:
 	}
 
-	return errgo.Mask(ErrInvalidPacketType)
+	return errors.WithStack(ErrInvalidPacketType)
 }
 
 func (pkp *PublicKey) setUnsupported(op *packet.OpaquePacket) error {
@@ -165,18 +165,18 @@ func (pkp *PublicKey) setPublicKey(pk *packet.PublicKey) error {
 	buf := bytes.NewBuffer(nil)
 	err := pk.Serialize(buf)
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	fingerprint := hex.EncodeToString(pk.Fingerprint[:])
 	bitLen, err := pk.BitLength()
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	pkp.RFingerprint = Reverse(fingerprint)
 	pkp.UUID = pkp.RFingerprint
 	err = pkp.setV4IDs(pkp.UUID)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	pkp.Creation = pk.CreationTime
 	pkp.Algorithm = int(pk.PubKeyAlgo)
@@ -187,11 +187,11 @@ func (pkp *PublicKey) setPublicKey(pk *packet.PublicKey) error {
 
 func (pkp *PublicKey) setV4IDs(rfp string) error {
 	if len(rfp) < 8 {
-		return errgo.Newf("invalid fingerprint %q", rfp)
+		return errors.Errorf("invalid fingerprint %q", rfp)
 	}
 	pkp.RShortID = rfp[:8]
 	if len(rfp) < 16 {
-		return errgo.Newf("invalid fingerprint %q", rfp)
+		return errors.Errorf("invalid fingerprint %q", rfp)
 	}
 	pkp.RKeyID = rfp[:16]
 	return nil
@@ -201,12 +201,12 @@ func (pkp *PublicKey) setPublicKeyV3(pk *packet.PublicKeyV3) error {
 	var buf bytes.Buffer
 	err := pk.Serialize(&buf)
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	fingerprint := hex.EncodeToString(pk.Fingerprint[:])
 	bitLen, err := pk.BitLength()
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	pkp.RFingerprint = Reverse(fingerprint)
 	pkp.UUID = pkp.RFingerprint
@@ -255,7 +255,7 @@ func (pubkey *PrimaryKey) contents() []packetNode {
 }
 
 func (*PrimaryKey) removeDuplicate(parent packetNode, dup packetNode) error {
-	return errgo.New("cannot remove a duplicate primary pubkey")
+	return errors.New("cannot remove a duplicate primary pubkey")
 }
 
 func ParsePrimaryKey(op *packet.OpaquePacket) (*PrimaryKey, error) {
@@ -263,7 +263,7 @@ func ParsePrimaryKey(op *packet.OpaquePacket) (*PrimaryKey, error) {
 	var err error
 
 	if err = op.Serialize(&buf); err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	pubkey := &PrimaryKey{
 		PublicKey: PublicKey{
@@ -279,7 +279,7 @@ func ParsePrimaryKey(op *packet.OpaquePacket) (*PrimaryKey, error) {
 	if parseErr != nil {
 		err = pubkey.setUnsupported(op)
 		if err != nil {
-			return nil, errgo.Mask(err)
+			return nil, errors.WithStack(err)
 		}
 	} else {
 		pubkey.Parsed = true
@@ -290,14 +290,14 @@ func ParsePrimaryKey(op *packet.OpaquePacket) (*PrimaryKey, error) {
 
 func (pubkey *PrimaryKey) setPublicKey(pk *packet.PublicKey) error {
 	if pk.IsSubkey {
-		return errgo.NoteMask(ErrInvalidPacketType, "expected primary public key packet, got sub-key")
+		return errors.Wrap(ErrInvalidPacketType, "expected primary public key packet, got sub-key")
 	}
 	return pubkey.PublicKey.setPublicKey(pk)
 }
 
 func (pubkey *PrimaryKey) setPublicKeyV3(pk *packet.PublicKeyV3) error {
 	if pk.IsSubkey {
-		return errgo.NoteMask(ErrInvalidPacketType, "expected primary public key packet, got sub-key")
+		return errors.Wrap(ErrInvalidPacketType, "expected primary public key packet, got sub-key")
 	}
 	return pubkey.PublicKey.setPublicKeyV3(pk)
 }
@@ -332,7 +332,7 @@ func (pubkey *PrimaryKey) SigInfo() (*SelfSigs, []*Signature) {
 func (pubkey *PrimaryKey) updateMD5() error {
 	digest, err := SksDigest(pubkey, md5.New())
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	pubkey.MD5 = digest
 	return nil

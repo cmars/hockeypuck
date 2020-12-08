@@ -13,7 +13,6 @@ require (
 	github.com/certifi/gocertifi v0.0.0-20200211180108-c7c1fbc02894 // indirect
 	github.com/cmars/basen v0.0.0-20150613233007-fe3947df716e // indirect
 	github.com/codegangsta/inject v0.0.0-20150114235600-33e0aa1cb7c0 // indirect
-	github.com/frankban/quicktest v1.4.0 // indirect
 	github.com/getsentry/raven-go v0.2.0
 	github.com/go-martini/martini v0.0.0-20170121215854-22fa46961aab // indirect
 	github.com/gofrs/uuid v3.3.0+incompatible // indirect
@@ -28,6 +27,7 @@ require (
 	github.com/meatballhat/negroni-logrus v0.0.0-20170801195057-31067281800f // indirect
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/phyber/negroni-gzip v0.0.0-20180113114010-ef6356a5d029 // indirect
+	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.7.1
 	github.com/prometheus/common v0.13.0 // indirect
 	github.com/stretchr/testify v1.4.0
@@ -40,7 +40,6 @@ require (
 	google.golang.org/protobuf v1.25.0 // indirect
 	gopkg.in/basen.v1 v1.0.0-20150613233243-308119dd1d4c
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f
-	gopkg.in/errgo.v1 v1.0.1
 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637
 	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
 )

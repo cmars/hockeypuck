@@ -21,7 +21,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 
-	"gopkg.in/errgo.v1"
+	"github.com/pkg/errors"
 )
 
 func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
@@ -90,7 +90,7 @@ func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 func DropDuplicates(key *PrimaryKey) error {
 	err := dedup(key, nil)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	return key.updateMD5()
 }
@@ -100,7 +100,7 @@ func CollectDuplicates(key *PrimaryKey) error {
 		primary.packet().Count++
 	})
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	return key.updateMD5()
 }
@@ -118,7 +118,7 @@ func Merge(dst, src *PrimaryKey) error {
 		}
 	})
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	return dst.updateMD5()
 }
@@ -137,12 +137,12 @@ func dedup(root packetNode, handleDuplicate func(primary, duplicate packetNode))
 		if ok {
 			err := primary.removeDuplicate(root, node)
 			if err != nil {
-				return errgo.Mask(err)
+				return errors.WithStack(err)
 			}
 
 			err = dedup(primary, nil)
 			if err != nil {
-				return errgo.Mask(err)
+				return errors.WithStack(err)
 			}
 
 			if handleDuplicate != nil {
