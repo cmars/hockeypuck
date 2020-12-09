@@ -179,7 +179,7 @@ func WriteString(w io.Writer, text string) error {
 }
 
 func ReadBitstring(r io.Reader) (*cf.Bitstring, error) {
-	nbits, err := ReadLen(r)
+	nbits, err := ReadInt(r)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -214,9 +214,12 @@ func WriteBitstring(w io.Writer, bs *cf.Bitstring) error {
 }
 
 func ReadZZarray(r io.Reader) ([]cf.Zp, error) {
-	n, err := ReadLen(r)
+	n, err := ReadInt(r)
 	if err != nil {
 		return nil, errors.WithStack(err)
+	}
+	if n*SksZpNbytes > maxReadLen {
+		return nil, errors.Errorf("read length %d exceeds maximum limit", n*SksZpNbytes)
 	}
 	arr := make([]cf.Zp, n)
 	for i := 0; i < n; i++ {
