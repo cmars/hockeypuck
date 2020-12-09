@@ -27,7 +27,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"gopkg.in/errgo.v1"
+	"github.com/pkg/errors"
 )
 
 // Poly represents a polynomial in a finite field.
@@ -263,7 +263,7 @@ func PolyDivmod(x, y *Poly) (q *Poly, r *Poly, err error) {
 	}
 	degDiff := x.degree - y.degree
 	if degDiff < 0 {
-		return nil, nil, errgo.Newf("quotient degree %d < dividend %d", x.degree, y.degree)
+		return nil, nil, errors.Errorf("quotient degree %d < dividend %d", x.degree, y.degree)
 	}
 	c := Z(x.p).Div(&x.coeff[x.degree], &y.coeff[y.degree])
 	m := PolyTerm(degDiff, c)
@@ -274,13 +274,13 @@ func PolyDivmod(x, y *Poly) (q *Poly, r *Poly, err error) {
 		// TODO: eliminate recursion
 		q, r, err := PolyDivmod(newX, y)
 		if err != nil {
-			return nil, nil, errgo.Mask(err)
+			return nil, nil, errors.WithStack(err)
 		}
 
 		q = NewPolyP(x.p).Add(q, m)
 		return q, r, nil
 	}
-	return nil, nil, errgo.New("divmod error")
+	return nil, nil, errors.New("divmod error")
 }
 
 // PolyDiv returns the quotient between two Polys.
@@ -301,7 +301,7 @@ func polyGcd(x, y *Poly) (*Poly, error) {
 	}
 	_, r, err := PolyDivmod(x, y)
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	return polyGcd(y, r)
 }
@@ -310,7 +310,7 @@ func polyGcd(x, y *Poly) (*Poly, error) {
 func PolyGcd(x, y *Poly) (*Poly, error) {
 	result, err := polyGcd(x, y)
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	result = NewPolyP(x.p).Mul(result,
 		NewPoly(result.coeff[result.degree].Copy().Inv()))

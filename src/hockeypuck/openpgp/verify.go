@@ -22,36 +22,36 @@ import (
 	"hash"
 
 	"golang.org/x/crypto/openpgp/packet"
-	"gopkg.in/errgo.v1"
+	"github.com/pkg/errors"
 )
 
 func (pubkey *PrimaryKey) verifyPublicKeySelfSig(signed *PublicKey, sig *Signature) error {
 	pkOpaque, err := pubkey.opaquePacket()
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	pkParsed, err := pkOpaque.Parse()
 	switch pk := pkParsed.(type) {
 	case *packet.PublicKey:
 		s, err := sig.signaturePacket()
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 		signedPk, err := signed.publicKeyPacket()
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
-		return errgo.Mask(pk.VerifyKeySignature(signedPk, s))
+		return errors.WithStack(pk.VerifyKeySignature(signedPk, s))
 	case *packet.PublicKeyV3:
 		s, err := sig.signatureV3Packet()
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 		signedPk, err := signed.publicKeyV3Packet()
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
-		return errgo.Mask(pk.VerifyKeySignatureV3(signedPk, s))
+		return errors.WithStack(pk.VerifyKeySignatureV3(signedPk, s))
 	}
 	return ErrInvalidPacketType
 }
@@ -59,55 +59,55 @@ func (pubkey *PrimaryKey) verifyPublicKeySelfSig(signed *PublicKey, sig *Signatu
 func (pubkey *PrimaryKey) verifyUserIDSelfSig(uid *UserID, sig *Signature) error {
 	u, err := uid.userIDPacket()
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 
 	pkOpaque, err := pubkey.opaquePacket()
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	pkParsed, err := pkOpaque.Parse()
 	switch pk := pkParsed.(type) {
 	case *packet.PublicKey:
 		sOpaque, err := sig.opaquePacket()
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 		sParsed, err := sOpaque.Parse()
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 		switch s := sParsed.(type) {
 		case *packet.Signature:
-			return errgo.Mask(pk.VerifyUserIdSignature(u.Id, pk, s))
+			return errors.WithStack(pk.VerifyUserIdSignature(u.Id, pk, s))
 		case *packet.SignatureV3:
-			return errgo.Mask(pk.VerifyUserIdSignatureV3(u.Id, pk, s))
+			return errors.WithStack(pk.VerifyUserIdSignatureV3(u.Id, pk, s))
 		default:
-			return errgo.Mask(ErrInvalidPacketType)
+			return errors.WithStack(ErrInvalidPacketType)
 		}
 	case *packet.PublicKeyV3:
 		s, err := sig.signatureV3Packet()
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
-		return errgo.Mask(pk.VerifyUserIdSignatureV3(u.Id, pk, s))
+		return errors.WithStack(pk.VerifyUserIdSignatureV3(u.Id, pk, s))
 	default:
-		return errgo.Mask(ErrInvalidPacketType)
+		return errors.WithStack(ErrInvalidPacketType)
 	}
 }
 
 func (pubkey *PrimaryKey) verifyUserAttrSelfSig(uat *UserAttribute, sig *Signature) error {
 	pk, err := pubkey.PublicKey.publicKeyPacket()
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	s, err := sig.signaturePacket()
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	h, err := pubkey.sigSerializeUserAttribute(uat, s.Hash)
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	return pk.VerifySignature(h, s)
 }
@@ -116,24 +116,24 @@ func (pubkey *PrimaryKey) verifyUserAttrSelfSig(uat *UserAttribute, sig *Signatu
 // TODO: clean up & contribute this to golang.org/x/crypto/openpgp.
 func (pubkey *PrimaryKey) sigSerializeUserAttribute(uat *UserAttribute, hashFunc crypto.Hash) (hash.Hash, error) {
 	if !hashFunc.Available() {
-		return nil, errgo.Newf("unsupported hash function: %v", hashFunc)
+		return nil, errors.Errorf("unsupported hash function: %v", hashFunc)
 	}
 	h := hashFunc.New()
 
 	// Get user attribute opaque packet
 	uatOpaque, err := uat.opaquePacket()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	// Get public key opaque packet.
 	pkOpaque, err := pubkey.opaquePacket()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	// Get public key v4 packet. User attributes not supported pre-v4.
 	pk, err := pubkey.PublicKey.publicKeyPacket()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 
 	// RFC 4880, section 5.2.4

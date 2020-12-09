@@ -28,11 +28,11 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/pkg/errors"
 	"golang.org/x/crypto/openpgp"
 	"golang.org/x/crypto/openpgp/armor"
-	"golang.org/x/crypto/openpgp/errors"
+	pgperrors "golang.org/x/crypto/openpgp/errors"
 	"golang.org/x/crypto/openpgp/packet"
-	"gopkg.in/errgo.v1"
 
 	log "hockeypuck/logrus"
 )
@@ -43,11 +43,11 @@ func WritePackets(w io.Writer, key *PrimaryKey) error {
 	for _, node := range key.contents() {
 		op, err := newOpaquePacket(node.packet().Packet)
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 		err = op.Serialize(w)
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 	}
 	return nil
@@ -57,12 +57,12 @@ func WriteArmoredPackets(w io.Writer, roots []*PrimaryKey) error {
 	armw, err := armor.Encode(w, openpgp.PublicKeyType, nil)
 	defer armw.Close()
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	for _, node := range roots {
 		err = WritePackets(armw, node)
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 	}
 	return nil
@@ -99,11 +99,11 @@ func (ok *OpaqueKeyring) Parse() (*PrimaryKey, error) {
 		var badPacket *packet.OpaquePacket
 		if opkt.Tag == 6 { //packet.PacketTypePublicKey:
 			if pubkey != nil {
-				return nil, errgo.Newf("multiple public keys in keyring")
+				return nil, errors.Errorf("multiple public keys in keyring")
 			}
 			pubkey, err = ParsePrimaryKey(opkt)
 			if err != nil {
-				return nil, errgo.Notef(err, "invalid public key packet type")
+				return nil, errors.Wrapf(err, "invalid public key packet type")
 			}
 			signablePacket = pubkey
 		} else if pubkey != nil {
@@ -164,9 +164,9 @@ func (ok *OpaqueKeyring) Parse() (*PrimaryKey, error) {
 				}
 				other, err := ParseOther(badPacket, badParent)
 				if err != nil {
-					return nil, errgo.Mask(err)
+					return nil, errors.WithStack(err)
 				}
-				_, isStructuralError := badPacket.Reason.(errors.StructuralError)
+				_, isStructuralError := badPacket.Reason.(pgperrors.StructuralError)
 				if badPacket.Reason == io.ErrUnexpectedEOF || isStructuralError {
 					log.Debugf("malformed packet in key 0x%s: %v", pubkey.KeyID(), badPacket.Reason)
 					other.Malformed = true
@@ -176,7 +176,7 @@ func (ok *OpaqueKeyring) Parse() (*PrimaryKey, error) {
 		}
 	}
 	if pubkey == nil {
-		return nil, errgo.New("primary public key not found")
+		return nil, errors.New("primary public key not found")
 	}
 	pubkey.MD5, err = SksDigest(pubkey, md5.New())
 	if err != nil {
@@ -330,12 +330,12 @@ func SksDigest(key *PrimaryKey, h hash.Hash) (string, error) {
 	for _, node := range key.contents() {
 		op, err := newOpaquePacket(node.packet().Packet)
 		if err != nil {
-			return fail, errgo.Mask(err)
+			return fail, errors.WithStack(err)
 		}
 		packets = append(packets, op)
 	}
 	if len(packets) == 0 {
-		return fail, errgo.New("no packets found")
+		return fail, errors.New("no packets found")
 	}
 	return sksDigestOpaque(packets, h), nil
 }

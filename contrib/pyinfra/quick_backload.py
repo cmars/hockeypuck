@@ -15,6 +15,6 @@ if host.data.name == 'hkp1':
         'systemctl stop hockeypuck || true',
         'mkdir -p /data/dump',
         'rsync -avr rsync://rsync.cyberbits.eu/sks/dump/hkp-dump-000*.pgp /data/dump',
-        'sudo su - hockeypuck -c "hockeypuck-load -config /etc/hockeypuck/hockeypuck.conf /data/dump/*.pgp"',
+        'sudo su - hockeypuck -c "hockeypuck-load -config /etc/hockeypuck/hockeypuck.conf /data/dump/hkp-dump-000*.pgp"',
         'systemctl start hockeypuck',
     ])

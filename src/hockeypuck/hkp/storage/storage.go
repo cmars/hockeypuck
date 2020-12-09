@@ -18,20 +18,19 @@
 package storage
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"time"
 
-	"gopkg.in/errgo.v1"
+	"github.com/pkg/errors"
 
 	"hockeypuck/openpgp"
 )
 
-var ErrKeyNotFound = errors.New("key not found")
+var ErrKeyNotFound = fmt.Errorf("key not found")
 
 func IsNotFound(err error) bool {
-	return err == ErrKeyNotFound
+	return errors.Is(err, ErrKeyNotFound)
 }
 
 type Keyring struct {
@@ -198,26 +197,26 @@ func UpsertKey(storage Storage, pubkey *openpgp.PrimaryKey) (kc KeyChange, err e
 	if IsNotFound(err) {
 		_, err = storage.Insert([]*openpgp.PrimaryKey{pubkey})
 		if err != nil {
-			return nil, errgo.Mask(err)
+			return nil, errors.WithStack(err)
 		}
 		return KeyAdded{ID: pubkey.KeyID(), Digest: pubkey.MD5}, nil
 	} else if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 
 	if pubkey.UUID != lastKey.UUID {
-		return nil, errgo.Newf("upsert key %q lookup failed, found mismatch %q", pubkey.UUID, lastKey.UUID)
+		return nil, errors.Errorf("upsert key %q lookup failed, found mismatch %q", pubkey.UUID, lastKey.UUID)
 	}
 	lastID := lastKey.KeyID()
 	lastMD5 := lastKey.MD5
 	err = openpgp.Merge(lastKey, pubkey)
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	if lastMD5 != lastKey.MD5 {
 		err = storage.Update(lastKey, lastID, lastMD5)
 		if err != nil {
-			return nil, errgo.Mask(err)
+			return nil, errors.WithStack(err)
 		}
 		return KeyReplaced{OldID: lastID, OldDigest: lastMD5, NewID: lastKey.KeyID(), NewDigest: lastKey.MD5}, nil
 	}
