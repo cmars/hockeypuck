@@ -22,6 +22,7 @@ import (
 	"encoding/hex"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -121,6 +122,8 @@ func ParseLookup(req *http.Request) (*Lookup, error) {
 // Add represents a valid /pks/add request content, parameters and options.
 type Add struct {
 	Keytext string
+	Keysig  string
+	Replace bool
 	Options OptionSet
 }
 
@@ -140,10 +143,40 @@ func ParseAdd(req *http.Request) (*Add, error) {
 	if add.Keytext == "" {
 		return nil, errors.Errorf("missing required parameter: keytext")
 	}
+	add.Keysig = req.Form.Get("keysig")
+	add.Replace, _ = strconv.ParseBool(req.Form.Get("replace"))
 
 	add.Options = ParseOptionSet(req.Form.Get("options"))
 
 	return &add, nil
+}
+
+type Delete struct {
+	Keytext string
+	Keysig  string
+}
+
+func ParseDelete(req *http.Request) (*Delete, error) {
+	if req.Method != "POST" {
+		return nil, errors.Errorf("invalid HTTP method: %s", req.Method)
+	}
+
+	var del Delete
+	err := req.ParseForm()
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	del.Keytext = req.Form.Get("keytext")
+	if del.Keytext == "" {
+		return nil, errors.Errorf("missing required parameter: keytext")
+	}
+	del.Keysig = req.Form.Get("keysig")
+	if del.Keysig == "" {
+		return nil, errors.Errorf("missing required parameter: keytext")
+	}
+
+	return &del, nil
 }
 
 type HashQuery struct {

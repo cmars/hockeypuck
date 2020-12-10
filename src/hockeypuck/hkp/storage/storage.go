@@ -46,6 +46,7 @@ type Storage interface {
 	io.Closer
 	Queryer
 	Updater
+	Deleter
 	Notifier
 }
 
@@ -93,6 +94,16 @@ type Updater interface {
 	// contents of the key in storage matches the given digest. If it does not
 	// match, the update should be retried again later.
 	Update(pubkey *openpgp.PrimaryKey, priorID string, priorMD5 string) error
+
+	// Replace unconditionally replaces any existing Primary key with the given
+	// contents, adding it if it did not exist.
+	Replace(pubkey *openpgp.PrimaryKey) (string, error)
+}
+
+type Deleter interface {
+	// Delete unconditionally deletes any existing Primary key with the given
+	// fingerprint.
+	Delete(fp string) (string, error)
 }
 
 type Notifier interface {
@@ -161,6 +172,23 @@ func (knc KeyNotChanged) String() string {
 	return fmt.Sprintf("key 0x%s with hash %s not changed", knc.ID, knc.Digest)
 }
 
+type KeyRemoved struct {
+	ID     string
+	Digest string
+}
+
+func (ka KeyRemoved) InsertDigests() []string {
+	return nil
+}
+
+func (ka KeyRemoved) RemoveDigests() []string {
+	return []string{ka.Digest}
+}
+
+func (ka KeyRemoved) String() string {
+	return fmt.Sprintf("key 0x%s with hash %s removed", ka.ID, ka.Digest)
+}
+
 type InsertError struct {
 	Duplicates []*openpgp.PrimaryKey
 	Errors     []error
@@ -221,4 +249,23 @@ func UpsertKey(storage Storage, pubkey *openpgp.PrimaryKey) (kc KeyChange, err e
 		return KeyReplaced{OldID: lastID, OldDigest: lastMD5, NewID: lastKey.KeyID(), NewDigest: lastKey.MD5}, nil
 	}
 	return KeyNotChanged{ID: lastID, Digest: lastMD5}, nil
+}
+
+func ReplaceKey(storage Storage, pubkey *openpgp.PrimaryKey) (KeyChange, error) {
+	lastMD5, err := storage.Replace(pubkey)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	if lastMD5 != "" {
+		return KeyReplaced{OldID: pubkey.KeyID(), OldDigest: lastMD5, NewID: pubkey.KeyID(), NewDigest: pubkey.MD5}, nil
+	}
+	return KeyAdded{ID: pubkey.KeyID(), Digest: pubkey.MD5}, nil
+}
+
+func DeleteKey(storage Storage, fp string) (KeyChange, error) {
+	lastMD5, err := storage.Delete(fp)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return KeyRemoved{ID: fp, Digest: lastMD5}, nil
 }
