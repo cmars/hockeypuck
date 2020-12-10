@@ -79,8 +79,10 @@ type SMTPConfig struct {
 }
 
 const (
-	DefaultDBDriver = "postgres-jsonb"
-	DefaultDBDSN    = "localhost:27017"
+	DefaultDBDriver        = "postgres-jsonb"
+	DefaultDBDSN           = "database=hockeypuck host=/var/run/postgresql port=5432 sslmode=disable"
+	DefaultMaxKeyLength    = 1048576
+	DefaultMaxPacketLength = 8192
 )
 
 type DBConfig struct {
@@ -129,10 +131,6 @@ type OpenPGPConfig struct {
 	// Blacklist contains a list of public key fingerprints that are not
 	// allowed on this server at all. These keys are silently dropped from
 	// inserts, updates, and lookups.
-	//
-	// TODO(cmars, 2020-11-27): These same fingerprints will soon be used to
-	// also drop subkeys and signatures made with these keys -- not only from
-	// new key material, but also from lookup responses.
 	Blacklist []string `toml:"blacklist"`
 }
 
@@ -143,6 +141,8 @@ func DefaultOpenPGP() OpenPGPConfig {
 			Driver: DefaultDBDriver,
 			DSN:    DefaultDBDSN,
 		},
+		MaxKeyLength:    DefaultMaxKeyLength,
+		MaxPacketLength: DefaultMaxPacketLength,
 	}
 }
 
