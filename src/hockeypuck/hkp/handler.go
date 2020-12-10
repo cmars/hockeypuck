@@ -166,6 +166,7 @@ func NewHandler(storage storage.Storage, options ...HandlerOption) (*Handler, er
 func (h *Handler) Register(r *httprouter.Router) {
 	r.GET("/pks/lookup", h.Lookup)
 	r.POST("/pks/add", h.Add)
+	r.POST("/pks/replace", h.Replace)
 	r.POST("/pks/delete", h.Delete)
 	r.POST("/pks/hashquery", h.HashQuery)
 }
@@ -415,17 +416,6 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 		return
 	}
 
-	var signedKeytext bool
-	var signingFp string
-	if add.Keysig != "" && add.Replace {
-		signingFp, err = h.checkSignature(add.Keytext, add.Keysig)
-		if err != nil {
-			httpError(w, http.StatusBadRequest, errors.Wrap(err, "invalid signature"))
-			return
-		}
-		signedKeytext = true
-	}
-
 	// Check and decode the armor
 	armorBlock, err := armor.Decode(bytes.NewBufferString(add.Keytext))
 	if err != nil {
@@ -446,12 +436,75 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 			httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 			return
 		}
-		var change storage.KeyChange
-		if add.Replace && signedKeytext && signingFp == key.Fingerprint() {
-			change, err = storage.ReplaceKey(h.storage, key)
-		} else {
-			change, err = storage.UpsertKey(h.storage, key)
+
+		change, err := storage.UpsertKey(h.storage, key)
+		if err != nil {
+			if errors.Is(err, storage.ErrKeyNotFound) {
+				httpError(w, http.StatusNotFound, errors.WithStack(err))
+			} else {
+				httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+			}
+			return
 		}
+
+		fp := key.QualifiedFingerprint()
+		switch change.(type) {
+		case storage.KeyAdded:
+			result.Inserted = append(result.Inserted, fp)
+		case storage.KeyReplaced:
+			result.Updated = append(result.Updated, fp)
+		case storage.KeyNotChanged:
+			result.Ignored = append(result.Ignored, fp)
+		}
+	}
+	log.WithFields(log.Fields{
+		"inserted": result.Inserted,
+		"updated":  result.Updated,
+	}).Info("add")
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	enc := json.NewEncoder(w)
+	enc.Encode(&result)
+}
+
+func (h *Handler) Replace(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	replace, err := ParseReplace(r)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, errors.WithStack(err))
+		return
+	}
+
+	signingFp, err := h.checkSignature(replace.Keytext, replace.Keysig)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, errors.Wrap(err, "invalid signature"))
+		return
+	}
+
+	// Check and decode the armor
+	armorBlock, err := armor.Decode(bytes.NewBufferString(replace.Keytext))
+	if err != nil {
+		httpError(w, http.StatusBadRequest, errors.WithStack(err))
+		return
+	}
+
+	var result AddResponse
+	kr := openpgp.NewKeyReader(armorBlock.Body, h.keyReaderOptions...)
+	keys, err := kr.Read()
+	if err != nil {
+		httpError(w, http.StatusBadRequest, errors.WithStack(err))
+		return
+	}
+	for _, key := range keys {
+		if signingFp != key.Fingerprint() {
+			continue
+		}
+		err := openpgp.DropDuplicates(key)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+			return
+		}
+		change, err := storage.ReplaceKey(h.storage, key)
 		if err != nil {
 			if errors.Is(err, storage.ErrKeyNotFound) {
 				httpError(w, http.StatusNotFound, errors.WithStack(err))
