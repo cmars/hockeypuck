@@ -151,6 +151,37 @@ func ParseAdd(req *http.Request) (*Add, error) {
 	return &add, nil
 }
 
+// Replace represents a valid /pks/replace request content, parameters and options.
+type Replace struct {
+	Keytext string
+	Keysig  string
+}
+
+func ParseReplace(req *http.Request) (*Replace, error) {
+	if req.Method != "POST" {
+		return nil, errors.Errorf("invalid HTTP method: %s", req.Method)
+	}
+
+	var replace Replace
+	// Parse the URL query parameters
+	err := req.ParseForm()
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	replace.Keytext = req.Form.Get("keytext")
+	if replace.Keytext == "" {
+		return nil, errors.Errorf("missing required parameter: keytext")
+	}
+	replace.Keysig = req.Form.Get("keysig")
+	if replace.Keysig == "" {
+		return nil, errors.Errorf("missing required parameter: keysig")
+	}
+
+	return &replace, nil
+}
+
+// Delete represents a valid /pks/delete request content, parameters and options.
 type Delete struct {
 	Keytext string
 	Keysig  string

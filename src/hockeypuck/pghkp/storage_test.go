@@ -317,10 +317,9 @@ func (s *S) TestReplace(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	keysig, err := ioutil.ReadAll(testing.MustInput("replace.asc.asc"))
 	c.Assert(err, gc.IsNil)
-	res, err := http.PostForm(s.srv.URL+"/pks/add", url.Values{
+	res, err := http.PostForm(s.srv.URL+"/pks/replace", url.Values{
 		"keytext": []string{string(keytext)},
 		"keysig":  []string{string(keysig)},
-		"replace": []string{"true"},
 	})
 	c.Assert(err, gc.IsNil)
 	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
@@ -332,7 +331,7 @@ func (s *S) TestReplace(c *gc.C) {
 	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", false)
 }
 
-func (s *S) TestAddReplaceNoSig(c *gc.C) {
+func (s *S) TestReplaceNoSig(c *gc.C) {
 	// Original key has uids "somename" and "forgetme"
 	s.addKey(c, "replace_orig.asc")
 	keyDocs := s.queryAllKeys(c)
@@ -344,21 +343,18 @@ func (s *S) TestAddReplaceNoSig(c *gc.C) {
 	// Replace without signature gets ignored
 	keytext, err := ioutil.ReadAll(testing.MustInput("replace.asc"))
 	c.Assert(err, gc.IsNil)
-	res, err := http.PostForm(s.srv.URL+"/pks/add", url.Values{
+	res, err := http.PostForm(s.srv.URL+"/pks/replace", url.Values{
 		"keytext": []string{string(keytext)},
-		"replace": []string{"true"},
 	})
 	c.Assert(err, gc.IsNil)
-	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
 	defer res.Body.Close()
-	_, err = ioutil.ReadAll(res.Body)
-	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusBadRequest)
 
 	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
 	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
 }
 
-func (s *S) TestAddSigNoReplace(c *gc.C) {
+func (s *S) TestAddDoesntReplace(c *gc.C) {
 	// Original key has uids "somename" and "forgetme"
 	s.addKey(c, "replace_orig.asc")
 	keyDocs := s.queryAllKeys(c)
@@ -400,10 +396,9 @@ func (s *S) TestReplaceNotSelfSig(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	keysig, err := ioutil.ReadAll(testing.MustInput("replace_notselfsig.asc.asc"))
 	c.Assert(err, gc.IsNil)
-	res, err := http.PostForm(s.srv.URL+"/pks/add", url.Values{
+	res, err := http.PostForm(s.srv.URL+"/pks/replace", url.Values{
 		"keytext": []string{string(keytext)},
 		"keysig":  []string{string(keysig)},
-		"replace": []string{"true"},
 	})
 	c.Assert(err, gc.IsNil)
 	c.Assert(res.StatusCode, gc.Equals, http.StatusNotFound)
