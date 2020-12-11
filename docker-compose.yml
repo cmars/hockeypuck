@@ -15,7 +15,7 @@ services:
     - hkp_data:/hockeypuck/data
 
   postgres:
-    image: postgres:11
+    image: postgres
     restart: always
     environment:
     - POSTGRES_USER=docker
