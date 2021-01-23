@@ -110,6 +110,8 @@ func Merge(dst, src *PrimaryKey) error {
 	dst.UserAttributes = append(dst.UserAttributes, src.UserAttributes...)
 	dst.SubKeys = append(dst.SubKeys, src.SubKeys...)
 	dst.Others = append(dst.Others, src.Others...)
+	dst.Signatures = append(dst.Signatures, src.Signatures...)
+
 	err := dedup(dst, func(primary, duplicate packetNode) {
 		primaryPacket := primary.packet()
 		duplicatePacket := duplicate.packet()
