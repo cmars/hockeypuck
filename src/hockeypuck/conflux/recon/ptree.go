@@ -22,8 +22,9 @@
 package recon
 
 import (
-	"errors"
 	"fmt"
+
+	"github.com/pkg/errors"
 
 	cf "hockeypuck/conflux"
 )
@@ -67,8 +68,8 @@ func MustChildren(node PrefixNode) []PrefixNode {
 	return children
 }
 
-var ErrSamplePointElement = errors.New("sample point added to elements")
-var ErrUnexpectedLeafNode = errors.New("unexpected leaf node")
+var ErrSamplePointElement = fmt.Errorf("sample point added to elements")
+var ErrUnexpectedLeafNode = fmt.Errorf("unexpected leaf node")
 
 type MemPrefixTree struct {
 	PTreeConfig
@@ -113,17 +114,16 @@ func Find(t PrefixTree, z *cf.Zp) (PrefixNode, error) {
 	return t.Node(bs)
 }
 
-func AddElementArray(t PrefixTree, z *cf.Zp) (marray []cf.Zp, err error) {
+func AddElementArray(t PrefixTree, z *cf.Zp) ([]cf.Zp, error) {
 	points := t.Points()
-	marray = make([]cf.Zp, len(points))
+	marray := make([]cf.Zp, len(points))
 	for i := 0; i < len(points); i++ {
 		marray[i].Sub(&points[i], z)
 		if marray[i].IsZero() {
-			err = ErrSamplePointElement
-			return
+			return nil, errors.WithStack(ErrSamplePointElement)
 		}
 	}
-	return
+	return marray, nil
 }
 
 func DelElementArray(t PrefixTree, z *cf.Zp) (marray []cf.Zp) {
@@ -154,16 +154,16 @@ func (t *MemPrefixTree) Node(bs *cf.Bitstring) (PrefixNode, error) {
 // Insert a Z/Zp integer into the prefix tree
 func (t *MemPrefixTree) Insert(z *cf.Zp) error {
 	if t.allElements.Contains(z) {
-		return fmt.Errorf("duplicate: %q", z.String())
+		return errors.Errorf("duplicate: %q", z.String())
 	}
 	bs := cf.NewZpBitstring(z)
 	marray, err := AddElementArray(t, z)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	err = t.root.insert(z, marray, bs, 0)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	t.allElements.Add(z)
 	return nil
@@ -174,7 +174,7 @@ func (t *MemPrefixTree) Remove(z *cf.Zp) error {
 	bs := cf.NewZpBitstring(z)
 	err := t.root.remove(z, DelElementArray(t, z), bs, 0)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	t.allElements.Remove(z)
 	return nil
@@ -240,7 +240,7 @@ func (n *MemPrefixNode) Elements() ([]cf.Zp, error) {
 	for _, child := range n.children {
 		elements, err := child.Elements()
 		if err != nil {
-			return nil, err
+			return nil, errors.WithStack(err)
 		}
 		result = append(result, elements...)
 	}
@@ -270,12 +270,12 @@ func (n *MemPrefixNode) insert(z *cf.Zp, marray []cf.Zp, bs *cf.Bitstring, depth
 		if len(n.elements) > n.SplitThreshold() {
 			err := n.split(depth)
 			if err != nil {
-				return err
+				return errors.WithStack(err)
 			}
 		} else {
 			for i := range n.elements {
 				if n.elements[i].Cmp(z) == 0 {
-					return fmt.Errorf("duplicate: %q", z.String())
+					return errors.Errorf("duplicate: %q", z.String())
 				}
 			}
 			last := len(n.elements)
@@ -287,7 +287,7 @@ func (n *MemPrefixNode) insert(z *cf.Zp, marray []cf.Zp, bs *cf.Bitstring, depth
 	childIndex := NextChild(n, bs, depth)
 	children, err := n.Children()
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	child := children[childIndex].(*MemPrefixNode)
 	return child.insert(z, marray, bs, depth+1)
@@ -309,11 +309,11 @@ func (n *MemPrefixNode) split(depth int) error {
 		child := n.children[childIndex]
 		marray, err := AddElementArray(n.MemPrefixTree, &n.elements[i])
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		err = child.insert(&n.elements[i], marray, bs, depth+1)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 	}
 	n.elements = nil
@@ -354,7 +354,7 @@ func (n *MemPrefixNode) remove(z *cf.Zp, marray []cf.Zp, bs *cf.Bitstring, depth
 			childIndex := NextChild(n, bs, depth)
 			children, err := n.Children()
 			if err != nil {
-				return err
+				return errors.WithStack(err)
 			}
 			child := children[childIndex].(*MemPrefixNode)
 			return child.remove(z, marray, bs, depth+1)

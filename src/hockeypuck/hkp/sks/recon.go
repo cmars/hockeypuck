@@ -29,7 +29,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"gopkg.in/errgo.v1"
+	"github.com/pkg/errors"
 	"gopkg.in/tomb.v2"
 
 	cf "hockeypuck/conflux"
@@ -68,7 +68,7 @@ func NewPrefixTree(path string, s *recon.Settings) (recon.PrefixTree, error) {
 		log.Debugf("creating prefix tree at: %q", path)
 		err = os.MkdirAll(path, 0755)
 		if err != nil {
-			return nil, errgo.Mask(err)
+			return nil, errors.WithStack(err)
 		}
 	}
 	return leveldb.New(s.PTreeConfig, path)
@@ -81,11 +81,11 @@ func NewPeer(st storage.Storage, path string, s *recon.Settings, opts []openpgp.
 
 	ptree, err := NewPrefixTree(path, s)
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	err = ptree.Create()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 
 	peer := recon.NewPeer(s, ptree)
@@ -178,20 +178,20 @@ func (r *Peer) Stop() {
 	r.t.Kill(nil)
 	err := r.t.Wait()
 	if err != nil {
-		r.log(RECON).Error(errgo.Details(err))
+		r.log(RECON).Errorf("%+v", err)
 	}
 	r.log(RECON).Info("recon processing: stopped")
 
 	r.log(RECON).Info("recon peer: stopping")
-	err = errgo.Mask(r.peer.Stop())
+	err = errors.WithStack(r.peer.Stop())
 	if err != nil {
-		r.log(RECON).Error(errgo.Details(err))
+		r.log(RECON).Errorf("%+v", err)
 	}
 	r.log(RECON).Info("recon peer: stopped")
 
 	err = r.ptree.Close()
 	if err != nil {
-		r.log(RECON).Errorf("error closing prefix tree: %v", errgo.Details(err))
+		r.log(RECON).Errorf("error closing prefix tree: %+v", err)
 	}
 
 	r.writeStats()
@@ -200,7 +200,7 @@ func (r *Peer) Stop() {
 func DigestZp(digest string, zp *cf.Zp) error {
 	buf, err := hex.DecodeString(digest)
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	buf = recon.PadSksElement(buf)
 	zp.In(cf.P_SKS).SetBytes(buf)
@@ -214,7 +214,7 @@ func (r *Peer) updateDigests(change storage.KeyChange) error {
 		toInsert := make([]cf.Zp, 1)
 		err := DigestZp(digest, &toInsert[0])
 		if err != nil {
-			return errgo.Notef(err, "bad digest %q", digest)
+			return errors.Wrapf(err, "bad digest %q", digest)
 		}
 		r.peer.Insert(toInsert...)
 	}
@@ -222,7 +222,7 @@ func (r *Peer) updateDigests(change storage.KeyChange) error {
 		toRemove := make([]cf.Zp, 1)
 		err := DigestZp(digest, &toRemove[0])
 		if err != nil {
-			return errgo.Notef(err, "bad digest %q", digest)
+			return errors.Wrapf(err, "bad digest %q", digest)
 		}
 		r.peer.Remove(toRemove...)
 	}
@@ -264,7 +264,7 @@ func (r *Peer) requestRecovered(rcvr *recon.Recover) error {
 		}
 	}
 	if errCount > 0 {
-		return errgo.Newf("%d errors requesting chunks", errCount)
+		return errors.Errorf("%d errors requesting chunks", errCount)
 	}
 	return nil
 }
@@ -273,14 +273,14 @@ func (r *Peer) requestChunk(rcvr *recon.Recover, chunk []cf.Zp) error {
 	var remoteAddr string
 	remoteAddr, err := rcvr.HkpAddr()
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	r.logAddr(RECON, rcvr.RemoteAddr).Debugf("requesting %d keys from %q via hashquery", len(chunk), remoteAddr)
 	// Make an sks hashquery request
 	hqBuf := bytes.NewBuffer(nil)
 	err = recon.WriteInt(hqBuf, len(chunk))
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	for i := range chunk {
 		zb := chunk[i].Bytes()
@@ -289,18 +289,18 @@ func (r *Peer) requestChunk(rcvr *recon.Recover, chunk []cf.Zp) error {
 		zb = zb[:len(zb)-1]
 		err = recon.WriteInt(hqBuf, len(zb))
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 		_, err = hqBuf.Write(zb)
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 	}
 
 	url := fmt.Sprintf("http://%s/pks/hashquery", remoteAddr)
 	resp, err := r.http.Post(url, "sks/hashquery", bytes.NewReader(hqBuf.Bytes()))
 	if err != nil {
-		return errgo.NoteMask(err, "failed to query hashes")
+		return errors.Wrap(err, "failed to query hashes")
 	}
 
 	// Store response in memory. Connection may timeout if we
@@ -308,19 +308,19 @@ func (r *Peer) requestChunk(rcvr *recon.Recover, chunk []cf.Zp) error {
 	var body *bytes.Buffer
 	bodyBuf, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	body = bytes.NewBuffer(bodyBuf)
 	resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return errgo.Newf("error response from %q: %v", remoteAddr, string(bodyBuf))
+		return errors.Errorf("error response from %q: %v", remoteAddr, string(bodyBuf))
 	}
 
 	var nkeys, keyLen int
 	nkeys, err = recon.ReadInt(body)
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	r.logAddr(RECON, rcvr.RemoteAddr).Debugf("hashquery response from %q: %d keys found", remoteAddr, nkeys)
 	summary := &upsertResult{}
@@ -334,18 +334,19 @@ func (r *Peer) requestChunk(rcvr *recon.Recover, chunk []cf.Zp) error {
 	for i := 0; i < nkeys; i++ {
 		keyLen, err = recon.ReadInt(body)
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 		keyBuf := bytes.NewBuffer(nil)
 		_, err = io.CopyN(keyBuf, body, int64(keyLen))
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 		r.logAddr(RECON, rcvr.RemoteAddr).Debugf("key# %d: %d bytes", i+1, keyLen)
 		// Merge locally
 		res, err := r.upsertKeys(rcvr, keyBuf.Bytes())
 		if err != nil {
 			r.logAddr(RECON, rcvr.RemoteAddr).Errorf("cannot upsert: %v", err)
+			continue
 		}
 		summary.add(res)
 	}
@@ -370,17 +371,17 @@ func (r *Peer) upsertKeys(rcvr *recon.Recover, buf []byte) (*upsertResult, error
 	kr := openpgp.NewKeyReader(bytes.NewBuffer(buf), r.keyReaderOptions...)
 	keys, err := kr.Read()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	result := &upsertResult{}
 	for _, key := range keys {
 		err := openpgp.DropDuplicates(key)
 		if err != nil {
-			return nil, errgo.Mask(err)
+			return nil, errors.WithStack(err)
 		}
 		keyChange, err := storage.UpsertKey(r.storage, key)
 		if err != nil {
-			return nil, errgo.Mask(err)
+			return nil, errors.WithStack(err)
 		}
 		r.logAddr(RECON, rcvr.RemoteAddr).Debug(keyChange)
 		switch keyChange.(type) {

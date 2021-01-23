@@ -12,7 +12,7 @@ import (
 
 	"github.com/carbocation/interpose"
 	"github.com/julienschmidt/httprouter"
-	"gopkg.in/errgo.v1"
+	"github.com/pkg/errors"
 	"gopkg.in/tomb.v2"
 
 	"hockeypuck/hkp"
@@ -20,7 +20,6 @@ import (
 	"hockeypuck/hkp/storage"
 	log "hockeypuck/logrus"
 	"hockeypuck/metrics"
-	"hockeypuck/mgohkp"
 	"hockeypuck/openpgp"
 	"hockeypuck/pghkp"
 )
@@ -118,7 +117,7 @@ func NewServer(settings *Settings) (*Server, error) {
 	keyReaderOptions := KeyReaderOptions(settings)
 	s.sksPeer, err = sks.NewPeer(s.st, settings.Conflux.Recon.LevelDB.Path, &settings.Conflux.Recon.Settings, keyReaderOptions)
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 
 	s.metricsListener = metrics.NewMetrics(settings.Metrics)
@@ -140,14 +139,14 @@ func NewServer(settings *Settings) (*Server, error) {
 	}
 	h, err := hkp.NewHandler(s.st, options...)
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	h.Register(s.r)
 
 	if settings.Webroot != "" {
 		err := s.registerWebroot(settings.Webroot)
 		if err != nil {
-			return nil, errgo.Mask(err)
+			return nil, errors.WithStack(err)
 		}
 	}
 
@@ -159,21 +158,10 @@ func NewServer(settings *Settings) (*Server, error) {
 
 func DialStorage(settings *Settings) (storage.Storage, error) {
 	switch settings.OpenPGP.DB.Driver {
-	case "mongo":
-		var options []mgohkp.Option
-		if settings.OpenPGP.DB.Mongo != nil {
-			if settings.OpenPGP.DB.Mongo.DB != "" {
-				options = append(options, mgohkp.DBName(settings.OpenPGP.DB.Mongo.DB))
-			}
-			if settings.OpenPGP.DB.Mongo.Collection != "" {
-				options = append(options, mgohkp.CollectionName(settings.OpenPGP.DB.Mongo.Collection))
-			}
-		}
-		return mgohkp.Dial(settings.OpenPGP.DB.DSN, options...)
 	case "postgres-jsonb":
 		return pghkp.Dial(settings.OpenPGP.DB.DSN, KeyReaderOptions(settings))
 	}
-	return nil, errgo.Newf("storage driver %q not supported", settings.OpenPGP.DB.Driver)
+	return nil, errors.Errorf("storage driver %q not supported", settings.OpenPGP.DB.Driver)
 }
 
 type stats struct {
@@ -279,12 +267,12 @@ func (s *Server) registerWebroot(webroot string) error {
 		// non-fatal error
 		return nil
 	} else if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	defer d.Close()
 	files, err := d.Readdir(0)
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 
 	s.r.GET("/", func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -397,7 +385,7 @@ type tcpKeepAliveListener struct {
 func (ln tcpKeepAliveListener) Accept() (net.Conn, error) {
 	tc, err := ln.AcceptTCP()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	tc.SetKeepAlive(true)
 	tc.SetKeepAlivePeriod(3 * time.Minute)
@@ -409,7 +397,7 @@ var newListener = (*Server).newListener
 func (s *Server) newListener(addr string) (net.Listener, error) {
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 
 	s.t.Go(func() error {
@@ -422,7 +410,7 @@ func (s *Server) newListener(addr string) (net.Listener, error) {
 func (s *Server) listenAndServeHKP() error {
 	ln, err := newListener(s, s.settings.HKP.Bind)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	s.hkpAddr = ln.Addr().String()
 	return http.Serve(ln, s.middle)
@@ -436,12 +424,12 @@ func (s *Server) listenAndServeHKPS() error {
 	config.Certificates = make([]tls.Certificate, 1)
 	config.Certificates[0], err = tls.LoadX509KeyPair(s.settings.HKPS.Cert, s.settings.HKPS.Key)
 	if err != nil {
-		return errgo.Notef(err, "failed to load HKPS certificate=%q key=%q", s.settings.HKPS.Cert, s.settings.HKPS.Key)
+		return errors.Wrapf(err, "failed to load HKPS certificate=%q key=%q", s.settings.HKPS.Cert, s.settings.HKPS.Key)
 	}
 
 	ln, err := newListener(s, s.settings.HKP.Bind)
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	s.hkpsAddr = ln.Addr().String()
 	ln = tls.NewListener(ln, config)

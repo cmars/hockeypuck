@@ -23,8 +23,8 @@ import (
 	"encoding/hex"
 	"time"
 
+	"github.com/pkg/errors"
 	"golang.org/x/crypto/openpgp/packet"
-	"gopkg.in/errgo.v1"
 )
 
 type Signature struct {
@@ -47,7 +47,7 @@ func (sig *Signature) contents() []packetNode {
 func (sig *Signature) removeDuplicate(parent packetNode, dup packetNode) error {
 	dupSig, ok := dup.(*Signature)
 	if !ok {
-		return errgo.Newf("invalid packet duplicate: %+v", dup)
+		return errors.Errorf("invalid packet duplicate: %+v", dup)
 	}
 	switch ppkt := parent.(type) {
 	case *PrimaryKey:
@@ -79,7 +79,7 @@ func ParseSignature(op *packet.OpaquePacket, keyCreationTime time.Time, pubkeyUU
 	var err error
 
 	if err = op.Serialize(&buf); err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	sig := &Signature{
 		Packet: Packet{
@@ -92,7 +92,7 @@ func ParseSignature(op *packet.OpaquePacket, keyCreationTime time.Time, pubkeyUU
 	// Attempt to parse the opaque packet into a public key type.
 	err = sig.parse(op, keyCreationTime)
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	sig.Parsed = true
 	return sig, nil
@@ -101,7 +101,7 @@ func ParseSignature(op *packet.OpaquePacket, keyCreationTime time.Time, pubkeyUU
 func (sig *Signature) parse(op *packet.OpaquePacket, keyCreationTime time.Time) error {
 	p, err := op.Parse()
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 
 	switch s := p.(type) {
@@ -110,12 +110,12 @@ func (sig *Signature) parse(op *packet.OpaquePacket, keyCreationTime time.Time) 
 	case *packet.SignatureV3:
 		return sig.setSignatureV3(s)
 	}
-	return errgo.Mask(ErrInvalidPacketType, errgo.Any)
+	return errors.WithStack(ErrInvalidPacketType)
 }
 
 func (sig *Signature) setSignature(s *packet.Signature, keyCreationTime time.Time) error {
 	if s.IssuerKeyId == nil {
-		return errgo.New("missing issuer key ID")
+		return errors.New("missing issuer key ID")
 	}
 	sig.Creation = s.CreationTime
 	sig.SigType = int(s.SigType)
@@ -158,15 +158,15 @@ func (sig *Signature) setSignatureV3(s *packet.SignatureV3) error {
 func (sig *Signature) signaturePacket() (*packet.Signature, error) {
 	op, err := sig.opaquePacket()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	p, err := op.Parse()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	s, ok := p.(*packet.Signature)
 	if !ok {
-		return nil, errgo.Newf("expected signature packet, got %T", p)
+		return nil, errors.Errorf("expected signature packet, got %T", p)
 	}
 	return s, nil
 }
@@ -174,15 +174,15 @@ func (sig *Signature) signaturePacket() (*packet.Signature, error) {
 func (sig *Signature) signatureV3Packet() (*packet.SignatureV3, error) {
 	op, err := sig.opaquePacket()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	p, err := op.Parse()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	s, ok := p.(*packet.SignatureV3)
 	if !ok {
-		return nil, errgo.Newf("expected signature V3 packet, got %T", p)
+		return nil, errors.Errorf("expected signature V3 packet, got %T", p)
 	}
 	return s, nil
 }

@@ -28,10 +28,11 @@ import (
 	"os"
 	stdtesting "testing"
 
-	"github.com/julienschmidt/httprouter"
-	gc "gopkg.in/check.v1"
 	"hockeypuck/pgtest"
 	"hockeypuck/testing"
+
+	"github.com/julienschmidt/httprouter"
+	gc "gopkg.in/check.v1"
 
 	"hockeypuck/hkp"
 	"hockeypuck/hkp/jsonhkp"
@@ -273,4 +274,186 @@ func (s *S) TestEd25519(c *gc.C) {
 		c.Assert(keys[0].UserIDs[0].Keywords, gc.Equals, "Casey Marshall <casey.marshall@canonical.com>")
 		c.Assert(keys[0].Parsed, gc.Equals, true)
 	}
+}
+
+func (s *S) assertKeyNotFound(c *gc.C, fp string) {
+	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=" + fp)
+	c.Assert(err, gc.IsNil)
+	res.Body.Close()
+	c.Assert(res.StatusCode, gc.Equals, http.StatusNotFound)
+}
+
+func (s *S) assertKey(c *gc.C, fp, uid string, exist bool) {
+	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=" + fp)
+	c.Assert(err, gc.IsNil)
+	armor, err := ioutil.ReadAll(res.Body)
+	res.Body.Close()
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+
+	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
+	c.Assert(keys, gc.HasLen, 1)
+	for ki := range keys {
+		for ui := range keys[ki].UserIDs {
+			if keys[ki].UserIDs[ui].Keywords == uid {
+				c.Assert(exist, gc.Equals, true)
+				return
+			}
+		}
+	}
+	c.Assert(exist, gc.Equals, false)
+}
+
+func (s *S) TestReplace(c *gc.C) {
+	// Original key has uids "somename" and "forgetme"
+	s.addKey(c, "replace_orig.asc")
+	keyDocs := s.queryAllKeys(c)
+	c.Assert(keyDocs, gc.HasLen, 1)
+
+	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
+
+	keytext, err := ioutil.ReadAll(testing.MustInput("replace.asc"))
+	c.Assert(err, gc.IsNil)
+	keysig, err := ioutil.ReadAll(testing.MustInput("replace.asc.asc"))
+	c.Assert(err, gc.IsNil)
+	res, err := http.PostForm(s.srv.URL+"/pks/replace", url.Values{
+		"keytext": []string{string(keytext)},
+		"keysig":  []string{string(keysig)},
+	})
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+	defer res.Body.Close()
+	_, err = ioutil.ReadAll(res.Body)
+	c.Assert(err, gc.IsNil)
+
+	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", false)
+}
+
+func (s *S) TestReplaceNoSig(c *gc.C) {
+	// Original key has uids "somename" and "forgetme"
+	s.addKey(c, "replace_orig.asc")
+	keyDocs := s.queryAllKeys(c)
+	c.Assert(keyDocs, gc.HasLen, 1)
+
+	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
+
+	// Replace without signature gets ignored
+	keytext, err := ioutil.ReadAll(testing.MustInput("replace.asc"))
+	c.Assert(err, gc.IsNil)
+	res, err := http.PostForm(s.srv.URL+"/pks/replace", url.Values{
+		"keytext": []string{string(keytext)},
+	})
+	c.Assert(err, gc.IsNil)
+	defer res.Body.Close()
+	c.Assert(res.StatusCode, gc.Equals, http.StatusBadRequest)
+
+	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
+}
+
+func (s *S) TestAddDoesntReplace(c *gc.C) {
+	// Original key has uids "somename" and "forgetme"
+	s.addKey(c, "replace_orig.asc")
+	keyDocs := s.queryAllKeys(c)
+	c.Assert(keyDocs, gc.HasLen, 1)
+
+	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
+
+	// Signature without replace directive gets ignored
+	keytext, err := ioutil.ReadAll(testing.MustInput("replace.asc"))
+	c.Assert(err, gc.IsNil)
+	keysig, err := ioutil.ReadAll(testing.MustInput("replace.asc.asc"))
+	c.Assert(err, gc.IsNil)
+	res, err := http.PostForm(s.srv.URL+"/pks/add", url.Values{
+		"keytext": []string{string(keytext)},
+		"keysig":  []string{string(keysig)},
+	})
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+	defer res.Body.Close()
+	_, err = ioutil.ReadAll(res.Body)
+	c.Assert(err, gc.IsNil)
+
+	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
+}
+
+func (s *S) TestReplaceNotSelfSig(c *gc.C) {
+	// Original key has uids "somename" and "forgetme"
+	s.addKey(c, "replace_orig.asc")
+	keyDocs := s.queryAllKeys(c)
+	c.Assert(keyDocs, gc.HasLen, 1)
+
+	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
+
+	// Signed by a different key than the one replaced
+	keytext, err := ioutil.ReadAll(testing.MustInput("replace_notselfsig.asc"))
+	c.Assert(err, gc.IsNil)
+	keysig, err := ioutil.ReadAll(testing.MustInput("replace_notselfsig.asc.asc"))
+	c.Assert(err, gc.IsNil)
+	res, err := http.PostForm(s.srv.URL+"/pks/replace", url.Values{
+		"keytext": []string{string(keytext)},
+		"keysig":  []string{string(keysig)},
+	})
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusNotFound)
+}
+
+func (s *S) TestDelete(c *gc.C) {
+	// Original key has uids "somename" and "forgetme"
+	s.addKey(c, "replace_orig.asc")
+	keyDocs := s.queryAllKeys(c)
+	c.Assert(keyDocs, gc.HasLen, 1)
+
+	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
+
+	keytext, err := ioutil.ReadAll(testing.MustInput("replace.asc"))
+	c.Assert(err, gc.IsNil)
+	keysig, err := ioutil.ReadAll(testing.MustInput("replace.asc.asc"))
+	c.Assert(err, gc.IsNil)
+
+	values := url.Values{
+		"keytext": []string{string(keytext)},
+		"keysig":  []string{string(keysig)},
+	}
+	res, err := http.PostForm(s.srv.URL+"/pks/delete", values)
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+	defer res.Body.Close()
+
+	s.assertKeyNotFound(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC")
+	s.assertKeyNotFound(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC")
+}
+
+func (s *S) TestDeleteNotSelfSig(c *gc.C) {
+	// Original key has uids "somename" and "forgetme"
+	s.addKey(c, "replace_orig.asc")
+	keyDocs := s.queryAllKeys(c)
+	c.Assert(keyDocs, gc.HasLen, 1)
+
+	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
+
+	// Signed by a different key than the one replaced
+	keytext, err := ioutil.ReadAll(testing.MustInput("replace_notselfsig.asc"))
+	c.Assert(err, gc.IsNil)
+	keysig, err := ioutil.ReadAll(testing.MustInput("replace_notselfsig.asc.asc"))
+	c.Assert(err, gc.IsNil)
+	res, err := http.PostForm(s.srv.URL+"/pks/delete", url.Values{
+		"keytext": []string{string(keytext)},
+		"keysig":  []string{string(keysig)},
+	})
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusNotFound)
+
+	// Delete was not successful
+	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
+
 }

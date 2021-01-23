@@ -8,9 +8,9 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/pkg/errors"
 	xopenpgp "golang.org/x/crypto/openpgp"
 	"golang.org/x/crypto/openpgp/armor"
-	"gopkg.in/errgo.v1"
 
 	log "hockeypuck/logrus"
 	"hockeypuck/openpgp"
@@ -22,7 +22,7 @@ func main() {
 	for _, opkr := range openpgp.MustReadOpaqueKeys(os.Stdin) {
 		match, miss, err := testKeyring(opkr)
 		if err != nil {
-			log.Errorf("key#%d: %v", n, errgo.Details(err))
+			log.Errorf("key#%d: %+v", n, err)
 		}
 		matches += match
 		misses += miss
@@ -35,25 +35,25 @@ func testKeyring(opkr *openpgp.OpaqueKeyring) (int, int, error) {
 	for _, op := range opkr.Packets {
 		err := op.Serialize(&buf)
 		if err != nil {
-			return 0, 0, errgo.Mask(err)
+			return 0, 0, errors.WithStack(err)
 		}
 	}
 	pk, err := opkr.Parse()
 	if err != nil {
-		return 0, 0, errgo.Mask(err)
+		return 0, 0, errors.WithStack(err)
 	}
 	dupDigest, err := openpgp.SksDigest(pk, md5.New())
 	if err != nil {
-		return 0, 0, errgo.Mask(err)
+		return 0, 0, errors.WithStack(err)
 	}
 
 	err = openpgp.DropDuplicates(pk)
 	if err != nil {
-		return 0, 0, errgo.Mask(err)
+		return 0, 0, errors.WithStack(err)
 	}
 	dedupDigest, err := openpgp.SksDigest(pk, md5.New())
 	if err != nil {
-		return 0, 0, errgo.Mask(err)
+		return 0, 0, errors.WithStack(err)
 	}
 	cmd := exec.Command("./sks_hash")
 	var out bytes.Buffer
@@ -61,7 +61,7 @@ func testKeyring(opkr *openpgp.OpaqueKeyring) (int, int, error) {
 	cmd.Stdout = &out
 	err = cmd.Run()
 	if err != nil {
-		return 0, 0, errgo.Mask(err)
+		return 0, 0, errors.WithStack(err)
 	}
 	sksDigest := strings.ToLower(strings.TrimSpace(string(out.Bytes())))
 	if dedupDigest != sksDigest {
@@ -69,7 +69,7 @@ func testKeyring(opkr *openpgp.OpaqueKeyring) (int, int, error) {
 		var out bytes.Buffer
 		armw, err := armor.Encode(&out, xopenpgp.PublicKeyType, nil)
 		if err != nil {
-			return 0, 1, errgo.Mask(err)
+			return 0, 1, errors.WithStack(err)
 		}
 		armw.Write(buf.Bytes())
 		armw.Close()
