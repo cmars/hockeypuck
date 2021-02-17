@@ -21,8 +21,8 @@ import (
 	"crypto"
 	"hash"
 
-	"golang.org/x/crypto/openpgp/packet"
 	"github.com/pkg/errors"
+	"golang.org/x/crypto/openpgp/packet"
 )
 
 func (pubkey *PrimaryKey) verifyPublicKeySelfSig(signed *PublicKey, sig *Signature) error {
