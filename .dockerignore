@@ -2,4 +2,5 @@
 /pkg
 /contrib/pyinfra
 /.git
+/.gocache
 /**/secrets
