@@ -44,7 +44,8 @@ const (
 	RECON                  = "recon"
 	httpClientTimeout      = 30
 	maxKeyRecoveryAttempts = 10
-	requestChunkSize       = 100
+	maxRequestChunkSize    = 100
+	minRequestChunkSize    = 10
 )
 
 type keyRecoveryCounter map[string]int
@@ -56,6 +57,10 @@ type Peer struct {
 	ptree            recon.PrefixTree
 	http             *http.Client
 	keyReaderOptions []openpgp.KeyReaderOption
+
+	// Adaptive request size
+	requestChunkSize int
+	slowStart        bool
 
 	path  string
 	stats *Stats
@@ -97,8 +102,10 @@ func NewPeer(st storage.Storage, path string, s *recon.Settings, opts []openpgp.
 		http: &http.Client{
 			Timeout: httpClientTimeout * time.Second,
 		},
-		keyReaderOptions: opts,
-		path:             path,
+		requestChunkSize:      minRequestChunkSize,
+		slowStart:             true,
+		keyReaderOptions:      opts,
+		path:                  path,
 	}
 	sksPeer.readStats()
 	st.Subscribe(sksPeer.updateDigests)
@@ -248,9 +255,12 @@ func (r *Peer) handleRecovery() error {
 func (r *Peer) requestRecovered(rcvr *recon.Recover) error {
 	items := rcvr.RemoteElements
 	errCount := 0
+	// Chunk requests to keep the hashquery message size and peer load reasonable.
+	// Using additive increase, multiplicative decrease (AIMD) to adapt chunk size,
+	// similar to TCP, including "slow start" (exponential increase at start when
+	// not yet in AIMD mode).
 	for len(items) > 0 {
-		// Chunk requests to keep the hashquery message size and peer load reasonable.
-		chunksize := requestChunkSize
+		chunksize := r.requestChunkSize
 		if chunksize > len(items) {
 			chunksize = len(items)
 		}
@@ -259,9 +269,25 @@ func (r *Peer) requestRecovered(rcvr *recon.Recover) error {
 
 		err := r.requestChunk(rcvr, chunk)
 		if err != nil {
-			r.logAddr(RECON, rcvr.RemoteAddr).Errorf("failed to request chunk of %d keys: %v", len(chunk), err)
+			// Failure: Multiplicative Decrease and end Slow Start.
+			r.requestChunkSize = chunksize / 2
+			r.slowStart = false
+			if r.requestChunkSize < minRequestChunkSize {
+				r.requestChunkSize = minRequestChunkSize
+			}
+			r.logAddr(RECON, rcvr.RemoteAddr).Errorf("failed to request chunk of %d keys, shrinking: %v", len(chunk), err)
 			errCount += 1
+		} else {
+			if r.slowStart {
+				r.requestChunkSize *= 2
+			} else {
+				r.requestChunkSize += 1
+			}
+			if r.requestChunkSize > maxRequestChunkSize {
+				r.requestChunkSize = maxRequestChunkSize
+			}
 		}
+
 	}
 	if errCount > 0 {
 		return errors.Errorf("%d errors requesting chunks", errCount)
