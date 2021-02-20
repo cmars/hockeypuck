@@ -265,9 +265,13 @@ func (r *Peer) requestRecovered(rcvr *recon.Recover) error {
 			chunksize = len(items)
 		}
 		chunk := items[:chunksize]
-		items = items[chunksize:]
 
 		err := r.requestChunk(rcvr, chunk)
+		if err == nil || chunksize <= minRequestChunkSize {
+			// Advance chunk window if successful or already at minimum size.
+			// (If it failed, we will retry with a smaller chunk size.)
+			items = items[chunksize:]
+		}
 		if err != nil {
 			// Failure: Multiplicative Decrease and end Slow Start.
 			r.requestChunkSize = chunksize / 2
