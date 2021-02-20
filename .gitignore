@@ -5,7 +5,9 @@
 .gocache
 .venv
 /bin
+/etc
 /pkg
+/keydump
 __pycache__
 debian/files
 version-git-commit

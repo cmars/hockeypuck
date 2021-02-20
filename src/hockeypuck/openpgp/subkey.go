@@ -21,8 +21,8 @@ import (
 	"bytes"
 	"strings"
 
-	"golang.org/x/crypto/openpgp/packet"
 	"github.com/pkg/errors"
+	"golang.org/x/crypto/openpgp/packet"
 )
 
 type SubKey struct {

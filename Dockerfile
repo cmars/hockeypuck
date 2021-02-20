@@ -1,25 +1,21 @@
-FROM golang:1.15 AS toolchain
-
-FROM ubuntu:18.04 as builder
+FROM golang:buster as builder
 RUN adduser builder --system --disabled-login
-COPY --from=toolchain /usr/local/go /usr/local/go
-ENV PATH="/usr/local/go/bin:/usr/lib/postgresql/10/bin:${PATH}"
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update -qq && apt-get -y install build-essential postgresql-10 postgresql-server-dev-10 ca-certificates --no-install-recommends
-COPY --chown=builder:root . /hockeypuck
+RUN apt-get update -qq && apt-get -y install build-essential postgresql-11 postgresql-server-dev-11 --no-install-recommends
+COPY --chown=builder:root Makefile /hockeypuck/
+COPY --chown=builder:root src /hockeypuck/src
 ENV GOPATH=/hockeypuck
 USER builder
 WORKDIR /hockeypuck
 RUN make lint test test-postgresql
-RUN go install hockeypuck/server/cmd/...
-ENTRYPOINT ["/bin/bash"]
+RUN cd src/hockeypuck && go install hockeypuck/server/cmd/...
 
 
-FROM ubuntu:18.04
-RUN apt-get update -qq && apt-get dist-upgrade -y && apt-get -y install ca-certificates --no-install-recommends
+FROM debian:buster-slim
 RUN mkdir -p /hockeypuck/bin /hockeypuck/lib /hockeypuck/etc /hockeypuck/data
 COPY --from=builder /hockeypuck/bin /hockeypuck/bin
-COPY --from=builder /hockeypuck/contrib/templates /hockeypuck/lib/templates
-COPY --from=builder /hockeypuck/contrib/webroot /hockeypuck/lib/www
+COPY contrib/templates /hockeypuck/lib/templates
+COPY contrib/webroot /hockeypuck/lib/www
+COPY contrib/docker-compose/devel/hockeypuck/bin/startup.sh /hockeypuck/bin/
 VOLUME /hockeypuck/etc /hockeypuck/data
-ENTRYPOINT ["/hockeypuck/bin/hockeypuck", "-config", "/hockeypuck/etc/hockeypuck.conf"]
+CMD ["/hockeypuck/bin/startup.sh"]
