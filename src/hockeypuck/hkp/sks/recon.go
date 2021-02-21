@@ -29,6 +29,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/hashicorp/golang-lru"
 	"github.com/pkg/errors"
 	"gopkg.in/tomb.v2"
 
@@ -46,6 +47,7 @@ const (
 	maxKeyRecoveryAttempts = 10
 	maxRequestChunkSize    = 100
 	minRequestChunkSize    = 10
+	seenCacheSize          = 4096
 )
 
 type keyRecoveryCounter map[string]int
@@ -61,6 +63,8 @@ type Peer struct {
 	// Adaptive request size
 	requestChunkSize int
 	slowStart        bool
+
+	seenCache *lru.Cache
 
 	path  string
 	stats *Stats
@@ -93,6 +97,11 @@ func NewPeer(st storage.Storage, path string, s *recon.Settings, opts []openpgp.
 		return nil, errors.WithStack(err)
 	}
 
+	cache, err := lru.New(seenCacheSize)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
 	peer := recon.NewPeer(s, ptree)
 	sksPeer := &Peer{
 		peer:     peer,
@@ -102,10 +111,11 @@ func NewPeer(st storage.Storage, path string, s *recon.Settings, opts []openpgp.
 		http: &http.Client{
 			Timeout: httpClientTimeout * time.Second,
 		},
-		requestChunkSize:      minRequestChunkSize,
-		slowStart:             true,
-		keyReaderOptions:      opts,
-		path:                  path,
+		requestChunkSize: minRequestChunkSize,
+		slowStart:        true,
+		seenCache:        cache,
+		keyReaderOptions: opts,
+		path:             path,
 	}
 	sksPeer.readStats()
 	st.Subscribe(sksPeer.updateDigests)
@@ -252,8 +262,23 @@ func (r *Peer) handleRecovery() error {
 	}
 }
 
+func (r *Peer) unseenRemoteElements(rcvr *recon.Recover) []cf.Zp {
+	unseenElements := make([]cf.Zp, 0)
+	for _, v := range rcvr.RemoteElements {
+		_, found := r.seenCache.Get(v.FullKeyHash())
+		if !found {
+			unseenElements = append(unseenElements, v)
+		}
+	}
+	if len(unseenElements) < len(rcvr.RemoteElements) {
+		log.Infof("recovering %d instead of %d due to seenCache(%d)",
+			len(unseenElements), len(rcvr.RemoteElements), r.seenCache.Len())
+	}
+	return unseenElements
+}
+
 func (r *Peer) requestRecovered(rcvr *recon.Recover) error {
-	items := rcvr.RemoteElements
+	items := r.unseenRemoteElements(rcvr)
 	errCount := 0
 	// Chunk requests to keep the hashquery message size and peer load reasonable.
 	// Using additive increase, multiplicative decrease (AIMD) to adapt chunk size,
@@ -273,7 +298,7 @@ func (r *Peer) requestRecovered(rcvr *recon.Recover) error {
 			items = items[chunksize:]
 		}
 		if err != nil {
-			// Failure: Multiplicative Decrease and end Slow Start.
+			// Failure: Multiplicate Decrease and end Slow Start.
 			r.requestChunkSize = chunksize / 2
 			r.slowStart = false
 			if r.requestChunkSize < minRequestChunkSize {
@@ -289,6 +314,9 @@ func (r *Peer) requestRecovered(rcvr *recon.Recover) error {
 			}
 			if r.requestChunkSize > maxRequestChunkSize {
 				r.requestChunkSize = maxRequestChunkSize
+			}
+			for _, v := range chunk {
+				r.seenCache.Add(v.FullKeyHash(), nil)
 			}
 		}
 
