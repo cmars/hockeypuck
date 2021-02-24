@@ -46,8 +46,8 @@ const (
 	httpClientTimeout      = 30
 	maxKeyRecoveryAttempts = 10
 	maxRequestChunkSize    = 100
-	minRequestChunkSize    = 10
-	seenCacheSize          = 4096
+	minRequestChunkSize    = 1
+	seenCacheSize          = 16384
 )
 
 type keyRecoveryCounter map[string]int
@@ -299,7 +299,7 @@ func (r *Peer) requestRecovered(rcvr *recon.Recover) error {
 		}
 		if err != nil {
 			// Failure: Multiplicate Decrease and end Slow Start.
-			r.requestChunkSize = chunksize / 2
+			r.requestChunkSize = len(chunk) / 2
 			r.slowStart = false
 			if r.requestChunkSize < minRequestChunkSize {
 				r.requestChunkSize = minRequestChunkSize
