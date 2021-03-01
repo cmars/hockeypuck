@@ -27,12 +27,6 @@
         .container .credit {
             margin: 20px 0;
         }
-        .openMarker {
-            display: none;
-        }
-        .openMarker:checked + .modal {
-            display: block;
-        }
         .modal:target {
             display: block;
         }
@@ -144,7 +138,6 @@
           </div>
         </div>
       </div>
-      <input id="showAbout" type="checkbox" class="openMarker" data-dismiss="modal" aria-hidden="true">
       <div class="modal" id="about" tabindex="-1" role="dialog" aria-labelledby="AboutLabel" aria-hidden="true">
         <div class="modal-dialog">
           <div class="modal-content">
@@ -174,7 +167,7 @@
       <div class="container">
         <div style="max-width: 20em; float: left;" >
           <p class="muted credit small">
-            <label for="showAbout"><a href="#about">about</a></label> |
+            <a href="#about">about</a> |
             <a href="/pks/lookup?op=stats">statistics</a>
           </p>
         </div>
