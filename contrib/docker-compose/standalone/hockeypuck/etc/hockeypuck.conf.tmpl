@@ -4,7 +4,8 @@ indexTemplate="/hockeypuck/lib/templates/index.html.tmpl"
 vindexTemplate="/hockeypuck/lib/templates/index.html.tmpl"
 statsTemplate="/hockeypuck/lib/templates/stats.html.tmpl"
 webroot="/hockeypuck/lib/www"
-version="2.1.0"
+software="hockeypuck"
+version="2.1.0+"
 
 [hockeypuck.hkp]
 bind=":11371"
@@ -15,7 +16,7 @@ keywordSearchDisabled=true
 
 # prevent abusively large keys
 [hockeypuck.openpgp]
-maxPacketLength=8192
+maxPacketLength=65536
 maxKeyLength=1048576
 
 [hockeypuck.openpgp.db]
