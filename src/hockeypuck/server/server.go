@@ -175,8 +175,8 @@ type stats struct {
 	ReconAddr     string           `json:"reconAddr"`
 	Software      string           `json:"software"`
 	Peers         []statsPeer      `json:"peers"`
-	NumKeys       int              `json:"numkeys"`
-	ServerContact string           `json:"server_contact"`
+	NumKeys       int              `json:"numkeys,omitempty"`
+	ServerContact string           `json:"server_contact,omitempty"`
 
 	Total  int
 	Hourly []loadStat
@@ -227,8 +227,13 @@ func (s *Server) stats() (interface{}, error) {
 		Software:  s.settings.Software,
 
 		Total: sksStats.Total,
-		NumKeys: sksStats.Total,
-		ServerContact: s.settings.Contact,
+	}
+
+	if s.settings.SksCompat {
+		t, _ := time.Parse(time.RFC3339, result.Now)
+		result.Now = t.UTC().Format("2021-03-18 12:40:23 UTC")
+		result.NumKeys = sksStats.Total
+		result.ServerContact = s.settings.Contact
 	}
 
 	nodename, err := os.Hostname()
@@ -253,11 +258,19 @@ func (s *Server) stats() (interface{}, error) {
 	}
 	sort.Sort(loadStats(result.Daily))
 	for k, v := range s.settings.Conflux.Recon.Settings.Partners {
-		result.Peers = append(result.Peers, statsPeer{
-			Name:      k,
-			HTTPAddr:  v.HTTPAddr,
-			ReconAddr: strings.ReplaceAll(v.ReconAddr, ":", " "),
-		})
+		if s.settings.SksCompat {
+			result.Peers = append(result.Peers, statsPeer{
+				Name:      k,
+				HTTPAddr:  v.HTTPAddr,
+				ReconAddr: strings.ReplaceAll(v.ReconAddr, ":", " "),
+			})
+		} else {
+			result.Peers = append(result.Peers, statsPeer{
+				Name:      k,
+				HTTPAddr:  v.HTTPAddr,
+				ReconAddr: v.ReconAddr,
+			})
+		}
 	}
 	sort.Sort(statsPeers(result.Peers))
 	return result, nil

@@ -169,6 +169,8 @@ type Settings struct {
 	Hostname string `toml:"hostname"`
 	Software string `toml:"software"`
 	Version  string `toml:"version"`
+
+	SksCompat bool `toml:"sksCompat"`
 }
 
 const (
@@ -191,11 +193,12 @@ func DefaultSettings() Settings {
 		HKP: HKPConfig{
 			Bind: DefaultHKPBind,
 		},
-		Metrics:  metricsSettings,
-		OpenPGP:  DefaultOpenPGP(),
-		LogLevel: DefaultLogLevel,
-		Software: "Hockeypuck",
-		Version:  "~unreleased",
+		Metrics:   metricsSettings,
+		OpenPGP:   DefaultOpenPGP(),
+		LogLevel:  DefaultLogLevel,
+		Software:  "Hockeypuck",
+		Version:   "~unreleased",
+		SksCompat: false,
 	}
 }
 
