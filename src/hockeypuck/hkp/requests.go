@@ -55,9 +55,9 @@ func ParseOperation(s string) (Operation, bool) {
 type Option string
 
 const (
-	OptionMachineReadable = Option("mr")
-	OptionJSON            = Option("json")
-	OptionNotModifiable   = Option("nm")
+	OptionMachineToMachine = Option("m2m")
+	OptionJSON             = Option("json")
+	OptionNotModifiable    = Option("nm")
 )
 
 type OptionSet map[Option]bool

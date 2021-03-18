@@ -346,7 +346,7 @@ func (h *Handler) index(w http.ResponseWriter, l *Lookup, f IndexFormat) {
 		return
 	}
 
-	if l.Options[OptionMachineReadable] {
+	if l.Options[OptionMachineToMachine] {
 		f = mrFormat
 	} else if l.Options[OptionJSON] || f == nil {
 		f = jsonFormat
@@ -393,7 +393,7 @@ func (h *Handler) stats(w http.ResponseWriter, l *Lookup) {
 		return
 	}
 
-	if h.statsTemplate != nil && !(l.Options[OptionJSON] || l.Options[OptionMachineReadable]) {
+	if h.statsTemplate != nil && !(l.Options[OptionJSON] || l.Options[OptionMachineToMachine]) {
 		err = h.statsTemplate.Execute(w, data)
 	} else {
 		err = json.NewEncoder(w).Encode(data)
