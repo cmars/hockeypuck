@@ -230,9 +230,11 @@ func (s *Server) stats() (interface{}, error) {
 	}
 
 	if s.settings.SksCompat {
-		t, _ := time.Parse(time.RFC3339, result.Now)
-		result.Now = t.UTC().Format("2021-03-18 12:40:23 UTC")
+		_t, _ := time.Parse(time.RFC3339, result.Now)
+		result.HTTPAddr = strings.Split(s.settings.HKP.Bind, ":")[1]
+		result.Now = _t.UTC().Format("2021-03-18 12:40:23 UTC")
 		result.NumKeys = sksStats.Total
+		result.ReconAddr = strings.Split(s.settings.Conflux.Recon.Settings.ReconAddr, ":")[1]
 		result.ServerContact = s.settings.Contact
 	}
 
