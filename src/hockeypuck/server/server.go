@@ -169,14 +169,14 @@ type stats struct {
 	Version     string           `json:"version"`
 	Hostname    string           `json:"hostname"`
 	Nodename    string           `json:"nodename"`
-	Contact     string           `json:"contact"`
+	Contact     string           `json:"server_contact"`
 	HTTPAddr    string           `json:"httpAddr"`
 	QueryConfig statsQueryConfig `json:"queryConfig"`
 	ReconAddr   string           `json:"reconAddr"`
 	Software    string           `json:"software"`
 	Peers       []statsPeer      `json:"peers"`
 
-	Total  int
+	Total  int                   `json:"numkeys"`
 	Hourly []loadStat
 	Daily  []loadStat
 }
