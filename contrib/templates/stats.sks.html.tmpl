@@ -1,0 +1,45 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd" >
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>Hockeypuck OpenPGP Keyserver Statistics&nbsp;|&nbsp;Taken at {{ .Now }}</title>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+<link href='/assets/css/pks.min.css' rel='stylesheet' type='text/css'>
+<style type="text/css">
+/*<![CDATA[*/
+.uid { color: green; text-decoration: underline; }
+.warn { color: red; font-weight: bold; }
+.disclaimer { font-family: sans; font-size: 0.8em; background-color: #f6f6f6; border-bottom: 1px solid #e0e0e0; padding: 0.8em; }
+/*]]>*/
+</style></head><body><div class="disclaimer">Information displayed on this website, including public keyblocks and anything associated with them, <em>is not cryptographically verified</em>. Always inspect public keyblocks using OpenPGP software on a secured device that you control to see verified information.</div><h1>Hockeypuck OpenPGP Keyserver Statistics<br />Taken at {{ .Now }}</h1><h2>Settings</h2>
+    <table>
+    <tr><td>Hostname:</td><td>{{ .Hostname }}</td></tr>
+    <tr><td>Nodename:</td><td>{{ .Nodename }}</td></tr>
+    <tr><td>Version:</td><td>{{ .Version }}</td></tr>
+    {{ if .Contact }}<tr><td>Server contact:</td><td>{{ .Contact }}</td></tr>{{ end }}
+    <tr><td>HTTP port:</td><td>{{ .HTTPAddr }}</td></tr>
+    <tr><td>Recon port:</td><td>{{ .ReconAddr }}</td></tr>
+</table>
+
+<table summary="Keyserver Peers" width="100%">
+<tr valign="top"><td>
+<h2>Gossip Peers</h2>
+<table summary="Gossip Peers">
+{{ range $peer := .Peers }}<tr><td>{{ $peer.ReconAddr }}</td></tr>
+{{ end }}</table>
+</td><td>
+<h2>Outgoing Mailsync Peers</h2>
+<table summary="Mailsync Peers">
+</table>
+(Gossip peers on the left automatically redacted for sks-keyservers.net compatibility)</td></tr></table>
+<h2>Statistics</h2><p>Total number of keys: {{ .Total }}</p>
+<h3>Daily Histogram</h3>
+<table summary="Statistics" border="1">
+<tr><th>Day</th><th>New Keys</th><th>Updated Keys</th></tr>
+{{ range $stats := .Daily }}<tr><td>{{ day $stats.Time }}</td><td>{{ $stats.Inserted }}</td><td>{{ $stats.Updated }}</td></tr>
+{{ end }}</table>
+<h3>Hourly Histogram</h3>
+<table summary="Statistics" border="1">
+<tr><th>Hour</th><th>New Keys</th><th>Updated Keys</th></tr>
+{{ range $stats := .Hourly }}<tr><td>{{ hour $stats.Time }}</td><td>{{ $stats.Inserted }}</td><td>{{ $stats.Updated }}</td></tr>
+{{ end }}</table>
+</body></html>

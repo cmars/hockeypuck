@@ -19,6 +19,7 @@ all: lint test build
 build:
 
 clean: clean-go
+	rm -rf debian/{.debhelper/,hockeypuck.debhelper.log,hockeypuck.postinst.debhelper,hockeypuck.postrm.debhelper,hockeypuck.prerm.debhelper,hockeypuck.substvars,hockeypuck/}
 
 clean-go:
 	-chmod -R u+rwX pkg
