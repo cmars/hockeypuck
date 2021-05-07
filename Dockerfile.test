@@ -1,0 +1,18 @@
+FROM ubuntu:latest
+
+ENV GO_VERSION="1.15.12"
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+  && apt-get install -y postgresql wget build-essential \
+  && wget -q "https://golang.org/dl/go${GO_VERSION}.linux-amd64.tar.gz" -O "/tmp/go${GO_VERSION}.linux-amd64.tar.gz" \
+  && rm -rf /usr/local/go && tar -C /usr/local -xzf "/tmp/go${GO_VERSION}.linux-amd64.tar.gz" \
+  && cp /usr/local/go/bin/* /usr/bin/ \
+  && groupadd -g 999 hockeypuck \
+  && useradd -r -u 999 -g hockeypuck hockeypuck
+
+COPY . /app/
+RUN chown -R hockeypuck:hockeypuck /app
+
+USER hockeypuck
+WORKDIR /app
