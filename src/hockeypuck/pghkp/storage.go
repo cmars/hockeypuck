@@ -678,7 +678,7 @@ func keywordsFromKey(key *openpgp.PrimaryKey) []string {
 				if !utf8.ValidRune(r) {
 					return true
 				}
-				if unicode.IsLetter(r) || unicode.IsNumber(r) {
+				if unicode.IsLetter(r) || unicode.IsNumber(r) || r == '-' {
 					return false
 				}
 				return true

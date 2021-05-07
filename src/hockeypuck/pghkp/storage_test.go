@@ -228,6 +228,58 @@ func (s *S) TestResolve(c *gc.C) {
 	}
 }
 
+func (s *S) TestResolveWithHyphen(c *gc.C) {
+	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=0x2632c2c3")
+	c.Assert(err, gc.IsNil)
+	res.Body.Close()
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusNotFound)
+
+	s.addKey(c, "steven-12345.asc")
+
+	keyDocs := s.queryAllKeys(c)
+	c.Assert(keyDocs, gc.HasLen, 1)
+	c.Assert(keyDocs[0].assertParse(c).ShortKeyID, gc.Equals, "2632c2c3")
+
+	// Should match
+	for _, search := range []string{
+		// short, long and full fingerprint key IDs match
+		"0x2632c2c3", "0x3287f5a32632c2c3", "0x68d1b3d8b76c50f7c97038393287f5a32632c2c3",
+
+		// contiguous words, usernames, domains and email addresses match
+		"steven", "steven-12345", "Test", "Encryption", "Test+Encryption", "TeSt+EnCrYpTiOn",
+		"steven-test@example.com", "steven-test", "example.com",
+
+		// full textual IDs that include characters special to tsquery match
+		"steven-12345+(Test+Encryption)+<steven-test@example.com>"} {
+		comment := gc.Commentf("search=%s", search)
+		res, err = http.Get(s.srv.URL + "/pks/lookup?op=get&search=" + search)
+		c.Assert(err, gc.IsNil, comment)
+		armor, err := ioutil.ReadAll(res.Body)
+		res.Body.Close()
+		c.Assert(err, gc.IsNil, comment)
+		c.Assert(res.StatusCode, gc.Equals, http.StatusOK, comment)
+
+		keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
+		c.Assert(keys, gc.HasLen, 1)
+		c.Assert(keys[0].ShortID(), gc.Equals, "2632c2c3")
+		c.Assert(keys[0].UserIDs, gc.HasLen, 1)
+		c.Assert(keys[0].UserAttributes, gc.HasLen, 0)
+		c.Assert(keys[0].UserIDs[0].Keywords, gc.Equals, "steven-12345 (Test Encryption) <steven-test@example.com>")
+	}
+
+	// Shouldn't match any of these
+	for _, search := range []string{
+		"0xdeadbeef", "0xce353cf4", "0xd1db", "44a2d1db", "0xadaf79362da44a2d1db",
+		"alice@example.com", "bob@example.com", "com"} {
+		comment := gc.Commentf("search=%s", search)
+		res, err = http.Get(s.srv.URL + "/pks/lookup?op=get&search=" + search)
+		c.Assert(err, gc.IsNil, comment)
+		res.Body.Close()
+		c.Assert(res.StatusCode, gc.Equals, http.StatusNotFound, comment)
+	}
+}
+
 func (s *S) TestMerge(c *gc.C) {
 	s.addKey(c, "alice_unsigned.asc")
 	s.addKey(c, "alice_signed.asc")
