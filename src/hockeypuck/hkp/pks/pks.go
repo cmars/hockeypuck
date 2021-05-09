@@ -24,7 +24,7 @@ import (
 	"strings"
 	"time"
 
-	"gopkg.in/errgo.v1"
+	"github.com/pkg/errors"
 	"gopkg.in/tomb.v2"
 
 	log "hockeypuck/logrus"
@@ -81,7 +81,7 @@ type Sender struct {
 // Initialize from command line switches if fields not set.
 func NewSender(hkpStorage storage.Storage, pksStorage Storage, config *Config) (*Sender, error) {
 	if config == nil {
-		return nil, errgo.New("PKS mail synchronization not configured")
+		return nil, errors.New("PKS mail synchronization not configured")
 	}
 
 	sender := &Sender{
@@ -96,7 +96,7 @@ func NewSender(hkpStorage storage.Storage, pksStorage Storage, config *Config) (
 		// Strip off the port, use only the hostname for auth
 		authHost, _, err = net.SplitHostPort(authHost)
 		if err != nil {
-			return nil, errgo.Mask(err)
+			return nil, errors.WithStack(err)
 		}
 	}
 	sender.smtpAuth = smtp.PlainAuth(
@@ -106,7 +106,7 @@ func NewSender(hkpStorage storage.Storage, pksStorage Storage, config *Config) (
 
 	err = sender.initStatus()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	return sender, nil
 }
@@ -115,7 +115,7 @@ func (sender *Sender) initStatus() error {
 	for _, emailAddr := range sender.config.To {
 		err := sender.pksStorage.Init(emailAddr)
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 	}
 	return nil
@@ -124,12 +124,12 @@ func (sender *Sender) initStatus() error {
 func (sender *Sender) SendKeys(status Status) error {
 	uuids, err := sender.hkpStorage.ModifiedSince(status.LastSync)
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 
 	keys, err := sender.hkpStorage.FetchKeyrings(uuids)
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	for _, key := range keys {
 		// Send key email
@@ -137,13 +137,13 @@ func (sender *Sender) SendKeys(status Status) error {
 		err = sender.SendKey(status.Addr, key.PrimaryKey)
 		if err != nil {
 			log.Errorf("error sending key to PKS %s: %v", status.Addr, err)
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 		// Send successful, update the timestamp accordingly
 		status.LastSync = key.MTime
 		err = sender.pksStorage.Update(status)
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 	}
 	return nil

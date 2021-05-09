@@ -27,15 +27,15 @@ package openpgp
 import (
 	"bytes"
 	"crypto/sha256"
-	"errors"
+	"fmt"
 
+	"github.com/pkg/errors"
 	"golang.org/x/crypto/openpgp/packet"
 	"gopkg.in/basen.v1"
-	"gopkg.in/errgo.v1"
 )
 
-var ErrInvalidPacketType error = errors.New("Invalid packet type")
-var ErrPacketRecordState error = errors.New("Packet record state has not been properly initialized")
+var ErrInvalidPacketType error = fmt.Errorf("Invalid packet type")
+var ErrPacketRecordState error = fmt.Errorf("Packet record state has not been properly initialized")
 
 type Packet struct {
 
@@ -69,7 +69,7 @@ func ParseOther(op *packet.OpaquePacket, parentID string) (*Packet, error) {
 	var buf bytes.Buffer
 	err := op.Serialize(&buf)
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 
 	return &Packet{
@@ -112,7 +112,7 @@ func (p *Packet) uuid() string {
 func (p *Packet) removeDuplicate(parent packetNode, dup packetNode) error {
 	dupPacket, ok := dup.(*Packet)
 	if !ok {
-		return errgo.Newf("invalid packet duplicate: %+v", dup)
+		return errors.Errorf("invalid packet duplicate: %+v", dup)
 	}
 	switch ppkt := parent.(type) {
 	case *PrimaryKey:

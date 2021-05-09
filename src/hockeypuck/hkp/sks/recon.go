@@ -29,7 +29,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"gopkg.in/errgo.v1"
+	"github.com/hashicorp/golang-lru"
+	"github.com/pkg/errors"
 	"gopkg.in/tomb.v2"
 
 	cf "hockeypuck/conflux"
@@ -44,7 +45,9 @@ const (
 	RECON                  = "recon"
 	httpClientTimeout      = 30
 	maxKeyRecoveryAttempts = 10
-	requestChunkSize       = 100
+	maxRequestChunkSize    = 100
+	minRequestChunkSize    = 1
+	seenCacheSize          = 16384
 )
 
 type keyRecoveryCounter map[string]int
@@ -56,6 +59,13 @@ type Peer struct {
 	ptree            recon.PrefixTree
 	http             *http.Client
 	keyReaderOptions []openpgp.KeyReaderOption
+	userAgent        string
+
+	// Adaptive request size
+	requestChunkSize int
+	slowStart        bool
+
+	seenCache *lru.Cache
 
 	path  string
 	stats *Stats
@@ -68,24 +78,29 @@ func NewPrefixTree(path string, s *recon.Settings) (recon.PrefixTree, error) {
 		log.Debugf("creating prefix tree at: %q", path)
 		err = os.MkdirAll(path, 0755)
 		if err != nil {
-			return nil, errgo.Mask(err)
+			return nil, errors.WithStack(err)
 		}
 	}
 	return leveldb.New(s.PTreeConfig, path)
 }
 
-func NewPeer(st storage.Storage, path string, s *recon.Settings, opts []openpgp.KeyReaderOption) (*Peer, error) {
+func NewPeer(st storage.Storage, path string, s *recon.Settings, opts []openpgp.KeyReaderOption, userAgent string) (*Peer, error) {
 	if s == nil {
 		s = recon.DefaultSettings()
 	}
 
 	ptree, err := NewPrefixTree(path, s)
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	err = ptree.Create()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
+	}
+
+	cache, err := lru.New(seenCacheSize)
+	if err != nil {
+		return nil, errors.WithStack(err)
 	}
 
 	peer := recon.NewPeer(s, ptree)
@@ -97,7 +112,11 @@ func NewPeer(st storage.Storage, path string, s *recon.Settings, opts []openpgp.
 		http: &http.Client{
 			Timeout: httpClientTimeout * time.Second,
 		},
+		requestChunkSize: minRequestChunkSize,
+		slowStart:        true,
+		seenCache:        cache,
 		keyReaderOptions: opts,
+		userAgent:        userAgent,
 		path:             path,
 	}
 	sksPeer.readStats()
@@ -178,20 +197,20 @@ func (r *Peer) Stop() {
 	r.t.Kill(nil)
 	err := r.t.Wait()
 	if err != nil {
-		r.log(RECON).Error(errgo.Details(err))
+		r.log(RECON).Errorf("%+v", err)
 	}
 	r.log(RECON).Info("recon processing: stopped")
 
 	r.log(RECON).Info("recon peer: stopping")
-	err = errgo.Mask(r.peer.Stop())
+	err = errors.WithStack(r.peer.Stop())
 	if err != nil {
-		r.log(RECON).Error(errgo.Details(err))
+		r.log(RECON).Errorf("%+v", err)
 	}
 	r.log(RECON).Info("recon peer: stopped")
 
 	err = r.ptree.Close()
 	if err != nil {
-		r.log(RECON).Errorf("error closing prefix tree: %v", errgo.Details(err))
+		r.log(RECON).Errorf("error closing prefix tree: %+v", err)
 	}
 
 	r.writeStats()
@@ -200,7 +219,7 @@ func (r *Peer) Stop() {
 func DigestZp(digest string, zp *cf.Zp) error {
 	buf, err := hex.DecodeString(digest)
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	buf = recon.PadSksElement(buf)
 	zp.In(cf.P_SKS).SetBytes(buf)
@@ -214,7 +233,7 @@ func (r *Peer) updateDigests(change storage.KeyChange) error {
 		toInsert := make([]cf.Zp, 1)
 		err := DigestZp(digest, &toInsert[0])
 		if err != nil {
-			return errgo.Notef(err, "bad digest %q", digest)
+			return errors.Wrapf(err, "bad digest %q", digest)
 		}
 		r.peer.Insert(toInsert...)
 	}
@@ -222,7 +241,7 @@ func (r *Peer) updateDigests(change storage.KeyChange) error {
 		toRemove := make([]cf.Zp, 1)
 		err := DigestZp(digest, &toRemove[0])
 		if err != nil {
-			return errgo.Notef(err, "bad digest %q", digest)
+			return errors.Wrapf(err, "bad digest %q", digest)
 		}
 		r.peer.Remove(toRemove...)
 	}
@@ -245,26 +264,67 @@ func (r *Peer) handleRecovery() error {
 	}
 }
 
+func (r *Peer) unseenRemoteElements(rcvr *recon.Recover) []cf.Zp {
+	unseenElements := make([]cf.Zp, 0)
+	for _, v := range rcvr.RemoteElements {
+		_, found := r.seenCache.Get(v.FullKeyHash())
+		if !found {
+			unseenElements = append(unseenElements, v)
+		}
+	}
+	if len(unseenElements) < len(rcvr.RemoteElements) {
+		log.Infof("recovering %d instead of %d due to seenCache(%d)",
+			len(unseenElements), len(rcvr.RemoteElements), r.seenCache.Len())
+	}
+	return unseenElements
+}
+
 func (r *Peer) requestRecovered(rcvr *recon.Recover) error {
-	items := rcvr.RemoteElements
+	items := r.unseenRemoteElements(rcvr)
 	errCount := 0
+	// Chunk requests to keep the hashquery message size and peer load reasonable.
+	// Using additive increase, multiplicative decrease (AIMD) to adapt chunk size,
+	// similar to TCP, including "slow start" (exponential increase at start when
+	// not yet in AIMD mode).
 	for len(items) > 0 {
-		// Chunk requests to keep the hashquery message size and peer load reasonable.
-		chunksize := requestChunkSize
+		chunksize := r.requestChunkSize
 		if chunksize > len(items) {
 			chunksize = len(items)
 		}
 		chunk := items[:chunksize]
-		items = items[chunksize:]
 
 		err := r.requestChunk(rcvr, chunk)
-		if err != nil {
-			r.logAddr(RECON, rcvr.RemoteAddr).Errorf("failed to request chunk of %d keys: %v", len(chunk), err)
-			errCount += 1
+		if err == nil || chunksize <= minRequestChunkSize {
+			// Advance chunk window if successful or already at minimum size.
+			// (If it failed, we will retry with a smaller chunk size.)
+			items = items[chunksize:]
 		}
+		if err != nil {
+			// Failure: Multiplicate Decrease and end Slow Start.
+			r.requestChunkSize = len(chunk) / 2
+			r.slowStart = false
+			if r.requestChunkSize < minRequestChunkSize {
+				r.requestChunkSize = minRequestChunkSize
+			}
+			r.logAddr(RECON, rcvr.RemoteAddr).Errorf("failed to request chunk of %d keys, shrinking: %v", len(chunk), err)
+			errCount += 1
+		} else {
+			if r.slowStart {
+				r.requestChunkSize *= 2
+			} else {
+				r.requestChunkSize += 1
+			}
+			if r.requestChunkSize > maxRequestChunkSize {
+				r.requestChunkSize = maxRequestChunkSize
+			}
+			for _, v := range chunk {
+				r.seenCache.Add(v.FullKeyHash(), nil)
+			}
+		}
+
 	}
 	if errCount > 0 {
-		return errgo.Newf("%d errors requesting chunks", errCount)
+		return errors.Errorf("%d errors requesting chunks", errCount)
 	}
 	return nil
 }
@@ -273,14 +333,14 @@ func (r *Peer) requestChunk(rcvr *recon.Recover, chunk []cf.Zp) error {
 	var remoteAddr string
 	remoteAddr, err := rcvr.HkpAddr()
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	r.logAddr(RECON, rcvr.RemoteAddr).Debugf("requesting %d keys from %q via hashquery", len(chunk), remoteAddr)
 	// Make an sks hashquery request
 	hqBuf := bytes.NewBuffer(nil)
 	err = recon.WriteInt(hqBuf, len(chunk))
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	for i := range chunk {
 		zb := chunk[i].Bytes()
@@ -289,18 +349,26 @@ func (r *Peer) requestChunk(rcvr *recon.Recover, chunk []cf.Zp) error {
 		zb = zb[:len(zb)-1]
 		err = recon.WriteInt(hqBuf, len(zb))
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 		_, err = hqBuf.Write(zb)
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 	}
 
 	url := fmt.Sprintf("http://%s/pks/hashquery", remoteAddr)
-	resp, err := r.http.Post(url, "sks/hashquery", bytes.NewReader(hqBuf.Bytes()))
+	req, err := http.NewRequest("POST", url, bytes.NewReader(hqBuf.Bytes()))
 	if err != nil {
-		return errgo.NoteMask(err, "failed to query hashes")
+		return errors.WithStack(err)
+	}
+	req.Header.Set("Content-type", "sks/hashquery")
+	if r.userAgent != "" {
+		req.Header.Set("User-agent", r.userAgent)
+	}
+	resp, err := r.http.Do(req)
+	if err != nil {
+		return errors.Wrap(err, "failed to query hashes")
 	}
 
 	// Store response in memory. Connection may timeout if we
@@ -308,19 +376,19 @@ func (r *Peer) requestChunk(rcvr *recon.Recover, chunk []cf.Zp) error {
 	var body *bytes.Buffer
 	bodyBuf, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	body = bytes.NewBuffer(bodyBuf)
 	resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return errgo.Newf("error response from %q: %v", remoteAddr, string(bodyBuf))
+		return errors.Errorf("error response from %q: %v", remoteAddr, string(bodyBuf))
 	}
 
 	var nkeys, keyLen int
 	nkeys, err = recon.ReadInt(body)
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	r.logAddr(RECON, rcvr.RemoteAddr).Debugf("hashquery response from %q: %d keys found", remoteAddr, nkeys)
 	summary := &upsertResult{}
@@ -334,18 +402,19 @@ func (r *Peer) requestChunk(rcvr *recon.Recover, chunk []cf.Zp) error {
 	for i := 0; i < nkeys; i++ {
 		keyLen, err = recon.ReadInt(body)
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 		keyBuf := bytes.NewBuffer(nil)
 		_, err = io.CopyN(keyBuf, body, int64(keyLen))
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 		r.logAddr(RECON, rcvr.RemoteAddr).Debugf("key# %d: %d bytes", i+1, keyLen)
 		// Merge locally
 		res, err := r.upsertKeys(rcvr, keyBuf.Bytes())
 		if err != nil {
 			r.logAddr(RECON, rcvr.RemoteAddr).Errorf("cannot upsert: %v", err)
+			continue
 		}
 		summary.add(res)
 	}
@@ -370,17 +439,17 @@ func (r *Peer) upsertKeys(rcvr *recon.Recover, buf []byte) (*upsertResult, error
 	kr := openpgp.NewKeyReader(bytes.NewBuffer(buf), r.keyReaderOptions...)
 	keys, err := kr.Read()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	result := &upsertResult{}
 	for _, key := range keys {
 		err := openpgp.DropDuplicates(key)
 		if err != nil {
-			return nil, errgo.Mask(err)
+			return nil, errors.WithStack(err)
 		}
 		keyChange, err := storage.UpsertKey(r.storage, key)
 		if err != nil {
-			return nil, errgo.Mask(err)
+			return nil, errors.WithStack(err)
 		}
 		r.logAddr(RECON, rcvr.RemoteAddr).Debug(keyChange)
 		switch keyChange.(type) {

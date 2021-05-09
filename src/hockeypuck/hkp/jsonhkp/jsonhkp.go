@@ -27,7 +27,7 @@ import (
 	"net/url"
 	"time"
 
-	"gopkg.in/errgo.v1"
+	"github.com/pkg/errors"
 
 	"hockeypuck/openpgp"
 )
@@ -140,7 +140,7 @@ func (pk *PrimaryKey) Serialize(w io.Writer) error {
 	for _, packet := range packets {
 		_, err := w.Write(packet.Data)
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 	}
 	return nil

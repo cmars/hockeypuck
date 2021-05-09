@@ -23,7 +23,7 @@ import (
 	"sync"
 	"time"
 
-	"gopkg.in/errgo.v1"
+	"github.com/pkg/errors"
 	"hockeypuck/hkp/storage"
 )
 
@@ -46,12 +46,12 @@ func (m LoadStatMap) UnmarshalJSON(b []byte) error {
 	doc := map[string]*LoadStat{}
 	err := json.Unmarshal(b, &doc)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	for k, v := range doc {
 		t, err := time.Parse(time.RFC3339, k)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		m[t] = v
 	}
@@ -148,12 +148,12 @@ func (s *Stats) ReadFile(path string) error {
 		s.reset()
 		return nil
 	} else if err != nil {
-		return errgo.Notef(err, "cannot open stats %q", path)
+		return errors.Wrapf(err, "cannot open stats %q", path)
 	}
 	defer f.Close()
 
 	if err := json.NewDecoder(f).Decode(s); err != nil {
-		return errgo.Notef(err, "cannot decode stats")
+		return errors.Wrapf(err, "cannot decode stats")
 	}
 	return nil
 }
@@ -164,12 +164,12 @@ func (s *Stats) WriteFile(path string) error {
 
 	f, err := os.Create(path)
 	if err != nil {
-		return errgo.Notef(err, "cannot open stats %q", path)
+		return errors.Wrapf(err, "cannot open stats %q", path)
 	}
 	defer f.Close()
 
 	if err := json.NewEncoder(f).Encode(s); err != nil {
-		return errgo.Notef(err, "cannot encode stats")
+		return errors.Wrapf(err, "cannot encode stats")
 	}
 	return nil
 }

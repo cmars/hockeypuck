@@ -34,10 +34,12 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/pkg/errors"
 	"github.com/syndtr/goleveldb/leveldb"
 
 	cf "hockeypuck/conflux"
 	"hockeypuck/conflux/recon"
+	log "hockeypuck/logrus"
 )
 
 type prefixTree struct {
@@ -94,40 +96,41 @@ func mustDecodeZZarray(buf []byte) []cf.Zp {
 
 const COLLECTION_NAME = "conflux.recon"
 
-func New(config recon.PTreeConfig, path string) (ptree recon.PrefixTree, err error) {
-	tree := &prefixTree{
+func New(config recon.PTreeConfig, path string) (recon.PrefixTree, error) {
+	return &prefixTree{
 		PTreeConfig: config,
 		path:        path,
-		points:      cf.Zpoints(cf.P_SKS, config.NumSamples())}
-	ptree = tree
-	return
+		points:      cf.Zpoints(cf.P_SKS, config.NumSamples())}, nil
 }
 
-func (t *prefixTree) Create() (err error) {
-	if t.db, err = leveldb.OpenFile(t.path, nil); err != nil {
-		return
+func (t *prefixTree) Create() error {
+	var err error
+	t.db, err = leveldb.OpenFile(t.path, nil)
+	if err != nil {
+		return errors.WithStack(err)
 	}
-	return t.ensureRoot()
+	return errors.WithStack(t.ensureRoot())
 }
 
 func (t *prefixTree) Drop() error {
 	if t.db != nil {
-		t.db.Close()
+		if err := t.db.Close(); err != nil {
+			log.Warningf("failed to close leveldb: %v", err)
+		}
 	}
-	return os.Remove(t.path)
+	return errors.WithStack(os.Remove(t.path))
 }
 
 func (t *prefixTree) Close() (err error) {
-	return t.db.Close()
+	return errors.WithStack(t.db.Close())
 }
 
-func (t *prefixTree) Init() {
-}
+func (t *prefixTree) Init() {}
 
 func (t *prefixTree) ensureRoot() (err error) {
 	_, err = t.Root()
-	if err != recon.ErrNodeNotFound {
-		return
+	if !errors.Is(err, recon.ErrNodeNotFound) {
+		return errors.WithStack(err)
 	}
 	root := t.newChildNode(nil, 0)
 	return root.upsertNode()
@@ -136,7 +139,11 @@ func (t *prefixTree) ensureRoot() (err error) {
 func (t *prefixTree) Points() []cf.Zp { return t.points }
 
 func (t *prefixTree) Root() (recon.PrefixNode, error) {
-	return t.Node(cf.NewBitstring(0))
+	n, err := t.Node(cf.NewBitstring(0))
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return n, nil
 }
 
 func (t *prefixTree) hasKey(key []byte) bool {
@@ -144,23 +151,25 @@ func (t *prefixTree) hasKey(key []byte) bool {
 	return err == nil
 }
 
-func (t *prefixTree) getNode(key []byte) (node *prefixNode, err error) {
+func (t *prefixTree) getNode(key []byte) (*prefixNode, error) {
 	var val []byte
+	var err error
 	if val, err = t.db.Get(key, nil); err != nil {
 		if err == leveldb.ErrNotFound {
-			err = recon.ErrNodeNotFound
+			return nil, errors.WithStack(recon.ErrNodeNotFound)
 		}
-		return
+		return nil, errors.WithStack(err)
 	}
 	if len(val) == 0 {
-		err = recon.ErrNodeNotFound
-		return
+		return nil, errors.WithStack(recon.ErrNodeNotFound)
 	}
 	dec := gob.NewDecoder(bytes.NewBuffer(val))
-	node = new(prefixNode)
-	err = dec.Decode(node)
+	node := new(prefixNode)
+	if err := dec.Decode(node); err != nil {
+		return nil, errors.WithStack(err)
+	}
 	node.prefixTree = t
-	return
+	return node, nil
 }
 
 func (t *prefixTree) Node(bs *cf.Bitstring) (node recon.PrefixNode, err error) {
@@ -169,14 +178,14 @@ func (t *prefixTree) Node(bs *cf.Bitstring) (node recon.PrefixNode, err error) {
 	nodeKey := mustEncodeBitstring(key)
 	for {
 		node, err = t.getNode(nodeKey)
-		if err != recon.ErrNodeNotFound || key.BitLen() == 0 {
+		if !errors.Is(err, recon.ErrNodeNotFound) || key.BitLen() == 0 {
 			break
 		}
 		key = cf.NewBitstring(key.BitLen() - nbq)
 		key.SetBytes(bs.Bytes())
 		nodeKey = mustEncodeBitstring(key)
 	}
-	return node, err
+	return node, errors.WithStack(err)
 }
 
 func (n *prefixNode) Config() *recon.PTreeConfig {
@@ -192,38 +201,38 @@ func (n *prefixNode) insert(z *cf.Zp, marray []cf.Zp, bs *cf.Bitstring, depth in
 			if len(n.NodeElements) > n.SplitThreshold() {
 				err = n.split(depth)
 				if err != nil {
-					return err
+					return errors.WithStack(err)
 				}
 			} else {
 				err = n.insertElement(z)
 				if err != nil {
-					return err
+					return errors.WithStack(err)
 				}
-				return n.upsertNode()
+				return errors.WithStack(n.upsertNode())
 			}
 		}
 		err = n.upsertNode()
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		childIndex := recon.NextChild(n, bs, depth)
 		children, err := n.Children()
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		n = children[childIndex].(*prefixNode)
 		depth++
 	}
 }
 
-func (n *prefixNode) deleteNode() (err error) {
-	err = n.db.Delete(n.NodeKey, nil)
-	return
+func (n *prefixNode) deleteNode() error {
+	err := n.db.Delete(n.NodeKey, nil)
+	return errors.WithStack(err)
 }
 
 func (n *prefixNode) deleteElements() error {
 	n.NodeElements = nil
-	return n.upsertNode()
+	return errors.WithStack(n.upsertNode())
 }
 
 func (n *prefixNode) deleteElement(element *cf.Zp) error {
@@ -241,21 +250,21 @@ func (n *prefixNode) deleteElement(element *cf.Zp) error {
 		return ErrElementNotFound(element)
 	}
 	n.NodeElements = elements
-	return n.upsertNode()
+	return errors.WithStack(n.upsertNode())
 }
 
 func (n *prefixNode) insertElement(element *cf.Zp) error {
 	n.NodeElements = append(n.NodeElements, element.Bytes())
-	return n.upsertNode()
+	return errors.WithStack(n.upsertNode())
 }
 
-func (n *prefixNode) split(depth int) (err error) {
+func (n *prefixNode) split(depth int) error {
 	splitElements := n.NodeElements
 	n.Leaf = false
 	n.NodeElements = nil
-	err = n.upsertNode()
+	err := n.upsertNode()
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	// Create child nodes
 	numChildren := 1 << uint(n.BitQuantum)
@@ -263,9 +272,9 @@ func (n *prefixNode) split(depth int) (err error) {
 	for i := 0; i < numChildren; i++ {
 		// Create new empty child node
 		child := n.newChildNode(n, i)
-		err = child.upsertNode()
+		err := child.upsertNode()
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		children = append(children, child)
 	}
@@ -277,11 +286,11 @@ func (n *prefixNode) split(depth int) (err error) {
 		child := children[childIndex]
 		marray, err := recon.AddElementArray(child, z)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		err = child.insert(z, marray, bs, depth+1)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 	}
 	return nil
@@ -298,18 +307,18 @@ func (n *prefixNode) remove(z *cf.Zp, marray []cf.Zp, bs *cf.Bitstring, depth in
 			if n.NumElements <= n.JoinThreshold() {
 				err = n.join()
 				if err != nil {
-					return err
+					return errors.WithStack(err)
 				}
 				break
 			} else {
 				err = n.upsertNode()
 				if err != nil {
-					return err
+					return errors.WithStack(err)
 				}
 				childIndex := recon.NextChild(n, bs, depth)
 				children, err := n.Children()
 				if err != nil {
-					return err
+					return errors.WithStack(err)
 				}
 				n = children[childIndex].(*prefixNode)
 				depth++
@@ -318,21 +327,21 @@ func (n *prefixNode) remove(z *cf.Zp, marray []cf.Zp, bs *cf.Bitstring, depth in
 	}
 	err = n.deleteElement(z)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
-	return n.upsertNode()
+	return errors.WithStack(n.upsertNode())
 }
 
 func (n *prefixNode) join() error {
 	var elements [][]byte
 	children, err := n.Children()
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	for _, child := range children {
 		elements = append(elements, child.(*prefixNode).NodeElements...)
 		if err := child.(*prefixNode).deleteNode(); err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 	}
 	n.NodeElements = elements
@@ -351,40 +360,40 @@ func ErrElementNotFound(z *cf.Zp) error {
 func (t *prefixTree) Insert(z *cf.Zp) error {
 	_, lookupErr := t.db.Get(z.Bytes(), nil)
 	if lookupErr == nil {
-		return ErrDuplicateElement(z)
+		return errors.WithStack(ErrDuplicateElement(z))
 	} else if lookupErr != leveldb.ErrNotFound {
 		return lookupErr
 	}
 	bs := cf.NewZpBitstring(z)
 	root, err := t.Root()
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	marray, err := recon.AddElementArray(t, z)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	err = root.(*prefixNode).insert(z, marray, bs, 0)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
-	return t.db.Put(z.Bytes(), []byte{}, nil)
+	return errors.WithStack(t.db.Put(z.Bytes(), []byte{}, nil))
 }
 
 func (t *prefixTree) Remove(z *cf.Zp) error {
 	_, lookupErr := t.db.Get(z.Bytes(), nil)
 	if lookupErr != nil {
-		return lookupErr
+		return errors.WithStack(lookupErr)
 	}
 	bs := cf.NewZpBitstring(z)
 	root, err := t.Root()
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	marray := recon.DelElementArray(t, z)
 	err = root.(*prefixNode).remove(z, marray, bs, 0)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	return t.db.Delete(z.Bytes(), nil)
 }
@@ -416,13 +425,13 @@ func (t *prefixTree) newChildNode(parent *prefixNode, childIndex int) *prefixNod
 	return n
 }
 
-func (n *prefixNode) upsertNode() (err error) {
+func (n *prefixNode) upsertNode() error {
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
-	if err = enc.Encode(n); err != nil {
-		return
+	if err := enc.Encode(n); err != nil {
+		return errors.WithStack(err)
 	}
-	return n.db.Put(n.NodeKey, buf.Bytes(), nil)
+	return errors.WithStack(n.db.Put(n.NodeKey, buf.Bytes(), nil))
 }
 
 func (n *prefixNode) IsLeaf() bool {
@@ -448,7 +457,7 @@ func (n *prefixNode) Children() ([]recon.PrefixNode, error) {
 		}
 		child, err := n.Node(childKey)
 		if err != nil {
-			return nil, fmt.Errorf("children failed on child#%v, key=%v: %v", i, childKey, err)
+			return nil, errors.Errorf("lookup failed on child#%v, key=%v: %v", i, childKey, err)
 		}
 		result = append(result, child)
 	}
@@ -465,12 +474,12 @@ func (n *prefixNode) Elements() ([]cf.Zp, error) {
 	} else {
 		children, err := n.Children()
 		if err != nil {
-			return nil, err
+			return nil, errors.WithStack(err)
 		}
 		for _, child := range children {
 			elements, err := child.Elements()
 			if err != nil {
-				return nil, err
+				return nil, errors.WithStack(err)
 			}
 			result = append(result, elements...)
 		}
@@ -497,7 +506,7 @@ func (n *prefixNode) Parent() (recon.PrefixNode, bool, error) {
 	parentKey.SetBytes(key.Bytes())
 	parent, err := n.Node(parentKey)
 	if err != nil {
-		return nil, false, fmt.Errorf("failed to get parent: %v", err)
+		return nil, false, errors.Errorf("failed to get parent: %v", err)
 	}
 	return parent, true, nil
 }

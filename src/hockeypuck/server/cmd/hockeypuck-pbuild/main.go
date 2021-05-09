@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"gopkg.in/errgo.v1"
+	"github.com/pkg/errors"
 	cf "hockeypuck/conflux"
 	"hockeypuck/hkp/sks"
 	"hockeypuck/hkp/storage"
@@ -33,11 +33,11 @@ func main() {
 	if configFile != nil {
 		conf, err := ioutil.ReadFile(*configFile)
 		if err != nil {
-			cmd.Die(errgo.Mask(err))
+			cmd.Die(errors.WithStack(err))
 		}
 		settings, err = server.ParseSettings(string(conf))
 		if err != nil {
-			cmd.Die(errgo.Mask(err))
+			cmd.Die(errors.WithStack(err))
 		}
 	}
 
@@ -65,17 +65,17 @@ func main() {
 func pbuild(settings *server.Settings) error {
 	st, err := server.DialStorage(settings)
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	defer st.Close()
 
 	ptree, err := sks.NewPrefixTree(settings.Conflux.Recon.LevelDB.Path, &settings.Conflux.Recon.Settings)
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	err = ptree.Create()
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	defer ptree.Close()
 
@@ -88,11 +88,11 @@ func pbuild(settings *server.Settings) error {
 			var digestZp cf.Zp
 			err := sks.DigestZp(ka.Digest, &digestZp)
 			if err != nil {
-				return errgo.Notef(err, "bad digest %q", ka.Digest)
+				return errors.Wrapf(err, "bad digest %q", ka.Digest)
 			}
 			err = ptree.Insert(&digestZp)
 			if err != nil {
-				return errgo.Notef(err, "failed to insert digest %q", ka.Digest)
+				return errors.Wrapf(err, "failed to insert digest %q", ka.Digest)
 			}
 
 			stats.Update(kc)
@@ -112,5 +112,5 @@ func pbuild(settings *server.Settings) error {
 		}
 	}()
 	err = st.RenotifyAll()
-	return errgo.Mask(err)
+	return errors.WithStack(err)
 }

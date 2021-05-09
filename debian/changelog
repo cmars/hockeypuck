@@ -1,6 +1,6 @@
-hockeypuck (2.0.16~1.gbp67a3b5) UNRELEASED; urgency=medium
+hockeypuck (2.1.0~1.gbpa56710) UNRELEASED; urgency=medium
 
-  ** SNAPSHOT build @67a3b5838c602916bcd805a8567b79892d819154 **
+  ** SNAPSHOT build @a56710502b2c2b22217ab45969c178b3bdf53d2c **
 
   [ Paul Collins ]
   * don't use errgo.Notef to collect all errors in requestRecovered
@@ -103,8 +103,43 @@ hockeypuck (2.0.16~1.gbp67a3b5) UNRELEASED; urgency=medium
   [ Casey Marshall ]
   * Expose HKP query configuration in op=stats&options=json
   * Filter out packets with invalid self-signatures in query response.
+  * New release script, removing obsolete scripts.
+  * Release 2.0.15
+  * Add script to publish docker image to Github.
+  * Update FUNDING.yml
 
- -- Casey Marshall <casey.marshall@canonical.com>  Tue, 31 Dec 2019 15:48:50 -0600
+  [ Wiktor Kwapisiewicz ]
+  * Fix calculation of key expiration
+
+  [ Casey Marshall ]
+  * Expose HKP query configuration in op=stats&options=json
+  * Filter out packets with invalid self-signatures in query response.
+  * Release 2.0.16
+  * Remove unused release architectures from debian/control.
+  * Remove contact section.
+
+  [ Thomas Cuthbert ]
+  * Update hockeypuck wrapper to support cpu and memory profiling
+
+  [ Casey Marshall ]
+  * Relocate go.mod, vendored dependencies, update goleveldb.
+  * Add pyinfra deployment.
+  * Add prometheus ops to pyinfra.
+  * Key reader options and improvements
+  * Integrated terraform support with pyinfra deployment.
+  * Remove test files.
+  * Block recon peer while recovering missing keys.
+  * Fix terraform google deployment.
+  * Add pull request gh action
+  * Remove mongodb support.
+  * Update deployment to pyinfra 1.2.
+  * Replace errgo with pkg/errors.
+  * Fix read length maximum errors.
+  * HIP-1, authenticated key replacement.
+  * Use replace rather than add endpoint.
+  * Default limits on packet length and overall key length.
+
+ --  <pi@raspberrypi>  Wed, 09 Dec 2020 22:45:06 -0600
 
 hockeypuck (2.0.14) bionic; urgency=medium
 

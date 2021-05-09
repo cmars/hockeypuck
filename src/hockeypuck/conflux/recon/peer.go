@@ -23,14 +23,13 @@ package recon
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"net"
 	"strings"
 	"sync"
 	"time"
 
-	"gopkg.in/errgo.v1"
+	"github.com/pkg/errors"
 	"gopkg.in/tomb.v2"
 	log "hockeypuck/logrus"
 
@@ -39,9 +38,9 @@ import (
 
 const SERVE = "serve"
 
-var ErrNodeNotFound error = errors.New("prefix-tree node not found")
+var ErrNodeNotFound error = fmt.Errorf("prefix-tree node not found")
 
-var ErrRemoteRejectedConfig error = errors.New("remote rejected configuration")
+var ErrRemoteRejectedConfig error = fmt.Errorf("remote rejected configuration")
 
 type Recover struct {
 	RemoteAddr     net.Addr
@@ -59,7 +58,7 @@ func (r *Recover) HkpAddr() (string, error) {
 	host, _, err := net.SplitHostPort(r.RemoteAddr.String())
 	if err != nil {
 		log.Errorf("cannot parse HKP remote address from %q: %v", r.RemoteAddr, err)
-		return "", errgo.Mask(err)
+		return "", errors.WithStack(err)
 	}
 	if strings.Contains(host, ":") {
 		host = fmt.Sprintf("[%s]", host)
@@ -140,11 +139,11 @@ func (p *Peer) logConnFields(label string, conn net.Conn, fields log.Fields) *lo
 }
 
 func (p *Peer) logErr(label string, err error) *log.Entry {
-	return p.logFields(label, log.Fields{"error": errgo.Details(err)})
+	return p.logFields(label, log.Fields{"error": fmt.Sprintf("%+v", err)})
 }
 
 func (p *Peer) logConnErr(label string, conn net.Conn, err error) *log.Entry {
-	return p.logConnFields(label, conn, log.Fields{"error": errgo.Details(err)})
+	return p.logConnFields(label, conn, log.Fields{"error": fmt.Sprintf("%+v", err)})
 }
 
 func (p *Peer) StartMode(mode PeerMode) {
@@ -265,7 +264,7 @@ func (p *Peer) flush() {
 		z := &p.insertElements[i]
 		err := p.ptree.Insert(z)
 		if err != nil {
-			log.Warningf("cannot insert %q (%s) into prefix tree: %v", z, z.FullKeyHash(), errgo.Details(err))
+			log.Warningf("cannot insert %q (%s) into prefix tree: %v", z, z.FullKeyHash(), err)
 		}
 	}
 	if len(p.insertElements) > 0 {
@@ -276,7 +275,7 @@ func (p *Peer) flush() {
 		z := &p.removeElements[i]
 		err := p.ptree.Remove(z)
 		if err != nil {
-			log.Warningf("cannot remove %q (%s) from prefix tree: %v", z, z.FullKeyHash(), errgo.Details(err))
+			log.Warningf("cannot remove %q (%s) from prefix tree: %v", z, z.FullKeyHash(), err)
 		}
 	}
 	if len(p.removeElements) > 0 {
@@ -294,17 +293,17 @@ func (p *Peer) flush() {
 func (p *Peer) Serve() error {
 	addr, err := p.settings.ReconNet.Resolve(p.settings.ReconAddr)
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	matcher, err := p.settings.Matcher()
 	if err != nil {
 		log.Errorf("cannot create matcher: %v", err)
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 
 	ln, err := net.Listen(addr.Network(), addr.String())
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	p.t.Go(func() error {
 		<-p.t.Dying()
@@ -314,7 +313,7 @@ func (p *Peer) Serve() error {
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 
 		if tcConn, ok := conn.(*net.TCPConn); ok {
@@ -338,7 +337,7 @@ func (p *Peer) Serve() error {
 			err = p.Accept(conn)
 			start := time.Now()
 			recordReconInitiate(conn.RemoteAddr(), SERVER)
-			if errgo.Cause(err) == ErrPeerBusy {
+			if errors.Is(err, ErrPeerBusy) {
 				p.logConnErr(GOSSIP, conn, err).Debug()
 				recordReconBusyPeer(conn.RemoteAddr(), SERVER)
 			} else if err != nil {
@@ -377,11 +376,11 @@ func (p *Peer) remoteConfig(conn net.Conn, role string, config *Config) (*Config
 		p.logConnFields(role, conn, log.Fields{"config": config}).Debug("writing config")
 		err := WriteMsg(w, config)
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 		err = w.Flush()
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 		return nil
 	})
@@ -391,12 +390,12 @@ func (p *Peer) remoteConfig(conn net.Conn, role string, config *Config) (*Config
 		var msg ReconMsg
 		msg, err := ReadMsg(conn)
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 
 		rconf, ok := msg.(*Config)
 		if !ok {
-			return errgo.Newf("expected remote config, got %+v", msg)
+			return errors.Errorf("expected remote config, got %+v", msg)
 		}
 
 		remoteConfig = rconf
@@ -405,7 +404,7 @@ func (p *Peer) remoteConfig(conn net.Conn, role string, config *Config) (*Config
 	close(ch)
 	err := t.Wait()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	return remoteConfig, nil
 }
@@ -423,25 +422,25 @@ func (p *Peer) ackConfig(conn net.Conn) error {
 		<-ch
 		err := WriteString(w, RemoteConfigPassed)
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 		err = w.Flush()
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 		return nil
 	})
 	t.Go(func() error {
 		remoteConfigStatus, err := ReadString(conn)
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 		if remoteConfigStatus != RemoteConfigPassed {
 			reason, err := ReadString(conn)
 			if err != nil {
-				return errgo.WithCausef(err, ErrRemoteRejectedConfig, "remote rejected config")
+				return errors.Wrapf(ErrRemoteRejectedConfig, "remote rejected config: %v", err)
 			}
-			return errgo.NoteMask(ErrRemoteRejectedConfig, reason)
+			return errors.Wrap(ErrRemoteRejectedConfig, reason)
 		}
 		return nil
 	})
@@ -454,12 +453,12 @@ func (p *Peer) handleConfig(conn net.Conn, role string, failResp string) (_ *Con
 
 	config, err := p.settings.Config()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 
 	remoteConfig, err := p.remoteConfig(conn, role, config)
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 
 	p.logConnFields(role, conn, log.Fields{"remoteConfig": remoteConfig}).Debug()
@@ -500,12 +499,12 @@ func (p *Peer) handleConfig(conn net.Conn, role string, failResp string) (_ *Con
 			p.logConnErr(role, conn, err)
 		}
 
-		return nil, errgo.Newf("cannot peer: %v", failResp)
+		return nil, errors.Errorf("cannot peer: %v", failResp)
 	}
 
 	err = p.ackConfig(conn)
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 
 	return remoteConfig, nil
@@ -530,7 +529,7 @@ func (p *Peer) Accept(conn net.Conn) (_err error) {
 
 	remoteConfig, err := p.handleConfig(conn, SERVE, failResp)
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 
 	if failResp == "" {
@@ -640,14 +639,14 @@ func (rwc *reconWithClient) isDone() bool {
 
 func (rwc *reconWithClient) sendRequest(p *Peer, req *requestEntry) error {
 	if req == nil {
-		return errgo.New("nil request")
+		return errors.New("nil request")
 	}
 
 	var msg ReconMsg
 	if req.node.IsLeaf() || (req.node.Size() < p.settings.MBar) {
 		elements, err := req.node.Elements()
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		msg = &ReconRqstFull{
 			Prefix:   req.key,
@@ -669,12 +668,12 @@ func (rwc *reconWithClient) handleReply(p *Peer, msg ReconMsg, req *requestEntry
 	switch m := msg.(type) {
 	case *SyncFail:
 		if req.node.IsLeaf() {
-			return errgo.New("Syncfail received at leaf node")
+			return errors.New("Syncfail received at leaf node")
 		}
 		rwc.Peer.logConn(SERVE, rwc.conn).Debug("SyncFail: pushing children")
 		children, err := req.node.Children()
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 		for i, childNode := range children {
 			rwc.Peer.logConnFields(SERVE, rwc.conn, log.Fields{"childNode": childNode.Key()}).Debug("push")
@@ -689,7 +688,7 @@ func (rwc *reconWithClient) handleReply(p *Peer, msg ReconMsg, req *requestEntry
 	case *FullElements:
 		elements, err := req.node.Elements()
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		local := cf.NewZSetSlice(elements)
 		localNeeds := cf.ZSetDiff(m.ZSet, local)
@@ -701,7 +700,7 @@ func (rwc *reconWithClient) handleReply(p *Peer, msg ReconMsg, req *requestEntry
 		rwc.messages = append(rwc.messages, elementsMsg)
 		rwc.rcvrSet.AddAll(localNeeds)
 	default:
-		return errgo.Newf("unexpected message: %v", m)
+		return errors.Errorf("unexpected message: %v", m)
 	}
 	return nil
 }
@@ -711,11 +710,11 @@ func (rwc *reconWithClient) flushQueue() error {
 	rwc.messages = append(rwc.messages, &Flush{})
 	err := WriteMsg(rwc.bwr, rwc.messages...)
 	if err != nil {
-		return errgo.NoteMask(err, "error writing messages")
+		return errors.Wrap(err, "error writing messages")
 	}
 	err = rwc.bwr.Flush()
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	rwc.messages = nil
 	rwc.pushBottom(&bottomEntry{state: reconStateFlushEnded})
@@ -737,7 +736,7 @@ func (p *Peer) interactWithClient(conn net.Conn, remoteConfig *Config, bitstring
 	}
 	root, err := p.ptree.Root()
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	defer func() {
@@ -759,7 +758,7 @@ func (p *Peer) interactWithClient(conn net.Conn, remoteConfig *Config, bitstring
 			}).Debug("interact: sending...")
 			err = recon.sendRequest(p, req)
 			if err != nil {
-				return err
+				return errors.WithStack(err)
 			}
 		case bottom.state == reconStateFlushEnded:
 			p.logConn(SERVE, conn).Debug("interact: flush ended, popBottom")
@@ -784,37 +783,37 @@ func (p *Peer) interactWithClient(conn net.Conn, remoteConfig *Config, bitstring
 				recon.popBottom()
 				err = recon.handleReply(p, msg, bottom.requestEntry)
 				if err != nil {
-					return errgo.Mask(err)
+					return errors.WithStack(err)
 				}
 			} else if len(recon.bottomQ) > p.settings.MaxOutstandingReconRequests ||
 				len(recon.requestQ) == 0 {
 				if !recon.flushing {
 					err = recon.flushQueue()
 					if err != nil {
-						return errgo.Mask(err)
+						return errors.WithStack(err)
 					}
 				} else {
 					recon.popBottom()
 					p.setReadDeadline(conn, 3*time.Second)
 					msg, err = ReadMsg(conn)
 					if err != nil {
-						return errgo.Mask(err)
+						return errors.WithStack(err)
 					}
 					p.logConnFields(SERVE, conn, log.Fields{"msg": msg}).Debug("reply")
 					err = recon.handleReply(p, msg, bottom.requestEntry)
 					if err != nil {
-						return errgo.Mask(err)
+						return errors.WithStack(err)
 					}
 				}
 			} else {
 				req := recon.popRequest()
 				err = recon.sendRequest(p, req)
 				if err != nil {
-					return err
+					return errors.WithStack(err)
 				}
 			}
 		default:
-			return errgo.New("failed to match expected patterns")
+			return errors.New("failed to match expected patterns")
 		}
 	}
 	return nil

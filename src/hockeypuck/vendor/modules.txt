@@ -18,16 +18,6 @@ github.com/certifi/gocertifi
 github.com/cespare/xxhash/v2
 # github.com/davecgh/go-spew v1.1.1
 github.com/davecgh/go-spew/spew
-# github.com/facebookgo/freeport v0.0.0-20150612182905-d4adf43b75b9
-github.com/facebookgo/freeport
-# github.com/facebookgo/mgotest v0.0.0-20150901200243-34c1160fa1f7
-github.com/facebookgo/mgotest
-# github.com/facebookgo/stack v0.0.0-20160209184415-751773369052
-github.com/facebookgo/stack
-# github.com/facebookgo/testname v0.0.0-20150612200628-5443337c3a12
-github.com/facebookgo/testname
-# github.com/facebookgo/waitout v0.0.0-20150612182919-ad2714ff0cfc
-github.com/facebookgo/waitout
 # github.com/getsentry/raven-go v0.2.0
 github.com/getsentry/raven-go
 # github.com/gofrs/uuid v3.3.0+incompatible
@@ -153,14 +143,6 @@ google.golang.org/protobuf/types/known/timestamppb
 gopkg.in/basen.v1
 # gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f
 gopkg.in/check.v1
-# gopkg.in/errgo.v1 v1.0.1
-gopkg.in/errgo.v1
-# gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22
-gopkg.in/mgo.v2
-gopkg.in/mgo.v2/bson
-gopkg.in/mgo.v2/internal/json
-gopkg.in/mgo.v2/internal/sasl
-gopkg.in/mgo.v2/internal/scram
 # gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637
 gopkg.in/tomb.v2
 # gopkg.in/yaml.v2 v2.3.0

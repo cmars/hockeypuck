@@ -23,27 +23,17 @@
 package conflux
 
 import (
-	"errors"
+	"fmt"
 	"math/big"
 
-	"gopkg.in/errgo.v1"
+	"github.com/pkg/errors"
 )
 
-var ErrInterpolate = errors.New("interpolation failed")
+var ErrInterpolate = fmt.Errorf("interpolation failed")
 
-var ErrLowMBar = errors.New("low MBar")
+var ErrLowMBar = fmt.Errorf("low MBar")
 
-var ErrPowModSmallN = errors.New("PowMod not implemented for small values of N")
-
-func IsInterpolateFailure(err error) bool {
-	switch err {
-	case ErrInterpolate:
-		return true
-	case ErrLowMBar:
-		return true
-	}
-	return false
-}
+var ErrPowModSmallN = fmt.Errorf("PowMod not implemented for small values of N")
 
 func abs(x int) int {
 	if x < 0 {
@@ -57,7 +47,7 @@ func abs(x int) int {
 // and denominator represent the disjoint members in two sets being reconciled.
 func Interpolate(values []Zp, points []Zp, degDiff int) (*RationalFn, error) {
 	if abs(degDiff) > len(values) {
-		return nil, errgo.Mask(ErrInterpolate, IsInterpolateFailure)
+		return nil, errors.WithStack(ErrInterpolate)
 	}
 	p := values[0].P()
 	mbar := len(values)
@@ -86,7 +76,7 @@ func Interpolate(values []Zp, points []Zp, degDiff int) (*RationalFn, error) {
 	}
 	err := matrix.Reduce()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	// Fill 'A' coefficients
 	acoeffs := make([]Zp, ma+1)
@@ -105,16 +95,16 @@ func Interpolate(values []Zp, points []Zp, degDiff int) (*RationalFn, error) {
 	// Reduce
 	g, err := PolyGcd(apoly, bpoly)
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	rfn := &RationalFn{}
 	rfn.Num, err = PolyDiv(apoly, g)
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	rfn.Denom, err = PolyDiv(bpoly, g)
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	return rfn, nil
 }
@@ -130,7 +120,7 @@ func polyPowMod(f *Poly, n *big.Int, g *Poly) (*Poly, error) {
 	n = big.NewInt(int64(0)).Set(n)
 	if n.BitLen() < 3 {
 		// Small values of n not useful for recon
-		return nil, errgo.Mask(ErrPowModSmallN)
+		return nil, errors.WithStack(ErrPowModSmallN)
 	}
 
 	var err error
@@ -140,7 +130,7 @@ func polyPowMod(f *Poly, n *big.Int, g *Poly) (*Poly, error) {
 			h = NewPoly().Mul(h, f)
 			h, err = PolyMod(h, g)
 			if err != nil {
-				return nil, errgo.Mask(err)
+				return nil, errors.WithStack(err)
 			}
 			n.Sub(n, one)
 		}
@@ -151,7 +141,7 @@ func polyPowMod(f *Poly, n *big.Int, g *Poly) (*Poly, error) {
 		f = NewPoly().Mul(f, f)
 		f, err = PolyMod(f, g)
 		if err != nil {
-			return nil, errgo.Mask(err)
+			return nil, errors.WithStack(err)
 		}
 	}
 	return h, nil
@@ -178,7 +168,7 @@ func PolyRand(p *big.Int, degree int) *Poly {
 func (p *Poly) Factor() (*ZSet, error) {
 	factors, err := p.factor()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	roots := NewZSet()
 	one := Zi(p.p, 1)
@@ -187,7 +177,7 @@ func (p *Poly) Factor() (*ZSet, error) {
 			continue
 		}
 		if f.degree != 1 {
-			return nil, errgo.Newf("invalid factor: (%v)", f)
+			return nil, errors.Errorf("invalid factor: (%v)", f)
 		}
 		roots.Add(f.coeff[0].Copy().Neg())
 	}
@@ -213,24 +203,24 @@ func (p *Poly) factor() ([]*Poly, error) {
 
 		h, err := polyPowMod(r, qh, p)
 		if err != nil {
-			return nil, errgo.Mask(err)
+			return nil, errors.WithStack(err)
 		}
 		g, err := PolyGcd(p, NewPoly().Sub(h, NewPoly(Zi(p.p, 1))))
 		if err != nil {
-			return nil, errgo.Mask(err)
+			return nil, errors.WithStack(err)
 		}
 		if !g.Equal(NewPoly(Zi(p.p, 1))) && !g.Equal(p) {
 			qfg, err := PolyDiv(p, g)
 			if err != nil {
-				return nil, errgo.Mask(err)
+				return nil, errors.WithStack(err)
 			}
 			factors, err = g.factor()
 			if err != nil {
-				return nil, errgo.Mask(err)
+				return nil, errors.WithStack(err)
 			}
 			qfgFactors, err := qfg.factor()
 			if err != nil {
-				return nil, errgo.Mask(err)
+				return nil, errors.WithStack(err)
 			}
 			factors = append(factors, qfgFactors...)
 		}
@@ -278,7 +268,7 @@ func Reconcile(values []Zp, points []Zp, degDiff int) (*ZSet, *ZSet, error) {
 	rfn, err := Interpolate(
 		values[:len(values)-1], points[:len(points)-1], degDiff)
 	if err != nil {
-		return nil, nil, errgo.Mask(err)
+		return nil, nil, errors.WithStack(err)
 	}
 	lastPoint := &points[len(points)-1]
 	var valFromPoly Zp
@@ -287,15 +277,15 @@ func Reconcile(values []Zp, points []Zp, degDiff int) (*ZSet, *ZSet, error) {
 	lastValue := &values[len(values)-1]
 	if valFromPoly.Cmp(lastValue) != 0 ||
 		!factorCheck(rfn.Num) || !factorCheck(rfn.Denom) {
-		return nil, nil, errgo.Mask(ErrLowMBar, IsInterpolateFailure)
+		return nil, nil, errors.WithStack(ErrLowMBar)
 	}
 	numF, err := rfn.Num.Factor()
 	if err != nil {
-		return nil, nil, errgo.Mask(err)
+		return nil, nil, errors.WithStack(err)
 	}
 	denomF, err := rfn.Denom.Factor()
 	if err != nil {
-		return nil, nil, errgo.Mask(err)
+		return nil, nil, errors.WithStack(err)
 	}
 	return numF, denomF, nil
 }

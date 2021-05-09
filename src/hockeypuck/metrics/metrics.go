@@ -4,8 +4,8 @@ package metrics
 import (
 	"net/http"
 
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"gopkg.in/errgo.v1"
 	"gopkg.in/tomb.v2"
 
 	log "hockeypuck/logrus"
@@ -54,7 +54,7 @@ func (m *Metrics) Start() {
 		if err := m.srv.ListenAndServe(); err != nil {
 			if err != http.ErrServerClosed {
 				log.Errorf("failed to serve metrics: %v", err)
-				return err
+				return errors.WithStack(err)
 			}
 		}
 		return tomb.ErrDying
@@ -69,7 +69,7 @@ func (m *Metrics) Stop() {
 	log.Info("metrics: stopping")
 	m.t.Kill(nil)
 	if err := m.t.Wait(); err != nil {
-		log.Error(errgo.Details(err))
+		log.Errorf("%+v", err)
 	}
 	log.Info("metrics: stopped")
 }

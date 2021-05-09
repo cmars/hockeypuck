@@ -1,38 +1,19 @@
 import os
 from subprocess import check_call
 
-from pyinfra import host
-from pyinfra.modules import apt, files, init, postgresql, server
+from pyinfra import host, local
+from pyinfra.operations import apt, files, init, postgresql, server
 
 os.chdir(os.path.dirname('./' + __file__))
 cwd = os.path.abspath('.')
 project_root = os.path.abspath('../..')
 
-server.user(
-    'hockeypuck',
-    home='/var/lib/hockeypuck',
-    system=True,
-    sudo=True,
-)
-
-create_install_dir = files.directory(
-    '/var/lib/hockeypuck',
-    user='hockeypuck',
-    group='hockeypuck',
-    sudo=True,
-)
-
-files.directory(
-    '/etc/hockeypuck',
-    user='root',
-    group='root',
-    sudo=True,
-)
+local.include('base.py')
 
 files.sync(
-    {'Sync templates'},
-    project_root+'/contrib/templates',
-    '/var/lib/hockeypuck/templates',
+    name='Sync templates',
+    src=project_root+'/contrib/templates',
+    dest='/var/lib/hockeypuck/templates',
     user='root',
     group='root',
     mode='644',
@@ -41,9 +22,9 @@ files.sync(
 )
 
 files.sync(
-    {'Sync webroot'},
-    project_root+'/contrib/webroot',
-    '/var/lib/hockeypuck/www',
+    name='Sync webroot',
+    src=project_root+'/contrib/webroot',
+    dest='/var/lib/hockeypuck/www',
     user='root',
     group='root',
     mode='644',
@@ -51,12 +32,14 @@ files.sync(
     sudo=True,
 )
 
-check_call(['go', 'install', 'hockeypuck/...'],
-           cwd=project_root)
+#os.environ['GOPATH'] = project_root
+os.environ.update({'GOPATH': project_root})
+check_call(['go', 'install', 'hockeypuck/...'])
+
 files.sync(
-    {'Install hockeypuck binaries'},
-    project_root+'/bin',
-    '/usr/bin',
+    name='Install hockeypuck binaries',
+    src=project_root+'/bin',
+    dest='/usr/bin',
     mode='755',
     user='root',
     group='root',
@@ -64,9 +47,9 @@ files.sync(
 )
 
 files.put(
-    {'Install hockeypuck service'},
-    project_root+'/debian/hockeypuck.service',
-    '/etc/systemd/system/hockeypuck.service',
+    name='Install hockeypuck service',
+    src=project_root+'/debian/hockeypuck.service',
+    dest='/etc/systemd/system/hockeypuck.service',
     mode='644',
     user='root',
     group='root',
@@ -74,32 +57,25 @@ files.put(
 )
 
 files.template(
-    {'Configure hockeypuck'},
-    'hockeypuck.conf',
-    '/etc/hockeypuck/hockeypuck.conf',
+    name='Configure hockeypuck',
+    src='hockeypuck.conf',
+    dest='/etc/hockeypuck/hockeypuck.conf',
     mode='644',
     sudo=True,
     peers=host.data.peers,
 )
 
-apt.packages(
-    {'Install postgresql'},
-    ['postgresql'],
-    latest=True,
-    sudo=True,
-)
-
 postgresql.role(
-    {'Create hockeypuck database role'},
-    'hockeypuck',
+    name='Create hockeypuck database role',
+    role='hockeypuck',
     login=True,
     sudo=True,
     sudo_user='postgres',
 )
 
 postgresql.database(
-    {'Create the hockeypuck database'},
-    'hockeypuck',
+    name='Create the hockeypuck database',
+    database='hockeypuck',
     owner='hockeypuck',
     encoding='UTF8',
     sudo=True,
@@ -107,8 +83,8 @@ postgresql.database(
 )
 
 init.systemd(
-    {'Start hockeypuck service'},
-    'hockeypuck',
+    name='Start hockeypuck service',
+    service='hockeypuck',
     running=True,
     restarted=True,
     enabled=True,

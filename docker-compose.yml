@@ -11,11 +11,12 @@ services:
     depends_on:
     - postgres
     volumes:
-    - ./contrib/docker-compose/devel/hockeypuck/etc:/hockeypuck/etc
+    - ./etc:/hockeypuck/etc
+    - ./keydump:/hockeypuck/keydump
     - hkp_data:/hockeypuck/data
 
   postgres:
-    image: postgres:11
+    image: postgres
     restart: always
     environment:
     - POSTGRES_USER=docker

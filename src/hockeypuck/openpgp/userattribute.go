@@ -21,8 +21,8 @@ import (
 	"bytes"
 	"strings"
 
+	"github.com/pkg/errors"
 	"golang.org/x/crypto/openpgp/packet"
-	"gopkg.in/errgo.v1"
 )
 
 type UserAttribute struct {
@@ -56,11 +56,11 @@ func (uat *UserAttribute) appendSignature(sig *Signature) {
 func (uat *UserAttribute) removeDuplicate(parent packetNode, dup packetNode) error {
 	pubkey, ok := parent.(*PrimaryKey)
 	if !ok {
-		return errgo.Newf("invalid uat parent: %+v", parent)
+		return errors.Errorf("invalid uat parent: %+v", parent)
 	}
 	dupUserAttribute, ok := dup.(*UserAttribute)
 	if !ok {
-		return errgo.Newf("invalid uat duplicate: %+v", dup)
+		return errors.Errorf("invalid uat duplicate: %+v", dup)
 	}
 
 	uat.Signatures = append(uat.Signatures, dupUserAttribute.Signatures...)
@@ -84,7 +84,7 @@ func (us uatSlice) without(target *UserAttribute) []*UserAttribute {
 func ParseUserAttribute(op *packet.OpaquePacket, parentID string) (*UserAttribute, error) {
 	var buf bytes.Buffer
 	if err := op.Serialize(&buf); err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	uat := &UserAttribute{
 		Packet: Packet{
@@ -96,7 +96,7 @@ func ParseUserAttribute(op *packet.OpaquePacket, parentID string) (*UserAttribut
 
 	u, err := uat.userAttributePacket()
 	if err != nil {
-		return nil, errgo.WithCausef(err, ErrInvalidPacketType, "")
+		return nil, errors.Wrapf(ErrInvalidPacketType, "%v", err)
 	}
 
 	uat.Images = u.ImageData()
@@ -107,15 +107,15 @@ func ParseUserAttribute(op *packet.OpaquePacket, parentID string) (*UserAttribut
 func (uat *UserAttribute) userAttributePacket() (*packet.UserAttribute, error) {
 	op, err := uat.opaquePacket()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	p, err := op.Parse()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	u, ok := p.(*packet.UserAttribute)
 	if !ok {
-		return nil, errgo.Newf("expected user attribute packet, got %T", p)
+		return nil, errors.Errorf("expected user attribute packet, got %T", p)
 	}
 	return u, nil
 }

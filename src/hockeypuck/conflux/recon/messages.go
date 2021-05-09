@@ -25,11 +25,10 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 
-	"gopkg.in/errgo.v1"
+	"github.com/pkg/errors"
 
 	cf "hockeypuck/conflux"
 )
@@ -131,29 +130,32 @@ func (msg *notImplMsg) marshal(w io.Writer) error {
 	panic("not implemented")
 }
 
-func ReadInt(r io.Reader) (n int, err error) {
+func ReadInt(r io.Reader) (int, error) {
 	buf := make([]byte, 4)
-	_, err = io.ReadFull(r, buf)
-	n = int(binary.BigEndian.Uint32(buf))
-	return
+	_, err := io.ReadFull(r, buf)
+	if err != nil {
+		return 0, errors.WithStack(err)
+	}
+	n := int(binary.BigEndian.Uint32(buf))
+	return n, err
 }
 
 func ReadLen(r io.Reader) (int, error) {
 	n, err := ReadInt(r)
 	if err != nil {
-		return n, errgo.Mask(err)
+		return n, errors.WithStack(err)
 	}
 	if n > maxReadLen {
-		return 0, errgo.Newf("read length %d exceeds maximum limit", n)
+		return 0, errors.Errorf("read length %d exceeds maximum limit", n)
 	}
 	return n, nil
 }
 
-func WriteInt(w io.Writer, n int) (err error) {
+func WriteInt(w io.Writer, n int) error {
 	buf := make([]byte, 4)
 	binary.BigEndian.PutUint32(buf, uint32(n))
-	_, err = w.Write(buf)
-	return
+	_, err := w.Write(buf)
+	return errors.WithStack(err)
 }
 
 func ReadString(r io.Reader) (string, error) {
@@ -167,80 +169,86 @@ func ReadString(r io.Reader) (string, error) {
 	return string(buf), err
 }
 
-func WriteString(w io.Writer, text string) (err error) {
-	err = WriteInt(w, len(text))
+func WriteString(w io.Writer, text string) error {
+	err := WriteInt(w, len(text))
 	if err != nil {
-		return
+		return errors.WithStack(err)
 	}
 	_, err = w.Write([]byte(text))
-	return
+	return errors.WithStack(err)
 }
 
 func ReadBitstring(r io.Reader) (*cf.Bitstring, error) {
-	nbits, err := ReadLen(r)
+	nbits, err := ReadInt(r)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	bs := cf.NewBitstring(nbits)
 	nbytes, err := ReadLen(r)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	if nbits == 0 {
 		return bs, nil
 	}
 	buf := make([]byte, nbytes)
 	_, err = io.ReadFull(r, buf)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
 	bs.SetBytes(buf)
-	return bs, err
+	return bs, nil
 }
 
-func WriteBitstring(w io.Writer, bs *cf.Bitstring) (err error) {
-	err = WriteInt(w, bs.BitLen())
+func WriteBitstring(w io.Writer, bs *cf.Bitstring) error {
+	err := WriteInt(w, bs.BitLen())
 	if err != nil {
-		return
+		return errors.WithStack(err)
 	}
 	err = WriteInt(w, len(bs.Bytes()))
 	if err != nil {
-		return
+		return errors.WithStack(err)
 	}
 	_, err = w.Write(bs.Bytes())
-	return
+	return errors.WithStack(err)
 }
 
 func ReadZZarray(r io.Reader) ([]cf.Zp, error) {
-	n, err := ReadLen(r)
+	n, err := ReadInt(r)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
+	}
+	if n*SksZpNbytes > maxReadLen {
+		return nil, errors.Errorf("read length %d exceeds maximum limit", n*SksZpNbytes)
 	}
 	arr := make([]cf.Zp, n)
 	for i := 0; i < n; i++ {
 		err := ReadZp(r, &arr[i])
 		if err != nil {
-			return nil, err
+			return nil, errors.WithStack(err)
 		}
 	}
 	return arr, nil
 }
 
-func WriteZZarray(w io.Writer, arr []cf.Zp) (err error) {
-	err = WriteInt(w, len(arr))
+func WriteZZarray(w io.Writer, arr []cf.Zp) error {
+	err := WriteInt(w, len(arr))
 	if err != nil {
-		return
+		return errors.WithStack(err)
 	}
 	for i := range arr {
 		err = WriteZp(w, &arr[i])
 		if err != nil {
-			return
+			return errors.WithStack(err)
 		}
 	}
-	return
+	return nil
 }
 
 func ReadZSet(r io.Reader) (*cf.ZSet, error) {
 	arr, err := ReadZZarray(r)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	zset := cf.NewZSet()
 	zset.AddSlice(arr)
@@ -255,24 +263,25 @@ func ReadZp(r io.Reader, zp *cf.Zp) error {
 	buf := make([]byte, SksZpNbytes)
 	_, err := io.ReadFull(r, buf)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	zp.In(cf.P_SKS).SetBytes(buf)
 	zp.Norm()
 	return nil
 }
 
-func WriteZp(w io.Writer, z *cf.Zp) (err error) {
+func WriteZp(w io.Writer, z *cf.Zp) error {
+	var err error
 	num := z.Bytes()
 	_, err = w.Write(num)
 	if err != nil {
-		return
+		return errors.WithStack(err)
 	}
 	if len(num) < SksZpNbytes {
 		pad := make([]byte, SksZpNbytes-len(num))
 		_, err = w.Write(pad)
 	}
-	return
+	return errors.WithStack(err)
 }
 
 type ReconRqstPoly struct {
@@ -290,30 +299,31 @@ func (msg *ReconRqstPoly) String() string {
 		msg.MsgType(), msg.Prefix, msg.Size, msg.Samples)
 }
 
-func (msg *ReconRqstPoly) marshal(w io.Writer) (err error) {
-	err = WriteBitstring(w, msg.Prefix)
+func (msg *ReconRqstPoly) marshal(w io.Writer) error {
+	err := WriteBitstring(w, msg.Prefix)
 	if err != nil {
-		return
+		return errors.WithStack(err)
 	}
 	err = WriteInt(w, msg.Size)
 	if err != nil {
-		return
+		return errors.WithStack(err)
 	}
 	err = WriteZZarray(w, msg.Samples)
-	return
+	return errors.WithStack(err)
 }
 
-func (msg *ReconRqstPoly) unmarshal(r io.Reader) (err error) {
+func (msg *ReconRqstPoly) unmarshal(r io.Reader) error {
+	var err error
 	msg.Prefix, err = ReadBitstring(r)
 	if err != nil {
-		return
+		return errors.WithStack(err)
 	}
 	msg.Size, err = ReadLen(r)
 	if err != nil {
-		return
+		return errors.WithStack(err)
 	}
 	msg.Samples, err = ReadZZarray(r)
-	return
+	return errors.WithStack(err)
 }
 
 type ReconRqstFull struct {
@@ -330,22 +340,23 @@ func (msg *ReconRqstFull) MsgType() MsgType {
 	return MsgTypeReconRqstFull
 }
 
-func (msg *ReconRqstFull) marshal(w io.Writer) (err error) {
-	err = WriteBitstring(w, msg.Prefix)
+func (msg *ReconRqstFull) marshal(w io.Writer) error {
+	err := WriteBitstring(w, msg.Prefix)
 	if err != nil {
-		return
+		return errors.WithStack(err)
 	}
 	err = WriteZSet(w, msg.Elements)
-	return
+	return errors.WithStack(err)
 }
 
-func (msg *ReconRqstFull) unmarshal(r io.Reader) (err error) {
+func (msg *ReconRqstFull) unmarshal(r io.Reader) error {
+	var err error
 	msg.Prefix, err = ReadBitstring(r)
 	if err != nil {
-		return
+		return errors.WithStack(err)
 	}
 	msg.Elements, err = ReadZSet(r)
-	return
+	return errors.WithStack(err)
 }
 
 type Elements struct {
@@ -360,14 +371,15 @@ func (msg *Elements) MsgType() MsgType {
 	return MsgTypeElements
 }
 
-func (msg *Elements) marshal(w io.Writer) (err error) {
-	err = WriteZSet(w, msg.ZSet)
-	return
+func (msg *Elements) marshal(w io.Writer) error {
+	err := WriteZSet(w, msg.ZSet)
+	return errors.WithStack(err)
 }
 
-func (msg *Elements) unmarshal(r io.Reader) (err error) {
+func (msg *Elements) unmarshal(r io.Reader) error {
+	var err error
 	msg.ZSet, err = ReadZSet(r)
-	return
+	return errors.WithStack(err)
 }
 
 type FullElements struct {
@@ -382,14 +394,15 @@ func (msg *FullElements) MsgType() MsgType {
 	return MsgTypeFullElements
 }
 
-func (msg *FullElements) marshal(w io.Writer) (err error) {
-	err = WriteZSet(w, msg.ZSet)
-	return
+func (msg *FullElements) marshal(w io.Writer) error {
+	err := WriteZSet(w, msg.ZSet)
+	return errors.WithStack(err)
 }
 
-func (msg *FullElements) unmarshal(r io.Reader) (err error) {
+func (msg *FullElements) unmarshal(r io.Reader) error {
+	var err error
 	msg.ZSet, err = ReadZSet(r)
-	return
+	return errors.WithStack(err)
 }
 
 type SyncFail struct {
@@ -485,66 +498,66 @@ func (msg *Config) MsgType() MsgType {
 	return MsgTypeConfig
 }
 
-func (msg *Config) marshal(w io.Writer) (err error) {
-	if err = WriteInt(w, 5+len(msg.Custom)); err != nil {
-		return
+func (msg *Config) marshal(w io.Writer) error {
+	if err := WriteInt(w, 5+len(msg.Custom)); err != nil {
+		return errors.WithStack(err)
 	}
-	if err = WriteString(w, "version"); err != nil {
-		return
+	if err := WriteString(w, "version"); err != nil {
+		return errors.WithStack(err)
 	}
-	if err = WriteString(w, msg.Version); err != nil {
-		return
+	if err := WriteString(w, msg.Version); err != nil {
+		return errors.WithStack(err)
 	}
-	if err = WriteString(w, "http port"); err != nil {
-		return
+	if err := WriteString(w, "http port"); err != nil {
+		return errors.WithStack(err)
 	}
-	if err = WriteInt(w, 4); err != nil {
-		return
+	if err := WriteInt(w, 4); err != nil {
+		return errors.WithStack(err)
 	}
-	if err = WriteInt(w, msg.HTTPPort); err != nil {
-		return
+	if err := WriteInt(w, msg.HTTPPort); err != nil {
+		return errors.WithStack(err)
 	}
-	if err = WriteString(w, "bitquantum"); err != nil {
-		return
+	if err := WriteString(w, "bitquantum"); err != nil {
+		return errors.WithStack(err)
 	}
-	if err = WriteInt(w, 4); err != nil {
-		return
+	if err := WriteInt(w, 4); err != nil {
+		return errors.WithStack(err)
 	}
-	if err = WriteInt(w, msg.BitQuantum); err != nil {
-		return
+	if err := WriteInt(w, msg.BitQuantum); err != nil {
+		return errors.WithStack(err)
 	}
-	if err = WriteString(w, "mbar"); err != nil {
-		return
+	if err := WriteString(w, "mbar"); err != nil {
+		return errors.WithStack(err)
 	}
-	if err = WriteInt(w, 4); err != nil {
-		return
+	if err := WriteInt(w, 4); err != nil {
+		return errors.WithStack(err)
 	}
-	if err = WriteInt(w, msg.MBar); err != nil {
-		return
+	if err := WriteInt(w, msg.MBar); err != nil {
+		return errors.WithStack(err)
 	}
-	if err = WriteString(w, "filters"); err != nil {
-		return
+	if err := WriteString(w, "filters"); err != nil {
+		return errors.WithStack(err)
 	}
-	if err = WriteString(w, msg.Filters); err != nil {
-		return
+	if err := WriteString(w, msg.Filters); err != nil {
+		return errors.WithStack(err)
 	}
 	if msg.Custom != nil {
 		for k, v := range msg.Custom {
-			if err = WriteString(w, k); err != nil {
-				return
+			if err := WriteString(w, k); err != nil {
+				return errors.WithStack(err)
 			}
-			if err = WriteString(w, v); err != nil {
-				return
+			if err := WriteString(w, v); err != nil {
+				return errors.WithStack(err)
 			}
 		}
 	}
-	return
+	return nil
 }
 
-func (msg *Config) unmarshal(r io.Reader) (err error) {
-	var n int
-	if n, err = ReadLen(r); err != nil {
-		return err
+func (msg *Config) unmarshal(r io.Reader) error {
+	n, err := ReadLen(r)
+	if err != nil {
+		return errors.WithStack(err)
 	}
 	msg.Custom = make(map[string]string)
 	var ival int
@@ -552,7 +565,7 @@ func (msg *Config) unmarshal(r io.Reader) (err error) {
 	for i := 0; i < n; i++ {
 		k, err = ReadString(r)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		switch k {
 		case "http port":
@@ -562,18 +575,18 @@ func (msg *Config) unmarshal(r io.Reader) (err error) {
 		case "mbar":
 			// Read the int length
 			if ival, err = ReadLen(r); err != nil {
-				return err
+				return errors.WithStack(err)
 			} else if ival != 4 {
-				return errors.New(fmt.Sprintf("Invalid length=%d for integer config value %s", ival, k))
+				return errors.Errorf("Invalid length=%d for integer config value %s", ival, k)
 			}
 			// Read the int
 			if ival, err = ReadInt(r); err != nil {
-				return err
+				return errors.WithStack(err)
 			}
 		default:
 			v, err = ReadString(r)
 			if err != nil {
-				return err
+				return errors.WithStack(err)
 			}
 		}
 		switch k {
@@ -594,23 +607,23 @@ func (msg *Config) unmarshal(r io.Reader) (err error) {
 	return nil
 }
 
-func ReadMsg(r io.Reader) (msg ReconMsg, err error) {
-	var msgSize int
-	msgSize, err = ReadLen(r)
+func ReadMsg(r io.Reader) (ReconMsg, error) {
+	msgSize, err := ReadLen(r)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	msgBuf := make([]byte, msgSize)
 	_, err = io.ReadFull(r, msgBuf)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	br := bytes.NewBuffer(msgBuf)
 	buf := make([]byte, 1)
 	_, err = io.ReadFull(br, buf[:1])
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
+	var msg ReconMsg
 	msgType := MsgType(buf[0])
 	switch msgType {
 	case MsgTypeReconRqstPoly:
@@ -636,40 +649,40 @@ func ReadMsg(r io.Reader) (msg ReconMsg, err error) {
 	case MsgTypeConfig:
 		msg = &Config{}
 	default:
-		return nil, errors.New(fmt.Sprintf("Unexpected message code: %d", msgType))
+		return nil, errors.Errorf("unexpected message code: %d", msgType)
 	}
 	err = msg.unmarshal(br)
-	return
+	return msg, errors.WithStack(err)
 }
 
-func WriteMsgDirect(w io.Writer, msg ReconMsg) (err error) {
+func WriteMsgDirect(w io.Writer, msg ReconMsg) error {
 	data := bytes.NewBuffer(nil)
 	buf := make([]byte, 1)
 	buf[0] = byte(msg.MsgType())
-	_, err = data.Write(buf)
+	_, err := data.Write(buf)
 	if err != nil {
-		return
+		return errors.WithStack(err)
 	}
 	err = msg.marshal(data)
 	if err != nil {
-		return
+		return errors.WithStack(err)
 	}
 	err = WriteInt(w, data.Len())
 	if err != nil {
-		return
+		return errors.WithStack(err)
 	}
 	_, err = w.Write(data.Bytes())
-	return err
+	return errors.WithStack(err)
 }
 
-func WriteMsg(w io.Writer, msgs ...ReconMsg) (err error) {
+func WriteMsg(w io.Writer, msgs ...ReconMsg) error {
 	bufw := bufio.NewWriter(w)
 	for _, msg := range msgs {
-		err = WriteMsgDirect(bufw, msg)
+		err := WriteMsgDirect(bufw, msg)
 		if err != nil {
-			return
+			return errors.WithStack(err)
 		}
 	}
-	err = bufw.Flush()
-	return
+	err := bufw.Flush()
+	return errors.WithStack(err)
 }

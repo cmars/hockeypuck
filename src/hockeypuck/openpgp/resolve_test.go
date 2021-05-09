@@ -278,3 +278,15 @@ func (s *ResolveSuite) TestFakeNews(c *gc.C) {
 	c.Assert(ValidSelfSigned(key, false), gc.IsNil)
 	c.Assert(key.UserAttributes, gc.HasLen, 0)
 }
+
+func (s *ResolveSuite) TestResolveRootSignatures(c *gc.C) {
+	key1 := MustInputAscKey("test-key.asc")
+	key2 := MustInputAscKey("test-key-revoked.asc")
+	c.Assert(key1.Signatures, gc.HasLen, 0)
+	c.Assert(key2.Signatures, gc.HasLen, 1)
+	c.Assert(key1.MD5, gc.Not(gc.Equals), key2.MD5)
+	Merge(key1, key2)
+	c.Assert(key1.MD5, gc.Equals, key2.MD5)
+	c.Assert(key1.Signatures, gc.HasLen, 1)
+	c.Assert(key2.Signatures, gc.HasLen, 1)
+}

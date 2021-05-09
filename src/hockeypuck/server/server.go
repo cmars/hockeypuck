@@ -2,6 +2,7 @@ package server
 
 import (
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -12,7 +13,7 @@ import (
 
 	"github.com/carbocation/interpose"
 	"github.com/julienschmidt/httprouter"
-	"gopkg.in/errgo.v1"
+	"github.com/pkg/errors"
 	"gopkg.in/tomb.v2"
 
 	"hockeypuck/hkp"
@@ -20,7 +21,6 @@ import (
 	"hockeypuck/hkp/storage"
 	log "hockeypuck/logrus"
 	"hockeypuck/metrics"
-	"hockeypuck/mgohkp"
 	"hockeypuck/openpgp"
 	"hockeypuck/pghkp"
 )
@@ -52,6 +52,21 @@ func NewStatusCodeResponseWriter(w http.ResponseWriter) *statusCodeResponseWrite
 func (scrw *statusCodeResponseWriter) WriteHeader(code int) {
 	scrw.statusCode = code
 	scrw.ResponseWriter.WriteHeader(code)
+}
+
+func KeyWriterOptions(settings *Settings) []openpgp.KeyWriterOption {
+	var opts []openpgp.KeyWriterOption
+	if settings.OpenPGP.Headers.Comment != "" {
+		opts = append(opts, openpgp.ArmorHeaderComment(settings.OpenPGP.Headers.Comment))
+	} else {
+		opts = append(opts, openpgp.ArmorHeaderComment(fmt.Sprintf("Hostname: %s", settings.Hostname)))
+	}
+	if settings.OpenPGP.Headers.Version != "" {
+		opts = append(opts, openpgp.ArmorHeaderVersion(settings.OpenPGP.Headers.Version))
+	} else {
+		opts = append(opts, openpgp.ArmorHeaderVersion(fmt.Sprintf("%s %s", settings.Software, settings.Version)))
+	}
+	return opts
 }
 
 func KeyReaderOptions(settings *Settings) []openpgp.KeyReaderOption {
@@ -88,6 +103,7 @@ func NewServer(settings *Settings) (*Server, error) {
 	s.middle.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 			start := time.Now()
+			rw.Header().Set("Server", fmt.Sprintf("%s/%s", s.settings.Software, s.settings.Version))
 			scrw := NewStatusCodeResponseWriter(rw)
 			next.ServeHTTP(scrw, req)
 			duration := time.Since(start)
@@ -116,18 +132,21 @@ func NewServer(settings *Settings) (*Server, error) {
 	s.middle.UseHandler(s.r)
 
 	keyReaderOptions := KeyReaderOptions(settings)
-	s.sksPeer, err = sks.NewPeer(s.st, settings.Conflux.Recon.LevelDB.Path, &settings.Conflux.Recon.Settings, keyReaderOptions)
+	userAgent := fmt.Sprintf("%s/%s", settings.Software, settings.Version)
+	s.sksPeer, err = sks.NewPeer(s.st, settings.Conflux.Recon.LevelDB.Path, &settings.Conflux.Recon.Settings, keyReaderOptions, userAgent)
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 
 	s.metricsListener = metrics.NewMetrics(settings.Metrics)
 
+	keyWriterOptions := KeyWriterOptions(settings)
 	options := []hkp.HandlerOption{
 		hkp.StatsFunc(s.stats),
 		hkp.SelfSignedOnly(settings.HKP.Queries.SelfSignedOnly),
 		hkp.FingerprintOnly(settings.HKP.Queries.FingerprintOnly),
 		hkp.KeyReaderOptions(keyReaderOptions),
+		hkp.KeyWriterOptions(keyWriterOptions),
 	}
 	if settings.IndexTemplate != "" {
 		options = append(options, hkp.IndexTemplate(settings.IndexTemplate))
@@ -140,14 +159,14 @@ func NewServer(settings *Settings) (*Server, error) {
 	}
 	h, err := hkp.NewHandler(s.st, options...)
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	h.Register(s.r)
 
 	if settings.Webroot != "" {
 		err := s.registerWebroot(settings.Webroot)
 		if err != nil {
-			return nil, errgo.Mask(err)
+			return nil, errors.WithStack(err)
 		}
 	}
 
@@ -159,34 +178,25 @@ func NewServer(settings *Settings) (*Server, error) {
 
 func DialStorage(settings *Settings) (storage.Storage, error) {
 	switch settings.OpenPGP.DB.Driver {
-	case "mongo":
-		var options []mgohkp.Option
-		if settings.OpenPGP.DB.Mongo != nil {
-			if settings.OpenPGP.DB.Mongo.DB != "" {
-				options = append(options, mgohkp.DBName(settings.OpenPGP.DB.Mongo.DB))
-			}
-			if settings.OpenPGP.DB.Mongo.Collection != "" {
-				options = append(options, mgohkp.CollectionName(settings.OpenPGP.DB.Mongo.Collection))
-			}
-		}
-		return mgohkp.Dial(settings.OpenPGP.DB.DSN, options...)
 	case "postgres-jsonb":
 		return pghkp.Dial(settings.OpenPGP.DB.DSN, KeyReaderOptions(settings))
 	}
-	return nil, errgo.Newf("storage driver %q not supported", settings.OpenPGP.DB.Driver)
+	return nil, errors.Errorf("storage driver %q not supported", settings.OpenPGP.DB.Driver)
 }
 
 type stats struct {
-	Now         string           `json:"now"`
-	Version     string           `json:"version"`
-	Hostname    string           `json:"hostname"`
-	Nodename    string           `json:"nodename"`
-	Contact     string           `json:"contact"`
-	HTTPAddr    string           `json:"httpAddr"`
-	QueryConfig statsQueryConfig `json:"queryConfig"`
-	ReconAddr   string           `json:"reconAddr"`
-	Software    string           `json:"software"`
-	Peers       []statsPeer      `json:"peers"`
+	Now           string           `json:"now"`
+	Version       string           `json:"version"`
+	Hostname      string           `json:"hostname"`
+	Nodename      string           `json:"nodename"`
+	Contact       string           `json:"contact"`
+	HTTPAddr      string           `json:"httpAddr"`
+	QueryConfig   statsQueryConfig `json:"queryConfig"`
+	ReconAddr     string           `json:"reconAddr"`
+	Software      string           `json:"software"`
+	Peers         []statsPeer      `json:"peers"`
+	NumKeys       int              `json:"numkeys,omitempty"`
+	ServerContact string           `json:"server_contact,omitempty"`
 
 	Total  int
 	Hourly []loadStat
@@ -239,6 +249,15 @@ func (s *Server) stats() (interface{}, error) {
 		Total: sksStats.Total,
 	}
 
+	if s.settings.SksCompat {
+		_t, _ := time.Parse(time.RFC3339, result.Now)
+		result.HTTPAddr = strings.Split(s.settings.HKP.Bind, ":")[1]
+		result.Now = _t.Format("2006-01-02 15:04:05 MST")
+		result.NumKeys = sksStats.Total
+		result.ReconAddr = strings.Split(s.settings.Conflux.Recon.Settings.ReconAddr, ":")[1]
+		result.ServerContact = s.settings.Contact
+	}
+
 	nodename, err := os.Hostname()
 	if err != nil {
 		log.Warningf("cannot determine local hostname: %v", err)
@@ -261,11 +280,19 @@ func (s *Server) stats() (interface{}, error) {
 	}
 	sort.Sort(loadStats(result.Daily))
 	for k, v := range s.settings.Conflux.Recon.Settings.Partners {
-		result.Peers = append(result.Peers, statsPeer{
-			Name:      k,
-			HTTPAddr:  v.HTTPAddr,
-			ReconAddr: v.ReconAddr,
-		})
+		if s.settings.SksCompat {
+			result.Peers = append(result.Peers, statsPeer{
+				Name:      k,
+				HTTPAddr:  v.HTTPAddr,
+				ReconAddr: strings.ReplaceAll(v.ReconAddr, ":", " "),
+			})
+		} else {
+			result.Peers = append(result.Peers, statsPeer{
+				Name:      k,
+				HTTPAddr:  v.HTTPAddr,
+				ReconAddr: v.ReconAddr,
+			})
+		}
 	}
 	sort.Sort(statsPeers(result.Peers))
 	return result, nil
@@ -279,12 +306,12 @@ func (s *Server) registerWebroot(webroot string) error {
 		// non-fatal error
 		return nil
 	} else if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	defer d.Close()
 	files, err := d.Readdir(0)
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 
 	s.r.GET("/", func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -397,7 +424,7 @@ type tcpKeepAliveListener struct {
 func (ln tcpKeepAliveListener) Accept() (net.Conn, error) {
 	tc, err := ln.AcceptTCP()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	tc.SetKeepAlive(true)
 	tc.SetKeepAlivePeriod(3 * time.Minute)
@@ -409,7 +436,7 @@ var newListener = (*Server).newListener
 func (s *Server) newListener(addr string) (net.Listener, error) {
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 
 	s.t.Go(func() error {
@@ -422,7 +449,7 @@ func (s *Server) newListener(addr string) (net.Listener, error) {
 func (s *Server) listenAndServeHKP() error {
 	ln, err := newListener(s, s.settings.HKP.Bind)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	s.hkpAddr = ln.Addr().String()
 	return http.Serve(ln, s.middle)
@@ -436,12 +463,12 @@ func (s *Server) listenAndServeHKPS() error {
 	config.Certificates = make([]tls.Certificate, 1)
 	config.Certificates[0], err = tls.LoadX509KeyPair(s.settings.HKPS.Cert, s.settings.HKPS.Key)
 	if err != nil {
-		return errgo.Notef(err, "failed to load HKPS certificate=%q key=%q", s.settings.HKPS.Cert, s.settings.HKPS.Key)
+		return errors.Wrapf(err, "failed to load HKPS certificate=%q key=%q", s.settings.HKPS.Cert, s.settings.HKPS.Key)
 	}
 
 	ln, err := newListener(s, s.settings.HKP.Bind)
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	s.hkpsAddr = ln.Addr().String()
 	ln = tls.NewListener(ln, config)

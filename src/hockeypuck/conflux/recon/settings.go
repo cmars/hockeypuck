@@ -34,7 +34,8 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
-	"gopkg.in/errgo.v1"
+	"github.com/jmcvetta/randutil"
+	"github.com/pkg/errors"
 )
 
 type PartnerMap map[string]Partner
@@ -73,6 +74,7 @@ type Partner struct {
 	HTTPNet   netType `toml:"httpNet" json:"-"`
 	ReconAddr string  `toml:"reconAddr"`
 	ReconNet  netType `toml:"reconNet" json:"-"`
+	Weight    int     `toml:"weight"`
 }
 
 type matchAccessType uint8
@@ -100,7 +102,7 @@ func (m *ipMatcher) allow(partner Partner) error {
 		if resolveErr == nil && httpAddr.IP != nil {
 			err := m.allowCIDR(fmt.Sprintf("%s/32", httpAddr.IP.String()))
 			if err != nil {
-				return errgo.Mask(err)
+				return errors.WithStack(err)
 			}
 		}
 	}
@@ -116,7 +118,7 @@ func (m *ipMatcher) allow(partner Partner) error {
 func (m *ipMatcher) allowCIDR(cidr string) error {
 	_, ipnet, err := net.ParseCIDR(cidr)
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	m.nets = append(m.nets, ipnet)
 	return nil
@@ -139,13 +141,13 @@ func (s *Settings) Matcher() (IPMatcher, error) {
 	for _, allowCIDR := range s.AllowCIDRs {
 		err := m.allowCIDR(allowCIDR)
 		if err != nil {
-			return nil, errgo.Mask(err)
+			return nil, errors.WithStack(err)
 		}
 	}
 	for _, partner := range s.Partners {
 		err := m.allow(partner)
 		if err != nil {
-			return nil, errgo.Mask(err)
+			return nil, errors.WithStack(err)
 		}
 	}
 	return m, nil
@@ -174,7 +176,7 @@ func (n netType) Resolve(addr string) (net.Addr, error) {
 	case NetworkUnix:
 		return net.ResolveUnixAddr("unix", addr)
 	}
-	return nil, errgo.Newf("don't know how to resolve network %q address %q", n, addr)
+	return nil, errors.Errorf("don't know how to resolve network %q address %q", n, addr)
 }
 
 const (
@@ -222,7 +224,7 @@ func (s *Settings) Resolve() error {
 		for _, partnerAddr := range s.CompatPartnerAddrs {
 			host, _, err := net.SplitHostPort(partnerAddr)
 			if err != nil {
-				return errgo.Notef(err, "invalid 'partners' address %q", partnerAddr)
+				return errors.Wrapf(err, "invalid 'partners' address %q", partnerAddr)
 			}
 			p := Partner{
 				HTTPAddr:  fmt.Sprintf("%s:11371", host),
@@ -234,11 +236,11 @@ func (s *Settings) Resolve() error {
 
 	_, err := s.HTTPNet.Resolve(s.HTTPAddr)
 	if err != nil {
-		return errgo.Notef(err, "invalid httpNet %q httpAddr %q", s.HTTPNet, s.HTTPAddr)
+		return errors.Wrapf(err, "invalid httpNet %q httpAddr %q", s.HTTPNet, s.HTTPAddr)
 	}
 	_, err = s.ReconNet.Resolve(s.ReconAddr)
 	if err != nil {
-		return errgo.Notef(err, "invalid reconNet %q reconAddr %q", s.ReconNet, s.ReconAddr)
+		return errors.Wrapf(err, "invalid reconNet %q reconAddr %q", s.ReconNet, s.ReconAddr)
 	}
 
 	return nil
@@ -255,13 +257,13 @@ func ParseSettings(data string) (*Settings, error) {
 	doc.Conflux.Recon = *defaults
 	_, err := toml.Decode(data, &doc)
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 
 	settings := &doc.Conflux.Recon
 	err = settings.Resolve()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	return settings, nil
 }
@@ -296,11 +298,11 @@ func (s *Settings) Config() (*Config, error) {
 	// Try to obtain httpPort
 	addr, err := s.HTTPNet.Resolve(s.HTTPAddr)
 	if err != nil {
-		return nil, errgo.Notef(err, "invalid httpNet %q httpAddr %q", s.HTTPNet, s.HTTPAddr)
+		return nil, errors.Wrapf(err, "invalid httpNet %q httpAddr %q", s.HTTPNet, s.HTTPAddr)
 	}
 	port, ok := resolveHTTPPort(addr)
 	if !ok {
-		return nil, errgo.Newf("cannot determine httpPort from httpNet %q httpAddr %q", s.HTTPNet, s.HTTPAddr)
+		return nil, errors.Errorf("cannot determine httpPort from httpNet %q httpAddr %q", s.HTTPNet, s.HTTPAddr)
 	}
 	config.HTTPPort = port
 	return config, nil
@@ -325,16 +327,29 @@ func (c *PTreeConfig) NumSamples() int {
 	return c.MBar + 1
 }
 
-// PartnerAddrs returns the resolved network addresses of configured partner
-// peers.
-func (s *Settings) PartnerAddrs() ([]net.Addr, error) {
-	var addrs []net.Addr
+// RandomPartnerAddr returns the a weighted-random chosen resolved network
+// addresses of configured partner peers.
+func (s *Settings) RandomPartnerAddr() (net.Addr, error) {
+	var choices []randutil.Choice
 	for _, partner := range s.Partners {
 		addr, err := partner.ReconNet.Resolve(partner.ReconAddr)
 		if err != nil {
-			return nil, errgo.Mask(err)
+			return nil, errors.WithStack(err)
 		}
-		addrs = append(addrs, addr)
+		weight := partner.Weight
+		if weight == 0 {
+			weight = 100
+		}
+		if weight > 0 {
+			choices = append(choices, randutil.Choice{Weight: weight, Item: addr})
+		}
 	}
-	return addrs, nil
+	if len(choices) == 0 {
+		return nil, nil
+	}
+	choice, err := randutil.WeightedChoice(choices)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return choice.Item.(net.Addr), nil
 }

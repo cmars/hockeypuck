@@ -22,9 +22,10 @@ import (
 	"encoding/hex"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"strings"
 
-	"gopkg.in/errgo.v1"
+	"github.com/pkg/errors"
 
 	"hockeypuck/conflux/recon"
 )
@@ -85,7 +86,7 @@ type Lookup struct {
 func ParseLookup(req *http.Request) (*Lookup, error) {
 	err := req.ParseForm()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 
 	var l Lookup
@@ -93,14 +94,14 @@ func ParseLookup(req *http.Request) (*Lookup, error) {
 	// OpenPGP HTTP Keyserver Protocol (HKP), Section 3.1.2
 	l.Op, ok = ParseOperation(req.Form.Get("op"))
 	if !ok {
-		return nil, errgo.Newf("invalid operation %q", req.Form.Get("op"))
+		return nil, errors.Errorf("invalid operation %q", req.Form.Get("op"))
 	}
 
 	if l.Op != OperationStats {
 		// OpenPGP HTTP Keyserver Protocol (HKP), Section 3.1.1
 		l.Search = req.Form.Get("search")
 		if l.Search == "" {
-			return nil, errgo.Newf("missing required parameter: search")
+			return nil, errors.Errorf("missing required parameter: search")
 		}
 	}
 
@@ -121,29 +122,92 @@ func ParseLookup(req *http.Request) (*Lookup, error) {
 // Add represents a valid /pks/add request content, parameters and options.
 type Add struct {
 	Keytext string
+	Keysig  string
+	Replace bool
 	Options OptionSet
 }
 
 func ParseAdd(req *http.Request) (*Add, error) {
 	if req.Method != "POST" {
-		return nil, errgo.Newf("invalid HTTP method: %s", req.Method)
+		return nil, errors.Errorf("invalid HTTP method: %s", req.Method)
 	}
 
 	var add Add
 	// Parse the URL query parameters
 	err := req.ParseForm()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 
 	add.Keytext = req.Form.Get("keytext")
 	if add.Keytext == "" {
-		return nil, errgo.Newf("missing required parameter: keytext")
+		return nil, errors.Errorf("missing required parameter: keytext")
 	}
+	add.Keysig = req.Form.Get("keysig")
+	add.Replace, _ = strconv.ParseBool(req.Form.Get("replace"))
 
 	add.Options = ParseOptionSet(req.Form.Get("options"))
 
 	return &add, nil
+}
+
+// Replace represents a valid /pks/replace request content, parameters and options.
+type Replace struct {
+	Keytext string
+	Keysig  string
+}
+
+func ParseReplace(req *http.Request) (*Replace, error) {
+	if req.Method != "POST" {
+		return nil, errors.Errorf("invalid HTTP method: %s", req.Method)
+	}
+
+	var replace Replace
+	// Parse the URL query parameters
+	err := req.ParseForm()
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	replace.Keytext = req.Form.Get("keytext")
+	if replace.Keytext == "" {
+		return nil, errors.Errorf("missing required parameter: keytext")
+	}
+	replace.Keysig = req.Form.Get("keysig")
+	if replace.Keysig == "" {
+		return nil, errors.Errorf("missing required parameter: keysig")
+	}
+
+	return &replace, nil
+}
+
+// Delete represents a valid /pks/delete request content, parameters and options.
+type Delete struct {
+	Keytext string
+	Keysig  string
+}
+
+func ParseDelete(req *http.Request) (*Delete, error) {
+	if req.Method != "POST" {
+		return nil, errors.Errorf("invalid HTTP method: %s", req.Method)
+	}
+
+	var del Delete
+	err := req.ParseForm()
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	del.Keytext = req.Form.Get("keytext")
+	if del.Keytext == "" {
+		return nil, errors.Errorf("missing required parameter: keytext")
+	}
+	del.Keysig = req.Form.Get("keysig")
+	if del.Keysig == "" {
+		return nil, errors.Errorf("missing required parameter: keytext")
+	}
+
+	return &del, nil
 }
 
 type HashQuery struct {
@@ -152,7 +216,7 @@ type HashQuery struct {
 
 func ParseHashQuery(req *http.Request) (*HashQuery, error) {
 	if req.Method != "POST" {
-		return nil, errgo.Newf("invalid HTTP method: %s", req.Method)
+		return nil, errors.Errorf("invalid HTTP method: %s", req.Method)
 	}
 
 	defer req.Body.Close()
@@ -167,18 +231,18 @@ func ParseHashQuery(req *http.Request) (*HashQuery, error) {
 	// Parse hashquery POST data
 	n, err := recon.ReadInt(r)
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	hq.Digests = make([]string, n)
 	for i := 0; i < n; i++ {
 		hashlen, err := recon.ReadInt(r)
 		if err != nil {
-			return nil, errgo.Mask(err)
+			return nil, errors.WithStack(err)
 		}
 		hash := make([]byte, hashlen)
 		_, err = r.Read(hash)
 		if err != nil {
-			return nil, errgo.Mask(err)
+			return nil, errors.WithStack(err)
 		}
 		hq.Digests[i] = hex.EncodeToString(hash)
 	}

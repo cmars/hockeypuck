@@ -18,20 +18,19 @@
 package storage
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"time"
 
-	"gopkg.in/errgo.v1"
+	"github.com/pkg/errors"
 
 	"hockeypuck/openpgp"
 )
 
-var ErrKeyNotFound = errors.New("key not found")
+var ErrKeyNotFound = fmt.Errorf("key not found")
 
 func IsNotFound(err error) bool {
-	return err == ErrKeyNotFound
+	return errors.Is(err, ErrKeyNotFound)
 }
 
 type Keyring struct {
@@ -47,6 +46,7 @@ type Storage interface {
 	io.Closer
 	Queryer
 	Updater
+	Deleter
 	Notifier
 }
 
@@ -94,6 +94,16 @@ type Updater interface {
 	// contents of the key in storage matches the given digest. If it does not
 	// match, the update should be retried again later.
 	Update(pubkey *openpgp.PrimaryKey, priorID string, priorMD5 string) error
+
+	// Replace unconditionally replaces any existing Primary key with the given
+	// contents, adding it if it did not exist.
+	Replace(pubkey *openpgp.PrimaryKey) (string, error)
+}
+
+type Deleter interface {
+	// Delete unconditionally deletes any existing Primary key with the given
+	// fingerprint.
+	Delete(fp string) (string, error)
 }
 
 type Notifier interface {
@@ -162,6 +172,23 @@ func (knc KeyNotChanged) String() string {
 	return fmt.Sprintf("key 0x%s with hash %s not changed", knc.ID, knc.Digest)
 }
 
+type KeyRemoved struct {
+	ID     string
+	Digest string
+}
+
+func (ka KeyRemoved) InsertDigests() []string {
+	return nil
+}
+
+func (ka KeyRemoved) RemoveDigests() []string {
+	return []string{ka.Digest}
+}
+
+func (ka KeyRemoved) String() string {
+	return fmt.Sprintf("key 0x%s with hash %s removed", ka.ID, ka.Digest)
+}
+
 type InsertError struct {
 	Duplicates []*openpgp.PrimaryKey
 	Errors     []error
@@ -198,28 +225,47 @@ func UpsertKey(storage Storage, pubkey *openpgp.PrimaryKey) (kc KeyChange, err e
 	if IsNotFound(err) {
 		_, err = storage.Insert([]*openpgp.PrimaryKey{pubkey})
 		if err != nil {
-			return nil, errgo.Mask(err)
+			return nil, errors.WithStack(err)
 		}
 		return KeyAdded{ID: pubkey.KeyID(), Digest: pubkey.MD5}, nil
 	} else if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 
 	if pubkey.UUID != lastKey.UUID {
-		return nil, errgo.Newf("upsert key %q lookup failed, found mismatch %q", pubkey.UUID, lastKey.UUID)
+		return nil, errors.Errorf("upsert key %q lookup failed, found mismatch %q", pubkey.UUID, lastKey.UUID)
 	}
 	lastID := lastKey.KeyID()
 	lastMD5 := lastKey.MD5
 	err = openpgp.Merge(lastKey, pubkey)
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	if lastMD5 != lastKey.MD5 {
 		err = storage.Update(lastKey, lastID, lastMD5)
 		if err != nil {
-			return nil, errgo.Mask(err)
+			return nil, errors.WithStack(err)
 		}
 		return KeyReplaced{OldID: lastID, OldDigest: lastMD5, NewID: lastKey.KeyID(), NewDigest: lastKey.MD5}, nil
 	}
 	return KeyNotChanged{ID: lastID, Digest: lastMD5}, nil
+}
+
+func ReplaceKey(storage Storage, pubkey *openpgp.PrimaryKey) (KeyChange, error) {
+	lastMD5, err := storage.Replace(pubkey)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	if lastMD5 != "" {
+		return KeyReplaced{OldID: pubkey.KeyID(), OldDigest: lastMD5, NewID: pubkey.KeyID(), NewDigest: pubkey.MD5}, nil
+	}
+	return KeyAdded{ID: pubkey.KeyID(), Digest: pubkey.MD5}, nil
+}
+
+func DeleteKey(storage Storage, fp string) (KeyChange, error) {
+	lastMD5, err := storage.Delete(fp)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return KeyRemoved{ID: fp, Digest: lastMD5}, nil
 }

@@ -26,7 +26,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gopkg.in/errgo.v1"
+	"github.com/pkg/errors"
+
 	"hockeypuck/hkp/jsonhkp"
 	"hockeypuck/openpgp"
 )
@@ -44,10 +45,10 @@ func (*JSONFormat) Write(w http.ResponseWriter, _ *Lookup, keys []*openpgp.Prima
 	wireKeys := jsonhkp.NewPrimaryKeys(keys)
 	out, err := json.MarshalIndent(wireKeys, "", "\t")
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	_, err = w.Write(out)
-	return err
+	return errors.WithStack(err)
 }
 
 type MRFormat struct{}
@@ -110,7 +111,7 @@ func NewHTMLFormat(path string, extra []string) (*HTMLFormat, error) {
 		f.t, err = f.t.ParseGlob(path)
 	}
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	return f, nil
 }
@@ -118,7 +119,7 @@ func NewHTMLFormat(path string, extra []string) (*HTMLFormat, error) {
 func (f *HTMLFormat) Write(w http.ResponseWriter, l *Lookup, keys []*openpgp.PrimaryKey) error {
 	w.Header().Set("Content-Type", "text/html")
 	wireKeys := jsonhkp.NewPrimaryKeys(keys)
-	return errgo.Mask(f.t.Execute(w, struct {
+	return errors.WithStack(f.t.Execute(w, struct {
 		Keys  []*jsonhkp.PrimaryKey
 		Query *Lookup
 	}{wireKeys, l}))
