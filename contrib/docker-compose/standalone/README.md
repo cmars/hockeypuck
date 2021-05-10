@@ -13,20 +13,31 @@ Tested on official Ubuntu 18.04 cloud images, with dependencies installed using
 
 Other platforms may work but may require some customization.
 
+# Building
+
+* `cd` to the base directory of this repository
+* Run `docker build .` - it should return e.g. "Successfully built DEADBEEF1234"
+* Tag the build: `docker tag DEADBEEF1234 hockeypuck/hockeypuck:RELEASE`
+  (replacing `DEADBEEF1234` with the hash emitted by `docker build .`,
+  and `RELEASE` as appropriate, cf `../../../debian/changelog` and/or `./mksite.bash`)
+* Now `cd` back to this directory before continuing below
+
 # Installation
 
-0. (Optional) Register a DNS name for your server's public IP address.
-1. Configure your ingress firewall to allow ports: 80, 443, 11370, 11371
-2. Create a `site.profile` by running `./mksite.bash`.
-3. Customize the settings in `site.profile` to your liking.
+* (Optional) Register a DNS name for your server's public IP address.
+* Configure your ingress firewall to allow ports: 80, 443, 11370, 11371
+* Create a `.env` file by running `./mksite.bash`.
+* Customize the settings in `.env` to your liking.
+   Make sure that `RELEASE` matches the docker tag you created above.
    (Optional) If you're using DNS & TLS, make sure FQDN and EMAIL are correct;
    they're used for Let's Encrypt.
-4. Generate hockeypuck and nginx configuration from your site settings with
+* Generate hockeypuck and nginx configuration from your site settings with
    `./mkconfig.bash`.
-5. (Optional) Set up TLS with `./init-letsencrypt.bash`. Answer the prompts as
+* (Optional) Set up TLS with `./init-letsencrypt.bash`. Answer the prompts as
    needed. If you want to test LE first with staging before getting a real
    cert, change `staging=0` to `staging=1` in this script.
-6. `docker-compose up -d` and your Hockeypuck should be live.
+* Download a keydump by running `./sync-sks-dump.bash`.
+* `docker-compose up -d` and your Hockeypuck should be live.
 
 # Configuration
 

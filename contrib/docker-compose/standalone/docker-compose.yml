@@ -1,7 +1,7 @@
 version: '2'
 services:
   hockeypuck:
-    image: hockeypuck/hockeypuck:2.1.0
+    image: hockeypuck/hockeypuck:${RELEASE}
     ports:
     - "11370:11370"
     - "11371:11371"
@@ -15,8 +15,8 @@ services:
     - pgp_import:/hockeypuck/import
 
   import-keys:
-    image: ubuntu:18.04
-    entrypoint: /bin/bash
+    image: instrumentisto/rsync-ssh
+    entrypoint: /bin/sh
     tty: true
     volumes:
     - pgp_import:/import
