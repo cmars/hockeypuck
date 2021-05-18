@@ -14,6 +14,10 @@ services:
     - ./etc:/hockeypuck/etc
     - ./keydump:/hockeypuck/import/dump
     - hkp_data:/hockeypuck/data
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   postgres:
     image: postgres
