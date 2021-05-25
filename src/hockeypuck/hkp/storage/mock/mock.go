@@ -53,7 +53,7 @@ type resolverFunc func([]string) ([]string, error)
 type modifiedSinceFunc func(time.Time) ([]string, error)
 type fetchKeysFunc func([]string) ([]*openpgp.PrimaryKey, error)
 type fetchKeyringsFunc func([]string) ([]*storage.Keyring, error)
-type insertFunc func([]*openpgp.PrimaryKey) (int, error)
+type insertFunc func([]*openpgp.PrimaryKey) (int, int, error)
 type replaceFunc func(*openpgp.PrimaryKey) (string, error)
 type updateFunc func(*openpgp.PrimaryKey, string, string) error
 type deleteFunc func(string) (string, error)
@@ -154,12 +154,12 @@ func (m *Storage) FetchKeyrings(s []string) ([]*storage.Keyring, error) {
 	}
 	return nil, nil
 }
-func (m *Storage) Insert(keys []*openpgp.PrimaryKey) (int, error) {
+func (m *Storage) Insert(keys []*openpgp.PrimaryKey) (int, int, error) {
 	m.record("Insert", keys)
 	if m.insert != nil {
 		return m.insert(keys)
 	}
-	return 0, nil
+	return 0, 0, nil
 }
 func (m *Storage) Replace(key *openpgp.PrimaryKey) (string, error) {
 	m.record("Replace", key)

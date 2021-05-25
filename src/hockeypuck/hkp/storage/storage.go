@@ -83,7 +83,7 @@ type Inserter interface {
 
 	// Insert inserts new public keys if they are not already stored. If they
 	// are, then nothing is changed.
-	Insert([]*openpgp.PrimaryKey) (int, error)
+	Insert([]*openpgp.PrimaryKey) (int, int, error)
 }
 
 // Updater defines the storage API for writing key material.
@@ -223,7 +223,7 @@ func UpsertKey(storage Storage, pubkey *openpgp.PrimaryKey) (kc KeyChange, err e
 		lastKey, err = firstMatch(lastKeys, pubkey.RFingerprint)
 	}
 	if IsNotFound(err) {
-		_, err = storage.Insert([]*openpgp.PrimaryKey{pubkey})
+		_, _, err = storage.Insert([]*openpgp.PrimaryKey{pubkey})
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
