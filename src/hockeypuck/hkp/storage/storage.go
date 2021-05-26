@@ -83,6 +83,10 @@ type Inserter interface {
 
 	// Insert inserts new public keys if they are not already stored. If they
 	// are, then nothing is changed.
+	// Returns (u, n, err) where
+	// <u> is the number of keys updated
+	// <n> is the number of keys inserted
+	// <err> is any errors that have occurred during insertion
 	Insert([]*openpgp.PrimaryKey) (int, int, error)
 }
 

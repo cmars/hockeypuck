@@ -133,27 +133,28 @@ var drTempTablesSQL = []string{
 `,
 }
 
-var bulkTxSQL = []string{
-	// No NULL fields && No Duplicates allowed: rfingerprint && md5 are UNIQUE in keys_checked
-	// First get the new keys: UNIQUE rfp *and* UNIQUE md5 in the file, but *neither* rfp *nor* md5 that exist in DB.
-	`INSERT INTO keys_checked (rfingerprint, doc, ctime, mtime, md5, keywords) 
+// No NULL fields && No Duplicates allowed: rfingerprint && md5 are UNIQUE in keys_checked
+// First get the new keys: UNIQUE rfp *and* UNIQUE md5 in the file, but *neither* rfp *nor* md5 that exist in DB.
+const bulkTxFilterUniqueKeys string = `INSERT INTO keys_checked (rfingerprint, doc, ctime, mtime, md5, keywords) 
 SELECT rfingerprint, doc, ctime, mtime, md5, keywords FROM keys_copyin kcpinA WHERE 
 rfingerprint IS NOT NULL AND doc IS NOT NULL AND ctime IS NOT NULL AND mtime IS NOT NULL AND md5 IS NOT NULL AND 
 (SELECT COUNT (*) FROM keys_copyin kcpinB WHERE kcpinB.rfingerprint = kcpinA.rfingerprint OR 
                                                 kcpinB.md5          = kcpinA.md5) = 1 AND 
 NOT EXISTS (SELECT 1 FROM keys WHERE keys.rfingerprint = kcpinA.rfingerprint OR keys.md5 = kcpinA.md5)
-`,
-	// Keep Duplicates and only Duplicates in keys_copyin:
-	// delete 1st-stage checked-keys & remove tuples with NULLs
-	`DELETE FROM keys_copyin WHERE 
+`
+
+// Keep Duplicates and only Duplicates in keys_copyin:
+// delete 1st-stage checked-keys & remove tuples with NULLs
+const bulkTxPrepKeyStats string = `DELETE FROM keys_copyin WHERE 
 rfingerprint IS NULL OR doc IS NULL OR ctime IS NULL OR mtime IS NULL OR md5 IS NULL OR 
 EXISTS (SELECT 1 FROM keys_checked WHERE keys_checked.rfingerprint = keys_copyin.rfingerprint)
-`,
-	// Of what remains we want _a single copy_ of those keys that are in-file Duplicates but do not yet exist in DB.
-	// *** ctid field is PostgreSQL-specific; Oracle has ROWID equivalent field ***
-	// ===> If there are different md5 for same rfp, this query allows them into keys_checked: <===
-	// ===>  ***  an intentional error of non-unique rfp, to revert to normal insertion!  ***  <===
-	`INSERT INTO keys_checked (rfingerprint, doc, ctime, mtime, md5, keywords) 
+`
+
+// Of what remains we want _a single copy_ of those keys that are in-file Duplicates but do not yet exist in DB.
+// *** ctid field is PostgreSQL-specific; Oracle has ROWID equivalent field ***
+// ===> If there are different md5 for same rfp, this query allows them into keys_checked: <===
+// ===>  ***  an intentional error of non-unique rfp, to revert to normal insertion!  ***  <===
+const bulkTxFilterDupKeys string = `INSERT INTO keys_checked (rfingerprint, doc, ctime, mtime, md5, keywords) 
 SELECT rfingerprint, doc, ctime, mtime, md5, keywords FROM keys_copyin WHERE 
 ( ctid IN 
      (SELECT ctid FROM 
@@ -165,28 +166,35 @@ SELECT rfingerprint, doc, ctime, mtime, md5, keywords FROM keys_copyin WHERE
         WHERE md5Enum = 1) ) AND 
 NOT EXISTS (SELECT 1 FROM keys WHERE keys.rfingerprint = keys_copyin.rfingerprint OR
                                      keys.md5          = keys_copyin.md5)
-`,
-	// Subkeys: No NULL fields && No Duplicates (unique in-file and not exist in DB)
-	// Enforce foreign key constraint by checking both keys_checked and keys_copyin (instead of keys)
-	`INSERT INTO subkeys_checked (rfingerprint, rsubfp) 
+`
+
+// Subkeys: No NULL fields && No Duplicates (unique in-file and not exist in DB)
+// Enforce foreign key constraint by checking both keys_checked and keys_copyin (instead of keys)
+// Avoid checking "EXISTS (SELECT 1 FROM keys WHERE keys.rfingerprint = skcpinA.rfingerprint)"
+// by checking in keys_copyin (despite no indexing): only dups (in-file or _in DB_) still in keys_copyin
+// `bulkTxSubkeyFilter1`
+const bulkTxFilterUniqueSubkeys string = `INSERT INTO subkeys_checked (rfingerprint, rsubfp) 
 SELECT rfingerprint, rsubfp FROM subkeys_copyin skcpinA WHERE 
 skcpinA.rfingerprint IS NOT NULL AND skcpinA.rsubfp IS NOT NULL AND 
 (SELECT COUNT(*) FROM subkeys_copyin skcpinB WHERE skcpinB.rsubfp = skcpinA.rsubfp) = 1 AND 
 NOT EXISTS (SELECT 1 FROM subkeys WHERE subkeys.rsubfp = skcpinA.rsubfp) AND 
 ( EXISTS (SELECT 1 FROM keys_checked WHERE keys_checked.rfingerprint = skcpinA.rfingerprint) OR 
   EXISTS (SELECT 1 FROM keys_copyin  WHERE keys_copyin.rfingerprint  = skcpinA.rfingerprint) )
-`, // Avoid checking "EXISTS (SELECT 1 FROM keys WHERE keys.rfingerprint = skcpinA.rfingerprint)"
-	// by checking in keys_copyin (despite no indexing): only dups (in-file or _in DB_) still in keys_copyin
-	// -----------------
-	// Has NULL field || It is in subkeys_checked
-	`DELETE FROM subkeys_copyin WHERE 
+`
+
+// Has NULL field || It is in subkeys_checked
+const bulkTxPrepSubkeyStats string = `DELETE FROM subkeys_copyin WHERE 
 rfingerprint IS NULL OR rsubfp IS NULL OR 
 EXISTS (SELECT 1 FROM subkeys_checked WHERE subkeys_checked.rsubfp = subkeys_copyin.rsubfp)
-`,
-	// Single-copy of in-file Dups && not Dups in DB
-	// Enforce foreign key constraint by checking both keys_checked and keys_copyin (instead of keys)
-	// *** ctid field is PostgreSQL-specific; Oracle has ROWID equivalent field ***
-	`INSERT INTO subkeys_checked (rfingerprint, rsubfp) 
+`
+
+// Single-copy of in-file Dups && not Dups in DB
+// Enforce foreign key constraint by checking both keys_checked and keys_copyin (instead of keys)
+// *** ctid field is PostgreSQL-specific; Oracle has ROWID equivalent field ***
+// Avoid checking "EXISTS (SELECT 1 FROM keys WHERE keys.rfingerprint = subkeys_copyin.rfingerprint)"
+// by checking in keys_copyin (despite no indexing): only dups (in-file or _in DB_) still in keys_copyin
+// `bulkTxSubkeyFilter2`
+const bulkTxFilterDupSubkeys string = `INSERT INTO subkeys_checked (rfingerprint, rsubfp) 
 SELECT rfingerprint, rsubfp FROM subkeys_copyin WHERE 
 ctid IN 
    (SELECT ctid FROM 
@@ -195,16 +203,15 @@ ctid IN
 NOT EXISTS (SELECT 1 FROM subkeys WHERE subkeys.rsubfp = subkeys_copyin.rsubfp) AND 
 ( EXISTS (SELECT 1 FROM keys_checked WHERE keys_checked.rfingerprint = subkeys_copyin.rfingerprint) OR 
   EXISTS (SELECT 1 FROM keys_copyin  WHERE keys_copyin.rfingerprint  = subkeys_copyin.rfingerprint) )
-`, // Avoid checking "EXISTS (SELECT 1 FROM keys WHERE keys.rfingerprint = subkeys_copyin.rfingerprint)"
-	// by checking in keys_copyin (despite no indexing): only dups (in-file or _in DB_) still in keys_copyin
-	// -----------------
-	`INSERT INTO keys (rfingerprint, doc, ctime, mtime, md5, keywords) 
+`
+
+const bulkTxInsertKeys string = `INSERT INTO keys (rfingerprint, doc, ctime, mtime, md5, keywords) 
 SELECT rfingerprint, doc, ctime, mtime, md5, keywords FROM keys_checked
-`,
-	`INSERT INTO subkeys (rfingerprint, rsubfp) 
+`
+
+const bulkTxInsertSubkeys string = `INSERT INTO subkeys (rfingerprint, rsubfp) 
 SELECT rfingerprint, rsubfp FROM subkeys_checked
-`,
-}
+`
 
 var bulkStatsSQL = []string{
 	`SELECT COUNT (*) FROM keys_copyin WHERE 
@@ -239,8 +246,8 @@ EXISTS (SELECT 1 FROM subkeys_checked WHERE subkeys_checked.rfingerprint = keys_
 `,
 }
 
-var keys_copyin_temp_table_name = "keys_copyin"
-var subkeys_copyin_temp_table_name = "subkeys_copyin"
+const keys_copyin_temp_table_name string = "keys_copyin"
+const subkeys_copyin_temp_table_name string = "subkeys_copyin"
 
 // Dial returns PostgreSQL storage connected to the given database URL.
 func Dial(url string, options []openpgp.KeyReaderOption) (hkpstorage.Storage, error) {
@@ -470,7 +477,7 @@ func (st *storage) FetchKeys(rfps []string) ([]*openpgp.PrimaryKey, error) {
 	}
 
 	var result []*openpgp.PrimaryKey
-	defer rows.Close()	// ...?
+	defer rows.Close()
 	for rows.Next() {
 		var bufStr string
 		err = rows.Scan(&bufStr)
@@ -514,7 +521,7 @@ func (st *storage) FetchKeyrings(rfps []string) ([]*hkpstorage.Keyring, error) {
 	}
 
 	var result []*hkpstorage.Keyring
-	defer rows.Close()	// ...?
+	defer rows.Close()
 	for rows.Next() {
 		var bufStr string
 		var kr hkpstorage.Keyring
@@ -656,21 +663,12 @@ func (st *storage) insertKeyTx(tx *sql.Tx, key *openpgp.PrimaryKey) (needUpsert 
 		return true, nil
 	}
 
-	//var rowsAffected int64
 	for _, subKey := range key.SubKeys {
-		/*result*/ _, err := subStmt.Exec(&key.RFingerprint, &subKey.RFingerprint)
+		_, err := subStmt.Exec(&key.RFingerprint, &subKey.RFingerprint)
 		if err != nil {
 			return false, errors.Wrapf(err, "cannot insert rsubfp=%q", subKey.RFingerprint)
 		}
-		/*
-			if rowsAffected, err = result.RowsAffected(); err != nil {
-				// See above.
-				return false, errors.Wrapf(err, "rows affected not available when inserting rsubfp=%q", subKey.RFingerprint)
-			}
-			keysInserted += rowsAffected
-		*/
 	}
-	// return keysInserted == 0, nil
 	return false, nil
 }
 
@@ -714,7 +712,7 @@ func (st *storage) bulkInsertNotifyListeners(/*keysInserted int, */result *hkpst
 		st.Notify(hkpstorage.KeyAdded{
 			ID:     openpgp.Reverse(rfp[:16]), // KeyID from rfingerprint
 			Digest: md5,
-		}
+		})
 	}
 	err = rows.Err()
 	if err != nil {
@@ -801,13 +799,12 @@ func (st *storage) bulkInsertCheckSubkeys(result *hkpstorage.InsertError) (nullT
 		log.Warn("Error querying subkeys with NULLs. Stats may be inaccurate.")
 	}
 
-	// (1) Itermediate insert no NULL fields & no Duplicates (in-file or in DB)
+	// (1) Itermediate insert: no NULL fields & no Duplicates (in-file or in DB)
 	// (2) Keep only subkeys with Duplicates in subkeys_copyin:
 	//     Delete 1st-stage checked subkeys above & those with NULL fields
-	// (3) Single-copy of in-file Dups & not DB Dups
-	txStrs := []string{bulkTxSQL[3], bulkTxSQL[4], bulkTxSQL[5]}
-	msgStrs := []string{"bulkTx-check subkey no NULLs & no Dups",
-		"bulkTx-report subkeys setup", "bulkTx-check subkeys some Dups"}
+	// (3) Single-copy of in-file Dups but not in-DB Dups
+	txStrs := []string{bulkTxFilterUniqueSubkeys, bulkTxPrepSubkeyStats, bulkTxFilterDupSubkeys}
+	msgStrs := []string{"bulkTx-filter-unique-subkeys", "bulkTx-prep-subkeys-stats", "bulkTx-filter-dup-subkeys"}
 	err = st.bulkInsertSingleTx(txStrs, msgStrs)
 	if err != nil {
 		result.Errors = append(result.Errors, err)
@@ -828,8 +825,8 @@ func (st *storage) bulkInsertCheckKeys(result *hkpstorage.InsertError) (n int, o
 	// (1) rfingerprint & md5 are also UNIQUE in keys_checked so no duplicates inside this same file allowed
 	// (2) Keep only keys with Duplicates in keys_copyin: delete 1st-stage checked keys & tuples with NULL fields
 	// (3) Insert single copy of in-file Duplicates that have no Duplicate in final keys table
-	txStrs := []string{bulkTxSQL[0], bulkTxSQL[1], bulkTxSQL[2]}
-	msgStrs := []string{"bulkTx-check unique rfp & md5", "bulkTx-report setup", "bulkTx-check some Dups"}
+	txStrs := []string{bulkTxFilterUniqueKeys, bulkTxPrepKeyStats, bulkTxFilterDupKeys}
+	msgStrs := []string{"bulkTx-filter-unique-keys", "bulkTx-prep-key-stats", "bulkTx-filter-dup-keys"}
 	err = st.bulkInsertSingleTx(txStrs, msgStrs)
 	if err != nil {
 		result.Errors = append(result.Errors, err)
@@ -912,8 +909,6 @@ func (st *storage) bulkInsertSendBunch(keystmt, subkeystmt string, keysValueArgs
 type KeyInsertArgs struct {
 	RFingerprint *string
 	jsonStrDoc   *string
-	//	ctime *Time
-	//	mtime *Time
 	MD5      *string
 	keywords *string
 }
