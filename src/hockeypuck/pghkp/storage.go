@@ -213,14 +213,14 @@ const bulkTxInsertSubkeys string = `INSERT INTO subkeys (rfingerprint, rsubfp)
 SELECT rfingerprint, rsubfp FROM subkeys_checked
 `
 
-var bulkStatsSQL = []string{
-	`SELECT COUNT (*) FROM keys_copyin WHERE 
+// Stats collection queries
+const bulkInsNumNullKeys string = `SELECT COUNT (*) FROM keys_copyin WHERE 
 rfingerprint IS NULL OR doc IS NULL OR ctime IS NULL OR mtime IS NULL OR md5 IS NULL
-`,
-	`SELECT COUNT (*) FROM subkeys_copyin WHERE 
+`
+const bulkInsNumNullSubkeys string = `SELECT COUNT (*) FROM subkeys_copyin WHERE 
 rfingerprint IS NULL OR rsubfp IS NULL
-`,
-	`SELECT COUNT (*) FROM keys_copyin WHERE 
+`
+const bulkInsNumMinDups string = `SELECT COUNT (*) FROM keys_copyin WHERE 
 ( ( NOT EXISTS (SELECT 1 FROM keys_checked WHERE keys_checked.rfingerprint = keys_copyin.rfingerprint OR
                                                  keys_checked.md5          = keys_copyin.md5) AND 
     ctid IN 
@@ -232,19 +232,21 @@ rfingerprint IS NULL OR rsubfp IS NULL
         (SELECT ctid, ROW_NUMBER() OVER (PARTITION BY rfingerprint) rfpEnum FROM keys_copyin) AS dupRfpTAB 
         WHERE rfpEnum > 1)) ) AND 
 NOT EXISTS (SELECT 1 FROM subkeys_checked WHERE subkeys_checked.rfingerprint = keys_copyin.rfingerprint)
-`,
-	`SELECT COUNT (*) FROM keys_copyin WHERE 
+`
+const bulkInsNumPossibleDups string = `SELECT COUNT (*) FROM keys_copyin WHERE 
 ctid IN 
    (SELECT ctid FROM 
       (SELECT ctid, ROW_NUMBER() OVER (PARTITION BY rfingerprint) rfpEnum FROM keys_copyin) AS dupRfpTAB 
       WHERE rfpEnum > 1) AND 
 EXISTS (SELECT 1 FROM subkeys_checked WHERE subkeys_checked.rfingerprint = keys_copyin.rfingerprint)
-`,
-	`SELECT COUNT (*) FROM keys_checked
-`,
-	`SELECT COUNT (*) FROM subkeys_checked
-`,
-}
+`
+const bulkInsertedKeysNum string = `SELECT COUNT (*) FROM keys_checked
+`
+const bulkInsertedSubkeysNum string = `SELECT COUNT (*) FROM subkeys_checked
+`
+
+const bulkInsQueryKeyChange string = `SELECT rfingerprint, md5 FROM keys_checked
+`
 
 const keys_copyin_temp_table_name string = "keys_copyin"
 const subkeys_copyin_temp_table_name string = "subkeys_copyin"
@@ -676,7 +678,7 @@ func (st *storage) bulkInsertNotifyListeners(/*keysInserted int, */result *hkpst
 	//var notif hkpstorage.KeyChange
 	//notifications := make([]hkpstorage.KeyChange, keysInserted)
 	OK := true
-	rows, err := st.Query("SELECT rfingerprint, md5 FROM keys_checked")
+	rows, err := st.Query(bulkInsQueryKeyChange)
 	if err != nil {
 		result.Errors = append(result.Errors, errors.WithStack(err))
 		// FIXME: Is thit msg correct?
@@ -702,13 +704,6 @@ func (st *storage) bulkInsertNotifyListeners(/*keysInserted int, */result *hkpst
 			// TODO: maybe should delete such keys?
 			continue
 		}
-		/*
-		notif = hkpstorage.KeyAdded{
-			ID:     openpgp.Reverse(rfp[:16]), // KeyID from rfingerprint
-			Digest: md5,
-		}
-		notifications = append(notifications, notif)
-		*/
 		st.Notify(hkpstorage.KeyAdded{
 			ID:     openpgp.Reverse(rfp[:16]), // KeyID from rfingerprint
 			Digest: md5,
@@ -721,13 +716,12 @@ func (st *storage) bulkInsertNotifyListeners(/*keysInserted int, */result *hkpst
 	if !OK {
 		log.Warn("Skipped some bad keys while Notifying Listeners!")
 	}
-	//st.BulkNotify(notifications)
 }
 
 func (st *storage) bulkInsertGetStats(result *hkpstorage.InsertError) (int, int, int, int) {
 	var maxDups, minDups, keysInserted, subkeysInserted int
 	// Get Duplicate stats
-	err := st.QueryRow(bulkStatsSQL[2]).Scan(&minDups)
+	err := st.QueryRow(bulkInsNumMinDups).Scan(&minDups)
 	if err != nil {
 		result.Errors = append(result.Errors, err)
 		log.Warn("Error querying duplicate keys. Stats may be inaccurate.")
@@ -735,7 +729,7 @@ func (st *storage) bulkInsertGetStats(result *hkpstorage.InsertError) (int, int,
 	}
 	// In-file duplicates may be duplicates even if we insert a subkey for a key's rfp
 	// FIXME: This might be costly and could be removed...
-	err = st.QueryRow(bulkStatsSQL[3]).Scan(&maxDups)
+	err = st.QueryRow(bulkInsNumPossibleDups).Scan(&maxDups)
 	maxDups += minDups
 	if err != nil {
 		result.Errors = append(result.Errors, err)
@@ -743,13 +737,13 @@ func (st *storage) bulkInsertGetStats(result *hkpstorage.InsertError) (int, int,
 		maxDups = 0
 	}
 	// Get keys/subkeys inserted
-	err = st.QueryRow(bulkStatsSQL[4]).Scan(&keysInserted)
+	err = st.QueryRow(bulkInsertedKeysNum).Scan(&keysInserted)
 	if err != nil {
 		result.Errors = append(result.Errors, err)
 		log.Warn("Error querying keys inserted. Stats may be inaccurate.")
 		keysInserted = 0
 	}
-	err = st.QueryRow(bulkStatsSQL[5]).Scan(&subkeysInserted)
+	err = st.QueryRow(bulkInsertedSubkeysNum).Scan(&subkeysInserted)
 	if err != nil {
 		result.Errors = append(result.Errors, err)
 		log.Warn("Error querying subkeys inserted. Stats may be inaccurate.")
@@ -793,7 +787,7 @@ func (st *storage) bulkInsertSingleTx(bulkJobString, jobDesc []string) (err erro
 func (st *storage) bulkInsertCheckSubkeys(result *hkpstorage.InsertError) (nullTuples int, ok bool) {
 	// NULLs stats
 	var numNulls int
-	err := st.QueryRow(bulkStatsSQL[1]).Scan(&numNulls)
+	err := st.QueryRow(bulkInsNumNullSubkeys).Scan(&numNulls)
 	if err != nil {
 		result.Errors = append(result.Errors, err)
 		log.Warn("Error querying subkeys with NULLs. Stats may be inaccurate.")
@@ -816,7 +810,7 @@ func (st *storage) bulkInsertCheckSubkeys(result *hkpstorage.InsertError) (nullT
 func (st *storage) bulkInsertCheckKeys(result *hkpstorage.InsertError) (n int, ok bool) {
 	// NULLs stats
 	var numNulls int
-	err := st.QueryRow(bulkStatsSQL[0]).Scan(&numNulls)
+	err := st.QueryRow(bulkInsNumNullKeys).Scan(&numNulls)
 	if err != nil {
 		result.Errors = append(result.Errors, err)
 		log.Warn("Error querying keys with NULLs. Stats may be inaccurate.")
@@ -1354,21 +1348,6 @@ func (st *storage) Subscribe(f func(hkpstorage.KeyChange) error) {
 	st.listeners = append(st.listeners, f)
 	st.mu.Unlock()
 }
-
-/*
-func (st *storage) BulkNotify(changes []hkpstorage.KeyChange) error {
-	st.mu.Lock()
-	defer st.mu.Unlock()
-	log.Debugf("%v", changes)
-	for _, change := range changes {
-		for _, f := range st.listeners {
-			// TODO: log error notifying listener?
-			f(change)
-		}
-	}
-	return nil
-}
-*/
 
 func (st *storage) Notify(change hkpstorage.KeyChange) error {
 	st.mu.Lock()
