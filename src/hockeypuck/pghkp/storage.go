@@ -245,7 +245,7 @@ const bulkInsertedKeysNum string = `SELECT COUNT (*) FROM keys_checked
 const bulkInsertedSubkeysNum string = `SELECT COUNT (*) FROM subkeys_checked
 `
 
-const bulkInsQueryKeyChange string = `SELECT rfingerprint, md5 FROM keys_checked
+const bulkInsQueryKeyChange string = `SELECT md5 FROM keys_checked
 `
 
 const keys_copyin_temp_table_name string = "keys_copyin"
@@ -674,50 +674,6 @@ func (st *storage) insertKeyTx(tx *sql.Tx, key *openpgp.PrimaryKey) (needUpsert 
 	return false, nil
 }
 
-func (st *storage) bulkInsertNotifyListeners(/*keysInserted int, */result *hkpstorage.InsertError) {
-	//var notif hkpstorage.KeyChange
-	//notifications := make([]hkpstorage.KeyChange, keysInserted)
-	OK := true
-	rows, err := st.Query(bulkInsQueryKeyChange)
-	if err != nil {
-		result.Errors = append(result.Errors, errors.WithStack(err))
-		// FIXME: Is thit msg correct?
-		log.Warn("querying inserted keys: cannot Notify Listeners of new keys; restart keyserver when possible.")
-		return
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var rfp, md5 string
-		err = rows.Scan(&rfp, &md5)
-		if err != nil {
-			if err != sql.ErrNoRows {
-				result.Errors = append(result.Errors, errors.Wrap(err, // FIXME: Is this msg correct?
-					"could not read key(s). Notifying Listeners aborted. Restart keyserver when possible"))
-			} else {
-				result.Errors = append(result.Errors, errors.WithStack(err))
-			}
-			return
-		}
-		if len(rfp) < 16 {
-			result.Errors = append(result.Errors, errors.Errorf("invalid rfp=%q (length < 16)", rfp))
-			OK = false
-			// TODO: maybe should delete such keys?
-			continue
-		}
-		st.Notify(hkpstorage.KeyAdded{
-			ID:     openpgp.Reverse(rfp[:16]), // KeyID from rfingerprint
-			Digest: md5,
-		})
-	}
-	err = rows.Err()
-	if err != nil {
-		result.Errors = append(result.Errors, errors.WithStack(err))
-	}
-	if !OK {
-		log.Warn("Skipped some bad keys while Notifying Listeners!")
-	}
-}
-
 func (st *storage) bulkInsertGetStats(result *hkpstorage.InsertError) (int, int, int, int) {
 	var maxDups, minDups, keysInserted, subkeysInserted int
 	// Get Duplicate stats
@@ -903,8 +859,8 @@ func (st *storage) bulkInsertSendBunch(keystmt, subkeystmt string, keysValueArgs
 type KeyInsertArgs struct {
 	RFingerprint *string
 	jsonStrDoc   *string
-	MD5      *string
-	keywords *string
+	MD5          *string
+	keywords     *string
 }
 type SubkeyInsertArgs struct {
 	keyRFingerprint    *string
@@ -1019,59 +975,43 @@ func (st *storage) bulkInsertCreateTempTables() (err error) {
 func (st *storage) BulkInsert(keys []*openpgp.PrimaryKey, result *hkpstorage.InsertError) (int, bool) {
 	log.Infof("Attempting bulk insertion of keys")
 	t := time.Now() // FIXME: Remove this
-	// Create 2 pairs of _temporary_ (i.e., in-mem ??) tables:
+	// Create 2 pairs of _temporary_ (in-mem) tables:
 	// (a) keys_copyin, subkeys_copyin
 	// (b) keys_checked, subkeys_checked
 	err := st.bulkInsertCreateTempTables()
 	if err != nil {
-		// This should always be possible. Maybe, out-of-memory? Don\'t retry.
+		// This should always be possible (maybe, out-of-memory?)
 		result.Errors = append(result.Errors, err)
-		// Drop temp tables IF EXIST
-		st.bulkInsertCleanUp() // don\'t care for any error from this
+		st.bulkInsertCleanUp() // Drop temp tables IF EXIST
 		return 0, false
 	}
-	unprocessed, keysWithNulls, subkeysWithNulls, ok := 0, 0, 0, true
+	keysWithNulls, subkeysWithNulls, ok := 0, 0, true
 	maxDups, minDups, keysInserted, subkeysInserted := 0, 0, 0, 0
 	// (a): Send *all* keys to in-mem tables on the pg server; *no constraints checked*
-	if unprocessed, ok = st.bulkInsertCopyKeysToServer(keys, result); !ok {
-		// Drop temp tables IF EXIST
-		st.bulkInsertCleanUp() // don\'t care for any error from this
+	if _, ok = st.bulkInsertCopyKeysToServer(keys, result); !ok {
+		st.bulkInsertCleanUp() // Drop temp tables IF EXIST
 		return 0, false
-	} else { // TODO: remove this
-		if unprocessed == 0 {
-			log.Infof("After %v: All keys in file sent to DB. Inserting now...", time.Since(t))
-		} else {
-			log.Infof("After %v: %d of all keys in file sent to DB. Inserting now...",
-				time.Since(t), len(keys)-unprocessed)
-		}
 	}
-	t = time.Now() // FIXME: Remove this
 	// (b): From _copyin tables (still only to in-mem table) remove duplicates
 	//      check *all* constraints & RollBack insertions of key/subkeys that err
 	if keysWithNulls, subkeysWithNulls, ok = st.bulkInsertCheckedKeysSubkeys(keys, result); !ok {
-		// Drop temp tables IF EXIST
-		st.bulkInsertCleanUp() // don\'t care for any error from this
+		st.bulkInsertCleanUp() // Drop temp tables IF EXIST
 		return 0, false
 	}
-	// TODO: Remove this
-	log.Infof("After %v: Bulk-processed and bulk-inserted keys and subkeys to DB.", time.Since(t))
 
-	t = time.Now() // FIXME: Remove this
 	maxDups, minDups, keysInserted, subkeysInserted = st.bulkInsertGetStats(result)
-	// TODO: Remove this
-	log.Infof("After %v: Processed stats. Notifying Listeners now...", time.Since(t))
-
-	t = time.Now() // FIXME: Remove this
-	st.bulkInsertNotifyListeners(/*keysInserted, */result)
+	err = st.BulkNotify(bulkInsQueryKeyChange)
+	if err != nil {
+		result.Errors = append(result.Errors, err)
+	}
 
 	if minDups == maxDups {
-		log.Infof("After %v: Bulk Insertion OK: %d keys and %d subkeys with NULLs; "+
-			"%d duplicates; %d keys and %d subkeys inserted", time.Since(t),
-			keysWithNulls, subkeysWithNulls, minDups, keysInserted, subkeysInserted)
+		log.Infof("%d keys and %d subkeys bulk-inserted, %d duplicates skipped (%d keys and %d subkeys with NULLs) in %v",
+			keysInserted, subkeysInserted, minDups, keysWithNulls, subkeysWithNulls, time.Since(t))
 	} else {
-		log.Infof("After %v: Bulk Insertion OK: %d keys and %d subkeys with NULLs; "+
-			"at least %d (and up to %d possible) duplicates; %d keys and %d subkeys inserted", time.Since(t),
-			keysWithNulls, subkeysWithNulls, minDups, maxDups, keysInserted, subkeysInserted)
+		log.Infof("%d keys and %d subkeys bulk-inserted, at least %d (and up to %d possible) duplicates skipped "+
+			"(%d keys and %d subkeys with NULLs) in %v",
+			keysInserted, subkeysInserted, minDups, maxDups, keysWithNulls, subkeysWithNulls, time.Since(t))
 	}
 
 	err = st.bulkInsertCleanUp()
@@ -1081,7 +1021,6 @@ func (st *storage) BulkInsert(keys []*openpgp.PrimaryKey, result *hkpstorage.Ins
 		// but may be resolved for the subsequent file(s)
 		result.Errors = append(result.Errors, err)
 	}
-
 	// FIXME: Imitate returning duplicates for reporting. Can be removed.
 	result.Duplicates = make([]*openpgp.PrimaryKey, minDups)
 	return keysInserted, true
@@ -1122,13 +1061,13 @@ func (st *storage) Insert(keys []*openpgp.PrimaryKey) (u, n int, retErr error) {
 				} else {
 					switch kc.(type) {
 					case hkpstorage.KeyReplaced:
-						// Listener in hockeypuck-load not really prepared for
+						// FIXME: Listener in hockeypuck-load not really prepared for
 						// hkpstorage.KeyReplaced notifications but stats are updated...
 						st.Notify(kc)
 						u++
 					case hkpstorage.KeyNotChanged:
 						result.Duplicates = append(result.Duplicates, key)
-					default:		// TODO: Remove this; only for debug
+					default: // TODO: Remove this; only for debug
 						log.Infof("Unexpected type response from upsertKeyOnInsert().")
 					}
 				}
@@ -1360,8 +1299,7 @@ func (st *storage) Notify(change hkpstorage.KeyChange) error {
 	return nil
 }
 
-func (st *storage) RenotifyAll() error {
-	sqlStr := fmt.Sprintf("SELECT md5 FROM keys")
+func (st *storage) BulkNotify(sqlStr string) error {
 	rows, err := st.Query(sqlStr)
 	if err != nil {
 		return errors.WithStack(err)
@@ -1382,4 +1320,8 @@ func (st *storage) RenotifyAll() error {
 	}
 	err = rows.Err()
 	return errors.WithStack(err)
+}
+
+func (st *storage) RenotifyAll() error {
+	return st.BulkNotify("SELECT md5 FROM keys")
 }
