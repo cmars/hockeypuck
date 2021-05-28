@@ -84,8 +84,11 @@ type Inserter interface {
 	// Insert inserts new public keys if they are not already stored. If they
 	// are, then nothing is changed.
 	// Returns (u, n, err) where
-	// <u> is the number of keys updated
-	// <n> is the number of keys inserted
+	// <u>   is the number of keys updated, if any, in case some PrimaryKey's in
+	//       the input where already in DB (same rfingerprint), but had non-overlapping
+	//       set of subkeys, or signatures etc and, thus, different signatures
+	// <n>   is the number of keys inserted in the DB, if any; keys inserted had no key
+	//       of matching rfingerprint in the DB before
 	// <err> is any errors that have occurred during insertion
 	Insert([]*openpgp.PrimaryKey) (int, int, error)
 }

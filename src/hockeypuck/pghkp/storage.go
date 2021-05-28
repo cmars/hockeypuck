@@ -824,7 +824,7 @@ func (st *storage) bulkInsertCheckKeys(result *hkpstorage.InsertError) (n int, o
 
 	// (1) rfingerprint & md5 are also UNIQUE in keys_checked so no duplicates inside this same file allowed
 	// (2) Keep only keys with Duplicates in keys_copyin: delete 1st-stage checked keys & tuples with NULL fields
-	// (3) Insert single copy of in-file Duplicates that have no Duplicate in final keys table
+	// (3) Insert single copy of in-file Duplicates, if they have no Duplicate in final keys table (in DB)
 	txStrs := []string{bulkTxFilterUniqueKeys, bulkTxPrepKeyStats, bulkTxFilterDupKeys}
 	msgStrs := []string{"bulkTx-filter-unique-keys", "bulkTx-prep-key-stats", "bulkTx-filter-dup-keys"}
 	err = st.bulkInsertSingleTx(txStrs, msgStrs)
@@ -849,8 +849,8 @@ func (st *storage) bulkInsertCheckedKeysSubkeys(keys []*openpgp.PrimaryKey,
 
 	// Batch INSERT all checked-for-constraints keys from memory tables (should need no checks!!!!)
 	// Final batch-insertion in keys/subkeys tables without any checks: _must not_ give any errors
-	txStrs := []string{bulkTxSQL[6], bulkTxSQL[7]}
-	msgStrs := []string{"bulkTx-insert keys", "bulkTx-insert subkeys"}
+	txStrs := []string{bulkTxInsertKeys, bulkTxInsertSubkeys}
+	msgStrs := []string{"bulkTx-insert-keys", "bulkTx-insert-subkeys"}
 	err := st.bulkInsertSingleTx(txStrs, msgStrs)
 	if err != nil {
 		result.Errors = append(result.Errors, err)
@@ -1124,11 +1124,12 @@ func (st *storage) Insert(keys []*openpgp.PrimaryKey) (u, n int, retErr error) {
 				kc, err := st.upsertKeyOnInsert(key)
 				if err != nil {
 					result.Errors = append(result.Errors, err)
+					continue
 				} else {
 					switch kc.(type) {
 					case hkpstorage.KeyReplaced:
-						// Listener in hockeypuck-load not really prepared for hkpstorage.KeyReplaced notifications
-						// but stats are updated...
+						// Listener in hockeypuck-load not really prepared for
+						// hkpstorage.KeyReplaced notifications but stats are updated...
 						st.Notify(kc)
 						u++
 					case hkpstorage.KeyNotChanged:
