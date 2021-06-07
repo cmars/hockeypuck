@@ -133,8 +133,10 @@ var drTempTablesSQL = []string{
 `,
 }
 
-// No NULL fields && No Duplicates allowed: rfingerprint && md5 are UNIQUE in keys_checked
-// First get the new keys: UNIQUE rfp *and* UNIQUE md5 in the file, but *neither* rfp *nor* md5 that exist in DB.
+// bulkTxFilterUniqueKeys is a key-filtering quyery, between temporary tables, used for bulk insertion.
+// Among all the keys in a call to Insert(..) (usually the keys in a processed key-dump file), this
+// filter gets the unique keys, i.e., those with unique rfingerprint *and* unique md5, but *neither*
+// with rfingerprint *nor* with md5 that currently exist in the DB.
 const bulkTxFilterUniqueKeys string = `INSERT INTO keys_checked (rfingerprint, doc, ctime, mtime, md5, keywords) 
 SELECT rfingerprint, doc, ctime, mtime, md5, keywords FROM keys_copyin kcpinA WHERE 
 rfingerprint IS NOT NULL AND doc IS NOT NULL AND ctime IS NOT NULL AND mtime IS NOT NULL AND md5 IS NOT NULL AND 
@@ -142,19 +144,24 @@ rfingerprint IS NOT NULL AND doc IS NOT NULL AND ctime IS NOT NULL AND mtime IS 
                                                 kcpinB.md5          = kcpinA.md5) = 1 AND 
 NOT EXISTS (SELECT 1 FROM keys WHERE keys.rfingerprint = kcpinA.rfingerprint OR keys.md5 = kcpinA.md5)
 `
-
-// Keep Duplicates and only Duplicates in keys_copyin:
-// delete 1st-stage checked-keys & remove tuples with NULLs
+// bulkTxPrepKeyStats is a key-processing query on bulk insertion temporary tables that facilitates
+// calculation of statistics on keys and subsequent additional filtering. Out of all the keys in a
+// call to Insert(..) (usually the keys in a processed key-dump file), this query keeps only duplicates
+// by dropping keys previously set aside by bulkTxFilterUniqueKeys query and removing any tuples
+// with NULLs.
 const bulkTxPrepKeyStats string = `DELETE FROM keys_copyin WHERE 
 rfingerprint IS NULL OR doc IS NULL OR ctime IS NULL OR mtime IS NULL OR md5 IS NULL OR 
 EXISTS (SELECT 1 FROM keys_checked WHERE keys_checked.rfingerprint = keys_copyin.rfingerprint)
 `
-
-// Of what remains we want _a single copy_ of those keys that are in-file Duplicates but do not yet exist in DB.
+// bulkTxFilterDupKeys is the final key-filtering query, between temporary tables, used for bulk
+// insertion. Among all the keys in a call to Insert(..) (usually the keys in a processed key-dump
+// file), this query sets aside for final DB insertion _a single copy_ of those keys that are
+// duplicates in the arguments of Insert(..), but do not yet exist in the DB.
+const bulkTxFilterDupKeys string =
 // *** ctid field is PostgreSQL-specific; Oracle has ROWID equivalent field ***
 // ===> If there are different md5 for same rfp, this query allows them into keys_checked: <===
 // ===>  ***  an intentional error of non-unique rfp, to revert to normal insertion!  ***  <===
-const bulkTxFilterDupKeys string = `INSERT INTO keys_checked (rfingerprint, doc, ctime, mtime, md5, keywords) 
+`INSERT INTO keys_checked (rfingerprint, doc, ctime, mtime, md5, keywords) 
 SELECT rfingerprint, doc, ctime, mtime, md5, keywords FROM keys_copyin WHERE 
 ( ctid IN 
      (SELECT ctid FROM 
@@ -167,13 +174,16 @@ SELECT rfingerprint, doc, ctime, mtime, md5, keywords FROM keys_copyin WHERE
 NOT EXISTS (SELECT 1 FROM keys WHERE keys.rfingerprint = keys_copyin.rfingerprint OR
                                      keys.md5          = keys_copyin.md5)
 `
-
-// Subkeys: No NULL fields && No Duplicates (unique in-file and not exist in DB)
+// bulkTxFilterUniqueSubkeys is a subkey-filtering query, between temporary tables, used for bulk
+// insertion. Among all the subkeys of keys in a call to Insert(..) (usually the keys in a processed
+// key-dump file), this filter gets the unique subkeys, i.e., those with no NULL fields that are not
+// duplicates (unique among subkeys of keys in this call to Insert(..) that do not currently exist in the DB).
+const bulkTxFilterUniqueSubkeys string =
 // Enforce foreign key constraint by checking both keys_checked and keys_copyin (instead of keys)
 // Avoid checking "EXISTS (SELECT 1 FROM keys WHERE keys.rfingerprint = skcpinA.rfingerprint)"
-// by checking in keys_copyin (despite no indexing): only dups (in-file or _in DB_) still in keys_copyin
-// `bulkTxSubkeyFilter1`
-const bulkTxFilterUniqueSubkeys string = `INSERT INTO subkeys_checked (rfingerprint, rsubfp) 
+// by checking in keys_copyin (despite no indexing): only duplicates (in-file or _in DB_) are
+// still in keys_copyin
+`INSERT INTO subkeys_checked (rfingerprint, rsubfp) 
 SELECT rfingerprint, rsubfp FROM subkeys_copyin skcpinA WHERE 
 skcpinA.rfingerprint IS NOT NULL AND skcpinA.rsubfp IS NOT NULL AND 
 (SELECT COUNT(*) FROM subkeys_copyin skcpinB WHERE skcpinB.rsubfp = skcpinA.rsubfp) = 1 AND 
@@ -181,20 +191,25 @@ NOT EXISTS (SELECT 1 FROM subkeys WHERE subkeys.rsubfp = skcpinA.rsubfp) AND
 ( EXISTS (SELECT 1 FROM keys_checked WHERE keys_checked.rfingerprint = skcpinA.rfingerprint) OR 
   EXISTS (SELECT 1 FROM keys_copyin  WHERE keys_copyin.rfingerprint  = skcpinA.rfingerprint) )
 `
-
-// Has NULL field || It is in subkeys_checked
+// bulkTxPrepSubkeyStats is a subkey-processing query on bulk insertion temporary tables that
+// facilitates calculation of statistics on subkeys and subsequent additional filtering. Out of
+// all the subkeys of keys in a call to Insert(..) (usually the keys in a processed key-dump file),
+// this query keeps only duplicates by dropping subkeys previously set aside by bulkTxFilterUniqueSubkeys
+// query and removing any tuples with NULLs.
 const bulkTxPrepSubkeyStats string = `DELETE FROM subkeys_copyin WHERE 
 rfingerprint IS NULL OR rsubfp IS NULL OR 
 EXISTS (SELECT 1 FROM subkeys_checked WHERE subkeys_checked.rsubfp = subkeys_copyin.rsubfp)
 `
-
-// Single-copy of in-file Dups && not Dups in DB
+// bulkTxFilterDupSubkeys is the final subkey-filtering query, between temporary tables, used for
+// bulk insertion. Among all the subkeys of keys in a call to Insert(..) (usually the keys in a processed
+// key-dump file), this query sets aside for final DB insertion _a single copy_ of those subkeys that are
+// duplicates in the arguments of Insert(..), but do not yet exist in the DB.
+const bulkTxFilterDupSubkeys string =
 // Enforce foreign key constraint by checking both keys_checked and keys_copyin (instead of keys)
 // *** ctid field is PostgreSQL-specific; Oracle has ROWID equivalent field ***
 // Avoid checking "EXISTS (SELECT 1 FROM keys WHERE keys.rfingerprint = subkeys_copyin.rfingerprint)"
 // by checking in keys_copyin (despite no indexing): only dups (in-file or _in DB_) still in keys_copyin
-// `bulkTxSubkeyFilter2`
-const bulkTxFilterDupSubkeys string = `INSERT INTO subkeys_checked (rfingerprint, rsubfp) 
+`INSERT INTO subkeys_checked (rfingerprint, rsubfp) 
 SELECT rfingerprint, rsubfp FROM subkeys_copyin WHERE 
 ctid IN 
    (SELECT ctid FROM 
@@ -204,16 +219,17 @@ NOT EXISTS (SELECT 1 FROM subkeys WHERE subkeys.rsubfp = subkeys_copyin.rsubfp) 
 ( EXISTS (SELECT 1 FROM keys_checked WHERE keys_checked.rfingerprint = subkeys_copyin.rfingerprint) OR 
   EXISTS (SELECT 1 FROM keys_copyin  WHERE keys_copyin.rfingerprint  = subkeys_copyin.rfingerprint) )
 `
-
+// bulkTxInsertKeys is the query for final bulk key insertion, from a tmporary table to the DB.
 const bulkTxInsertKeys string = `INSERT INTO keys (rfingerprint, doc, ctime, mtime, md5, keywords) 
 SELECT rfingerprint, doc, ctime, mtime, md5, keywords FROM keys_checked
 `
-
+// bulkTxInsertSubkeys is the query for final bulk subkey insertion, from a tmporary table to the DB.
 const bulkTxInsertSubkeys string = `INSERT INTO subkeys (rfingerprint, rsubfp) 
 SELECT rfingerprint, rsubfp FROM subkeys_checked
 `
 
 // Stats collection queries
+
 const bulkInsNumNullKeys string = `SELECT COUNT (*) FROM keys_copyin WHERE 
 rfingerprint IS NULL OR doc IS NULL OR ctime IS NULL OR mtime IS NULL OR md5 IS NULL
 `
@@ -224,13 +240,13 @@ const bulkInsNumMinDups string = `SELECT COUNT (*) FROM keys_copyin WHERE
 ( ( NOT EXISTS (SELECT 1 FROM keys_checked WHERE keys_checked.rfingerprint = keys_copyin.rfingerprint OR
                                                  keys_checked.md5          = keys_copyin.md5) AND 
     ctid IN 
-        (SELECT ctid FROM 
+       (SELECT ctid FROM 
           (SELECT ctid, ROW_NUMBER() OVER (PARTITION BY rfingerprint ORDER BY ctid) rfpEnum FROM keys_copyin) AS dupRfpTAB 
           WHERE rfpEnum = 1) ) OR 
-  (ctid IN 
+  ctid IN 
      (SELECT ctid FROM 
         (SELECT ctid, ROW_NUMBER() OVER (PARTITION BY rfingerprint) rfpEnum FROM keys_copyin) AS dupRfpTAB 
-        WHERE rfpEnum > 1)) ) AND 
+        WHERE rfpEnum > 1) ) AND 
 NOT EXISTS (SELECT 1 FROM subkeys_checked WHERE subkeys_checked.rfingerprint = keys_copyin.rfingerprint)
 `
 const bulkInsNumPossibleDups string = `SELECT COUNT (*) FROM keys_copyin WHERE 
@@ -250,6 +266,21 @@ const bulkInsQueryKeyChange string = `SELECT md5 FROM keys_checked
 
 const keys_copyin_temp_table_name string = "keys_copyin"
 const subkeys_copyin_temp_table_name string = "subkeys_copyin"
+
+// keysInBunch is the maximum number of keys sent in a bunch during bulk insertion.
+// Since keys (and subkeys) are sent to the DB in prepared statements with parameters and
+// each key requires 6 parameters, 6 x keysInBunch < 65536 must hold (keysInBunch <= ~10900).
+// 64k (2-byte parameter count) is the current protocol limit for client communication,
+// of prepared statements in PostreSQL v13 (see Bind message in
+// https://www.postgresql.org/docs/current/protocol-message-formats.html).
+const keysInBunch int = 5000
+// subkeysInBunch is the maximum number of subkeys sent in a bunch (for at most
+// keysInBunch keys sent in a bunch) during bulk insertion. Each subkey requires 2
+// parameters, so less than 32k subkeys can fit in a bunch (see keysInBunch).
+const subkeysInBunch int = 32000
+// minKeys2UseBulk is the minimum number of keys in a call to Insert(..) that
+// will trigger a bulk insertion. Otherwise, Insert(..) preceeds one key at a time.
+const minKeys2UseBulk int = 3500
 
 // Dial returns PostgreSQL storage connected to the given database URL.
 func Dial(url string, options []openpgp.KeyReaderOption) (hkpstorage.Storage, error) {
@@ -856,32 +887,33 @@ func (st *storage) bulkInsertSendBunch(keystmt, subkeystmt string, keysValueArgs
 	return nil
 }
 
-type KeyInsertArgs struct {
+type keyInsertArgs struct {
 	RFingerprint *string
 	jsonStrDoc   *string
 	MD5          *string
 	keywords     *string
 }
-type SubkeyInsertArgs struct {
+type subkeyInsertArgs struct {
 	keyRFingerprint    *string
 	subkeyRFingerprint *string
 }
 
 // Insert keys & subkeys to in-mem tables with no constraints at all: should have no errors!
-func (st *storage) bulkInsertDoCopy(keyInsertArgs []KeyInsertArgs, subkeyInsertArgs [][]SubkeyInsertArgs,
+func (st *storage) bulkInsertDoCopy(keyInsArgs []keyInsertArgs, skeyInsArgs [][]subkeyInsertArgs,
 	result *hkpstorage.InsertError) (ok bool) {
-	lenKIA := len(keyInsertArgs)
-	for totKeyArgs, totSubkeyArgs, idx, lastIdx := 0, 0, 0, 0; idx < lenKIA; totKeyArgs, totSubkeyArgs, lastIdx = 0, 0, idx {
-		keysValueStrings := make([]string, 0, 5000)         // could be 10K keys but 5K more uniform for 15K files
-		keysValueArgs := make([]interface{}, 0, 5000*6)     // *** less than 64k arguments ***
-		subkeysValueStrings := make([]string, 0, 32000)     // max 32K subkeys
-		subkeysValueArgs := make([]interface{}, 0, 32000*2) // *** less than 64k arguments ***
-		insTime := make([]time.Time, 0, 5000)               // stupid but anyway...
+	lenKIA := len(keyInsArgs)
+	for idx, lastIdx := 0, 0; idx < lenKIA; lastIdx = idx {
+		totKeyArgs, totSubkeyArgs := 0, 0
+		keysValueStrings := make([]string, 0, keysInBunch)
+		keysValueArgs := make([]interface{}, 0, keysInBunch*6)			// *** must be less than 64k arguments ***
+		subkeysValueStrings := make([]string, 0, subkeysInBunch)
+		subkeysValueArgs := make([]interface{}, 0, subkeysInBunch*2)	// *** must be less than 64k arguments ***
+		insTime := make([]time.Time, 0, keysInBunch)	// stupid but anyway...
 		for i, j := 0, 0; idx < lenKIA; idx, i = idx+1, i+1 {
-			lenSKIA := len(subkeyInsertArgs[idx])
+			lenSKIA := len(skeyInsArgs[idx])
 			totKeyArgs += 6
 			totSubkeyArgs += 2 * lenSKIA
-			if (totKeyArgs > 30000) || (totSubkeyArgs > 64000) {
+			if (totKeyArgs > keysInBunch*6) || (totSubkeyArgs > subkeysInBunch*2) {
 				totKeyArgs -= 6
 				totSubkeyArgs -= 2 * lenSKIA
 				break
@@ -891,17 +923,16 @@ func (st *storage) bulkInsertDoCopy(keyInsertArgs []KeyInsertArgs, subkeyInsertA
 					i*6+1, i*6+2, i*6+3, i*6+4, i*6+5, i*6+6))
 			insTime = insTime[:i+1] // re-slice +1
 			insTime[i] = time.Now().UTC()
-			keysValueArgs = append(keysValueArgs, *keyInsertArgs[idx].RFingerprint, *keyInsertArgs[idx].jsonStrDoc,
-				insTime[i], insTime[i], *keyInsertArgs[idx].MD5, *keyInsertArgs[idx].keywords)
+			keysValueArgs = append(keysValueArgs, *keyInsArgs[idx].RFingerprint, *keyInsArgs[idx].jsonStrDoc,
+				insTime[i], insTime[i], *keyInsArgs[idx].MD5, *keyInsArgs[idx].keywords)
 
 			for sidx := 0; sidx < lenSKIA; sidx, j = sidx+1, j+1 {
 				subkeysValueStrings = append(subkeysValueStrings, fmt.Sprintf("($%d::TEXT, $%d::TEXT)", j*2+1, j*2+2))
 				subkeysValueArgs = append(subkeysValueArgs,
-					*subkeyInsertArgs[idx][sidx].keyRFingerprint, *subkeyInsertArgs[idx][sidx].subkeyRFingerprint)
+					*skeyInsArgs[idx][sidx].keyRFingerprint, *skeyInsArgs[idx][sidx].subkeyRFingerprint)
 			}
 		}
-		// TODO: remove this & lastIdx (debuging only)
-		log.Infof("Attempting bulk insertion of %d keys and a total of %d subkeys!", idx-lastIdx, totSubkeyArgs>>1)
+		log.Debugf("Attempting bulk insertion of %d keys and a total of %d subkeys!", idx-lastIdx, totSubkeyArgs>>1)
 		keystmt := fmt.Sprintf("INSERT INTO %s (rfingerprint, doc, ctime, mtime, md5, keywords) VALUES %s",
 			keys_copyin_temp_table_name, strings.Join(keysValueStrings, ","))
 		subkeystmt := fmt.Sprintf("INSERT INTO %s (rfingerprint, rsubfp) VALUES %s",
@@ -909,19 +940,18 @@ func (st *storage) bulkInsertDoCopy(keyInsertArgs []KeyInsertArgs, subkeyInsertA
 
 		err := st.bulkInsertSendBunch(keystmt, subkeystmt, keysValueArgs, subkeysValueArgs)
 		if err != nil {
-			// TODO: go on with other bunches??? And then?
 			result.Errors = append(result.Errors, err)
 			return false
 		}
-		log.Infof("%d keys, %d subkeys sent to DB...", idx-lastIdx, totSubkeyArgs>>1) // TODO: remove this & lastIdx
+		log.Debugf("%d keys, %d subkeys sent to DB...", idx-lastIdx, totSubkeyArgs>>1)
 	}
 	return true
 }
 
 func (st *storage) bulkInsertCopyKeysToServer(keys []*openpgp.PrimaryKey, result *hkpstorage.InsertError) (int, bool) {
 	var key *openpgp.PrimaryKey
-	keyInsertArgs := make([]KeyInsertArgs, 0, len(keys))
-	subkeyInsertArgs := make([][]SubkeyInsertArgs, 0, len(keys))
+	keyInsArgs := make([]keyInsertArgs, 0, len(keys))
+	skeyInsArgs := make([][]subkeyInsertArgs, 0, len(keys))
 	jsonStrs, theKeywords := make([]string, len(keys)), make([]string, len(keys))
 
 	unprocessed, sidx, i := 0, 0, 0
@@ -936,18 +966,18 @@ func (st *storage) bulkInsertCopyKeysToServer(keys []*openpgp.PrimaryKey, result
 			continue
 		}
 		jsonStrs[i], theKeywords[i] = string(jsonBuf), keywordsTSVector(key)
-		keyInsertArgs = keyInsertArgs[:i+1] // re-slice +1
-		keyInsertArgs[i] = KeyInsertArgs{&key.RFingerprint, &jsonStrs[i], &key.MD5, &theKeywords[i]}
+		keyInsArgs = keyInsArgs[:i+1] // re-slice +1
+		keyInsArgs[i] = keyInsertArgs{&key.RFingerprint, &jsonStrs[i], &key.MD5, &theKeywords[i]}
 
-		subkeyInsertArgs = subkeyInsertArgs[:i+1] // re-slice +1
-		subkeyInsertArgs[i] = make([]SubkeyInsertArgs, 0, len(key.SubKeys))
+		skeyInsArgs = skeyInsArgs[:i+1] // re-slice +1
+		skeyInsArgs[i] = make([]subkeyInsertArgs, 0, len(key.SubKeys))
 		for sidx = 0; sidx < len(key.SubKeys); sidx++ {
-			subkeyInsertArgs[i] = subkeyInsertArgs[i][:sidx+1] // re-slice +1
-			subkeyInsertArgs[i][sidx] = SubkeyInsertArgs{&key.RFingerprint, &key.SubKeys[sidx].RFingerprint}
+			skeyInsArgs[i] = skeyInsArgs[i][:sidx+1] // re-slice +1
+			skeyInsArgs[i][sidx] = subkeyInsertArgs{&key.RFingerprint, &key.SubKeys[sidx].RFingerprint}
 		}
 		i++
 	}
-	ok := st.bulkInsertDoCopy(keyInsertArgs, subkeyInsertArgs, result)
+	ok := st.bulkInsertDoCopy(keyInsArgs, skeyInsArgs, result)
 	return unprocessed, ok
 }
 
@@ -1030,7 +1060,7 @@ func (st *storage) Insert(keys []*openpgp.PrimaryKey) (u, n int, retErr error) {
 	var result hkpstorage.InsertError
 
 	bulkOK, bulkSkip := false, false
-	if len(keys) > 3500 {
+	if len(keys) >= minKeys2UseBulk {
 		// Attempt bulk insertion
 		n, bulkOK = st.BulkInsert(keys, &result)
 	} else {
@@ -1052,8 +1082,6 @@ func (st *storage) Insert(keys []*openpgp.PrimaryKey) (u, n int, retErr error) {
 				result.Errors = append(result.Errors, err)
 				continue
 			} else if needUpsert {
-				// TODO: Remove this; only for debug
-				log.Infof("Checking possible key-merge & update, or just dropping of a duplicate.")
 				kc, err := st.upsertKeyOnInsert(key)
 				if err != nil {
 					result.Errors = append(result.Errors, err)
@@ -1067,8 +1095,6 @@ func (st *storage) Insert(keys []*openpgp.PrimaryKey) (u, n int, retErr error) {
 						u++
 					case hkpstorage.KeyNotChanged:
 						result.Duplicates = append(result.Duplicates, key)
-					default: // TODO: Remove this; only for debug
-						log.Infof("Unexpected type response from upsertKeyOnInsert().")
 					}
 				}
 				continue
