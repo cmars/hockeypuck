@@ -133,7 +133,7 @@ func load(settings *server.Settings, args []string) error {
 			}
 			log.Infof("found %d keys in %q...", len(keys), file)
 			t := time.Now()
-			n, err := st.Insert(keys)
+			u, n, err := st.Insert(keys)
 			if err != nil {
 				log.Errorf("some keys failed to insert from %q: %v", file, err)
 				if hke, ok := err.(storage.InsertError); ok {
@@ -142,8 +142,8 @@ func load(settings *server.Settings, args []string) error {
 					}
 				}
 			}
-			if n > 0 {
-				log.Infof("inserted %d keys from %q in %v", n, file, time.Since(t))
+			if n > 0 || u > 0 {
+				log.Infof("inserted %d, updated %d keys from %q in %v", n, u, file, time.Since(t))
 			}
 		}
 	}
