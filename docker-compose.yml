@@ -6,7 +6,7 @@ services:
       dockerfile: ./Dockerfile
     ports:
     - "11370:11370"
-    - "127.0.0.1:11371:11371"
+    - "11371:11371"
     restart: always
     depends_on:
     - postgres
