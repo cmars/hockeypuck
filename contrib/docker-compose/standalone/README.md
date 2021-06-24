@@ -49,7 +49,7 @@ Other platforms may work but may require some customization.
 * NGINX configuration: `nginx/conf.d/hockeypuck.conf`
 * Prometheus configuration: `prometheus/etc/prometheus.yml`
 
-To reload services after changing the configuration, incant `docker-compose up -d`.
+To reload services after changing the configuration, incant `docker-compose restart`.
 
 # Operation
 
