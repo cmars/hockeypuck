@@ -12,13 +12,13 @@ import (
 	"strings"
 	"syscall"
 
-	"gopkg.in/errgo.v1"
+	"github.com/pkg/errors"
 	"gopkg.in/tomb.v2"
+
 	"hockeypuck/conflux/recon"
 	"hockeypuck/hkp/sks"
 	"hockeypuck/hkp/storage"
 	"hockeypuck/openpgp"
-
 	"hockeypuck/server"
 	"hockeypuck/server/cmd"
 )
@@ -41,17 +41,17 @@ func main() {
 	if configFile != nil {
 		conf, err := ioutil.ReadFile(*configFile)
 		if err != nil {
-			cmd.Die(errgo.Mask(err))
+			cmd.Die(errors.WithStack(err))
 		}
 		settings, err = server.ParseSettings(string(conf))
 		if err != nil {
-			cmd.Die(errgo.Mask(err))
+			cmd.Die(errors.WithStack(err))
 		}
 	}
 
 	cpuFile := cmd.StartCPUProf(*cpuProf, nil)
 
-	c := make(chan os.Signal)
+	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGUSR2)
 	go func() {
 		for {
@@ -73,23 +73,23 @@ func main() {
 func dump(settings *server.Settings) error {
 	st, err := server.DialStorage(settings)
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	defer st.Close()
 
 	ptree, err := sks.NewPrefixTree(settings.Conflux.Recon.LevelDB.Path, &settings.Conflux.Recon.Settings)
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	err = ptree.Create()
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	defer ptree.Close()
 
 	root, err := ptree.Root()
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 
 	var t tomb.Tomb
@@ -107,7 +107,7 @@ func dump(settings *server.Settings) error {
 			if len(digests) >= *count {
 				err := writeKeys(st, digests, i)
 				if err != nil {
-					return errgo.Mask(err)
+					return errors.WithStack(err)
 				}
 				i++
 				digests = nil
@@ -116,7 +116,7 @@ func dump(settings *server.Settings) error {
 		if len(digests) > 0 {
 			err := writeKeys(st, digests, i)
 			if err != nil {
-				return errgo.Mask(err)
+				return errors.WithStack(err)
 			}
 		}
 		return nil
@@ -138,7 +138,7 @@ func traverse(root recon.PrefixNode, ch chan string) error {
 		if node.IsLeaf() {
 			elements, err := node.Elements()
 			if err != nil {
-				return errgo.Mask(err)
+				return errors.WithStack(err)
 			}
 			for _, element := range elements {
 				zb := element.Bytes()
@@ -147,7 +147,7 @@ func traverse(root recon.PrefixNode, ch chan string) error {
 		} else {
 			children, err := node.Children()
 			if err != nil {
-				return errgo.Mask(err)
+				return errors.WithStack(err)
 			}
 			nodes = append(nodes, children...)
 		}
@@ -160,12 +160,12 @@ const chunksize = 20
 func writeKeys(st storage.Queryer, digests []string, num int) error {
 	rfps, err := st.MatchMD5(digests)
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	log.Printf("matched %d fingerprints", len(rfps))
 	f, err := os.Create(filepath.Join(*outputDir, fmt.Sprintf("hkp-dump-%04d.pgp", num)))
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	defer f.Close()
 
@@ -181,12 +181,12 @@ func writeKeys(st storage.Queryer, digests []string, num int) error {
 
 		keys, err := st.FetchKeys(chunk)
 		if err != nil {
-			return errgo.Mask(err)
+			return errors.WithStack(err)
 		}
 		for _, key := range keys {
 			err := openpgp.WritePackets(f, key)
 			if err != nil {
-				return errgo.Mask(err)
+				return errors.WithStack(err)
 			}
 		}
 	}

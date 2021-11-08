@@ -7,13 +7,14 @@ import (
 	"runtime/pprof"
 	"time"
 
-	"gopkg.in/errgo.v1"
+	"github.com/pkg/errors"
+
 	log "hockeypuck/logrus"
 )
 
 func Die(err error) {
 	if err != nil {
-		fmt.Fprintln(os.Stderr, errgo.Details(err))
+		fmt.Fprintf(os.Stderr, "%+v", err)
 		os.Exit(1)
 	}
 	os.Exit(0)
@@ -31,7 +32,7 @@ func StartCPUProf(cpuProf bool, prior *os.File) *os.File {
 		profName := filepath.Join(os.TempDir(), "hockeypuck-cpu.prof.part")
 		f, err := os.Create(profName)
 		if err != nil {
-			Die(errgo.Mask(err))
+			Die(errors.WithStack(err))
 		}
 		pprof.StartCPUProfile(f)
 		return f
@@ -45,7 +46,7 @@ func WriteMemProf(memProf bool) {
 		profName := filepath.Join(os.TempDir(), "hockeypuck-mem.prof")
 		f, err := os.Create(tmpName)
 		if err != nil {
-			Die(errgo.Mask(err))
+			Die(errors.WithStack(err))
 		}
 		err = pprof.WriteHeapProfile(f)
 		f.Close()

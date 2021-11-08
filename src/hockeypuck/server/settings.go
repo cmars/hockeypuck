@@ -19,7 +19,7 @@ package server
 
 import (
 	"github.com/BurntSushi/toml"
-	"gopkg.in/errgo.v1"
+	"github.com/pkg/errors"
 
 	"hockeypuck/conflux/recon"
 	"hockeypuck/metrics"
@@ -79,19 +79,15 @@ type SMTPConfig struct {
 }
 
 const (
-	DefaultDBDriver = "mongo"
-	DefaultDBDSN    = "localhost:27017"
+	DefaultDBDriver        = "postgres-jsonb"
+	DefaultDBDSN           = "database=hockeypuck host=/var/run/postgresql port=5432 sslmode=disable"
+	DefaultMaxKeyLength    = 1048576
+	DefaultMaxPacketLength = 8192
 )
 
 type DBConfig struct {
-	Driver string       `toml:"driver"`
-	DSN    string       `toml:"dsn"`
-	Mongo  *mongoConfig `toml:"mongo"`
-}
-
-type mongoConfig struct {
-	DB         string `toml:"db"`
-	Collection string `toml:"collection"`
+	Driver string `toml:"driver"`
+	DSN    string `toml:"dsn"`
 }
 
 const (
@@ -99,10 +95,21 @@ const (
 	DefaultNWorkers          = 8
 )
 
+type OpenPGPArmorHeaders struct {
+	Comment string `toml:"comment"`
+	Version string `toml:"version"`
+}
+
+const (
+	DefaultArmorHeaderComment = ""
+	DefaultArmorHeaderVersion = ""
+)
+
 type OpenPGPConfig struct {
-	PKS      *PKSConfig `toml:"pks"`
-	NWorkers int        `toml:"nworkers"`
-	DB       DBConfig   `toml:"db"`
+	PKS      *PKSConfig          `toml:"pks"`
+	NWorkers int                 `toml:"nworkers"`
+	DB       DBConfig            `toml:"db"`
+	Headers  OpenPGPArmorHeaders `toml:"headers"`
 
 	// NOTE: The following options will probably prevent your keyserver from
 	// perfectly reconciling with other keyservers that do not share the same
@@ -135,20 +142,22 @@ type OpenPGPConfig struct {
 	// Blacklist contains a list of public key fingerprints that are not
 	// allowed on this server at all. These keys are silently dropped from
 	// inserts, updates, and lookups.
-	//
-	// TODO(cmars, 2020-11-27): These same fingerprints will soon be used to
-	// also drop subkeys and signatures made with these keys -- not only from
-	// new key material, but also from lookup responses.
 	Blacklist []string `toml:"blacklist"`
 }
 
 func DefaultOpenPGP() OpenPGPConfig {
 	return OpenPGPConfig{
 		NWorkers: DefaultNWorkers,
+		Headers: OpenPGPArmorHeaders{
+			Comment: DefaultArmorHeaderComment,
+			Version: DefaultArmorHeaderVersion,
+		},
 		DB: DBConfig{
 			Driver: DefaultDBDriver,
 			DSN:    DefaultDBDSN,
 		},
+		MaxKeyLength:    DefaultMaxKeyLength,
+		MaxPacketLength: DefaultMaxPacketLength,
 	}
 }
 
@@ -175,6 +184,8 @@ type Settings struct {
 	Hostname string `toml:"hostname"`
 	Software string `toml:"software"`
 	Version  string `toml:"version"`
+
+	SksCompat bool `toml:"sksCompat"`
 }
 
 const (
@@ -197,11 +208,12 @@ func DefaultSettings() Settings {
 		HKP: HKPConfig{
 			Bind: DefaultHKPBind,
 		},
-		Metrics:  metricsSettings,
-		OpenPGP:  DefaultOpenPGP(),
-		LogLevel: DefaultLogLevel,
-		Software: "Hockeypuck",
-		Version:  "~unreleased",
+		Metrics:   metricsSettings,
+		OpenPGP:   DefaultOpenPGP(),
+		LogLevel:  DefaultLogLevel,
+		Software:  "Hockeypuck",
+		Version:   "~unreleased",
+		SksCompat: false,
 	}
 }
 
@@ -212,12 +224,12 @@ func ParseSettings(data string) (*Settings, error) {
 	doc.Hockeypuck = DefaultSettings()
 	_, err := toml.Decode(data, &doc)
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 
 	err = doc.Hockeypuck.Conflux.Recon.Settings.Resolve()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 
 	return &doc.Hockeypuck, nil

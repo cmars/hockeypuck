@@ -21,8 +21,8 @@ import (
 	"bytes"
 	"strings"
 
+	"github.com/pkg/errors"
 	"golang.org/x/crypto/openpgp/packet"
-	"gopkg.in/errgo.v1"
 )
 
 type SubKey struct {
@@ -46,7 +46,7 @@ func ParseSubKey(op *packet.OpaquePacket) (*SubKey, error) {
 	var err error
 
 	if err = op.Serialize(&buf); err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	subkey := &SubKey{
 		PublicKey: PublicKey{
@@ -71,11 +71,11 @@ func ParseSubKey(op *packet.OpaquePacket) (*SubKey, error) {
 func (subkey *SubKey) removeDuplicate(parent packetNode, dup packetNode) error {
 	pubkey, ok := parent.(*PrimaryKey)
 	if !ok {
-		return errgo.Newf("invalid subkey parent: %+v", parent)
+		return errors.Errorf("invalid subkey parent: %+v", parent)
 	}
 	dupSubKey, ok := dup.(*SubKey)
 	if !ok {
-		return errgo.Newf("invalid subkey duplicate: %+v", dup)
+		return errors.Errorf("invalid subkey duplicate: %+v", dup)
 	}
 
 	subkey.Signatures = append(subkey.Signatures, dupSubKey.Signatures...)
