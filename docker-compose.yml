@@ -11,11 +11,17 @@ services:
     depends_on:
     - postgres
     volumes:
-    - ./contrib/docker-compose/devel/hockeypuck/etc:/hockeypuck/etc
+    - ./etc:/hockeypuck/etc
+    - ./keydump:/hockeypuck/import/dump
     - hkp_data:/hockeypuck/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   postgres:
-    image: postgres:11
+    image: postgres
     restart: always
     environment:
     - POSTGRES_USER=docker
@@ -27,4 +33,3 @@ services:
 volumes:
   hkp_data: {}
   pg_data: {}
-

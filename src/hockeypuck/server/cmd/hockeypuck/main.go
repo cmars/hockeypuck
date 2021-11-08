@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"gopkg.in/errgo.v1"
+	"github.com/pkg/errors"
 
 	"hockeypuck/server"
 	"hockeypuck/server/cmd"
@@ -24,7 +24,7 @@ func main() {
 
 	if len(flag.Args()) != 0 {
 		flag.Usage()
-		cmd.Die(errgo.New("unexpected command line arguments"))
+		cmd.Die(errors.New("unexpected command line arguments"))
 	}
 
 	var (
@@ -34,11 +34,11 @@ func main() {
 	if configFile != nil {
 		conf, err := ioutil.ReadFile(*configFile)
 		if err != nil {
-			cmd.Die(errgo.Mask(err))
+			cmd.Die(errors.WithStack(err))
 		}
 		settings, err = server.ParseSettings(string(conf))
 		if err != nil {
-			cmd.Die(errgo.Mask(err))
+			cmd.Die(errors.WithStack(err))
 		}
 	}
 
@@ -51,7 +51,7 @@ func main() {
 
 	srv.Start()
 
-	c := make(chan os.Signal)
+	c := make(chan os.Signal, 4)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR1, syscall.SIGUSR2)
 	go func() {
 		for {

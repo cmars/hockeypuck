@@ -9,13 +9,13 @@ import (
 	"syscall"
 	"time"
 
-	"gopkg.in/errgo.v1"
+	"github.com/pkg/errors"
+
 	cf "hockeypuck/conflux"
 	"hockeypuck/hkp/sks"
 	"hockeypuck/hkp/storage"
 	log "hockeypuck/logrus"
 	"hockeypuck/openpgp"
-
 	"hockeypuck/server"
 	"hockeypuck/server/cmd"
 )
@@ -36,11 +36,11 @@ func main() {
 	if configFile != nil {
 		conf, err := ioutil.ReadFile(*configFile)
 		if err != nil {
-			cmd.Die(errgo.Mask(err))
+			cmd.Die(errors.WithStack(err))
 		}
 		settings, err = server.ParseSettings(string(conf))
 		if err != nil {
-			cmd.Die(errgo.Mask(err))
+			cmd.Die(errors.WithStack(err))
 		}
 	}
 
@@ -49,10 +49,10 @@ func main() {
 	args := flag.Args()
 	if len(args) == 0 {
 		log.Errorf("usage: %s [flags] <file1> [file2 .. fileN]", os.Args[0])
-		cmd.Die(errgo.New("missing PGP key file arguments"))
+		cmd.Die(errors.New("missing PGP key file arguments"))
 	}
 
-	c := make(chan os.Signal)
+	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGUSR2)
 	go func() {
 		for {
@@ -74,17 +74,17 @@ func main() {
 func load(settings *server.Settings, args []string) error {
 	st, err := server.DialStorage(settings)
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	defer st.Close()
 
 	ptree, err := sks.NewPrefixTree(settings.Conflux.Recon.LevelDB.Path, &settings.Conflux.Recon.Settings)
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	err = ptree.Create()
 	if err != nil {
-		return errgo.Mask(err)
+		return errors.WithStack(err)
 	}
 	defer ptree.Close()
 
@@ -104,7 +104,7 @@ func load(settings *server.Settings, args []string) error {
 			var digestZp cf.Zp
 			err := sks.DigestZp(ka.Digest, &digestZp)
 			if err != nil {
-				return errgo.Notef(err, "bad digest %q", ka.Digest)
+				return errors.Wrapf(err, "bad digest %q", ka.Digest)
 			}
 			return ptree.Insert(&digestZp)
 		}
@@ -128,22 +128,22 @@ func load(settings *server.Settings, args []string) error {
 			kr := openpgp.NewKeyReader(f, keyReaderOptions...)
 			keys, err := kr.Read()
 			if err != nil {
-				log.Errorf("error reading key: %v", errgo.Details(err))
+				log.Errorf("error reading key: %v", err)
 				continue
 			}
 			log.Infof("found %d keys in %q...", len(keys), file)
 			t := time.Now()
-			n, err := st.Insert(keys)
+			u, n, err := st.Insert(keys)
 			if err != nil {
-				log.Errorf("some keys failed to insert from %q: %v", file, errgo.Details(err))
+				log.Errorf("some keys failed to insert from %q: %v", file, err)
 				if hke, ok := err.(storage.InsertError); ok {
 					for _, err := range hke.Errors {
 						log.Errorf("insert error: %v", err)
 					}
 				}
 			}
-			if n > 0 {
-				log.Infof("inserted %d keys from %q in %v", n, file, time.Since(t))
+			if n > 0 || u > 0 {
+				log.Infof("inserted %d, updated %d keys from %q in %v", n, u, file, time.Since(t))
 			}
 		}
 	}

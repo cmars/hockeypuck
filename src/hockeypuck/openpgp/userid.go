@@ -22,8 +22,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/pkg/errors"
 	"golang.org/x/crypto/openpgp/packet"
-	"gopkg.in/errgo.v1"
 )
 
 type UserID struct {
@@ -57,11 +57,11 @@ func (uid *UserID) appendSignature(sig *Signature) {
 func (uid *UserID) removeDuplicate(parent packetNode, dup packetNode) error {
 	pubkey, ok := parent.(*PrimaryKey)
 	if !ok {
-		return errgo.Newf("invalid uid parent: %+v", parent)
+		return errors.Errorf("invalid uid parent: %+v", parent)
 	}
 	dupUserID, ok := dup.(*UserID)
 	if !ok {
-		return errgo.Newf("invalid uid duplicate: %+v", dup)
+		return errors.Errorf("invalid uid duplicate: %+v", dup)
 	}
 
 	uid.Signatures = append(uid.Signatures, dupUserID.Signatures...)
@@ -85,7 +85,7 @@ func (us uidSlice) without(target *UserID) []*UserID {
 func ParseUserID(op *packet.OpaquePacket, parentID string) (*UserID, error) {
 	var buf bytes.Buffer
 	if err := op.Serialize(&buf); err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	uid := &UserID{
 		Packet: Packet{
@@ -97,7 +97,7 @@ func ParseUserID(op *packet.OpaquePacket, parentID string) (*UserID, error) {
 
 	p, err := op.Parse()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 
 	u, ok := p.(*packet.UserId)
@@ -106,7 +106,7 @@ func ParseUserID(op *packet.OpaquePacket, parentID string) (*UserID, error) {
 	}
 	err = uid.setUserID(u)
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	uid.Parsed = true
 	return uid, nil
@@ -115,15 +115,15 @@ func ParseUserID(op *packet.OpaquePacket, parentID string) (*UserID, error) {
 func (uid *UserID) userIDPacket() (*packet.UserId, error) {
 	op, err := uid.opaquePacket()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	p, err := op.Parse()
 	if err != nil {
-		return nil, errgo.Mask(err)
+		return nil, errors.WithStack(err)
 	}
 	u, ok := p.(*packet.UserId)
 	if !ok {
-		return nil, errgo.Newf("expected user ID packet, got %T", p)
+		return nil, errors.Errorf("expected user ID packet, got %T", p)
 	}
 	return u, nil
 }
