@@ -29,7 +29,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/pkg/errors"
 	"gopkg.in/tomb.v2"
 
@@ -190,6 +190,12 @@ func (r *Peer) Start() {
 	r.t.Go(r.handleRecovery)
 	r.t.Go(r.pruneStats)
 	r.peer.Start()
+}
+
+func (r *Peer) StartMode(mode recon.PeerMode) {
+	r.t.Go(r.handleRecovery)
+	r.t.Go(r.pruneStats)
+	r.peer.StartMode(mode)
 }
 
 func (r *Peer) Stop() {
