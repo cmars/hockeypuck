@@ -48,6 +48,7 @@ const (
 	maxRequestChunkSize    = 100
 	minRequestChunkSize    = 1
 	seenCacheSize          = 16384
+	recoveryRetryDelay     = 1
 )
 
 type keyRecoveryCounter map[string]int
@@ -314,6 +315,7 @@ func (r *Peer) requestRecovered(rcvr *recon.Recover) error {
 			}
 			r.logAddr(RECON, rcvr.RemoteAddr).Errorf("failed to request chunk of %d keys, shrinking: %v", len(chunk), err)
 			errCount += 1
+			time.Sleep(recoveryRetryDelay * time.Second)
 		} else {
 			if r.slowStart {
 				r.requestChunkSize *= 2
@@ -327,7 +329,9 @@ func (r *Peer) requestRecovered(rcvr *recon.Recover) error {
 				r.seenCache.Add(v.FullKeyHash(), nil)
 			}
 		}
-
+		if errCount == maxKeyRecoveryAttempts {
+			return errors.Errorf("Too many errors (%d) requesting chunks", errCount)
+		}
 	}
 	if errCount > 0 {
 		return errors.Errorf("%d errors requesting chunks", errCount)
