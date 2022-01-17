@@ -29,9 +29,10 @@ import (
 	"sync"
 	"time"
 
+	log "hockeypuck/logrus"
+
 	"github.com/pkg/errors"
 	"gopkg.in/tomb.v2"
-	log "hockeypuck/logrus"
 
 	cf "hockeypuck/conflux"
 )
@@ -513,7 +514,7 @@ func (p *Peer) handleConfig(conn net.Conn, role string, failResp string) (_ *Con
 func (p *Peer) Accept(conn net.Conn) (_err error) {
 	defer conn.Close()
 
-	p.logConn(SERVE, conn).Debug("accepted connection")
+	p.logConn(SERVE, conn).Info("accepted connection")
 	defer func() {
 		if _err != nil {
 			p.logConnErr(SERVE, conn, _err).Error()
@@ -740,7 +741,7 @@ func (p *Peer) interactWithClient(conn net.Conn, remoteConfig *Config, bitstring
 	}
 
 	defer func() {
-		p.sendItems(recon.rcvrSet.Items(), conn, remoteConfig)
+		p.sendItems(recon.rcvrSet.Items(), conn, remoteConfig, SERVE)
 	}()
 	defer func() {
 		WriteMsg(recon.bwr, &Done{})
@@ -816,10 +817,11 @@ func (p *Peer) interactWithClient(conn net.Conn, remoteConfig *Config, bitstring
 			return errors.New("failed to match expected patterns")
 		}
 	}
+	p.logConn(SERVE, conn).Info("reconciliation done")
 	return nil
 }
 
-func (p *Peer) sendItems(items []cf.Zp, conn net.Conn, remoteConfig *Config) error {
+func (p *Peer) sendItems(items []cf.Zp, conn net.Conn, remoteConfig *Config, context string) error {
 	if len(items) > 0 && p.t.Alive() {
 		done := make(chan struct{})
 		select {
@@ -829,9 +831,9 @@ func (p *Peer) sendItems(items []cf.Zp, conn net.Conn, remoteConfig *Config) err
 			RemoteElements: items,
 			Done:           done,
 		}:
-			p.logConn(SERVE, conn).Infof("recovering %d items", len(items))
+			p.logConn(context, conn).Infof("recovering %d items", len(items))
 			<-done
-			p.logConn(SERVE, conn).Info("recovery complete")
+			p.logConn(context, conn).Info("recovery complete")
 			recordItemsRecovered(conn.RemoteAddr(), len(items))
 		default:
 			p.mu.Lock()

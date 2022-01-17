@@ -280,7 +280,7 @@ func (r *Peer) unseenRemoteElements(rcvr *recon.Recover) []cf.Zp {
 		}
 	}
 	if len(unseenElements) < len(rcvr.RemoteElements) {
-		log.Infof("recovering %d instead of %d due to seenCache(%d)",
+		r.logAddr(RECON, rcvr.RemoteAddr).Errorf("recovering %d instead of %d due to seenCache(%d)",
 			len(unseenElements), len(rcvr.RemoteElements), r.seenCache.Len())
 	}
 	return unseenElements
