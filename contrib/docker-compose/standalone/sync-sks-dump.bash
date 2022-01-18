@@ -2,5 +2,6 @@
 
 set -eu
 
-docker-compose up -d import-keys
-docker-compose exec import-keys rsync -avr rsync://rsync.cyberbits.eu/sks/dump /import
+docker-compose -f docker-compose.yml -f docker-compose-tools.yml \
+    run --rm --entrypoint /bin/sh import-keys \
+        -x -c 'rsync -avr rsync://rsync.cyberbits.eu/sks/dump /import'

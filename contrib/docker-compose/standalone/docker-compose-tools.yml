@@ -1,0 +1,8 @@
+version: '2'
+services:
+  import-keys:
+    image: instrumentisto/rsync-ssh
+    entrypoint: /bin/sh
+    tty: true
+    volumes:
+    - pgp_import:/import

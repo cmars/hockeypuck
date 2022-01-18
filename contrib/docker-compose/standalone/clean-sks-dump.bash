@@ -2,5 +2,6 @@
 
 set -eu
 
-docker-compose up -d import-keys
-docker-compose exec import-keys /bin/sh -c 'rm /import/dump/*'
+docker-compose -f docker-compose.yml -f docker-compose-tools.yml \
+    run --rm --entrypoint /bin/sh import-keys \
+        -x -c 'rm /import/dump/*'

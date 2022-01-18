@@ -2,6 +2,8 @@ version: '2'
 services:
   hockeypuck:
     image: hockeypuck/hockeypuck:${RELEASE}
+    build:
+      context: ../../..
     ports:
     - "11370:11370"
     - "11371:11371"
@@ -17,13 +19,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-
-  import-keys:
-    image: instrumentisto/rsync-ssh
-    entrypoint: /bin/sh
-    tty: true
-    volumes:
-    - pgp_import:/import
 
   postgres:
     image: postgres:11
