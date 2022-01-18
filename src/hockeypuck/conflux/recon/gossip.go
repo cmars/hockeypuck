@@ -96,9 +96,10 @@ var ErrPeerBusy error = fmt.Errorf("peer is busy handling another request")
 var ErrReconDone = fmt.Errorf("reconciliation done")
 
 func (p *Peer) choosePartner() (net.Addr, error) {
-	partner, err := p.settings.RandomPartnerAddr()
-	if err != nil {
-		return nil, errors.WithStack(err)
+	partner, errorList := p.settings.RandomPartnerAddr()
+	// Name resolution errors are not fatal unless partner==nil
+	for _, err := range errorList {
+		p.log(GOSSIP).Info(err.Error())
 	}
 	if partner == nil {
 		return nil, errors.WithStack(ErrNoPartners)
