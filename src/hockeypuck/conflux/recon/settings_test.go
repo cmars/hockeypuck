@@ -152,6 +152,7 @@ reconAddr="8.7.6.5:11370"
 			LogName:                     DefaultLogName,
 			HTTPAddr:                    DefaultHTTPAddr,
 			ReconAddr:                   DefaultReconAddr,
+			Filters:                     defaultFilters,
 			GossipIntervalSecs:          DefaultGossipIntervalSecs,
 			MaxOutstandingReconRequests: DefaultMaxOutstandingReconRequests,
 			Partners: map[string]Partner{
@@ -180,6 +181,7 @@ partners=["1.2.3.4:11370","5.6.7.8:11370"]
 			LogName:                     DefaultLogName,
 			HTTPAddr:                    ":11371",
 			ReconAddr:                   ":11370",
+			Filters:                     defaultFilters,
 			CompatHTTPPort:              11371,
 			CompatReconPort:             11370,
 			GossipIntervalSecs:          DefaultGossipIntervalSecs,

@@ -180,7 +180,7 @@ func (n netType) Resolve(addr string) (net.Addr, error) {
 }
 
 const (
-	DefaultVersion                     = "1.1.3"
+	DefaultVersion                     = "1.1.6"
 	DefaultLogName                     = "conflux.recon"
 	DefaultHTTPAddr                    = ":11371"
 	DefaultReconAddr                   = ":11370"
@@ -198,6 +198,9 @@ var defaultPTreeConfig = PTreeConfig{
 	MBar:       DefaultMBar,
 }
 
+// Default filters for backwards compatibility with SKS
+var defaultFilters = []string{"yminsky.dedup", "yminsky.merge"}
+
 var defaultSettings = Settings{
 	PTreeConfig: defaultPTreeConfig,
 
@@ -205,6 +208,7 @@ var defaultSettings = Settings{
 	LogName:   DefaultLogName,
 	HTTPAddr:  DefaultHTTPAddr,
 	ReconAddr: DefaultReconAddr,
+	Filters:   defaultFilters,
 
 	GossipIntervalSecs:          DefaultGossipIntervalSecs,
 	MaxOutstandingReconRequests: DefaultMaxOutstandingReconRequests,
