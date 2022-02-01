@@ -17,6 +17,6 @@ RUN mkdir -p /hockeypuck/bin /hockeypuck/lib /hockeypuck/etc /hockeypuck/data
 COPY --from=builder /hockeypuck/bin /hockeypuck/bin
 COPY contrib/templates /hockeypuck/lib/templates
 COPY contrib/webroot /hockeypuck/lib/www
-COPY contrib/docker-compose/devel/hockeypuck/bin/startup.sh /hockeypuck/bin/
+COPY contrib/bin/startup.sh /hockeypuck/bin/
 VOLUME /hockeypuck/etc /hockeypuck/data
 CMD ["/hockeypuck/bin/startup.sh"]
