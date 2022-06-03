@@ -28,8 +28,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/pkg/errors"
 	log "hockeypuck/logrus"
+
+	"github.com/pkg/errors"
 
 	cf "hockeypuck/conflux"
 )
@@ -95,9 +96,10 @@ var ErrPeerBusy error = fmt.Errorf("peer is busy handling another request")
 var ErrReconDone = fmt.Errorf("reconciliation done")
 
 func (p *Peer) choosePartner() (net.Addr, error) {
-	partner, err := p.settings.RandomPartnerAddr()
-	if err != nil {
-		return nil, errors.WithStack(err)
+	partner, errorList := p.settings.RandomPartnerAddr()
+	// Name resolution errors are not fatal unless partner==nil
+	for _, err := range errorList {
+		p.log(GOSSIP).Info(err.Error())
 	}
 	if partner == nil {
 		return nil, errors.WithStack(ErrNoPartners)
@@ -106,7 +108,7 @@ func (p *Peer) choosePartner() (net.Addr, error) {
 }
 
 func (p *Peer) InitiateRecon(addr net.Addr) error {
-	p.log(GOSSIP).Debugf("initiating recon with peer %v", addr)
+	p.log(GOSSIP).Infof("initiating recon with peer %v", addr)
 	conn, err := net.DialTimeout(addr.Network(), addr.String(), 30*time.Second)
 	if err != nil {
 		return errors.WithStack(err)
@@ -151,14 +153,14 @@ func (p *Peer) clientRecon(conn net.Conn, remoteConfig *Config) error {
 	w := bufio.NewWriter(conn)
 	respSet := cf.NewZSet()
 	defer func() {
-		p.sendItems(respSet.Items(), conn, remoteConfig)
+		p.sendItems(respSet.Items(), conn, remoteConfig, GOSSIP)
 	}()
 
 	var pendingMessages []ReconMsg
 	for step := range p.interactWithServer(conn) {
 		if step.err != nil {
 			if errors.Is(step.err, ErrReconDone) {
-				p.logConn(GOSSIP, conn).Info("reconcilation done")
+				p.logConn(GOSSIP, conn).Info("reconciliation done")
 				break
 			} else {
 				err := WriteMsg(w, &Error{&textMsg{Text: step.err.Error()}})

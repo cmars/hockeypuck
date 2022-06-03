@@ -284,6 +284,8 @@ PARSE:
 				log.WithFields(log.Fields{
 					"length": packetLen,
 					"max":    r.maxPacketLen,
+					"fp":     currentFingerprint,
+					"type":   op.Tag,
 				}).Warn("dropped packet")
 				continue
 			}

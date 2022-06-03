@@ -2,6 +2,26 @@
 
 Hockeypuck is an OpenPGP public keyserver. 
 
+# Quick start with docker-compose (for testing)
+
+A quick and easy way to run Hockeypuck locally is with `docker-compose`.
+First, obtain a keydump from an existing server.
+A partial list of dump sources can be found at https://github.com/SKS-Keyserver/sks-keyserver/wiki/KeydumpSources .
+Unpack the `*.gpg` files from the dump under `contrib/docker-compose/devel/keydump/`, then:
+
+    cd contrib/docker-compose/devel
+    docker-compose up -d
+
+You can change the configuration by editing `contrib/docker-compose/devel/etc/hockeypuck.conf` and running `docker-compose restart`.
+To stop, run `docker-compose down`.
+
+# Production deployment with docker-compose (RECOMMENDED for most users)
+
+You can use `docker-compose` to build and deploy a standalone Hockeypuck instance in a production environment.
+This includes automated database population and TLS certificate management.
+
+See `contrib/docker-compose/standalone/README.md` for full instructions.
+
 # Building
 
 ## Any platform/arch
@@ -93,22 +113,6 @@ In order to release a new version of hockeypuck:
 Where `x.y.z` is the appropriate version number.
 This will upload the debian source package to the Launchpad PPA for building.
 
-# Running
-
-## Quick start with Docker
-
-A quick and easy way to run Hockeypuck locally is with `docker-compose`.
-First, obtain a keydump from e.g. https://github.com/SKS-Keyserver/sks-keyserver/wiki/KeydumpSources
-and put the `*.gpg` files under `./keydump`, then:
-
-    cp -r contrib/docker-compose/devel/hockeypuck/etc .
-    docker-compose up -d
-
-You can change the configuration by editing `etc/hockeypuck.conf` and running `docker-compose restart`.
-To stop, run `docker-compose down`.
-
-For a more robust docker-based install, please read `contrib/docker-compose/standalone/README.md`
-
 # About
 
-Copyright 2019, The Hockeypuck Developers; see CONTRIBUTORS and LICENSE for details.
+Copyright 2022, The Hockeypuck Developers; see CONTRIBUTORS and LICENSE for details.

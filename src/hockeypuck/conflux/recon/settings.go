@@ -180,7 +180,7 @@ func (n netType) Resolve(addr string) (net.Addr, error) {
 }
 
 const (
-	DefaultVersion                     = "1.1.3"
+	DefaultVersion                     = "1.1.6"
 	DefaultLogName                     = "conflux.recon"
 	DefaultHTTPAddr                    = ":11371"
 	DefaultReconAddr                   = ":11370"
@@ -198,6 +198,9 @@ var defaultPTreeConfig = PTreeConfig{
 	MBar:       DefaultMBar,
 }
 
+// Default filters for backwards compatibility with SKS
+var defaultFilters = []string{"yminsky.dedup", "yminsky.merge"}
+
 var defaultSettings = Settings{
 	PTreeConfig: defaultPTreeConfig,
 
@@ -205,6 +208,7 @@ var defaultSettings = Settings{
 	LogName:   DefaultLogName,
 	HTTPAddr:  DefaultHTTPAddr,
 	ReconAddr: DefaultReconAddr,
+	Filters:   defaultFilters,
 
 	GossipIntervalSecs:          DefaultGossipIntervalSecs,
 	MaxOutstandingReconRequests: DefaultMaxOutstandingReconRequests,
@@ -331,27 +335,30 @@ func (c *PTreeConfig) NumSamples() int {
 
 // RandomPartnerAddr returns the a weighted-random chosen resolved network
 // addresses of configured partner peers.
-func (s *Settings) RandomPartnerAddr() (net.Addr, error) {
+func (s *Settings) RandomPartnerAddr() (net.Addr, []error) {
 	var choices []randutil.Choice
+	var errorList []error
 	for _, partner := range s.Partners {
 		addr, err := partner.ReconNet.Resolve(partner.ReconAddr)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		weight := partner.Weight
-		if weight == 0 {
-			weight = 100
-		}
-		if weight > 0 {
-			choices = append(choices, randutil.Choice{Weight: weight, Item: addr})
+		if err == nil {
+			weight := partner.Weight
+			if weight == 0 {
+				weight = 100
+			}
+			if weight > 0 {
+				choices = append(choices, randutil.Choice{Weight: weight, Item: addr})
+			}
+		} else {
+			errorList = append(errorList, err)
 		}
 	}
 	if len(choices) == 0 {
-		return nil, nil
+		return nil, errorList
 	}
 	choice, err := randutil.WeightedChoice(choices)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		errorList = append(errorList, err)
+		return nil, errorList
 	}
-	return choice.Item.(net.Addr), nil
+	return choice.Item.(net.Addr), errorList
 }
