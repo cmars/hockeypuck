@@ -83,6 +83,27 @@ Use `./clean-sks-dump.bash` to remove stale dump files from the import volume an
 This will preserve the timestamp file that indicates a keydump has been loaded.
 To start from scratch instead, destroy the import volume using `docker volume rm pgp_import`.
 
+## Blacklisting and deleting keys
+
+To blacklist a key, add its full fingerprint (without any `0x`) to the `hockeypuck.openpgp.blacklist` array in `hockeypuck/etc/hockeypuck.conf`, e.g.:
+
+```
+[hockeypuck.openpgp]
+blacklist=[
+   "DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF"
+]
+```
+
+Note that blacklisting will only prevent updates to this key via e.g. gossip.
+It WILL NOT delete any existing keys in the postgres database.
+To delete a key or keys from the database, use the `delete-keys.bash` script in this directory:
+
+```
+./delete-keys.bash DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF
+```
+
+You can delete multiple keys by providing multiple arguments.
+
 # Debugging
 
 ## PTree corruption
