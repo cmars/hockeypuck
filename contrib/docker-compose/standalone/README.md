@@ -27,10 +27,10 @@ At minimum, docker and docker-compose (v1.5 or later) must be installed in advan
    they're used for Let's Encrypt.
 * Generate hockeypuck and nginx configuration from your site settings with
    `./mkconfig.bash`.
+* Build hockeypuck by incanting `docker-compose build`.
 * (Optional) Set up TLS with `./init-letsencrypt.bash`. Answer the prompts as
    needed. If you want to test LE first with staging before getting a real
    cert, set the environment variable `CERTBOT_STAGING=1`.
-* Build hockeypuck by incanting `docker-compose build`.
 * Download a keydump by running `./sync-sks-dump.bash`.
 * Incant `docker-compose up -d` to start Hockeypuck and all dependencies.
    It will take several hours (or days) to load the keydump on first invocation.
