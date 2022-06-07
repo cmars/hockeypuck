@@ -104,6 +104,8 @@ To delete a key or keys from the database, use the `delete-keys.bash` script in 
 
 You can delete multiple keys by providing multiple arguments.
 
+In case of accidental deletion, you will need to remove the key from the blacklist and then rebuild your PTtree (see below).
+
 # Debugging
 
 ## PTree corruption
