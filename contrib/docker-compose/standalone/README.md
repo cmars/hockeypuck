@@ -108,6 +108,13 @@ You can delete multiple keys by providing multiple arguments.
 
 ## PTree corruption
 
-If the PTree becomes corrupt, you will need to rebuild it.
+Hockeypuck can sometimes suffer from PTree corruption.
+Signs of corruption include:
+
+* A key count that diverges significantly from its direct peers
+* Key searches that produce stale output
+* Missing keys
+
+If any of the above persist for several days, rebuilding the PTree may help.
 First, stop the running hockeypuck using `docker-compose down`.
 Then run `./ptree-rebuild.bash`, and finally `docker-compose up -d`.
