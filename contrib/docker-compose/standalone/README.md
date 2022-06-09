@@ -27,10 +27,10 @@ At minimum, docker and docker-compose (v1.5 or later) must be installed in advan
    they're used for Let's Encrypt.
 * Generate hockeypuck and nginx configuration from your site settings with
    `./mkconfig.bash`.
+* Build hockeypuck by incanting `docker-compose build`.
 * (Optional) Set up TLS with `./init-letsencrypt.bash`. Answer the prompts as
    needed. If you want to test LE first with staging before getting a real
    cert, set the environment variable `CERTBOT_STAGING=1`.
-* Build hockeypuck by incanting `docker-compose build`.
 * Download a keydump by running `./sync-sks-dump.bash`.
 * Incant `docker-compose up -d` to start Hockeypuck and all dependencies.
    It will take several hours (or days) to load the keydump on first invocation.
@@ -83,10 +83,40 @@ Use `./clean-sks-dump.bash` to remove stale dump files from the import volume an
 This will preserve the timestamp file that indicates a keydump has been loaded.
 To start from scratch instead, destroy the import volume using `docker volume rm pgp_import`.
 
+## Blacklisting and deleting keys
+
+To blacklist a key, add its full fingerprint (without any `0x`) to the `hockeypuck.openpgp.blacklist` array in `hockeypuck/etc/hockeypuck.conf`, e.g.:
+
+```
+[hockeypuck.openpgp]
+blacklist=[
+   "DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF"
+]
+```
+
+Note that blacklisting will only prevent updates to this key via e.g. gossip.
+It WILL NOT delete any existing keys in the postgres database.
+To delete a key or keys from the database, use the `delete-keys.bash` script in this directory:
+
+```
+./delete-keys.bash DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF
+```
+
+You can delete multiple keys by providing multiple arguments.
+
+In case of accidental deletion, you will need to remove the key from the blacklist and then rebuild your PTtree (see below).
+
 # Debugging
 
 ## PTree corruption
 
-If the PTree becomes corrupt, you will need to rebuild it.
+Hockeypuck can sometimes suffer from PTree corruption.
+Signs of corruption include:
+
+* A key count that diverges significantly from its direct peers
+* Key searches that produce stale output
+* Missing keys
+
+If any of the above persist for several days, rebuilding the PTree may help.
 First, stop the running hockeypuck using `docker-compose down`.
 Then run `./ptree-rebuild.bash`, and finally `docker-compose up -d`.
