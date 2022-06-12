@@ -67,45 +67,6 @@ func (s *RequestsSuite) TestGetFp(c *gc.C) {
 	c.Assert(lookup.Exact, gc.Equals, true)
 }
 
-func (s *RequestsSuite) TestGetBareFp(c *gc.C) {
-	// bare v4-fp search (without 0x) - 40 nybbles; should get modified
-	testUrl, err := url.Parse("/pks/lookup?op=get&search=decafbaddecafbaddecafbaddecafbaddecafbad&options=mr,nm&fingerprint=on&exact=on")
-	c.Assert(err, gc.IsNil)
-	req := &http.Request{
-		Method: "GET",
-		URL:    testUrl}
-	lookup, err := ParseLookup(req)
-	c.Assert(err, gc.IsNil)
-	c.Assert(lookup.Search, gc.Equals, "0xdecafbaddecafbaddecafbaddecafbaddecafbad")
-	// bare v3-fp search (without 0x) - 32 nybbles; should get modified
-	testUrl, err = url.Parse("/pks/lookup?op=get&search=decafbaddecafbaddecafbaddecafbad&options=mr,nm&fingerprint=on&exact=on")
-	c.Assert(err, gc.IsNil)
-	req = &http.Request{
-		Method: "GET",
-		URL:    testUrl}
-	lookup, err = ParseLookup(req)
-	c.Assert(err, gc.IsNil)
-	c.Assert(lookup.Search, gc.Equals, "0xdecafbaddecafbaddecafbaddecafbad")
-	// bare long-id search (without 0x) - 16 nybbles; should get modified
-	testUrl, err = url.Parse("/pks/lookup?op=get&search=decafbaddecafbad&options=mr,nm&fingerprint=on&exact=on")
-	c.Assert(err, gc.IsNil)
-	req = &http.Request{
-		Method: "GET",
-		URL:    testUrl}
-	lookup, err = ParseLookup(req)
-	c.Assert(err, gc.IsNil)
-	c.Assert("0xdecafbaddecafbad", gc.Equals, lookup.Search)
-	// bare short-id search (without 0x) - 8 nybbles; should NOT get modified
-	testUrl, err = url.Parse("/pks/lookup?op=get&search=decafbad&options=mr,nm&fingerprint=on&exact=on")
-	c.Assert(err, gc.IsNil)
-	req = &http.Request{
-		Method: "GET",
-		URL:    testUrl}
-	lookup, err = ParseLookup(req)
-	c.Assert(err, gc.IsNil)
-	c.Assert(lookup.Search, gc.Equals, "decafbad")
-}
-
 func (s *RequestsSuite) TestIndex(c *gc.C) {
 	// op=index
 	testUrl, err := url.Parse("/pks/lookup?op=index&search=sharin") // as in, foo
@@ -116,6 +77,45 @@ func (s *RequestsSuite) TestIndex(c *gc.C) {
 	lookup, err := ParseLookup(req)
 	c.Assert(err, gc.IsNil)
 	c.Assert(lookup.Op, gc.Equals, OperationIndex)
+}
+
+func (s *RequestsSuite) TestIndexBareFp(c *gc.C) {
+	// bare v4-fp search (without 0x) - 40 nybbles; should get modified
+	testUrl, err := url.Parse("/pks/lookup?op=index&search=decafbaddecafbaddecafbaddecafbaddecafbad")
+	c.Assert(err, gc.IsNil)
+	req := &http.Request{
+		Method: "GET",
+		URL:    testUrl}
+	lookup, err := ParseLookup(req)
+	c.Assert(err, gc.IsNil)
+	c.Assert(lookup.Search, gc.Equals, "0xdecafbaddecafbaddecafbaddecafbaddecafbad")
+	// bare v3-fp search (without 0x) - 32 nybbles; should get modified
+	testUrl, err = url.Parse("/pks/lookup?op=index&search=decafbaddecafbaddecafbaddecafbad")
+	c.Assert(err, gc.IsNil)
+	req = &http.Request{
+		Method: "GET",
+		URL:    testUrl}
+	lookup, err = ParseLookup(req)
+	c.Assert(err, gc.IsNil)
+	c.Assert(lookup.Search, gc.Equals, "0xdecafbaddecafbaddecafbaddecafbad")
+	// bare long-id search (without 0x) - 16 nybbles; should get modified
+	testUrl, err = url.Parse("/pks/lookup?op=index&search=decafbaddecafbad")
+	c.Assert(err, gc.IsNil)
+	req = &http.Request{
+		Method: "GET",
+		URL:    testUrl}
+	lookup, err = ParseLookup(req)
+	c.Assert(err, gc.IsNil)
+	c.Assert("0xdecafbaddecafbad", gc.Equals, lookup.Search)
+	// bare short-id search (without 0x) - 8 nybbles; should NOT get modified
+	testUrl, err = url.Parse("/pks/lookup?op=index&search=decafbad")
+	c.Assert(err, gc.IsNil)
+	req = &http.Request{
+		Method: "GET",
+		URL:    testUrl}
+	lookup, err = ParseLookup(req)
+	c.Assert(err, gc.IsNil)
+	c.Assert(lookup.Search, gc.Equals, "decafbad")
 }
 
 func (s *RequestsSuite) TestVindex(c *gc.C) {
