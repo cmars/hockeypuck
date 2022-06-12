@@ -43,8 +43,8 @@ func (s *RequestsSuite) TestGetKeyword(c *gc.C) {
 		URL:    testUrl}
 	lookup, err := ParseLookup(req)
 	c.Assert(err, gc.IsNil)
-	c.Assert(OperationGet, gc.Equals, lookup.Op)
-	c.Assert("alice", gc.Equals, lookup.Search)
+	c.Assert(lookup.Op, gc.Equals, OperationGet)
+	c.Assert(lookup.Search, gc.Equals, "alice")
 	c.Assert(lookup.Options, gc.HasLen, 0)
 	c.Assert(lookup.Fingerprint, gc.Equals, false)
 	c.Assert(lookup.Exact, gc.Equals, false)
@@ -59,8 +59,8 @@ func (s *RequestsSuite) TestGetFp(c *gc.C) {
 		URL:    testUrl}
 	lookup, err := ParseLookup(req)
 	c.Assert(err, gc.IsNil)
-	c.Assert(OperationGet, gc.Equals, lookup.Op)
-	c.Assert("0xdecafbad", gc.Equals, lookup.Search)
+	c.Assert(lookup.Op, gc.Equals, OperationGet)
+	c.Assert(lookup.Search, gc.Equals, "0xdecafbad")
 	c.Assert(lookup.Options[OptionMachineReadable], gc.Equals, true)
 	c.Assert(lookup.Options[OptionNotModifiable], gc.Equals, true)
 	c.Assert(lookup.Fingerprint, gc.Equals, true)
@@ -76,7 +76,7 @@ func (s *RequestsSuite) TestGetBareFp(c *gc.C) {
 		URL:    testUrl}
 	lookup, err := ParseLookup(req)
 	c.Assert(err, gc.IsNil)
-	c.Assert("0xdecafbaddecafbaddecafbaddecafbaddecafbad", gc.Equals, lookup.Search)
+	c.Assert(lookup.Search, gc.Equals, "0xdecafbaddecafbaddecafbaddecafbaddecafbad")
 	// bare v3-fp search (without 0x) - 32 nybbles; should get modified
 	testUrl, err = url.Parse("/pks/lookup?op=get&search=decafbaddecafbaddecafbaddecafbad&options=mr,nm&fingerprint=on&exact=on")
 	c.Assert(err, gc.IsNil)
@@ -85,7 +85,7 @@ func (s *RequestsSuite) TestGetBareFp(c *gc.C) {
 		URL:    testUrl}
 	lookup, err = ParseLookup(req)
 	c.Assert(err, gc.IsNil)
-	c.Assert("0xdecafbaddecafbaddecafbaddecafbad", gc.Equals, lookup.Search)
+	c.Assert(lookup.Search, gc.Equals, "0xdecafbaddecafbaddecafbaddecafbad")
 	// bare long-id search (without 0x) - 16 nybbles; should get modified
 	testUrl, err = url.Parse("/pks/lookup?op=get&search=decafbaddecafbad&options=mr,nm&fingerprint=on&exact=on")
 	c.Assert(err, gc.IsNil)
@@ -103,7 +103,7 @@ func (s *RequestsSuite) TestGetBareFp(c *gc.C) {
 		URL:    testUrl}
 	lookup, err = ParseLookup(req)
 	c.Assert(err, gc.IsNil)
-	c.Assert("decafbad", gc.Equals, lookup.Search)
+	c.Assert(lookup.Search, gc.Equals, "decafbad")
 }
 
 func (s *RequestsSuite) TestIndex(c *gc.C) {
@@ -127,7 +127,7 @@ func (s *RequestsSuite) TestVindex(c *gc.C) {
 		URL:    testUrl}
 	lookup, err := ParseLookup(req)
 	c.Assert(err, gc.IsNil)
-	c.Assert(OperationVIndex, gc.Equals, lookup.Op)
+	c.Assert(lookup.Op, gc.Equals, OperationVIndex)
 }
 
 func (s *RequestsSuite) TestMissingSearch(c *gc.C) {
@@ -164,7 +164,7 @@ func (s *RequestsSuite) TestAdd(c *gc.C) {
 	req.PostForm = url.Values(postData)
 	add, err := ParseAdd(req)
 	c.Assert(err, gc.IsNil)
-	c.Assert("sus llaves aqui", gc.Equals, add.Keytext)
+	c.Assert(add.Keytext, gc.Equals, "sus llaves aqui")
 	c.Assert(add.Options, gc.HasLen, 0)
 }
 
@@ -179,7 +179,7 @@ func (s *RequestsSuite) TestAddOptions(c *gc.C) {
 	req.PostForm = url.Values(postData)
 	add, err := ParseAdd(req)
 	c.Assert(err, gc.IsNil)
-	c.Assert("sus llaves estan aqui", gc.Equals, add.Keytext)
+	c.Assert(add.Keytext, gc.Equals, "sus llaves estan aqui")
 	c.Assert(add.Options[OptionMachineReadable], gc.Equals, true)
 	c.Assert(add.Options[OptionNotModifiable], gc.Equals, false)
 }
