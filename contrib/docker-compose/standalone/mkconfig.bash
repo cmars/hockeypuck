@@ -7,5 +7,5 @@ set -eu
 
 env - $(< "$HERE/.env") envsubst '$FQDN:$FINGERPRINT:$RELEASE:$POSTGRES_USER:$POSTGRES_PASSWORD' \
 	< "$HERE/hockeypuck/etc/hockeypuck.conf.tmpl" > "$HERE/hockeypuck/etc/hockeypuck.conf"
-env - $(< "$HERE/.env") envsubst '$FQDN' \
+env - $(< "$HERE/.env") envsubst '$FQDN:$ALIAS_FQDNS' \
 	< "$HERE/nginx/conf.d/hockeypuck.conf.tmpl" > "$HERE/nginx/conf.d/hockeypuck.conf"

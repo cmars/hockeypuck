@@ -34,7 +34,7 @@ if ! [ -x "$(command -v docker-compose)" ]; then
   exit 1
 fi
 
-domains=($FQDN)
+domains=($FQDN $ALIAS_FQDNS)
 rsa_key_size=4096
 email="$EMAIL" # Adding a valid address is strongly recommended
 

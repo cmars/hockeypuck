@@ -22,9 +22,8 @@ At minimum, docker and docker-compose (v1.5 or later) must be installed in advan
 * Create a `.env` file by running `./mksite.bash`.
 * Customize the settings in `.env` to your liking.
    DO NOT surround values with double quotes.
-   Set FINGERPRINT to the fingerprint of the site admin's PGP key.
-   (Optional) If you're using DNS & TLS, make sure FQDN and EMAIL are correct;
-   they're used for Let's Encrypt.
+   Set EMAIL and FINGERPRINT to the contact email and associated PGP fingerprint of the site admin.
+   Set FQDN and (optionally) ALIAS_FQDNS to the primary (and other) DNS name(s) of your server.
 * Generate hockeypuck and nginx configuration from your site settings with
    `./mkconfig.bash`.
 * Build hockeypuck by incanting `docker-compose build`.
@@ -64,8 +63,9 @@ To clean them up, incant `docker images -f 'label=io.hockeypuck.temp=true' -q | 
 
 ## Monitoring
 
-Browse to `https://FQDN/monitoring/prometheus` to access prometheus.
-If you don't want this to be public, edit `nginx/conf.d/hockeypuck.conf` to your liking.
+By default the prometheus monitoring console is not accessible from external IP addresses.
+To change this, edit `nginx/conf.d/hockeypuck.conf` as appropriate.
+Once done, browse to `https://FQDN/monitoring/prometheus` to access the monitoring console.
 
 ## Obtaining a new keyserver dump
 
