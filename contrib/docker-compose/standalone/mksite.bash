@@ -14,8 +14,8 @@ cat >$HERE/.env <<EOF
 
 # This is the primary FQDN of your site
 FQDN=keyserver.example.com
-# Any extra FQDN aliases should be appended here, space-separated
-ALIAS_FQDNS=
+# Any extra FQDN aliases, space-separated
+ALIAS_FQDNS=""
 # A contact email address for the site operator (that's you!)
 EMAIL=admin@example.com
 # PGP encryption key for the above email address

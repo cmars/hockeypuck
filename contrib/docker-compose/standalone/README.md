@@ -21,7 +21,6 @@ At minimum, docker and docker-compose (v1.5 or later) must be installed in advan
 * Configure your ingress firewall to allow ports: 80, 443, 11370, 11371
 * Create a `.env` file by running `./mksite.bash`.
 * Customize the settings in `.env` to your liking.
-   DO NOT surround values with double quotes.
    Set EMAIL and FINGERPRINT to the contact email and associated PGP fingerprint of the site admin.
    Set FQDN and (optionally) ALIAS_FQDNS to the primary (and other) DNS name(s) of your server.
 * Generate hockeypuck and nginx configuration from your site settings with
