@@ -26,8 +26,8 @@
 
 HERE=$(cd $(dirname $0); pwd)
 set -eu
-[ -e $HERE/.env ]
-. $HERE/.env
+[ -e "$HERE/.env" ]
+. "$HERE/.env"
 
 if ! [ -x "$(command -v docker-compose)" ]; then
   echo 'Error: docker-compose is not installed.' >&2
