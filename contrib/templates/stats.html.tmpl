@@ -12,6 +12,8 @@ table, th, td {
 Taken at {{ .Now }}
 <h2>Settings</h2>
 <table>
+<tr><th>Hostname</th><td>{{ .Hostname }}</td></tr>
+{{ if .Nodename }}<tr><th>Nodename</th><td>{{ .Nodename }}</td></tr>{{ end }}
 <tr><th>Version</th><td>{{ .Version }} </td></tr>
 {{ if .Contact }}<tr><th>Server Contact</th><td>{{ .Contact }} </td></tr>{{ end }}
 <tr><th>HTTP</th><td>{{ .HTTPAddr }} </td></tr>
