@@ -70,6 +70,7 @@ type Handler struct {
 
 	keyReaderOptions []openpgp.KeyReaderOption
 	keyWriterOptions []openpgp.KeyWriterOption
+	maxResponseLen   int
 }
 
 type HandlerOption func(h *Handler) error
@@ -144,6 +145,13 @@ func FingerprintOnly(fingerprintOnly bool) HandlerOption {
 	}
 }
 
+func MaxResponseLen(maxResponseLen int) HandlerOption {
+	return func(h *Handler) error {
+		h.maxResponseLen = maxResponseLen
+		return nil
+	}
+}
+
 func KeyReaderOptions(opts []openpgp.KeyReaderOption) HandlerOption {
 	return func(h *Handler) error {
 		h.keyReaderOptions = opts
@@ -160,7 +168,8 @@ func KeyWriterOptions(opts []openpgp.KeyWriterOption) HandlerOption {
 
 func NewHandler(storage storage.Storage, options ...HandlerOption) (*Handler, error) {
 	h := &Handler{
-		storage: storage,
+		storage:        storage,
+		maxResponseLen: 0,
 	}
 	for _, option := range options {
 		err := option(h)
@@ -207,6 +216,7 @@ func (h *Handler) HashQuery(w http.ResponseWriter, r *http.Request, _ httprouter
 		return
 	}
 	var result []*openpgp.PrimaryKey
+	responseLen := 0
 	for _, digest := range hq.Digests {
 		rfps, err := h.storage.MatchMD5([]string{digest})
 		if err != nil {
@@ -218,13 +228,26 @@ func (h *Handler) HashQuery(w http.ResponseWriter, r *http.Request, _ httprouter
 			log.Errorf("error fetching hashquery key %q", digest)
 			continue
 		}
+		keysLength := 0
+		for _, key := range keys {
+			keysLength = keysLength + key.Length
+		}
+
+		// If maxResponseLen is 0 we consider it unlimited
+		if h.maxResponseLen != 0 {
+			if responseLen+keysLength > h.maxResponseLen {
+				log.Infof("Limiting response to %d bytes (maximum %d bytes)", responseLen, h.maxResponseLen)
+				break
+			}
+		}
+		responseLen = responseLen + keysLength
 		result = append(result, keys...)
 	}
 
 	w.Header().Set("Content-Type", "pgp/keys")
 
 	// Write the number of keys
-	err = recon.WriteInt(w, len(result))
+	recon.WriteInt(w, len(result))
 	for _, key := range result {
 		// Write each key in binary packet format, prefixed with length
 		err = writeHashqueryKey(w, key)
@@ -571,7 +594,6 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 		"deleted": []string{signingFp},
 	}).Info("delete")
 
-	return
 }
 
 func (h *Handler) checkSignature(keytext, keysig string) (string, error) {
