@@ -158,6 +158,9 @@ func NewServer(settings *Settings) (*Server, error) {
 	if settings.StatsTemplate != "" {
 		options = append(options, hkp.StatsTemplate(settings.StatsTemplate))
 	}
+	if settings.MaxResponseLen != 0 {
+		options = append(options, hkp.MaxResponseLen(settings.MaxResponseLen))
+	}
 	h, err := hkp.NewHandler(s.st, options...)
 	if err != nil {
 		return nil, errors.WithStack(err)
