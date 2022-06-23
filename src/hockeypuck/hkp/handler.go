@@ -247,7 +247,11 @@ func (h *Handler) HashQuery(w http.ResponseWriter, r *http.Request, _ httprouter
 	w.Header().Set("Content-Type", "pgp/keys")
 
 	// Write the number of keys
-	recon.WriteInt(w, len(result))
+	if err := recon.WriteInt(w, len(result)); err != nil {
+		// log the error
+		log.Errorf("error writing number of keys, peer connection lost: %v", err)
+		return
+	}
 	for _, key := range result {
 		// Write each key in binary packet format, prefixed with length
 		err = writeHashqueryKey(w, key)
