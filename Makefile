@@ -53,7 +53,7 @@ install-build-depends:
 lint: lint-go
 
 lint-go:
-	cd $(SRCDIR) && [ -z "$$(go fmt $(project)/...)" ]
+	cd $(SRCDIR) && ! go fmt $(project)/... | awk '/./ {print "ERROR: go fmt made unexpected changes:", $$0}' | grep .
 	cd $(SRCDIR) && go vet $(project)/...
 
 test: test-go

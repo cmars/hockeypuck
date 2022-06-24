@@ -201,7 +201,7 @@ func (s *ResolveSuite) TestV3NoUidSig(c *gc.C) {
 		h.Write(opkt.Contents)
 	}
 	md5 := hex.EncodeToString(h.Sum(nil))
-	c.Assert("0005127a8b7da8c32998d7e81dc92540", gc.Equals, md5)
+	c.Assert(md5, gc.Equals, "0005127a8b7da8c32998d7e81dc92540")
 }
 
 func (s *ResolveSuite) TestMergeAddSig(c *gc.C) {

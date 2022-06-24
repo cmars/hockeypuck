@@ -66,9 +66,9 @@ func (s *BitstringSuite) TestBsBytes(c *gc.C) {
 	for i := 0; i < bs.BitLen(); i++ {
 		switch i {
 		case 0:
-			c.Assert(1, gc.Equals, bs.Get(i))
+			c.Assert(bs.Get(i), gc.Equals, 1)
 		default:
-			c.Assert(0, gc.Equals, bs.Get(i))
+			c.Assert(bs.Get(i), gc.Equals, 0)
 		}
 	}
 }

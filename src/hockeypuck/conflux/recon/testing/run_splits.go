@@ -62,7 +62,7 @@ func (s *ReconSuite) TestSplits85(c *gc.C) {
 	}
 	root, err := ptree.Root()
 	c.Assert(err, gc.IsNil)
-	c.Assert(85, gc.Equals, root.Size())
+	c.Assert(root.Size(), gc.Equals, 85)
 	for i, child := range recon.MustChildren(root) {
 		c.Log("child#", i, ":", child.Key())
 	}
@@ -77,16 +77,16 @@ func (s *ReconSuite) TestSplits85(c *gc.C) {
 
 	node, err := lookupNode("00", root)
 	c.Assert(err, gc.IsNil)
-	c.Assert(17, gc.Equals, node.Size())
+	c.Assert(node.Size(), gc.Equals, 17)
 	node, err = lookupNode("01", root)
 	c.Assert(err, gc.IsNil)
-	c.Assert(19, gc.Equals, node.Size())
+	c.Assert(node.Size(), gc.Equals, 19)
 	node, err = lookupNode("10", root)
 	c.Assert(err, gc.IsNil)
-	c.Assert(21, gc.Equals, node.Size())
+	c.Assert(node.Size(), gc.Equals, 21)
 	node, err = lookupNode("11", root)
 	c.Assert(err, gc.IsNil)
-	c.Assert(28, gc.Equals, node.Size())
+	c.Assert(node.Size(), gc.Equals, 28)
 }
 
 func (s *ReconSuite) RunSplits15k(c *gc.C) {
@@ -100,14 +100,14 @@ func (s *ReconSuite) RunSplits15k(c *gc.C) {
 	}
 	root, err := ptree.Root()
 	c.Assert(err, gc.IsNil)
-	c.Assert(15000, gc.Equals, root.Size())
+	c.Assert(root.Size(), gc.Equals, 15000)
 	node, err := lookupNode("11", root)
 	c.Assert(err, gc.IsNil)
-	c.Assert(15000, gc.Equals, node.Size())
+	c.Assert(node.Size(), gc.Equals, 15000)
 	node, err = lookupNode("11011011", root)
 	c.Assert(err, gc.IsNil)
-	c.Assert(12995, gc.Equals, node.Size())
+	c.Assert(node.Size(), gc.Equals, 12995)
 	node, err = lookupNode("1101101011", root)
 	c.Assert(err, gc.IsNil)
-	c.Assert(2005, gc.Equals, node.Size())
+	c.Assert(node.Size(), gc.Equals, 2005)
 }
