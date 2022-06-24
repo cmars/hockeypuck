@@ -5,7 +5,6 @@ vindexTemplate="/hockeypuck/lib/templates/index.html.tmpl"
 statsTemplate="/hockeypuck/lib/templates/stats.html.tmpl"
 webroot="/hockeypuck/lib/www"
 hostname="${FQDN}"
-#nodename="${FQDN}"
 contact="${FINGERPRINT}"
 software="Hockeypuck"
 version="${RELEASE}"
@@ -15,7 +14,6 @@ bind=":11371"
 
 [hockeypuck.hkp.queries]
 selfSignedOnly=true
-#keywordSearchDisabled=true
 
 # prevent abusively large keys
 [hockeypuck.openpgp]
