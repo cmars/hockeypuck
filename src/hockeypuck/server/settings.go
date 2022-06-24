@@ -189,8 +189,6 @@ type Settings struct {
 	Software string `toml:"software"`
 	Version  string `toml:"version"`
 
-	SksCompat bool `toml:"sksCompat"`
-
 	MaxResponseLen int `toml:"maxResponseLen"`
 }
 
@@ -219,7 +217,6 @@ func DefaultSettings() Settings {
 		LogLevel:       DefaultLogLevel,
 		Software:       "Hockeypuck",
 		Version:        "~unreleased",
-		SksCompat:      false,
 		MaxResponseLen: DefaultMaxResponseLen,
 	}
 }
