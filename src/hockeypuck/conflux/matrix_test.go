@@ -43,13 +43,13 @@ func (s *MatrixSuite) TestMatrixPutGet(c *gc.C) {
 		for j := 0; j < TEST_MATRIX_SIZE; j++ {
 			n++
 			if i == 2 && j == 2 {
-				c.Assert(int64(24), gc.Equals, m.Get(i, j).Int64())
+				c.Assert(m.Get(i, j).Int64(), gc.Equals, int64(24))
 			} else {
-				c.Assert(int64(23), gc.Equals, m.Get(i, j).Int64())
+				c.Assert(m.Get(i, j).Int64(), gc.Equals, int64(23))
 			}
 		}
 	}
-	c.Assert(25, gc.Equals, n)
+	c.Assert(n, gc.Equals, 25)
 }
 
 func (s *MatrixSuite) TestSwapRows(c *gc.C) {
@@ -59,8 +59,8 @@ func (s *MatrixSuite) TestSwapRows(c *gc.C) {
 		m.cells[i].Set(Zi(p, i))
 	}
 	m.swapRows(0, 1)
-	c.Assert(int64(0), gc.Equals, m.Get(0, 1).Int64())
-	c.Assert(int64(3), gc.Equals, m.Get(0, 0).Int64())
+	c.Assert(m.Get(0, 1).Int64(), gc.Equals, int64(0))
+	c.Assert(m.Get(0, 0).Int64(), gc.Equals, int64(3))
 }
 
 func (s *MatrixSuite) TestScalarMult(c *gc.C) {
@@ -70,9 +70,9 @@ func (s *MatrixSuite) TestScalarMult(c *gc.C) {
 		m.Set(col, 0, Zi(p, col))
 	}
 	m.scmultRow(0, 0, Zi(p, 2))
-	c.Assert(int64(0), gc.Equals, m.Get(0, 0).Int64())
-	c.Assert(int64(2), gc.Equals, m.Get(1, 0).Int64())
-	c.Assert(int64(4), gc.Equals, m.Get(2, 0).Int64())
+	c.Assert(m.Get(0, 0).Int64(), gc.Equals, int64(0))
+	c.Assert(m.Get(1, 0).Int64(), gc.Equals, int64(2))
+	c.Assert(m.Get(2, 0).Int64(), gc.Equals, int64(4))
 }
 
 func assertEqualMatrix(c *gc.C, m0 *Matrix, m1 *Matrix) {
