@@ -14,10 +14,10 @@ Taken at {{ .Now }}
 <table>
 <tr><th>Hostname</th><td>{{ .Hostname }}</td></tr>
 {{ if .Nodename }}<tr><th>Nodename</th><td>{{ .Nodename }}</td></tr>{{ end }}
-<tr><th>Version</th><td>{{ .Version }} </td></tr>
-{{ if .Contact }}<tr><th>Server Contact</th><td>{{ .Contact }} </td></tr>{{ end }}
-<tr><th>HTTP</th><td>{{ .HTTPAddr }} </td></tr>
-<tr><th>Recon</th><td>{{ .ReconAddr }} </td></tr>
+<tr><th>Version</th><td>{{ .Version }}</td></tr>
+{{ if .Contact }}<tr><th>Server Contact</th><td><a href="/pks/lookup?op=index&fingerprint=on&search={{ .Contact }}">{{ .Contact }}</a></td></tr>{{ end }}
+<tr><th>HTTP</th><td>{{ .HTTPAddr }}</td></tr>
+<tr><th>Recon</th><td>{{ .ReconAddr }}</td></tr>
 </table>
 
 <h3>Gossip Peers</h3>
