@@ -5,11 +5,12 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update -qq && apt-get -y install build-essential postgresql-11 postgresql-server-dev-11 --no-install-recommends
 COPY --chown=builder:root Makefile /hockeypuck/
 COPY --chown=builder:root src /hockeypuck/src
+COPY --chown=builder:root .git /hockeypuck/.git
 ENV GOPATH=/hockeypuck
 USER builder
 WORKDIR /hockeypuck
 RUN make lint test test-postgresql
-RUN cd src/hockeypuck && go install hockeypuck/server/cmd/...
+RUN make build
 
 
 FROM debian:buster-slim
