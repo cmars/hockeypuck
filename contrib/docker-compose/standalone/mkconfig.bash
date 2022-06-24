@@ -3,7 +3,7 @@
 # Note that `set -a` causes all variables sourced from `.env` to be implicitly `export`ed.
 # This is necessary for envsubst
 
-HERE=$(cd $(dirname $0); pwd)
+HERE=$(cd "$(dirname "$0")"; pwd)
 set -eua
 
 [ -e "$HERE/.env" ]

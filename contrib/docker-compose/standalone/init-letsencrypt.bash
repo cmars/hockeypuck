@@ -24,7 +24,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-HERE=$(cd $(dirname $0); pwd)
+HERE=$(cd "$(dirname "$0")"; pwd)
 set -eu
 [ -e "$HERE/.env" ]
 . "$HERE/.env"
@@ -45,7 +45,7 @@ docker-compose run --rm --entrypoint "/bin/sh -c \"\
   wget -q https://ssl-config.mozilla.org/ffdhe2048.txt -O ssl-dhparams.pem\"" certbot
 echo
 
-echo "### Creating dummy certificates for $domains ..."
+echo "### Creating dummy certificates for ${domains[*]} ..."
 for domain in "${domains[@]}"; do
   path="/etc/letsencrypt/live/$domain"
   docker-compose run --rm --entrypoint "/bin/sh -c \"\
@@ -61,13 +61,13 @@ echo "### Starting nginx ..."
 docker-compose up --force-recreate -d nginx
 echo
 
-echo "### Deleting dummy certificates for $domains ..."
+echo "### Deleting dummy certificates for ${domains[*]} ..."
 docker-compose run --rm --entrypoint "/bin/sh -c \"\
   rm -Rf /etc/letsencrypt/live/* /etc/letsencrypt/archive/* /etc/letsencrypt/renewal/*\"" certbot
 echo
 
-echo "### Requesting Let's Encrypt certificate for $domains ..."
-#Join $domains to -d args
+echo "### Requesting Let's Encrypt certificate for ${domains[*]} ..."
+#Join ${domains[@]} to -d args
 domain_args=""
 for domain in "${domains[@]}"; do
   domain_args="$domain_args -d $domain"
@@ -80,7 +80,7 @@ case "$email" in
 esac
 
 # Enable staging mode if needed
-if [ ${CERTBOT_STAGING:-0} != "0" ]; then staging_arg="--staging"; else staging_arg=""; fi
+if [ "${CERTBOT_STAGING:-0}" != "0" ]; then staging_arg="--staging"; else staging_arg=""; fi
 
 docker-compose run --rm --entrypoint "\
   certbot certonly --webroot -w /etc/nginx/html \

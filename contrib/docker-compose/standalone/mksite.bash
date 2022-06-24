@@ -1,12 +1,12 @@
 #!/bin/bash
 
-HERE=$(cd $(dirname $0); pwd)
+HERE=$(cd "$(dirname "$0")"; pwd)
 set -eu
 
 [ ! -e "$HERE/.env" ]
 
 POSTGRES_PASSWORD=$(head -c 30 /dev/urandom | base32 -w0)
-cat >$HERE/.env <<EOF
+cat >"$HERE/.env" <<EOF
 ###########################################################
 ## HOCKEYPUCK STANDALONE SITE CONFIGURATION TEMPLATE
 ## Edit this, then run ./mkconfig.bash
@@ -29,4 +29,4 @@ POSTGRES_USER=hkp
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 RELEASE=2.1.0
 EOF
-chmod 600 $HERE/.env
+chmod 600 "$HERE/.env"
