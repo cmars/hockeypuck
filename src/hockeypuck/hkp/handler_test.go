@@ -253,7 +253,7 @@ func (s *HandlerSuite) TestFetchWithBadSigs(c *gc.C) {
 	c.Assert(len(keys[0].Others), gc.Equals, 0)
 }
 
-func (s *HandlerSuite) SetupHashQueryTest(c *gc.C) (*httptest.ResponseRecorder, *http.Request) {
+func (s *HandlerSuite) SetupHashQueryTest(c *gc.C, digests ...int) (*httptest.ResponseRecorder, *http.Request) {
 	// Determine reference digest to compare with
 	h := md5.New()
 	refDigest := h.Sum(nil)
@@ -261,6 +261,9 @@ func (s *HandlerSuite) SetupHashQueryTest(c *gc.C) (*httptest.ResponseRecorder, 
 	c.Assert(err, gc.IsNil)
 	var buf bytes.Buffer
 	c.Assert(err, gc.IsNil)
+	if digests != nil {
+		s.digests = digests[0]
+	}
 	err = recon.WriteInt(&buf, s.digests)
 	c.Assert(err, gc.IsNil)
 	for i := 0; i < s.digests; i++ {
@@ -322,4 +325,17 @@ func (s *HandlerSuite) TestHashQueryResponseUnderLimit(c *gc.C) {
 
 	// The number of keys should be the same as the number of digests
 	c.Assert(nk, gc.Equals, s.digests)
+}
+
+// Test HashQuery with many duplicate digests
+func (s *HandlerSuite) TestHashQueryReprocess(c *gc.C) {
+	var err error
+	w, req := s.SetupHashQueryTest(c, 100000)
+	c.Assert(err, gc.IsNil)
+	s.handler.HashQuery(w, req, nil)
+	// Number of keys in response based on the length estimation of one key
+	nk := w.Body.Len() / 1446
+	if nk < s.digests {
+		c.Errorf("The number of keys should the same or greater than the number of digests - keys: %d, digests: %d", nk, s.digests)
+	}
 }
