@@ -2,7 +2,7 @@ PROJECTPATH = $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 export GOPATH := $(PROJECTPATH)
 export GOCACHE := $(GOPATH)/.gocache
 export SRCDIR := $(PROJECTPATH)src/hockeypuck
-VERSION ?= $(shell git describe --tags)
+VERSION ?= $(shell git describe --tags 2>/dev/null)
 TIMESTAMP = $(shell date -Iseconds)
 
 project = hockeypuck
