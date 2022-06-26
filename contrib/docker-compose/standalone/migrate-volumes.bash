@@ -2,8 +2,15 @@
 
 set -euo pipefail
 
-# Tool to migrate data volumes from another docker-compose project to this one
-# This makes lots of assumptions about docker-compose's defaults; beware!
+cat <<EOF
+
+This utility migrates volumes from another docker-compose project to this one.
+It makes lots of assumptions about docker-compose's defaults; here be dragons!
+
+WARNING: Don't continue if you have already spun up a docker-compose project
+inside this directory; it will not end well.
+
+EOF
 
 targetProjectDir=$(dirname "$(readlink -f "$0")")
 targetProjectName=${targetProjectDir##*/}
@@ -21,8 +28,10 @@ else
     echo "Done"
 fi
 
-echo "The following hockeypuck docker-compose projects have been detected"
+echo "The following hockeypuck docker-compose projects have been detected:"
+echo
 docker volume list | awk -F_ '/_hkp_data/ {print $1}' | awk '{print $2}' | sort -u
+echo
 echo -n 'Enter a project to source data from: '
 read -r sourceProjectName
 echo
@@ -84,3 +93,28 @@ if [[ ${incremental:-} ]]; then
 else
     echo "The original volume(s) are unchanged"
 fi
+
+cat <<EOF
+
+If the only errors you saw above were "find: /source: Resource Busy" then this
+script probably worked. Congratulations! You're not done yet though.
+
+You will need to manually fix some things because your new project will expect
+to be starting from an empty set of data volumes, and that's no longer true.
+
+1. Copy the postgres credentials across from your old docker-compose file to
+the one in this directory.
+
+2. Incant `docker-compose up`. It will fail, but that's OK. Hit Ctrl-C to quit.
+
+3. Incant the following:
+
+```
+docker-compose -f docker-compose.yml -f docker-compose-tools.yml \
+    run --rm --entrypoint /bin/sh import-keys \
+    -x -c 'mkdir -p /import/dump && touch /import/dump/.import-timestamp'
+```
+
+4. Run `docker-compose up` again. It should work this time.
+
+EOF
