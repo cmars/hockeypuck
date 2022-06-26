@@ -158,6 +158,9 @@ func NewServer(settings *Settings) (*Server, error) {
 	if settings.StatsTemplate != "" {
 		options = append(options, hkp.StatsTemplate(settings.StatsTemplate))
 	}
+	if settings.MaxResponseLen != 0 {
+		options = append(options, hkp.MaxResponseLen(settings.MaxResponseLen))
+	}
 	h, err := hkp.NewHandler(s.st, options...)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -250,15 +253,6 @@ func (s *Server) stats() (interface{}, error) {
 		Total: sksStats.Total,
 	}
 
-	if s.settings.SksCompat {
-		_t, _ := time.Parse(time.RFC3339, result.Now)
-		result.HTTPAddr = strings.Split(s.settings.HKP.Bind, ":")[1]
-		result.Now = _t.Format("2006-01-02 15:04:05 MST")
-		result.NumKeys = sksStats.Total
-		result.ReconAddr = strings.Split(s.settings.Conflux.Recon.Settings.ReconAddr, ":")[1]
-		result.ServerContact = s.settings.Contact
-	}
-
 	nodename, err := os.Hostname()
 	if err != nil {
 		log.Warningf("cannot determine local hostname: %v", err)
@@ -281,19 +275,11 @@ func (s *Server) stats() (interface{}, error) {
 	}
 	sort.Sort(loadStats(result.Daily))
 	for k, v := range s.settings.Conflux.Recon.Settings.Partners {
-		if s.settings.SksCompat {
-			result.Peers = append(result.Peers, statsPeer{
-				Name:      k,
-				HTTPAddr:  v.HTTPAddr,
-				ReconAddr: strings.ReplaceAll(v.ReconAddr, ":", " "),
-			})
-		} else {
-			result.Peers = append(result.Peers, statsPeer{
-				Name:      k,
-				HTTPAddr:  v.HTTPAddr,
-				ReconAddr: v.ReconAddr,
-			})
-		}
+		result.Peers = append(result.Peers, statsPeer{
+			Name:      k,
+			HTTPAddr:  v.HTTPAddr,
+			ReconAddr: v.ReconAddr,
+		})
 	}
 	sort.Sort(statsPeers(result.Peers))
 	return result, nil

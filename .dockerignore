@@ -1,7 +1,8 @@
 /bin
 /pkg
+/snap
 /contrib/pyinfra
-/.git
+/contrib/docker-compose
 /.gocache
 /**/secrets
-/keydump
+/**/keydump

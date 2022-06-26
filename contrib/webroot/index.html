@@ -141,24 +141,46 @@
       <div class="modal" id="about" tabindex="-1" role="dialog" aria-labelledby="AboutLabel" aria-hidden="true">
         <div class="modal-dialog">
           <div class="modal-content">
+
             <div class="modal-header">
               <a href="#" type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</a>
               <h4 class="modal-title" id="AboutLabel">About this Server</h4>
             </div>
             <div class="modal-body">
-              <p><strong>OpenPGP</strong> is a method of encrypting and/or signing data (for example an email) in a secure “<em>end to end</em>” way.
-                This means, the message is encrypted on your computer, using the recipient’s public key,
-                in a way that the e-mail server has no knowledge of the content of the message.
-                The recipient of the message then decrypts the message on their own computer using their private key.</p>
-              <hr />
-              <h5>OpenPGP Resources</h5>
+              <p>This is an <a href="https://en.wikipedia.org/wiki/Key_server_%28cryptographic%29" target="_blank">OpenPGP keyserver</a>.</p>
+              <p>It is provided to the community as a public service to help distribute OpenPGP encryption keys.</p>
+              <p>Queries about the operation of this service should be directed to the server contact listed on the <a href="/pks/lookup?op=stats">statistics page</a>.</p>
+            </div>
+
+            <div class="modal-header">
+              <a href="#" type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</a>
+              <h4 class="modal-title" id="AboutLabel">The Software</h4>
+            </div>
+            <div class="modal-body">
+              <p>This server is powered by the open-source keyserver software <a href="https://hockeypuck.io" target="_blank">Hockeypuck</a>.
+                Hockeypuck is a <em>synchronising</em> keyserver that acts as part of a
+                <a href="https://spider.pgpkeys.eu" target="_blank">decentralised networked database</a> for OpenPGP public keys.</p>
+              <p>To report a bug in the Hockeypuck software, or contribute to its development, please visit the
+                <a href="https://github.com/hockeypuck/hockeypuck" target="_blank">Hockeypuck project on GitHub</a>.</p>
+            </div>
+
+            <div class="modal-header">
+              <a href="#" type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</a>
+              <h4 class="modal-title" id="AboutLabel">The OpenPGP Standard</h4>
+            </div>
+            <div class="modal-body">
+              <p><strong>OpenPGP</strong> is an <a href="https://en.wikipedia.org/wiki/End-to-end_encryption" target="_blank">End-to-End encryption</a> standard.
+                It allows emails, files and other data to be encrypted so that they cannot be read by a third party,
+                and/or signed so that they cannot be modified, while in transit between the sender and recipient.
+                It is used primarily for high-latency and long-timescale applications such as email, software distribution, record archival and backups.</p>
               <ul>
-                <li><a href="https://github.com/hockeypuck/hockeypuck" target="_blank">Hockeypuck project on Github</a></li>
+                <li><a href="https://en.wikipedia.org/wiki/Pretty_Good_Privacy" target="_blank">PGP (Wikipedia)</a></li>
+                <li><a href="https://emailselfdefense.fsf.org/en/" target="_blank">Email Self-defense (Free Software Foundation)</a></li>
                 <li><a href="https://gnupg.org/" target="_blank">GnuPG Homepage</a></li>
-                <li><a href="https://emailselfdefense.fsf.org/en/" target="_blank">Email Self-defense</a></li>
-                <li><a href="http://en.wikipedia.org/wiki/Pretty_Good_Privacy" target="_blank">Wikipedia - Pretty Good Privacy</a></li>
+                <li><a href="https://sequoia-pgp.org/" target="_blank">Sequoia PGP Homepage</a></li>
               </ul>
             </div>
+
           </div>
         </div>
       </div>
@@ -170,6 +192,11 @@
             <a href="#about">about</a> |
             <a href="/pks/lookup?op=stats">statistics</a>
           </p>
+        </div>
+        <div style="float:right;">
+      <!--
+          <p class="muted credit small">Use our Tor hidden service at <a href="${TOR_URL}">${TOR_URL}</a>.</p>
+      -->
         </div>
       </div>
     </div>

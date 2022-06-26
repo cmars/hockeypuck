@@ -2,6 +2,8 @@ PROJECTPATH = $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 export GOPATH := $(PROJECTPATH)
 export GOCACHE := $(GOPATH)/.gocache
 export SRCDIR := $(PROJECTPATH)src/hockeypuck
+VERSION ?= $(shell git describe --tags 2>/dev/null)
+TIMESTAMP = $(shell date -Iseconds -u)
 
 project = hockeypuck
 
@@ -53,7 +55,7 @@ install-build-depends:
 lint: lint-go
 
 lint-go:
-	cd $(SRCDIR) && [ -z "$$(go fmt $(project)/...)" ]
+	cd $(SRCDIR) && ! go fmt $(project)/... | awk '/./ {print "ERROR: go fmt made unexpected changes:", $$0}' | grep .
 	cd $(SRCDIR) && go vet $(project)/...
 
 test: test-go
@@ -74,7 +76,11 @@ define make-go-cmd-target
 	$(eval cmd_target := $(cmd_name))
 
 $(cmd_target):
-	cd $(SRCDIR) && go install $(cmd_package)
+	cd $(SRCDIR) && \
+	go install -ldflags " \
+			-X hockeypuck/server.Version=$(VERSION) \
+			-X hockeypuck/server.BuiltAt=$(TIMESTAMP) \
+		" $(cmd_package)
 
 build: $(cmd_target)
 

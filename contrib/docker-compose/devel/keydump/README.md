@@ -1,3 +1,3 @@
 # keydump directory
 
-This directory should contain the `*.gpg` files from your keydump source.
+This directory should contain the `*.pgp` files from your keydump source.

@@ -48,6 +48,10 @@ type HKPConfig struct {
 	Queries queryConfig `toml:"queries"`
 }
 
+const (
+	DefaultMaxResponseLen = 268435456
+)
+
 type queryConfig struct {
 	// Only respond with verified self-signed key material in queries
 	SelfSignedOnly bool `toml:"selfSignedOnly"`
@@ -182,15 +186,22 @@ type Settings struct {
 
 	Contact  string `toml:"contact"`
 	Hostname string `toml:"hostname"`
-	Software string `toml:"software"`
-	Version  string `toml:"version"`
+	Software string
+	Version  string
+	BuiltAt  string
 
-	SksCompat bool `toml:"sksCompat"`
+	MaxResponseLen int `toml:"maxResponseLen"`
 }
 
 const (
 	DefaultLogLevel    = "INFO"
 	DefaultLevelDBPath = "recon.db"
+)
+
+var (
+	Software = "Hockeypuck"
+	Version  = "~unreleased"
+	BuiltAt  string
 )
 
 func DefaultSettings() Settings {
@@ -208,12 +219,13 @@ func DefaultSettings() Settings {
 		HKP: HKPConfig{
 			Bind: DefaultHKPBind,
 		},
-		Metrics:   metricsSettings,
-		OpenPGP:   DefaultOpenPGP(),
-		LogLevel:  DefaultLogLevel,
-		Software:  "Hockeypuck",
-		Version:   "~unreleased",
-		SksCompat: false,
+		Metrics:        metricsSettings,
+		OpenPGP:        DefaultOpenPGP(),
+		LogLevel:       DefaultLogLevel,
+		Software:       Software,
+		Version:        Version,
+		BuiltAt:        BuiltAt,
+		MaxResponseLen: DefaultMaxResponseLen,
 	}
 }
 

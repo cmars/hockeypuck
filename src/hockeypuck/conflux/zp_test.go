@@ -47,18 +47,18 @@ func zp7(n int) *Zp {
 func (s *ZpSuite) TestAdd(c *gc.C) {
 	a := zp5(1)
 	b := zp5(3)
-	c.Assert(0, gc.Equals, zp5(4).Cmp(a.Add(a, b)))
+	c.Assert(zp5(4).Cmp(a.Add(a, b)), gc.Equals, 0)
 }
 
 func (s *ZpSuite) TestAddWrap(c *gc.C) {
 	a := zp5(1)
 	b := zp5(9)
-	c.Assert(0, gc.Equals, zp5(0).Cmp(a.Add(a, b)))
+	c.Assert(zp5(0).Cmp(a.Add(a, b)), gc.Equals, 0)
 }
 
 func (s *ZpSuite) TestMinusOne(c *gc.C) {
 	a := Zi(p(65537), -1)
-	c.Assert(int64(65536), gc.Equals, a.Int64())
+	c.Assert(a.Int64(), gc.Equals, int64(65536))
 }
 
 func (s *ZpSuite) TestMul(c *gc.C) {
@@ -66,18 +66,18 @@ func (s *ZpSuite) TestMul(c *gc.C) {
 	a := zp5(4)
 	b := zp5(3)
 	a.Mul(a, b)
-	c.Assert(int64(2), gc.Equals, a.Int64())
+	c.Assert(a.Int64(), gc.Equals, int64(2))
 	// 4x4x3
 	a = zp5(4)
 	b = zp5(3)
 	a.Mul(a, a)
 	a.Mul(a, b)
-	c.Assert(int64(3), gc.Equals, a.Int64())
+	c.Assert(a.Int64(), gc.Equals, int64(3))
 	// 16x16
 	a = zp5(4)
 	a.Mul(a, a) // 4x4
 	a.Mul(a, a) // 16x16
-	c.Assert(int64(1), gc.Equals, a.Int64())
+	c.Assert(a.Int64(), gc.Equals, int64(1))
 }
 
 func (s *ZpSuite) TestDiv(c *gc.C) {
@@ -85,12 +85,12 @@ func (s *ZpSuite) TestDiv(c *gc.C) {
 	a := zp5(1)
 	b := zp5(2)
 	q := Z(p(5)).Div(a, b)
-	c.Assert(int64(3), gc.Equals, q.Int64())
+	c.Assert(q.Int64(), gc.Equals, int64(3))
 	// in Z(5), 1 / 3 = 2 because 3 * 2 = 1.
 	a = zp5(1)
 	b = zp5(3)
 	q = Z(p(5)).Div(a, b)
-	c.Assert(int64(2), gc.Equals, q.Int64())
+	c.Assert(q.Int64(), gc.Equals, int64(2))
 }
 
 func (s *ZpSuite) TestMismatchedP(c *gc.C) {
@@ -107,34 +107,34 @@ func (s *ZpSuite) TestMismatchedP(c *gc.C) {
 func (s *ZpSuite) TestNeg(c *gc.C) {
 	a := zp5(2)
 	a.Neg()
-	c.Assert(int64(3), gc.Equals, a.Int64())
+	c.Assert(a.Int64(), gc.Equals, int64(3))
 	a = zp5(0)
 	a.Neg()
-	c.Assert(int64(0), gc.Equals, a.Int64())
+	c.Assert(a.Int64(), gc.Equals, int64(0))
 }
 
 func (s *ZpSuite) TestSub(c *gc.C) {
 	az := zp5(4)
 	bz := zp5(3)
 	cz := Z(az.P()).Sub(az, bz)
-	c.Assert(int64(4), gc.Equals, az.Int64())
-	c.Assert(int64(3), gc.Equals, bz.Int64())
-	c.Assert(int64(1), gc.Equals, cz.Int64())
+	c.Assert(az.Int64(), gc.Equals, int64(4))
+	c.Assert(bz.Int64(), gc.Equals, int64(3))
+	c.Assert(cz.Int64(), gc.Equals, int64(1))
 }
 
 func (s *ZpSuite) TestSubRoll(c *gc.C) {
 	az := zp5(1)
 	bz := zp5(3)
 	cz := Z(az.P()).Sub(az, bz)
-	c.Assert(int64(1), gc.Equals, az.Int64())
-	c.Assert(int64(3), gc.Equals, bz.Int64())
-	c.Assert(int64(3), gc.Equals, cz.Int64()) // -2 == 3
+	c.Assert(az.Int64(), gc.Equals, int64(1))
+	c.Assert(bz.Int64(), gc.Equals, int64(3))
+	c.Assert(cz.Int64(), gc.Equals, int64(3)) // -2 == 3
 	az = zp5(1)
 	bz = zp5(4)
 	cz = az.Copy().Sub(az, bz)
-	c.Assert(int64(1), gc.Equals, az.Int64())
-	c.Assert(int64(4), gc.Equals, bz.Int64())
-	c.Assert(int64(2), gc.Equals, cz.Int64()) // -3 == 2
+	c.Assert(az.Int64(), gc.Equals, int64(1))
+	c.Assert(bz.Int64(), gc.Equals, int64(4))
+	c.Assert(cz.Int64(), gc.Equals, int64(2)) // -3 == 2
 }
 
 func (s *ZpSuite) TestZSet(c *gc.C) {
@@ -186,9 +186,9 @@ func (s *ZpSuite) TestZSetDiffEmpty(c *gc.C) {
 func (s *ZpSuite) TestByteOrder(c *gc.C) {
 	z := Zi(P_SKS, 65536)
 	c.Logf("%x", z.Bytes())
-	c.Assert(byte(0), gc.Equals, z.Bytes()[0])
-	c.Assert(byte(0), gc.Equals, z.Bytes()[1])
-	c.Assert(byte(1), gc.Equals, z.Bytes()[2])
+	c.Assert(z.Bytes()[0], gc.Equals, byte(0))
+	c.Assert(z.Bytes()[1], gc.Equals, byte(0))
+	c.Assert(z.Bytes()[2], gc.Equals, byte(1))
 }
 
 func (s *ZpSuite) TestByteRtt(c *gc.C) {

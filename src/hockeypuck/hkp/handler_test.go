@@ -19,6 +19,7 @@ package hkp
 
 import (
 	"bytes"
+	"crypto/md5"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -30,6 +31,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	gc "gopkg.in/check.v1"
 
+	"hockeypuck/conflux/recon"
 	"hockeypuck/openpgp"
 	"hockeypuck/testing"
 
@@ -72,6 +74,8 @@ func Test(t *stdtesting.T) { gc.TestingT(t) }
 type HandlerSuite struct {
 	storage *mock.Storage
 	srv     *httptest.Server
+	handler *Handler
+	digests int
 }
 
 var _ = gc.Suite(&HandlerSuite{})
@@ -97,8 +101,10 @@ func (s *HandlerSuite) SetUpTest(c *gc.C) {
 	r := httprouter.New()
 	handler, err := NewHandler(s.storage)
 	c.Assert(err, gc.IsNil)
-	handler.Register(r)
+	s.handler = handler
+	s.handler.Register(r)
 	s.srv = httptest.NewServer(r)
+	s.digests = 50
 }
 
 func (s *HandlerSuite) TearDownTest(c *gc.C) {
@@ -245,4 +251,75 @@ func (s *HandlerSuite) TestFetchWithBadSigs(c *gc.C) {
 	c.Assert(keys, gc.HasLen, 1)
 	c.Assert(keys[0].ShortID(), gc.Equals, tk.sid)
 	c.Assert(len(keys[0].Others), gc.Equals, 0)
+}
+
+func (s *HandlerSuite) SetupHashQueryTest(c *gc.C) (*httptest.ResponseRecorder, *http.Request) {
+	// Determine reference digest to compare with
+	h := md5.New()
+	refDigest := h.Sum(nil)
+	url, err := url.Parse("/pks/hashquery")
+	c.Assert(err, gc.IsNil)
+	var buf bytes.Buffer
+	c.Assert(err, gc.IsNil)
+	err = recon.WriteInt(&buf, s.digests)
+	c.Assert(err, gc.IsNil)
+	for i := 0; i < s.digests; i++ {
+		err = recon.WriteInt(&buf, len(refDigest))
+		c.Assert(err, gc.IsNil)
+		_, err = buf.Write(refDigest)
+		c.Assert(err, gc.IsNil)
+	}
+	// Create an HTTP request
+	req := &http.Request{
+		Method: "POST",
+		URL:    url,
+		Body:   ioutil.NopCloser(bytes.NewBuffer(buf.Bytes())),
+	}
+	w := httptest.NewRecorder()
+
+	return w, req
+}
+
+func (s *HandlerSuite) TestHashQueryUnlimitedReponse(c *gc.C) {
+	w, req := s.SetupHashQueryTest(c)
+	// When NewHandler is initialized without options maxResponseLen should be 0
+	c.Assert(s.handler.maxResponseLen, gc.Equals, 0)
+	s.handler.HashQuery(w, req, nil)
+	// Number of keys in response based on the length estimation of one key
+	nk := w.Body.Len() / 1446
+	// The number of keys should be the same as the number of digests
+	c.Assert(nk, gc.Equals, s.digests)
+}
+
+// Test HashQuery when the response maxResponseLen is set and the limit is reached
+func (s *HandlerSuite) TestHashQueryResponseTooLong(c *gc.C) {
+	var err error
+	w, req := s.SetupHashQueryTest(c)
+
+	// Test HashQuery when the response is too long
+	// Reduce the response max length for testing purposes
+	s.handler.maxResponseLen = 14460
+	c.Assert(err, gc.IsNil)
+	s.handler.HashQuery(w, req, nil)
+	// Number of keys in response based on the length estimation of one key
+	nk := w.Body.Len() / 1446
+	// The number of keys cannot be the same as the number of digests as the response
+	// is being limited
+	c.Assert(nk, gc.Not(gc.Equals), s.digests)
+}
+
+// Test HashQuery when the response maxResponseLen is set but the limit is not reached
+func (s *HandlerSuite) TestHashQueryResponseUnderLimit(c *gc.C) {
+	var err error
+	w, req := s.SetupHashQueryTest(c)
+
+	// Reduce the response max length for testing purposes
+	s.handler.maxResponseLen = 72300
+	c.Assert(err, gc.IsNil)
+	s.handler.HashQuery(w, req, nil)
+	// Number of keys in response based on the length estimation of one key
+	nk := w.Body.Len() / 1446
+
+	// The number of keys should be the same as the number of digests
+	c.Assert(nk, gc.Equals, s.digests)
 }
