@@ -3,7 +3,7 @@ export GOPATH := $(PROJECTPATH)
 export GOCACHE := $(GOPATH)/.gocache
 export SRCDIR := $(PROJECTPATH)src/hockeypuck
 VERSION ?= $(shell git describe --tags 2>/dev/null)
-TIMESTAMP = $(shell date -Iseconds)
+TIMESTAMP = $(shell date -Iseconds -u)
 
 project = hockeypuck
 
