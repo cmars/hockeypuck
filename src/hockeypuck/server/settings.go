@@ -186,8 +186,9 @@ type Settings struct {
 
 	Contact  string `toml:"contact"`
 	Hostname string `toml:"hostname"`
-	Software string `toml:"software"`
-	Version  string `toml:"version"`
+	Software string
+	Version  string
+	BuiltAt  string
 
 	MaxResponseLen int `toml:"maxResponseLen"`
 }
@@ -195,6 +196,12 @@ type Settings struct {
 const (
 	DefaultLogLevel    = "INFO"
 	DefaultLevelDBPath = "recon.db"
+)
+
+var (
+	Software = "Hockeypuck"
+	Version  = "~unreleased"
+	BuiltAt  string
 )
 
 func DefaultSettings() Settings {
@@ -215,8 +222,9 @@ func DefaultSettings() Settings {
 		Metrics:        metricsSettings,
 		OpenPGP:        DefaultOpenPGP(),
 		LogLevel:       DefaultLogLevel,
-		Software:       "Hockeypuck",
-		Version:        "~unreleased",
+		Software:       Software,
+		Version:        Version,
+		BuiltAt:        BuiltAt,
 		MaxResponseLen: DefaultMaxResponseLen,
 	}
 }
