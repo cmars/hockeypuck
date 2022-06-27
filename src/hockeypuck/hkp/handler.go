@@ -221,9 +221,9 @@ func (h *Handler) HashQuery(w http.ResponseWriter, r *http.Request, _ httprouter
 	responseLen := 0
 	for _, digest := range hq.Digests {
 		// Check the already processed digests for duplicates
-		keys := digests[digest]
+		keys, ok := digests[digest]
 
-		if keys == nil {
+		if !ok {
 			keys, err = h.fetchKeysFromDigest(digest)
 			if err != nil {
 				log.Errorf("error fetching keys from digest %v: %v", digest, err)
