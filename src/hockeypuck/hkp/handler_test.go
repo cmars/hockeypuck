@@ -20,6 +20,7 @@ package hkp
 import (
 	"bytes"
 	"crypto/md5"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -253,7 +254,7 @@ func (s *HandlerSuite) TestFetchWithBadSigs(c *gc.C) {
 	c.Assert(len(keys[0].Others), gc.Equals, 0)
 }
 
-func (s *HandlerSuite) SetupHashQueryTest(c *gc.C, digests ...int) (*httptest.ResponseRecorder, *http.Request) {
+func (s *HandlerSuite) SetupHashQueryTest(c *gc.C, unique bool, digests ...int) (*httptest.ResponseRecorder, *http.Request) {
 	// Determine reference digest to compare with
 	h := md5.New()
 	refDigest := h.Sum(nil)
@@ -267,6 +268,12 @@ func (s *HandlerSuite) SetupHashQueryTest(c *gc.C, digests ...int) (*httptest.Re
 	err = recon.WriteInt(&buf, s.digests)
 	c.Assert(err, gc.IsNil)
 	for i := 0; i < s.digests; i++ {
+		// Generate different digests
+		if unique {
+			b := make([]byte, 8)
+			rand.Read(b)
+			refDigest = h.Sum(b)
+		}
 		err = recon.WriteInt(&buf, len(refDigest))
 		c.Assert(err, gc.IsNil)
 		_, err = buf.Write(refDigest)
@@ -284,7 +291,7 @@ func (s *HandlerSuite) SetupHashQueryTest(c *gc.C, digests ...int) (*httptest.Re
 }
 
 func (s *HandlerSuite) TestHashQueryUnlimitedReponse(c *gc.C) {
-	w, req := s.SetupHashQueryTest(c)
+	w, req := s.SetupHashQueryTest(c, true)
 	// When NewHandler is initialized without options maxResponseLen should be 0
 	c.Assert(s.handler.maxResponseLen, gc.Equals, 0)
 	s.handler.HashQuery(w, req, nil)
@@ -297,7 +304,7 @@ func (s *HandlerSuite) TestHashQueryUnlimitedReponse(c *gc.C) {
 // Test HashQuery when the response maxResponseLen is set and the limit is reached
 func (s *HandlerSuite) TestHashQueryResponseTooLong(c *gc.C) {
 	var err error
-	w, req := s.SetupHashQueryTest(c)
+	w, req := s.SetupHashQueryTest(c, true)
 
 	// Test HashQuery when the response is too long
 	// Reduce the response max length for testing purposes
@@ -314,7 +321,7 @@ func (s *HandlerSuite) TestHashQueryResponseTooLong(c *gc.C) {
 // Test HashQuery when the response maxResponseLen is set but the limit is not reached
 func (s *HandlerSuite) TestHashQueryResponseUnderLimit(c *gc.C) {
 	var err error
-	w, req := s.SetupHashQueryTest(c)
+	w, req := s.SetupHashQueryTest(c, true)
 
 	// Reduce the response max length for testing purposes
 	s.handler.maxResponseLen = 72300
@@ -327,15 +334,13 @@ func (s *HandlerSuite) TestHashQueryResponseUnderLimit(c *gc.C) {
 	c.Assert(nk, gc.Equals, s.digests)
 }
 
-// Test HashQuery with many duplicate digests
-func (s *HandlerSuite) TestHashQueryReprocess(c *gc.C) {
+// Test HashQuery with duplicate digests
+func (s *HandlerSuite) TestHashQueryDuplicateDigests(c *gc.C) {
 	var err error
-	w, req := s.SetupHashQueryTest(c, 100000)
+	w, req := s.SetupHashQueryTest(c, false, 500)
 	c.Assert(err, gc.IsNil)
 	s.handler.HashQuery(w, req, nil)
-	// Number of keys in response based on the length estimation of one key
 	nk := w.Body.Len() / 1446
-	if nk < s.digests {
-		c.Errorf("The number of keys should the same or greater than the number of digests - keys: %d, digests: %d", nk, s.digests)
-	}
+	// It should return only one key as all the digests are identical
+	c.Assert(nk, gc.Equals, 1)
 }
