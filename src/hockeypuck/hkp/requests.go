@@ -233,7 +233,7 @@ func ParseHashQuery(req *http.Request) (*HashQuery, error) {
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	hq.Digests = make([]string, n)
+	seen := make(map[string]struct{})
 	for i := 0; i < n; i++ {
 		hashlen, err := recon.ReadInt(r)
 		if err != nil {
@@ -244,7 +244,10 @@ func ParseHashQuery(req *http.Request) (*HashQuery, error) {
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		hq.Digests[i] = hex.EncodeToString(hash)
+		if _, exists := seen[hex.EncodeToString(hash)]; !exists {
+			hq.Digests = append(hq.Digests, hex.EncodeToString(hash))
+			seen[hex.EncodeToString(hash)] = struct{}{}
+		}
 	}
 
 	return &hq, nil

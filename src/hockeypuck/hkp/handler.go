@@ -216,22 +216,14 @@ func (h *Handler) HashQuery(w http.ResponseWriter, r *http.Request, _ httprouter
 		return
 	}
 	var result []*openpgp.PrimaryKey
-	digests := make(map[string][]*openpgp.PrimaryKey)
 
 	responseLen := 0
 	for _, digest := range hq.Digests {
-		// Check the already processed digests for duplicates
-		keys, ok := digests[digest]
-
-		if !ok {
-			keys, err = h.fetchKeysFromDigest(digest)
-			if err != nil {
-				log.Errorf("error fetching keys from digest %v: %v", digest, err)
-				return
-			}
+		keys, err := h.fetchKeysFromDigest(digest)
+		if err != nil {
+			log.Errorf("error fetching keys from digest %v: %v", digest, err)
+			return
 		}
-
-		digests[digest] = keys
 
 		keysLength := 0
 		for _, key := range keys {
