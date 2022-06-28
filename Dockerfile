@@ -9,7 +9,8 @@ ENV GOPATH=/hockeypuck
 USER builder
 WORKDIR /hockeypuck
 RUN make lint test test-postgresql
-RUN cd src/hockeypuck && go install hockeypuck/server/cmd/...
+COPY --chown=builder:root .git /hockeypuck/.git
+RUN make build
 
 
 FROM debian:buster-slim

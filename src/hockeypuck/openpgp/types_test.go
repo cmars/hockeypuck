@@ -49,10 +49,10 @@ func (s *TypesSuite) TestVisitor(c *gc.C) {
 			c.Fatalf("unexpected node type: %+v", p)
 		}
 	}
-	c.Assert(1, gc.Equals, npub)
-	c.Assert(1, gc.Equals, nuid)
-	c.Assert(1, gc.Equals, nsub)
-	c.Assert(2, gc.Equals, nsig)
+	c.Assert(npub, gc.Equals, 1)
+	c.Assert(nuid, gc.Equals, 1)
+	c.Assert(nsub, gc.Equals, 1)
+	c.Assert(nsig, gc.Equals, 2)
 }
 
 func (s *TypesSuite) TestIterOpaque(c *gc.C) {
@@ -68,12 +68,12 @@ func (s *TypesSuite) TestIterOpaque(c *gc.C) {
 		hits[node.packet().Tag]++
 	}
 	c.Log(hits)
-	c.Assert(2, gc.Equals, hits[2 /*P.PacketTypeSignature*/])
-	c.Assert(1, gc.Equals, hits[6 /*P.PacketTypePublicKey*/])
-	c.Assert(1, gc.Equals, hits[13 /*P.PacketTypeUserId*/])
-	c.Assert(1, gc.Equals, len(key.UserIDs))
-	c.Assert(1, gc.Equals, len(key.UserIDs[0].Signatures))
-	c.Assert(1, gc.Equals, hits[14 /*P.PacketTypePublicSubKey*/])
-	c.Assert(1, gc.Equals, len(key.SubKeys[0].Signatures))
-	c.Assert(4, gc.Equals, len(hits))
+	c.Assert(hits[2 /*P.PacketTypeSignature*/], gc.Equals, 2)
+	c.Assert(hits[6 /*P.PacketTypePublicKey*/], gc.Equals, 1)
+	c.Assert(hits[13 /*P.PacketTypeUserId*/], gc.Equals, 1)
+	c.Assert(len(key.UserIDs), gc.Equals, 1)
+	c.Assert(len(key.UserIDs[0].Signatures), gc.Equals, 1)
+	c.Assert(hits[14 /*P.PacketTypePublicSubKey*/], gc.Equals, 1)
+	c.Assert(len(key.SubKeys[0].Signatures), gc.Equals, 1)
+	c.Assert(len(hits), gc.Equals, 4)
 }

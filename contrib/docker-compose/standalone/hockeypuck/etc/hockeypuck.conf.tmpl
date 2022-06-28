@@ -6,20 +6,21 @@ statsTemplate="/hockeypuck/lib/templates/stats.html.tmpl"
 webroot="/hockeypuck/lib/www"
 hostname="${FQDN}"
 contact="${FINGERPRINT}"
-software="Hockeypuck"
-version="${RELEASE}"
 
 [hockeypuck.hkp]
 bind=":11371"
 
 [hockeypuck.hkp.queries]
 selfSignedOnly=true
-#keywordSearchDisabled=true
 
 # prevent abusively large keys
 [hockeypuck.openpgp]
 maxPacketLength=8192
 maxKeyLength=1048576
+# Full fingerprints of keys to ignore, minus the leading 0x
+blacklist=[
+    # "DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF",
+]
 
 [hockeypuck.openpgp.db]
 driver="postgres-jsonb"
@@ -30,3 +31,8 @@ allowCIDRs=["127.0.0.1/8"]
 
 [hockeypuck.conflux.recon.leveldb]
 path="/hockeypuck/data/ptree"
+
+# Gossip peers
+#[hockeypuck.conflux.recon.partner.keyserver_example_com]
+#httpAddr="keyserver.example.com:11371"
+#reconAddr="keyserver.example.com:11370"

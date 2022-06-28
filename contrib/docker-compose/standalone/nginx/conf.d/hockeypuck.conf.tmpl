@@ -1,6 +1,6 @@
 server {
     listen 80;
-    server_name ${FQDN};
+    server_name ${FQDN} ${ALIAS_FQDNS};
     location /.well-known/acme-challenge/ {
         # use defaults
     }
@@ -10,16 +10,16 @@ server {
 }
 server {
     listen 443 ssl;
-    server_name ${FQDN};
+    server_name ${FQDN} ${ALIAS_FQDNS};
     ssl_certificate /etc/letsencrypt/live/${FQDN}/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/${FQDN}/privkey.pem;
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
     location /monitoring/prometheus {
-        ## To restrict access by ip, uncomment and edit the following:
-        # allow 127.0.0.1/8;
+        # To allow access from other IPs, edit the access rules below:
         # allow 192.168.0.1/32;
-        # deny all;
+        allow 127.0.0.1/8;
+        deny all;
         proxy_pass http://prometheus:9090;
         sub_filter_types text/html;
         sub_filter_once off;

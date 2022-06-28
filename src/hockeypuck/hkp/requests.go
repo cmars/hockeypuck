@@ -22,6 +22,7 @@ import (
 	"encoding/hex"
 	"io/ioutil"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -102,6 +103,11 @@ func ParseLookup(req *http.Request) (*Lookup, error) {
 		l.Search = req.Form.Get("search")
 		if l.Search == "" {
 			return nil, errors.Errorf("missing required parameter: search")
+		}
+		if l.Op == OperationIndex {
+			// If it looks like a fingerprint or long-ID, normalise to "0x" format
+			fingerprintRegex := regexp.MustCompile(`^([a-fA-F0-9]{16}|[a-fA-F0-9]{32}|[a-fA-F0-9]{40})$`)
+			l.Search = fingerprintRegex.ReplaceAllString(l.Search, "0x$1")
 		}
 	}
 
