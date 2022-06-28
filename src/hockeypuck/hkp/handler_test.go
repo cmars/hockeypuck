@@ -331,6 +331,8 @@ func (s *HandlerSuite) TestHashQueryResponseUnderLimit(c *gc.C) {
 	nk := w.Body.Len() / 1446
 
 	// The number of keys should be the same as the number of digests
+	c.Assert(s.storage.MethodCount("MatchMD5"), gc.Equals, s.digests)
+	c.Assert(s.storage.MethodCount("FetchKeys"), gc.Equals, s.digests)
 	c.Assert(nk, gc.Equals, s.digests)
 }
 
@@ -340,7 +342,11 @@ func (s *HandlerSuite) TestHashQueryDuplicateDigests(c *gc.C) {
 	w, req := s.SetupHashQueryTest(c, false, 500)
 	c.Assert(err, gc.IsNil)
 	s.handler.HashQuery(w, req, nil)
+	// Number of keys in response based on the length of one key
 	nk := w.Body.Len() / 1446
+
 	// It should return only one key as all the digests are identical
+	c.Assert(s.storage.MethodCount("MatchMD5"), gc.Equals, 1)
+	c.Assert(s.storage.MethodCount("FetchKeys"), gc.Equals, 1)
 	c.Assert(nk, gc.Equals, 1)
 }
