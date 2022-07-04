@@ -82,8 +82,12 @@ esac
 # Enable staging mode if needed
 if [ "${CERTBOT_STAGING:-0}" != "0" ]; then staging_arg="--staging"; else staging_arg=""; fi
 
+# Use a non-default CA server if specified
+if [ -n "${ACME_SERVER}" ]; then server_arg="--server ${ACME_SERVER}"; else server_arg=""; fi
+
 docker-compose run --rm --entrypoint "\
   certbot certonly --webroot -w /etc/nginx/html \
+    $server_arg \
     $staging_arg \
     $email_arg \
     $domain_args \

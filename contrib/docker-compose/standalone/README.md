@@ -23,6 +23,7 @@ At minimum, docker and docker-compose (v1.5 or later) must be installed in advan
 * Customize the settings in `.env` to your liking.
    Set EMAIL and FINGERPRINT to the contact email and associated PGP fingerprint of the site admin.
    Set FQDN and (optionally) ALIAS_FQDNS to the primary (and other) DNS name(s) of your server.
+   (Optional) Set ACME_SERVER to your internal CA if not using Let's Encrypt.
 * Generate hockeypuck and nginx configuration from your site settings with
    `./mkconfig.bash`.
 * Build hockeypuck by incanting `docker-compose build`.
