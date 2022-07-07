@@ -47,6 +47,10 @@ func testKeyring(opkr *openpgp.OpaqueKeyring) (int, int, error) {
 		return 0, 0, errors.WithStack(err)
 	}
 
+	err = openpgp.DropMalformed(pk)
+	if err != nil {
+		return 0, 0, errors.WithStack(err)
+	}
 	err = openpgp.DropDuplicates(pk)
 	if err != nil {
 		return 0, 0, errors.WithStack(err)
