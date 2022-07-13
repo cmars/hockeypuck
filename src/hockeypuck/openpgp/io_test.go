@@ -237,19 +237,22 @@ func (s *SamplePacketSuite) TestDeduplicate(c *gc.C) {
 	c.Assert(n2 < n, gc.Equals, true)
 }
 
-func (s *SamplePacketSuite) TestMerge(c *gc.C) {
-	key1 := MustInputAscKey("lp1195901.asc")
-	key2 := MustInputAscKey("lp1195901_2.asc")
-	err := Merge(key2, key1)
-	c.Assert(err, gc.IsNil)
-	var matchUID *UserID
-	for _, uid := range key2.UserIDs {
-		if uid.Keywords == "Phil Pennock <pdp@spodhuis.org>" {
-			matchUID = uid
-		}
-	}
-	c.Assert(matchUID, gc.NotNil)
-}
+// These are completely different keys, so Merging should not even be possible.
+// This test only "worked" before because Merge blindly appended one to the
+// other and didn't care that it produced a load of meaningless nonsense.
+// func (s *SamplePacketSuite) TestMerge(c *gc.C) {
+// 	key1 := MustInputAscKey("lp1195901.asc")
+// 	key2 := MustInputAscKey("lp1195901_2.asc")
+// 	err := Merge(key2, key1)
+// 	c.Assert(err, gc.IsNil)
+// 	var matchUID *UserID
+// 	for _, uid := range key2.UserIDs {
+// 		if uid.Keywords == "Phil Pennock <pdp@spodhuis.org>" {
+// 			matchUID = uid
+// 		}
+// 	}
+// 	c.Assert(matchUID, gc.NotNil)
+// }
 
 func (s *SamplePacketSuite) TestRevocationCert(c *gc.C) {
 	keys, err := ReadArmorKeys(testing.MustInput("revok_cert.asc"))

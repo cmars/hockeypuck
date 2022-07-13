@@ -132,7 +132,7 @@ func Merge(dst, src *PrimaryKey) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	return dst.updateMD5()
+	return ValidSelfSigned(dst, false)
 }
 
 func hexmd5(b []byte) string {
