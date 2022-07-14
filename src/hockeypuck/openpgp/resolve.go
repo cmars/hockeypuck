@@ -31,6 +31,11 @@ func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 	for _, uid := range key.UserIDs {
 		ss, others := uid.SigInfo(key)
 		var certs []*Signature
+		for _, cert := range ss.Revocations {
+			if cert.Error == nil {
+				certs = append(certs, cert.Signature)
+			}
+		}
 		for _, cert := range ss.Certifications {
 			if cert.Error == nil {
 				certs = append(certs, cert.Signature)
@@ -47,6 +52,11 @@ func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 	for _, uat := range key.UserAttributes {
 		ss, others := uat.SigInfo(key)
 		var certs []*Signature
+		for _, cert := range ss.Revocations {
+			if cert.Error == nil {
+				certs = append(certs, cert.Signature)
+			}
+		}
 		for _, cert := range ss.Certifications {
 			if cert.Error == nil {
 				certs = append(certs, cert.Signature)
