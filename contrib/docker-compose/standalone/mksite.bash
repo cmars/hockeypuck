@@ -20,6 +20,8 @@ ALIAS_FQDNS=""
 EMAIL=admin@example.com
 # PGP encryption key for the above email address
 FINGERPRINT=0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF
+# ACME Directory Resource URI (use Let's Encrypt if empty)
+ACME_SERVER=
 
 ###########################################################
 # You normally won't need to change anything below here
