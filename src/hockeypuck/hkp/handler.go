@@ -216,18 +216,15 @@ func (h *Handler) HashQuery(w http.ResponseWriter, r *http.Request, _ httprouter
 		return
 	}
 	var result []*openpgp.PrimaryKey
+
 	responseLen := 0
 	for _, digest := range hq.Digests {
-		rfps, err := h.storage.MatchMD5([]string{digest})
+		keys, err := h.fetchKeysFromDigest(digest)
 		if err != nil {
-			log.Errorf("error resolving hashquery digest %q", digest)
-			continue
+			log.Errorf("error fetching keys from digest %v: %v", digest, err)
+			return
 		}
-		keys, err := h.storage.FetchKeys(rfps)
-		if err != nil {
-			log.Errorf("error fetching hashquery key %q", digest)
-			continue
-		}
+
 		keysLength := 0
 		for _, key := range keys {
 			keysLength = keysLength + key.Length
@@ -248,7 +245,6 @@ func (h *Handler) HashQuery(w http.ResponseWriter, r *http.Request, _ httprouter
 
 	// Write the number of keys
 	if err := recon.WriteInt(w, len(result)); err != nil {
-		// log the error
 		log.Errorf("error writing number of keys, peer connection lost: %v", err)
 		return
 	}
@@ -270,6 +266,20 @@ func (h *Handler) HashQuery(w http.ResponseWriter, r *http.Request, _ httprouter
 	if err != nil {
 		log.Errorf("error writing hashquery terminator: %v", err)
 	}
+}
+
+func (h *Handler) fetchKeysFromDigest(digest string) (keys []*openpgp.PrimaryKey, err error) {
+	rfps, err := h.storage.MatchMD5([]string{digest})
+	if err != nil {
+		log.Errorf("error resolving hashquery digest %q", digest)
+		return
+	}
+	keys, err = h.storage.FetchKeys(rfps)
+	if err != nil {
+		log.Errorf("error fetching hashquery key %q", digest)
+		return
+	}
+	return
 }
 
 func writeHashqueryKey(w http.ResponseWriter, key *openpgp.PrimaryKey) error {
