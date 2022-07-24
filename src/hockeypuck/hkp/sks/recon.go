@@ -456,6 +456,10 @@ func (r *Peer) upsertKeys(rcvr *recon.Recover, buf []byte) (*upsertResult, error
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
+		err = openpgp.ValidSelfSigned(key, false)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
 		keyChange, err := storage.UpsertKey(r.storage, key)
 		if err != nil {
 			return nil, errors.WithStack(err)

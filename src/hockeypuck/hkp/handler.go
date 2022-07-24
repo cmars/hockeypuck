@@ -496,6 +496,11 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 			httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 			return
 		}
+		err = openpgp.ValidSelfSigned(key, false)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+			return
+		}
 
 		change, err := storage.UpsertKey(h.storage, key)
 		if err != nil {
@@ -564,6 +569,12 @@ func (h *Handler) Replace(w http.ResponseWriter, r *http.Request, _ httprouter.P
 			httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 			return
 		}
+		err = openpgp.ValidSelfSigned(key, false)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+			return
+		}
+
 		change, err := storage.ReplaceKey(h.storage, key)
 		if err != nil {
 			if errors.Is(err, storage.ErrKeyNotFound) {
