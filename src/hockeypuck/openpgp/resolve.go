@@ -143,6 +143,10 @@ func Merge(dst, src *PrimaryKey) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	err = DropMalformed(dst)
+	if err != nil {
+		return errors.WithStack(err)
+	}
 	return ValidSelfSigned(dst, false)
 }
 
