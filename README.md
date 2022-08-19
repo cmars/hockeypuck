@@ -26,13 +26,14 @@ See `contrib/docker-compose/standalone/README.md` for full instructions.
 
 ## Any platform/arch
 
-With Go 1.12 installed, from this directory:
+With Go 1.12 installed, simply run:
 
-    export GOPATH=$(pwd)
-    go build hockeypuck/server/cmd/...
-    go install hockeypuck/server/cmd/...
+    make build
 
 Hockeypuck binaries will be in `bin/`.
+
+Optionally run `sudo make install` to install the executables to `/usr/bin/`.
+It will also install configuration examples and static files.
 
 ## Vendored Dependencies
 
