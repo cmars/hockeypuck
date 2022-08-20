@@ -16,7 +16,7 @@ commands = \
 	hockeypuck-load \
 	hockeypuck-pbuild
 
-all: lint test build
+all: test build
 
 build:
 
