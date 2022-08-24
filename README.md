@@ -22,6 +22,19 @@ This includes automated database population and TLS certificate management.
 
 See `contrib/docker-compose/standalone/README.md` for full instructions.
 
+# Installing with Ansible
+
+Add this to your ansible playbook to deploy hockeypuck using the [`sebix.hockeypuck`](https://galaxy.ansible.com/sebix/hockeypuck) ansible role:
+
+```
+    - hosts: servers
+      roles:
+        - sebix.hockeypuck
+      vars:
+        # optional variables, see documentation for a complete list and default values
+        - hockeypuck_contact: "YOUR_KEY_FINGERPRINT"
+```
+
 # Building
 
 ## Any platform/arch
