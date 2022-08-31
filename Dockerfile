@@ -1,4 +1,4 @@
-FROM golang:buster as builder
+FROM golang:1.18-buster as builder
 LABEL io.hockeypuck.temp=true
 RUN adduser builder --system --disabled-login
 ENV DEBIAN_FRONTEND=noninteractive
