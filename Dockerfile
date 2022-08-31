@@ -8,7 +8,7 @@ COPY --chown=builder:root src /hockeypuck/src
 ENV GOPATH=/hockeypuck
 USER builder
 WORKDIR /hockeypuck
-RUN make lint test test-postgresql
+RUN make test test-postgresql
 COPY --chown=builder:root .git /hockeypuck/.git
 RUN make build
 
