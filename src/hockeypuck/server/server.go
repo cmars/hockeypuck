@@ -108,24 +108,30 @@ func NewServer(settings *Settings) (*Server, error) {
 			scrw := NewStatusCodeResponseWriter(rw)
 			next.ServeHTTP(scrw, req)
 			duration := time.Since(start)
+
 			fields := log.Fields{
 				req.Method:    req.URL.String(),
 				"duration":    duration.String(),
-				"from":        req.RemoteAddr,
 				"host":        req.Host,
 				"status-code": scrw.statusCode,
-				"user-agent":  req.UserAgent(),
 			}
-			proxyHeaders := []string{
-				"x-forwarded-for",
-				"x-forwarded-host",
-				"x-forwarded-server",
-			}
-			for _, ph := range proxyHeaders {
-				if v := req.Header.Get(ph); v != "" {
-					fields[ph] = v
+
+			if s.settings.HKP.LogRequestDetails {
+				fields["from"] = req.RemoteAddr
+				fields["user-agent"] = req.UserAgent()
+
+				proxyHeaders := []string{
+					"x-forwarded-for",
+					"x-forwarded-host",
+					"x-forwarded-server",
+				}
+				for _, ph := range proxyHeaders {
+					if v := req.Header.Get(ph); v != "" {
+						fields[ph] = v
+					}
 				}
 			}
+
 			log.WithFields(fields).Info()
 			recordHTTPRequestDuration(req.Method, scrw.statusCode, duration)
 		})

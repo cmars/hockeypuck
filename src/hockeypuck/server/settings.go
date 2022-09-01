@@ -39,11 +39,13 @@ type reconConfig struct {
 }
 
 const (
-	DefaultHKPBind = ":11371"
+	DefaultHKPBind           = ":11371"
+	DefaultLogRequestDetails = true
 )
 
 type HKPConfig struct {
-	Bind string `toml:"bind"`
+	Bind              string `toml:"bind"`
+	LogRequestDetails bool   `toml:"logRequestDetails"`
 
 	Queries queryConfig `toml:"queries"`
 }
@@ -60,9 +62,10 @@ type queryConfig struct {
 }
 
 type HKPSConfig struct {
-	Bind string `toml:"bind"`
-	Cert string `toml:"cert"`
-	Key  string `toml:"key"`
+	Bind              string `toml:"bind"`
+	LogRequestDetails bool   `toml:"logRequestDetails"`
+	Cert              string `toml:"cert"`
+	Key               string `toml:"key"`
 }
 
 type PKSConfig struct {
@@ -217,7 +220,8 @@ func DefaultSettings() Settings {
 			},
 		},
 		HKP: HKPConfig{
-			Bind: DefaultHKPBind,
+			Bind:              DefaultHKPBind,
+			LogRequestDetails: DefaultLogRequestDetails,
 		},
 		Metrics:        metricsSettings,
 		OpenPGP:        DefaultOpenPGP(),
