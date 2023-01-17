@@ -23,8 +23,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pkg/errors"
 	"hockeypuck/hkp/storage"
+
+	"github.com/pkg/errors"
 )
 
 type LoadStat struct {
@@ -118,10 +119,6 @@ func (s *Stats) Update(kc storage.KeyChange) {
 
 	s.Hourly.update(time.Now().UTC().Truncate(time.Hour), kc)
 	s.Daily.update(time.Now().UTC().Truncate(24*time.Hour), kc)
-	switch kc.(type) {
-	case storage.KeyAdded:
-		s.Total++
-	}
 }
 
 func (s *Stats) clone() *Stats {

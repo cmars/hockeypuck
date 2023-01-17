@@ -120,6 +120,9 @@ func NewPeer(st storage.Storage, path string, s *recon.Settings, opts []openpgp.
 		path:             path,
 	}
 	sksPeer.readStats()
+	// resync stats.Total from PTree after each mutation cycle
+	// https://github.com/hockeypuck/hockeypuck/issues/170#issuecomment-1384003238 note 3
+	sksPeer.peer.SetMutatedFunc(sksPeer.resyncStatsTotal)
 	st.Subscribe(sksPeer.updateDigests)
 	return sksPeer, nil
 }
@@ -142,6 +145,15 @@ func StatsFilename(path string) string {
 	return filepath.Join(dir, "."+base+".stats")
 }
 
+func (p *Peer) resyncStatsTotal() {
+	root, err := p.ptree.Root()
+	if err != nil {
+		p.log(RECON).Warningf("error accessing prefix tree root: %v", err)
+	} else {
+		p.stats.Total = root.Size()
+	}
+}
+
 func (p *Peer) readStats() {
 	fn := StatsFilename(p.path)
 	stats := NewStats()
@@ -151,14 +163,8 @@ func (p *Peer) readStats() {
 		stats = NewStats()
 	}
 
-	root, err := p.ptree.Root()
-	if err != nil {
-		p.log(RECON).Warningf("error accessing prefix tree root: %v", err)
-	} else {
-		stats.Total = root.Size()
-	}
-
 	p.stats = stats
+	p.resyncStatsTotal()
 }
 
 func (p *Peer) writeStats() {
