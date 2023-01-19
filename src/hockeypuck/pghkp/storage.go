@@ -389,7 +389,7 @@ func (st *storage) MatchMD5(md5s []string) ([]string, error) {
 			var md5 string
 			err := rows.Scan(&md5)
 			if err == nil {
-				st.Notify(hkpstorage.KeyRemoved{ID: "??", Digest: md5})
+				st.Notify(hkpstorage.KeyRemovedJitter{ID: "??", Digest: md5})
 			}
 		}
 	}

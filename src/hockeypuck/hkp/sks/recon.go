@@ -482,7 +482,7 @@ func (r *Peer) upsertKeys(rcvr *recon.Recover, buf []byte) (*upsertResult, error
 			// In the case of a) we SHOULD correct the PTree by adding the missing entry
 			// In the case of b) it is relatively harmless to re-add the entry (it will throw a warning)
 			// https://github.com/hockeypuck/hockeypuck/issues/170#issuecomment-1384003238 (note 2)
-			err = r.updateDigests(storage.KeyAdded{ID: key.RFingerprint, Digest: key.MD5})
+			err = r.updateDigests(storage.KeyAddedJitter{ID: key.RFingerprint, Digest: key.MD5})
 			if err != nil {
 				return nil, errors.WithStack(err)
 			}

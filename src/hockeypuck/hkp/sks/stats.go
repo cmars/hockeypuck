@@ -29,8 +29,11 @@ import (
 )
 
 type LoadStat struct {
-	Inserted int
-	Updated  int
+	Inserted       int
+	Updated        int
+	Removed        int
+	InsertedJitter int
+	RemovedJitter  int
 }
 
 type LoadStatMap map[time.Time]*LoadStat
@@ -68,6 +71,12 @@ func (m LoadStatMap) update(t time.Time, kc storage.KeyChange) {
 	switch kc.(type) {
 	case storage.KeyAdded:
 		ls.Inserted++
+	case storage.KeyRemoved:
+		ls.Removed++
+	case storage.KeyAddedJitter:
+		ls.InsertedJitter++
+	case storage.KeyRemovedJitter:
+		ls.RemovedJitter++
 	case storage.KeyReplaced:
 		ls.Updated++
 	}
