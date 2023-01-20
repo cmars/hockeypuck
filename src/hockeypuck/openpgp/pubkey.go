@@ -55,10 +55,14 @@ type PublicKey struct {
 
 func AlgorithmName(code int) string {
 	switch code {
-	case 1, 2, 3:
+	case 1:
 		return "rsa"
+	case 2:
+		return "rsaE"
+	case 3:
+		return "rsaS"
 	case 16:
-		return "elg"
+		return "elgE"
 	case 17:
 		return "dsa"
 	case 18:
@@ -66,9 +70,15 @@ func AlgorithmName(code int) string {
 	case 19:
 		return "ecdsa"
 	case 20:
-		return "elg"
+		return "elg!"
+	case 21:
+		return "dh?"
 	case 22:
 		return "eddsa"
+	case 23:
+		return "aedh?"
+	case 24:
+		return "aedsa?"
 	default:
 		return fmt.Sprintf("unk(#%d)", code)
 	}
