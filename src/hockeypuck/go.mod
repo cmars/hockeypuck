@@ -33,16 +33,13 @@ require (
 	github.com/meatballhat/negroni-logrus v0.0.0-20170801195057-31067281800f // indirect
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/phyber/negroni-gzip v0.0.0-20180113114010-ef6356a5d029 // indirect
-	github.com/prometheus/client_golang v1.7.1
-	github.com/prometheus/common v0.13.0 // indirect
+	github.com/prometheus/client_golang v1.11.1
 	github.com/stretchr/testify v1.4.0
 	github.com/stvp/go-udp-testing v0.0.0-20171104055251-c4434f09ec13
 	github.com/syndtr/goleveldb v0.0.0-20200815110645-5c35d600f0ca
 	github.com/tobi/airbrake-go v0.0.0-20151005181455-a3cdd910a3ff
 	github.com/urfave/negroni v1.0.0 // indirect
 	golang.org/x/crypto v0.0.0-20200820211705-5c72a883971a
-	golang.org/x/sys v0.0.0-20200821140526-fda516888d29 // indirect
-	google.golang.org/protobuf v1.25.0 // indirect
 	gopkg.in/basen.v1 v1.0.0-20150613233243-308119dd1d4c
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f
 	gopkg.in/errgo.v1 v1.0.1
