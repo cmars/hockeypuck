@@ -1,13 +1,11 @@
-version: '2'
+version: '3'
 services:
   hockeypuck:
     image: hockeypuck/hockeypuck:${RELEASE}
     build:
       context: ../../..
     ports:
-    - "11370:11370"
-    - "11371:11371"
-    - "9626"
+    - "${HKP_RECON_HOST_PORT:-11370}:11370"
     restart: always
     depends_on:
     - postgres
@@ -32,48 +30,74 @@ services:
 
   prometheus:
     image: prom/prometheus:v2.12.0
-    ports:
-    - "9090"
     restart: always
-    depends_on:
-    - hockeypuck
     volumes:
     - prom_data:/prometheus
     - ./prometheus/etc:/etc/prometheus
 
-  nginx:
-    image: nginx:1.17.3
+  haproxy:
+    image: haproxy:2.6-alpine
     ports:
-    - "80:80"
-    - "443:443"
+    - "${HAP_HTTP_HOST_PORT:-80}:80"
+    - "${HAP_HTTPS_HOST_PORT:-443}:443"
+    - "${HAP_HKP_HOST_PORT:-11371}:11371"
+    - "${HAP_PEER_HOST_PORT:-127.0.0.1:1395}:1395"
+    user: root
     restart: always
     depends_on:
-    - hockeypuck
+    - certbot
+    - haproxy_cache
+    - haproxy_internal
     - prometheus
     volumes:
-    - ./nginx/conf.d:/etc/nginx/conf.d
-    - certbot_conf:/etc/letsencrypt
-    - certbot_root:/etc/nginx/html
-    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+    - ./haproxy-entrypoint.sh:/usr/local/bin/haproxy-entrypoint.sh
+    - ./haproxy/etc/haproxy.cfg:${HAP_CONF_DIR}/haproxy.cfg
+    - ./haproxy/etc/lists:${HAP_CONF_DIR}/lists
+    - haproxy_cache:${HAP_CACHE_DIR}
+    - ${CERTBOT_CONF:-certbot_conf}:/etc/letsencrypt
+    entrypoint: "/usr/local/bin/haproxy-entrypoint.sh -f ${HAP_CONF_DIR}/haproxy.cfg"
     logging:
       options:
         max-size: "10m"
         max-file: "3"
 
+  haproxy_internal:
+    image: haproxy:2.6-alpine
+    user: root
+    restart: always
+    environment:
+    - RELOAD_INTERVAL=0
+    volumes:
+    - ./haproxy-entrypoint.sh:/usr/local/bin/haproxy-entrypoint.sh
+    - ./haproxy/etc/haproxy-internal.cfg:${HAP_CONF_DIR}/haproxy.cfg
+    entrypoint: "/usr/local/bin/haproxy-entrypoint.sh -f ${HAP_CONF_DIR}/haproxy.cfg"
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  haproxy_cache:
+    image: instrumentisto/rsync-ssh
+    restart: always
+    volumes:
+    - haproxy_cache:/var/cache/haproxy
+    entrypoint: "/bin/sh -c 'trap exit TERM; touch ${HAP_CACHE_DIR}/tor_exit_relays.list; while :; do sleep 1800; wget \"${TOR_EXIT_RELAYS_URL}\" -O ${HAP_CACHE_DIR}/tor_exit_relays.list; done'"
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "1"
+
   certbot:
     image: certbot/certbot
     restart: always
-    depends_on:
-      - nginx
     volumes:
-    - certbot_conf:/etc/letsencrypt
-    - certbot_root:/etc/nginx/html
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    - ${CERTBOT_CONF:-certbot_conf}:/etc/letsencrypt
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do for i in /etc/letsencrypt/live/*; do [ -d \"$$i\" ] && ln -sf privkey.pem $$i/fullchain.pem.key; certbot --standalone renew; done; sleep 12h & wait $${!}; done;'"
 
 volumes:
   hkp_data: {}
   pg_data: {}
   prom_data: {}
   pgp_import: {}
+  haproxy_cache: {}
   certbot_conf: {}
-  certbot_root: {}

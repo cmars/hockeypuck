@@ -1,0 +1,502 @@
+# Sample haproxy configuration for keyservers
+# (c) Martin Dobrev, Andrew Gallagher 2023
+
+# This file is optimised for hockeypuck's `docker-compose/standalone` deployment, however it is
+# applicable to other deployments with minor edits to backend definitions and file paths.
+#
+# To facilitate portability, it has been parameterised using `envsubst` notation: ${...}
+# These parameters are populated by the `docker-compose/standalone/mkconfig.bash` script.
+
+# FQDN                  the FQDN of this server, note that aliases must also be configured
+# CERTBOT_HOST_PORT     backend for ACME requests, in the form `host:port`
+# PROMETHEUS_HOST_PORT  backend for prometheus monitoring, in the form `host:port`
+# KEYSERVER_HOST_PORT   backend for the keyserver, in the form `host:port`
+# HAP_CONF_DIR          location of config files
+#                       normally `/etc/haproxy` for baremetal, `/usr/local/etc/haproxy` for docker
+#                       it must have a subdir `lists` containing `blacklist.list` and `whitelist.list` (can be empty files)
+# HAP_CACHE_DIR         persistent state store, must contain `tor_exit_relays.list` (refreshed externally)
+# HAP_CERT_DIR          parent directory of SSL/TLS certificate directory
+#                       it must contain a subdirectory named after the FQDN, itself containing `fullchain.pem` and `fullchain.pem.key`
+#                       e.g. for letsencrypt this will be `/etc/letsencrypt/live`
+# HAP_DHPARAM_FILE      Diffie-Hellman parameters for SSL/TLS
+
+# Note that after the cache files or the SSL certs are updated externally, haproxy should be soft reloaded by sending it a HUP signal
+
+global
+    # Map threads to individual CPU cores. Assumes at least 2 available cores.
+    cpu-map auto:1/1-2 0-1
+
+    # generated 2022-10-15, Mozilla Guideline v5.6, HAProxy 2.4, OpenSSL 3.0.2, intermediate configuration
+    # https://ssl-config.mozilla.org/#server=haproxy&version=2.4&config=intermediate&openssl=3.0.2&guideline=5.6
+    ssl-default-bind-ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384
+    ssl-default-bind-ciphersuites TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256
+    ssl-default-bind-options prefer-client-ciphers no-sslv3 no-tlsv10 no-tlsv11 no-tls-tickets
+
+    ssl-default-server-ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384
+    ssl-default-server-ciphersuites TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256
+    ssl-default-server-options no-sslv3 no-tlsv10 no-tlsv11 no-tls-tickets
+
+    ssl-dh-param-file ${HAP_DHPARAM_FILE}
+
+    log stdout format raw local0
+
+    # Allow maximum of 200 000 connections
+    maxconn 200000
+
+    tune.comp.maxlevel  5
+    maxcompcpuusage     98
+
+    # lower the record size to improve Time to First Byte (TTFB)
+    tune.ssl.maxrecord  1419
+
+    # Number of threads per process
+    nbthread 12
+
+    # Tune SSL cache size
+    tune.ssl.cachesize 500000
+    # Tune DH params
+    tune.ssl.default-dh-param 2048 # TODO: Export as variable. Most systems use 2048 by default
+
+    # Allow local admin socket
+    stats socket ${HAP_CACHE_DIR}/haproxy.admin.sock mode 660 level admin expose-fd listeners
+    stats timeout 30s
+
+    # Perform stateless reloads on HUP
+    master-worker
+
+    server-state-file ${HAP_CACHE_DIR}/server-state
+
+defaults
+    load-server-state-from-file global
+
+    option dontlognull
+    option http-server-close
+    option splice-response
+    option clitcpka
+    option srvtcpka
+    option tcp-smart-accept
+    option tcp-smart-connect
+    option contstats
+    retries 3
+
+    timeout http-request    5s
+    timeout http-keep-alive 5s
+    timeout connect         5s
+    timeout client          60s
+    timeout client-fin      60s
+    timeout tunnel          40m         # timeout to use with WebSocket and CONNECT
+    timeout server          150s
+    timeout tarpit          15s
+    timeout queue           10s
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Peerings
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+peers haproxy-peers
+    peer "${HOSTNAME}"      "${HOST_IP}":1395
+    peer haproxy-internal   haproxy_internal:1395
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Stick Tables
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+backend st_global_ddos
+    # Stick Table Definitions
+    #  - conn_cur: count active connections
+    #  - conn_rate(10s): average incoming connection rate over 10 seconds
+    #  - http_err_rate(3s): Monitors the number of errors generated by an IP over a period of 3 seconds
+    #  - http_req_rate(10s): Monitors the number of request sent by an IP over a period of 10 seconds
+    stick-table type ipv6 size 2m expire 30s peers haproxy-peers store conn_cur,conn_rate(10s),http_req_rate(10s),http_err_rate(3s)
+
+backend st_tor_request_rate
+    stick-table type string len 32 size 10 expire 24h peers haproxy-peers store conn_cur,conn_rate(10s),http_req_rate(10s),http_err_rate(10s)
+
+backend st_tor_24h_ban
+    stick-table type ipv6 size 1m expire 24h peers haproxy-peers store gpc0
+
+backend st_tor_24days_ban
+    stick-table type ipv6 size 1m expire 24d peers haproxy-peers store gpc0
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Frontends
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# Frontend to handle HTTP and HTTPS requests
+frontend fe_http_s_balancer
+    bind *:443
+    bind *:11371
+    mode tcp
+
+    acl blacklisted src -f ${HAP_CONF_DIR}/lists/blacklist.list
+
+    tcp-request inspect-delay 5s
+
+    # option tcplog
+    # log stdout format raw local2
+    # log-format "%ci:%cp [%t] %ft %b/%s %Tw/%Tc/%Tt %B %ts %ac/%fc/%bc/%sc/%rc %sq/%bq"
+
+    tcp-request content reject if blacklisted
+    tcp-request content accept if HTTP
+    tcp-request content accept if { req.ssl_hello_type 1 }
+
+    use_backend be_forward_http if HTTP
+    use_backend be_forward_https if { req.ssl_hello_type 1 }
+
+    default_backend be_tarpit
+
+# Frontend to handle the actual HTTP requests
+frontend fe_http_handler
+    bind :80
+    bind :::80
+
+    # Loopback interface
+    bind abns@loopback-http accept-proxy
+    bind abns@loopback-https accept-proxy ssl crt ${HAP_CERT_DIR}/${FQDN}/fullchain.pem alpn h2,http/1.1
+
+    mode http
+
+    # ~~ HAProxy LB Configuration ~~
+    # Enable/Disable trust of Cloudflare and/or X-Forwarded-For headers
+    #
+    # By default HAProxy is running at the edge of your infrastructure
+    # and picks the client IP from the TCP connection. If you are running
+    # HAProxy behind a reverse proxy or Cloudflare, you need to enable
+    # the following options to trust the headers.
+
+    # HAProxy behind Cloudflare
+    #http-request set-var(txn.cloudflare) str(ENABLED)
+
+    # HAProxy behind a reverse proxy
+    #http-request set-var(txn.cdn) str(ENABLED)
+
+    # HAProxy behind Cloudflare and/or a reverse proxy
+    acl is_behind_cloudflare if { var(txn.cloudflare) -m found }
+    acl is_behind_proxy      if { var(txn.cdn) -m found }
+
+    # ~~ End HAProxy LB Configuration ~~
+
+    # Host header is set
+    acl is_host_set hdr(host) -m found
+
+    # Instance is stopping
+    acl is_stopping stopping eq 1
+
+    # Match ACME challenge
+    acl acme_challenge      path_beg /.well-known/acme-challenge/
+
+    # Match Prometheus metrics
+    acl get_prometheus      path_beg /monitoring/prometheus
+
+    # .well-known/security.txt settings
+    acl well_known_sec      path_beg -i /security.txt
+    acl well_known_sec      path_beg -i /.well-known/security.txt
+
+    # Check if requestor is blacklisted
+    acl blacklisted         src -f ${HAP_CONF_DIR}/lists/blacklist.list
+    tcp-request connection  reject if blacklisted
+
+    # Capture request headers
+    capture request header Host len 253
+    capture request header X-REQ-ID len 32
+    capture request header X-Forwarded-For len 64
+    capture request header Accept-Language len 64
+    capture request header Referer len 64
+    capture request header User-Agent len 128
+    capture request header Content-Length len 10
+
+    # Add the X-Forwarded-For header
+    option forwardfor except 127.0.0.0/8
+
+    # ~~~ DDoS protection ~~~
+    # HAproxy tracks client IPs into a global stick table. Each IP is
+    # stored for a limited amount of time, with several counters attached
+    # to it. When a new connection comes in, the stick table is evaluated
+    # to verify that the new connection from this client is allowed to
+    # continue.
+    tcp-request inspect-delay 5s
+
+    # Enable tracking of counters for ip in the default stick-table, using CF-Connecting-IP or X-Forwarded-For
+    acl HAS_CF_CONNECTING_IP hdr_cnt(CF-Connecting-IP) eq 1
+    acl HAS_X_FORWARDED_FOR hdr_cnt(X-Forwarded-For) gt 0
+
+    # Block invalid requests
+    http-request deny deny_status 400 hdr Denial-Reason "No direct hits allowed. Missing X-Forwarded-For header" if is_behind_proxy !HAS_X_FORWARDED_FOR
+    http-request deny deny_status 400 hdr Denial-Reason "No direct hits allowed. Missing headers" if is_behind_cloudflare !HAS_CF_CONNECTING_IP !HAS_X_FORWARDED_FOR
+
+    # ~~ HAProxy client IP tracking ~~
+    # Track requests from CF-Connecting-IP or X-Forwarded-For header, or source IP into the global ddos stick-table
+    # Please see above for options to enable/disable tracking of client IPs from CF-Connecting-IP or X-Forwarded-For headers
+
+    # Track CF-Connecting-IP header if present and behind Cloudflare
+    tcp-request content track-sc0 hdr_ip(CF-Connecting-IP,-1) table st_global_ddos if HTTP HAS_CF_CONNECTING_IP is_behind_cloudflare
+    http-request set-var(txn.clientIP) hdr_ip(CF-Connecting-IP,-1) if HTTP HAS_CF_CONNECTING_IP is_behind_cloudflare
+
+    # Track X-Forwarded-For header if present and behind a proxy
+    tcp-request content track-sc0 hdr_ip(X-Forwarded-For,-1) table st_global_ddos if HTTP HAS_X_FORWARDED_FOR is_behind_proxy
+    http-request set-var(txn.clientIP) hdr_ip(X-Forwarded-For,-1) if HTTP HAS_X_FORWARDED_FOR is_behind_proxy
+
+    # Track source IP
+    tcp-request content track-sc0 src table st_global_ddos if HTTP !is_behind_cloudflare !is_behind_proxy
+    http-request set-var(txn.clientIP) src if HTTP !is_behind_cloudflare !is_behind_proxy
+
+    # Set CF-Connecting-IP header to the tracked client IP. All subsequent requests from this client will have this header set.
+    # And all ACL rules in backends etc. must be evaluated against this header.
+    http-request set-header CF-Connecting-IP %[var(txn.clientIP)]
+    # ~~ End HAProxy client IP tracking ~~
+
+    # Capture hockeypuck backend stats.
+    http-request set-var(txn.hockeypuck_primary) nbsrv(be_hockeypuck_primary)
+    http-request set-var(txn.hockeypuck)         nbsrv(be_hockeypuck)
+    http-request capture var(txn.hockeypuck_primary) len 2
+    http-request capture var(txn.hockeypuck)         len 2
+
+    # Generic health monitor for umbrella LBs in enterprise deployments.
+    acl BACKEND_DEAD nbsrv(be_hockeypuck) lt 1
+    monitor-uri /_healthz
+    monitor fail if BACKEND_DEAD
+
+    # Set Host header if not set
+    http-request set-header Host str(${FQDN}:%[dst_port]) if !is_host_set
+
+    # Store Host header to construct Via response for keyserver backend
+    http-request set-var(txn.serverName) req.hdr(host) if is_host_set
+
+    # TARPIT the new connection if the client already has 80 opened
+    http-request tarpit if { src_conn_cur(st_global_ddos) ge 80 }
+
+    # TARPIT the new connection if the client has opened more than 40 connections in 3 seconds
+    http-request tarpit if { src_conn_rate(st_global_ddos) ge 40 }
+
+    # TARPIT the connection if the client has passed the HTTP error rate (10s)
+    http-request tarpit if { sc0_http_err_rate(st_global_ddos) gt 20 }
+
+    # TARPIT the connection if the client has passed the HTTP request rate (10s)
+    http-request tarpit if { sc0_http_req_rate(st_global_ddos) gt 100 }
+
+    # Whitelisting options
+    http-request allow if { req.hdr_ip(CF-Connecting-IP,-1) -f ${HAP_CONF_DIR}/lists/whitelist.list }
+
+    # Options
+    option httplog
+    option http-server-close
+    option dontlognull
+
+    log stdout format raw local0
+    log-format "%ci:%cp [%t] %ft %b/%s %Tq/%Tw/%Tc/%Tr/%Tt %ST %U/%B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r"
+
+    # X-Forward- settings
+    http-request    set-header X-Forwarded-Proto http  if !{ ssl_fc }
+    http-request    set-header X-Forwarded-Proto https if { ssl_fc }
+    http-request    set-header X-Forwarded-Host  %[req.hdr(host)] if is_host_set
+
+    # HSTS response header
+    http-response   set-header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" if { ssl_fc }
+
+    # Secure response cookies
+    http-response   replace-header Set-Cookie ^((?:.(?!\ [Ss]ecure))*)$ \1;\ Secure if { ssl_fc }
+
+    # # Backend routing
+    use_backend be_acme_challenge  if acme_challenge !is_stopping
+    use_backend be_prometheus      if get_prometheus !is_stopping
+    #use_backend be_well_known_sec  if well_known_sec
+
+    default_backend be_hockeypuck_rewrite
+
+frontend fe_hockeypuck_ddos_lb
+    bind abns@hockeypuck-ddos accept-proxy
+    mode http
+
+    # Check for valid vhost names
+    acl keyserver_host      hdr_beg(host) -i ${FQDN}
+    #acl keyserver_host      hdr_beg(host) -i ${ALIAS_FQDN_1}
+    #acl keyserver_host      hdr_beg(host) -i ${ALIAS_FQDN_2}
+
+    # hockeypuck settings
+    acl get_pks_lookup     path_beg /pks/lookup
+    acl post_pks_add       path_beg /pks/add
+    acl post_pks_delete    path_beg /pks/delete
+    acl post_pks_hashquery path_beg /pks/hashquery
+    acl post_pks_replace   path_beg /pks/replace
+    acl pks_op_get         query    -i -m sub op=get
+    acl pks_op_stats       query    -i -m sub op=stats
+    acl pks_options_fprint query    -i -m sub fingerprint=on
+    acl pks_options_mr     query    -i -m sub options=mr
+    acl get_webroot        path_beg /
+
+    # Tor exit nodes
+    # These should be refreshed on a schedule using an external script.
+    # After updating, haproxy should be refreshed using the graceful method described at
+    # https://www.haproxy.com/blog/hitless-reloads-with-haproxy-howto/
+    acl is_tor_exit_relay   hdr_ip(CF-Connecting-IP) -f ${HAP_CACHE_DIR}/tor_exit_relays.list
+
+    tcp-request inspect-delay 5s
+    tcp-request content accept if HTTP
+
+    http-request capture hdr(Host) len 253
+    http-request capture hdr_ip(CF-Connecting-IP) len 64
+
+    # ~ Tor exit relay nodes rules ~
+    # Track request and connection rate for Tor exit nodes to POST /pks/add
+    http-request track-sc0 str(TOR_EXIT_RELAY) table st_tor_request_rate if is_tor_exit_relay keyserver_host post_pks_add METH_POST
+    http-request track-sc1 hdr_ip(CF-Connecting-IP) table st_tor_24h_ban if is_tor_exit_relay keyserver_host post_pks_add METH_POST
+    http-request track-sc2 hdr_ip(CF-Connecting-IP) table st_tor_24days_ban if is_tor_exit_relay keyserver_host post_pks_add METH_POST
+
+    # Apply rate limiting for Tor exit nodes
+    acl tor_request_rate_limit sc0_inc_gpc0(st_tor_request_rate) gt 2
+    acl tor_conn_count         sc0_conn_cur(st_tor_request_rate) gt 1
+    acl tor_conn_rate_limit    sc0_conn_rate(st_tor_request_rate) gt 1
+
+    # Check if the IP is already banned
+    acl tor_ip_24h_banned      sc1_get_gpc0(st_tor_24h_ban) gt 0
+    acl tor_ip_1month_banned   sc2_get_gpc0(st_tor_24days_ban) gt 0
+
+    # Increment the gpc0 counter in the 1-month ban stick table if the IP attempts another request
+    # within the 24h or 1-month ban period and block the request
+    http-request sc-inc-gpc0(2) if tor_ip_1month_banned
+    http-request deny deny_status 429 hdr Denial-Reason "This Tor exit relay is a repeat offender used in DDoS attack on this service. Hard ban enforced for 1 month." if tor_ip_1month_banned
+
+    http-request sc-inc-gpc0(1) if tor_ip_24h_banned !tor_ip_1month_banned
+    http-request sc-inc-gpc0(2) if tor_ip_24h_banned !tor_ip_1month_banned
+    http-request deny deny_status 429 hdr Denial-Reason "This Tor exit relay was used in DDoS attack on this service. Do not make any further requests. This will only make things worse." if tor_ip_24h_banned
+
+    # Block requests if either the connection rate or request rate limits are exceeded
+    # Increment the gpc0 counter in the 24h ban stick table if the request is blocked
+    http-request set-var(txn.ratelimited) str(RATE-LIMITED) if is_tor_exit_relay tor_request_rate_limit
+    http-request set-var(txn.ratelimited) str(RATE-LIMITED) if is_tor_exit_relay tor_conn_rate_limit
+    http-request set-var(txn.ratelimited) str(RATE-LIMITED) if is_tor_exit_relay tor_conn_count
+    http-request capture var(txn.ratelimited) len 12        if is_tor_exit_relay tor_request_rate_limit
+    http-request capture var(txn.ratelimited) len 12        if is_tor_exit_relay tor_conn_rate_limit
+    http-request capture var(txn.ratelimited) len 12        if is_tor_exit_relay tor_conn_count
+
+    # Check if the request was rate limited
+    acl tor_request_rate_limited var(txn.ratelimited) -m found
+
+    # Block requests if the request was rate limited and increment the gpc0 counter in the 24h ban stick table
+    http-request sc-inc-gpc0(1) if tor_request_rate_limited
+    http-request deny deny_status 429 hdr Denial-Reason "Exceeded rate limit. You had: %[sc0_conn_cur(st_tor_request_rate)] established connections, %[sc0_conn_rate(st_tor_request_rate)] connection rate and %[sc0_http_req_rate(st_tor_request_rate)] requests." if tor_request_rate_limited
+    # ~ End of Tor exit relay nodes rules ~
+
+    # Options
+    option httplog
+    option http-server-close
+    option dontlognull
+
+    log stdout format raw local1
+    log-format "%ci:%cp [%t] %ft %b/%s %Tq/%Tw/%Tc/%Tr/%Tt %ST %U/%B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r"
+
+    # Fetch stats from the primary Hockeypuck instance
+    use_backend be_hockeypuck_primary if keyserver_host get_pks_lookup pks_op_stats METH_GET
+    # Fetch recon hash queries from the primary Hockeypuck instance
+    use_backend be_hockeypuck_primary if post_pks_hashquery METH_POST
+    # Use cluster backend for all other requests
+    use_backend be_hockeypuck         if keyserver_host get_pks_lookup METH_GET
+    use_backend be_hockeypuck         if keyserver_host post_pks_delete METH_POST
+    use_backend be_hockeypuck         if keyserver_host post_pks_replace METH_POST
+    # Allow POST /pks/add requests from all IPs to the primary Hockeypuck instance
+    use_backend be_hockeypuck_primary if keyserver_host post_pks_add METH_POST # TODO: Can we add without Host set?
+    # Completely block POST /pks/add requests from Tor exit nodes
+    #use_backend be_hockeypuck_primary if keyserver_host post_pks_add !is_tor_exit_relay METH_POST
+    #use_backend be_tarpit            if keyserver_host post_pks_add is_tor_exit_relay METH_POST
+    use_backend be_hockeypuck         if keyserver_host get_webroot !post_pks_add !post_pks_hashquery !post_pks_delete !post_pks_replace METH_GET
+
+    # Block all other requests
+    use_backend be_tarpit
+
+# Frontend to export stats to prometheus
+frontend fe_prometheus
+    bind :8405
+    mode http
+    http-request use-service prometheus-exporter
+    no log
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Backends
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# Backend to forward HTTP requests
+backend be_forward_http
+    mode tcp
+    description Forward HTTP requests to the HTTP frontend
+    server srv_http abns@loopback-http send-proxy-v2
+
+# Backend to forward HTTPS requests
+backend be_forward_https
+    mode tcp
+    description Forward HTTPS requests to the HTTP frontend
+    server srv_https abns@loopback-https send-proxy-v2
+
+# Backend to serve ACME HTTP-01 challenge requests
+backend be_acme_challenge
+    mode http
+    description certbot ACME HTTP-1 validation endpoint
+    server certbot ${CERTBOT_HOST_PORT} maxconn 20
+
+# Backend to tarpit connections
+backend be_tarpit
+    mode http
+    description Tarpit invalid connections
+
+    stick-table type ip size 1m expire 1m store conn_cur,conn_rate(10s),http_req_rate(10s)
+
+    http-request silent-drop if { src_conn_cur gt 10 }
+    http-request silent-drop if { src_conn_cur gt 5 } { src_http_req_rate gt 10 }
+
+    http-request tarpit
+
+# Backend to prometheus web interface
+backend be_prometheus
+    mode http
+
+    # Set the Via header
+    http-response set-header Via "1.1 %[var(txn.serverName)] (Hockey stick)" if { var(txn.serverName) -m found }
+
+    # ~~ URL rewriting rules ~~
+    http-request  replace-path ^/monitoring/prometheus/(.*) /\1
+    http-response replace-header location (.*)/(\w+) \1/monitoring/prometheus/\2
+    # ~~ End of URL rewriting rules ~~
+
+    server prometheus ${PROMETHEUS_HOST_PORT} maxconn 20
+
+# Backend to apply request and response rewriting rules
+backend be_hockeypuck_rewrite
+    mode http
+
+    # Set the Via header
+    http-response set-header Via "1.1 %[var(txn.serverName)] (Hockey stick)" if { var(txn.serverName) -m found }
+
+    # ~~ URL rewriting rules ~~
+    http-request replace-path ^/stats([^\ ]*) /pks/lookup?op=stats\1
+    http-request replace-path ^/s/(.*)        /pks/lookup?op=index&options=mr&search=\1
+    http-request replace-path ^/search/(.*)   /pks/lookup?op=index&options=mr&search=\1
+    http-request replace-path ^/g/(.*)        /pks/lookup?op=get&search=\1
+    http-request replace-path ^/get/(.*)      /pks/lookup?op=get&search=\1
+    http-request replace-path ^/d/(.*)        /pks/lookup?op=get&options=mr&search=\1
+    http-request replace-path ^/download/(.*) /pks/lookup?op=get&options=mr&search=\1
+    # ~~ End of URL rewriting rules ~~
+
+    http-request set-header CF-Connecting-IP %[var(txn.clientIP)] if { var(txn.clientIP) -m found }
+
+    server hockeypuck_lb_ddos abns@hockeypuck-ddos send-proxy-v2
+
+# Hockeypuck backend
+backend be_hockeypuck_primary
+    mode http
+
+    option httpchk
+    http-check send meth GET uri /pks/lookup?op=stats hdr Host ${FQDN}
+    http-check expect status 200
+    http-check send-state
+
+    server srv_hockeypuck ${KEYSERVER_HOST_PORT} check inter 5s on-error mark-down rise 2 fall 3
+
+backend be_hockeypuck
+    mode http
+
+    option httpchk
+    http-check send meth GET uri /pks/lookup?op=stats hdr Host ${FQDN}
+    http-check expect status 200
+    http-check send-state
+
+    server srv_keyserver ${KEYSERVER_HOST_PORT} check inter 5s on-error mark-down rise 2 fall 3
+    # Uncomment, duplicate, and edit the following to load-balance across multiple stacks
+    #server srv_keyserver_remote ${REMOTE_KEYSERVER_HOST_PORT} backup check inter 5s on-error mark-down rise 2 fall 3

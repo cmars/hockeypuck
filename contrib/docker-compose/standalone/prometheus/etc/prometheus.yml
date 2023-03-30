@@ -31,3 +31,6 @@ scrape_configs:
     static_configs:
     - targets: ['hockeypuck:9626']
 
+  - job_name: 'haproxy'
+    static_configs:
+    - targets: ['haproxy:8405']

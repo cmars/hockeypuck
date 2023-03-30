@@ -15,6 +15,21 @@ Tested on Ubuntu 20.04 and Debian 11 (bullseye), with dependencies installed usi
 Other platforms may work but will require some customization.
 At minimum, docker and docker-compose (v1.5 or later) must be installed in advance.
 
+# Migration of legacy nginx deployments (!BREAKING CHANGES!)
+
+If you created a standalone deployment before April 2023, you will need to migrate from nginx to haproxy.
+
+* `cd` into this directory
+* BACK UP ALL CONFIG FILES by incanting `cp -a . /path/to/somewhere/safe/`
+* Incant `./mksite.bash` to apply the migrations to your configuration settings
+* Incant `./mkconfig.bash` to create the haproxy configuration files
+
+If you have made local changes to the default nginx configuration, you will need to port these changes to haproxy.
+Please open a ticket in the hockeypuck github project if you require assistance.
+
+* Incant `docker-compose down --remove-orphans && docker-compose up -d` to bring up the new deployment
+* You can now remove your nginx configuration by deleting the `nginx` subdirectory.
+
 # Installation
 
 * (Optional) Register a DNS name for your server's public IP address.
@@ -24,12 +39,12 @@ At minimum, docker and docker-compose (v1.5 or later) must be installed in advan
    Set EMAIL and FINGERPRINT to the contact email and associated PGP fingerprint of the site admin.
    Set FQDN and (optionally) ALIAS_FQDNS to the primary (and other) DNS name(s) of your server.
    (Optional) Set ACME_SERVER to your internal CA if not using Let's Encrypt.
-* Generate hockeypuck and nginx configuration from your site settings with
+* Generate hockeypuck and haproxy configuration from your site settings with
    `./mkconfig.bash`.
 * Build hockeypuck by incanting `docker-compose build`.
-* (Optional) Set up TLS with `./init-letsencrypt.bash`. Answer the prompts as
-   needed. If you want to test LE first with staging before getting a real
-   cert, set the environment variable `CERTBOT_STAGING=1`.
+* Set up TLS with `./init-letsencrypt.bash`. Answer the prompts as needed.
+   If you want to test LE first with staging before getting a real cert,
+   set the environment variable `CERTBOT_STAGING=1`.
 * Download a keydump by running `./sync-sks-dump.bash`.
 * Incant `docker-compose up -d` to start Hockeypuck and all dependencies.
    It will take several hours (or days) to load the keydump on first invocation.
@@ -40,32 +55,52 @@ At minimum, docker and docker-compose (v1.5 or later) must be installed in advan
 # Configuration
 
 * Hockeypuck configuration: `hockeypuck/etc/hockeypuck.conf`
-* NGINX configuration: `nginx/conf.d/hockeypuck.conf`
+* HAProxy configuration: `haproxy/etc/haproxy.conf`
 * Prometheus configuration: `prometheus/etc/prometheus.yml`
 
-To reload services after changing the configuration, incant `docker-compose restart`.
+To reload all services after changing the configuration, incant `docker-compose restart`.
+
+To gracefully reload HAProxy without downtime, incant `docker-compose kill -s HUP haproxy`.
 
 # Upgrading
 
-To upgrade hockeypuck to the latest commit, incant:
+## Hockeypuck
+
+To upgrade the hockeypuck container to the latest commit, incant:
 
 ```
 git pull
 docker-compose build
-docker-compose down
+docker-compose stop hockeypuck
 docker-compose up -d
 ```
 
 This will leave behind stale intermediate images, which may be quite large.
 To clean them up, incant `docker images -f 'label=io.hockeypuck.temp=true' -q | xargs docker rmi`.
 
+## HAProxy
+
+The HAProxy template configuration is volatile and may change significantly between releases.
+To update your configuration with changes from from upstream, incant the following:
+
+```
+git pull
+mv haproxy/etc/haproxy.cfg{,.bak}
+./mkconfig.bash
+docker-compose kill -s HUP haproxy
+docker-compose restart haproxy_cache
+```
+
+It is recommended that you make any local configuration changes to `haproxy/etc/haproxy.cnf.tmpl` and maintain them in a local branch (or fork).
+This will allow you to more sustainably manage merge conflicts with upstream.
+
 # Operation
 
 ## Monitoring
 
 By default the prometheus monitoring console is not accessible from external IP addresses.
-To change this, edit `nginx/conf.d/hockeypuck.conf` as appropriate.
-Once done, browse to `https://FQDN/monitoring/prometheus` to access the monitoring console.
+To change this, edit `haproxy/etc/haproxy.cfg` as appropriate.
+Once done, browse to `https://$FQDN/monitoring/prometheus` to access the monitoring console.
 
 ## Obtaining a new keyserver dump
 
