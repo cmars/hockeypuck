@@ -3,3 +3,4 @@ hockeypuck/etc/hockeypuck.conf
 nginx/conf.d/hockeypuck.conf
 haproxy/etc/haproxy.cfg
 haproxy/etc/lists/*
+haproxy/etc/haproxy.d/*LOCAL*.cfg

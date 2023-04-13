@@ -13,7 +13,7 @@ NB: all the below assume that you have `cd`-ed into this directory first.
 Tested on Ubuntu 20.04 and Debian 11 (bullseye), with dependencies installed using `./setup.bash`.
 
 Other platforms may work but will require some customization.
-At minimum, docker and docker-compose (v1.5 or later) must be installed in advance.
+At minimum, docker (v1.13+) and docker-compose (v1.10+) must be installed in advance.
 
 # Migration of legacy nginx deployments (!BREAKING CHANGES!)
 
@@ -32,14 +32,14 @@ Please open a ticket in the hockeypuck github project if you require assistance.
 
 # Installation
 
-* (Optional) Register a DNS name for your server's public IP address.
+* Register a DNS name for your server's public IP address.
 * Configure your ingress firewall to allow ports: 80, 443, 11370, 11371
 * Create a `.env` file by running `./mksite.bash`.
 * Customize the settings in `.env` to your liking.
    Set EMAIL and FINGERPRINT to the contact email and associated PGP fingerprint of the site admin.
    Set FQDN and (optionally) ALIAS_FQDNS to the primary (and other) DNS name(s) of your server.
    (Optional) Set ACME_SERVER to your internal CA if not using Let's Encrypt.
-* Generate hockeypuck and haproxy configuration from your site settings with
+* Generate Hockeypuck and HAProxy configuration from your site settings with
    `./mkconfig.bash`.
 * Build hockeypuck by incanting `docker-compose build`.
 * Set up TLS with `./init-letsencrypt.bash`. Answer the prompts as needed.
@@ -48,14 +48,14 @@ Please open a ticket in the hockeypuck github project if you require assistance.
 * Download a keydump by running `./sync-sks-dump.bash`.
 * Incant `docker-compose up -d` to start Hockeypuck and all dependencies.
    It will take several hours (or days) to load the keydump on first invocation.
-   You can keep track of progress by running `docker logs -f standalone_hockeypuck_1`.
+   You can keep track of progress by running `docker-compose logs -f hockeypuck`.
 * Once you are sure Hockeypuck has loaded all keys, you can run
    `./clean-sks-dump.bash` to remove the dump files and recover disk space.
 
 # Configuration
 
 * Hockeypuck configuration: `hockeypuck/etc/hockeypuck.conf`
-* HAProxy configuration: `haproxy/etc/haproxy.conf`
+* HAProxy configuration: `haproxy/etc/`
 * Prometheus configuration: `prometheus/etc/prometheus.yml`
 
 To reload all services after changing the configuration, incant `docker-compose restart`.
@@ -66,7 +66,7 @@ To gracefully reload HAProxy without downtime, incant `docker-compose kill -s HU
 
 ## Hockeypuck
 
-To upgrade the hockeypuck container to the latest commit, incant:
+To upgrade the Hockeypuck container to the latest commit, incant:
 
 ```
 git pull
@@ -81,18 +81,33 @@ To clean them up, incant `docker images -f 'label=io.hockeypuck.temp=true' -q | 
 ## HAProxy
 
 The HAProxy template configuration is volatile and may change significantly between releases.
-To update your configuration with changes from from upstream, incant the following:
+To update your running configuration with changes from from upstream, incant the following:
 
 ```
 git pull
-mv haproxy/etc/haproxy.cfg{,.bak}
-./mkconfig.bash
 docker-compose kill -s HUP haproxy
 docker-compose restart haproxy_cache
 ```
 
-It is recommended that you make any local configuration changes to `haproxy/etc/haproxy.cnf.tmpl` and maintain them in a local branch (or fork).
-This will allow you to more sustainably manage merge conflicts with upstream.
+Note that this will not pick up any changes made to the `.env` or `docker-compose.yml` files.
+For this, you will need to stop and recreate the HAProxy container:
+
+```
+docker-compose stop haproxy
+docker-compose up -d
+```
+
+Beware however that this will cause a short interruption in service.
+
+The HAProxy configuration is divided into several files under `./haproxy/etc/`.
+Most are not intended to be user-editable, with the following exceptions:
+
+* The files `./haproxy/etc/haproxy.d/*LOCAL*.cfg` should be edited iff you are running a high-availability cluster.
+* The files `./haproxy/etc/lists/*` can be edited for white/blacklisting of client IPs.
+
+The above files are not tracked in git and will not be overwritten on update.
+If you modify any of the other files under `./haproxy/etc`, this may cause merge conflicts on update.
+You should maintain a local branch if you want to configure these.
 
 # Operation
 

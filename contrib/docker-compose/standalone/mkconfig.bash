@@ -31,25 +31,23 @@ fi
 	envsubst '$FQDN:$FINGERPRINT:$RELEASE:$POSTGRES_USER:$POSTGRES_PASSWORD' \
 	< "$HERE/hockeypuck/etc/hockeypuck.conf.tmpl" > "$HERE/hockeypuck/etc/hockeypuck.conf"
 
-# TODO: pass ALIAS_FQDNS, aliases currently need to be added to haproxy.cfg by hand
-# envsubst cannot iterate over a list
-[ ! -f "$HERE/haproxy/etc/haproxy.cfg" ] &&
-	envsubst '$FQDN:$PROMETHEUS_HOST_PORT:$CERTBOT_HOST_PORT:$KEYSERVER_HOST_PORT:$HAP_CONF_DIR:$HAP_CACHE_DIR:$HAP_CERT_DIR:$HAP_DHPARAM_FILE' \
-	< "$HERE/haproxy/etc/haproxy.cfg.tmpl" > "$HERE/haproxy/etc/haproxy.cfg"
+# Populate the LOCAL portions of the HAProxy configuration
+for template in "$HERE"/haproxy/etc/haproxy.d/*LOCAL*.cfg.tmpl; do
+	config="$HERE/haproxy/etc/haproxy.d/$(basename "$template" .tmpl)"
+	[ ! -f "$config" ] &&
+		cp "$template" "$config"
+done
+
+[ ! -d "$HERE/haproxy/etc/lists" ] &&
+	mkdir "$HERE/haproxy/etc/lists"
 
 # Make sure that black/whitelists exist, even if empty
 for file in blacklist whitelist; do
-	[ ! -d "$HERE/haproxy/etc/lists" ] &&
-		mkdir "$HERE/haproxy/etc/lists"
 	[ ! -f "$HERE/haproxy/etc/lists/$file.list" ] &&
 		touch "$HERE/haproxy/etc/lists/$file.list"
 done
 
-if [[ ${ALIAS_FQDNS:-} ]]; then
-	cat <<EOF
-WARNING: you have ALIAS_FQDNS set, but this script cannot yet configure them in haproxy
-You MUST edit haproxy/etc/haproxy.cfg to add them one per line, near the following:
-
-EOF
-	grep -nC2 ALIAS_FQDN "$HERE/haproxy/etc/haproxy.cfg" || true
-fi
+# And populate the aliases map
+for alias in ${ALIAS_FQDNS:-}; do
+	echo "$alias $FQDN"
+done > "$HERE"/haproxy/etc/lists/aliases.map

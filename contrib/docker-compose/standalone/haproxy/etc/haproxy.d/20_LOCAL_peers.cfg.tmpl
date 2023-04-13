@@ -1,0 +1,9 @@
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# LOCAL site configuration file for haproxy clusters
+# This file is NOT overwritten on upgrade
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+peers haproxy-peers
+    peer "${HOSTNAME}"      "${HOST_IP}":1395
+    peer haproxy-internal   haproxy_internal:1395
+    # Add your other peers here if you are running an haproxy cluster
