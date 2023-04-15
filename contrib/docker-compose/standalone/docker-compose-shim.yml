@@ -1,0 +1,74 @@
+version: '3'
+services:
+  prometheus:
+    image: prom/prometheus:v2.12.0
+    restart: always
+    volumes:
+    - prom_data:/prometheus
+    - ./prometheus/etc:/etc/prometheus
+
+  haproxy:
+    image: haproxy:2.6-alpine
+    ports:
+    - "${HAP_HTTP_HOST_PORT:-80}:80"
+    - "${HAP_HTTPS_HOST_PORT:-443}:443"
+    - "${HAP_HKP_HOST_PORT:-11371}:11371"
+    - "${HAP_PEER_HOST_PORT:-127.0.0.1:1395}:1395"
+    user: root
+    restart: always
+    environment:
+    - FQDN
+    - PROMETHEUS_HOST_PORT
+    - CERTBOT_HOST_PORT
+    - KEYSERVER_HOST_PORT
+    - HAP_CONF_DIR
+    - HAP_CACHE_DIR
+    - HAP_CERT_DIR
+    - HAP_DHPARAM_FILE
+    - HAP_BEHIND_CLOUDFLARE
+    - HAP_BEHIND_PROXY
+    - HAP_DISABLE_CERTBOT=true
+    - HAP_DISABLE_SSL=true
+    depends_on:
+    - haproxy_cache
+    - haproxy_internal
+    - prometheus
+    volumes:
+    - ./haproxy-entrypoint.sh:/usr/local/bin/haproxy-entrypoint.sh
+    - ./haproxy/etc:${HAP_CONF_DIR}
+    - haproxy_cache:${HAP_CACHE_DIR}
+    entrypoint: "/usr/local/bin/haproxy-entrypoint.sh -f ${HAP_CONF_DIR}/haproxy.d"
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  haproxy_internal:
+    image: haproxy:2.6-alpine
+    user: root
+    restart: always
+    environment:
+    - RELOAD_INTERVAL=0
+    volumes:
+    - ./haproxy-entrypoint.sh:/usr/local/bin/haproxy-entrypoint.sh
+    - ./haproxy/etc/haproxy-internal.cfg:${HAP_CONF_DIR}/haproxy.cfg
+    entrypoint: "/usr/local/bin/haproxy-entrypoint.sh -f ${HAP_CONF_DIR}/haproxy.cfg"
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  haproxy_cache:
+    image: instrumentisto/rsync-ssh
+    restart: always
+    volumes:
+    - haproxy_cache:/var/cache/haproxy
+    entrypoint: "/bin/sh -c 'trap exit TERM; touch ${HAP_CACHE_DIR}/tor_exit_relays.list; while :; do sleep 1800; wget \"${TOR_EXIT_RELAYS_URL}\" -O ${HAP_CACHE_DIR}/tor_exit_relays.list; done'"
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "1"
+
+volumes:
+  prom_data: {}
+  haproxy_cache: {}

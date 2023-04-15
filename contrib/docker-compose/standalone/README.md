@@ -109,6 +109,12 @@ The above files are not tracked in git and will not be overwritten on update.
 If you modify any of the other files under `./haproxy/etc`, this may cause merge conflicts on update.
 You should maintain a local branch if you want to configure these.
 
+### HAProxy shim
+
+It is also possible to use the HAProxy configuration as a WAF-only shim,
+for insertion between an existing reverse proxy (e.g. Apache) and keyserver.
+For guidelines, please see `README_SHIM.md` in this directory.
+
 # Operation
 
 ## Monitoring
