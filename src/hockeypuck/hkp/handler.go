@@ -63,7 +63,7 @@ type Handler struct {
 	vindexWriter IndexFormat
 
 	statsTemplate *template.Template
-	statsFunc     func() (interface{}, error)
+	statsFunc     func(req *http.Request) (interface{}, error)
 
 	selfSignedOnly  bool
 	fingerprintOnly bool
@@ -124,7 +124,7 @@ func StatsTemplate(path string, extra ...string) HandlerOption {
 	}
 }
 
-func StatsFunc(f func() (interface{}, error)) HandlerOption {
+func StatsFunc(f func(req *http.Request) (interface{}, error)) HandlerOption {
 	return func(h *Handler) error {
 		h.statsFunc = f
 		return nil
@@ -202,7 +202,7 @@ func (h *Handler) Lookup(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 	case OperationVIndex:
 		h.index(w, l, h.vindexWriter)
 	case OperationStats:
-		h.stats(w, l)
+		h.stats(w, r, l)
 	default:
 		httpError(w, http.StatusNotFound, errors.Errorf("operation not found: %v", l.Op))
 		return
@@ -426,13 +426,13 @@ type StatsResponse struct {
 	Stats *sks.Stats
 }
 
-func (h *Handler) stats(w http.ResponseWriter, l *Lookup) {
+func (h *Handler) stats(w http.ResponseWriter, r *http.Request, l *Lookup) {
 	if h.statsFunc == nil {
 		httpError(w, http.StatusBadRequest, errors.New("stats not configured"))
 		fmt.Fprintln(w, "stats not configured")
 		return
 	}
-	data, err := h.statsFunc()
+	data, err := h.statsFunc(r)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 		return
