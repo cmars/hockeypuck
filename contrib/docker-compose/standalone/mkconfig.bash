@@ -13,7 +13,7 @@ set -eua
 . "$HERE/.env"
 
 # Check for migrations
-if ! grep -q MIGRATION_HAPROXY_DONE "$HERE/.env"; then
+if ! grep -q MIGRATION_HAPROXY_LOGFORMAT_DONE "$HERE/.env"; then
 	cat <<EOF
 
 -----------------------------------------------------------------------
