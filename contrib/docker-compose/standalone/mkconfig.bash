@@ -48,6 +48,6 @@ for file in blacklist whitelist; do
 done
 
 # And populate the aliases map
-for alias in ${ALIAS_FQDNS:-}; do
+for alias in ${ALIAS_FQDNS:-} ${CLUSTER_FQDNS:-}; do
 	echo "$alias $FQDN"
 done > "$HERE"/haproxy/etc/lists/aliases.map

@@ -65,6 +65,10 @@ TOR_EXIT_RELAYS_URL="https://www.dan.me.uk/torlist/?exit"
 # Set this to the host:port that your HAProxy peers will see
 #HAP_PEER_HOST_PORT=127.0.0.1:1395
 
+# Every name and alias of your other cluster members, space-separated
+# Note that their IPs should also be added to ./haproxy/etc/lists/whitelist.list
+CLUSTER_FQDNS=""
+
 # Set these to "port" or "host:port" to override the listening hostip/port(s)
 #HAP_HTTP_HOST_PORT=80
 #HAP_HTTPS_HOST_PORT=443

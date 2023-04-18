@@ -109,6 +109,23 @@ The above files are not tracked in git and will not be overwritten on update.
 If you modify any of the other files under `./haproxy/etc`, this may cause merge conflicts on update.
 You should maintain a local branch if you want to configure these.
 
+### HAProxy clustering
+
+If you have more than one `docker-compose/standalone` stack, you can cluster them by configuring the following on each:
+
+* Add _every_ FQDN of _all_ cluster members to `CLUSTER_FQDNS` in `./.env`
+   * NOTE: This is not the same as `ALIAS_FQDNS`, because certbot will not provision SSL certificates for `CLUSTER_FQDNS`
+* Regenerate the `./haproxy/etc/lists/aliases.map` file by deleting it and running `./mkconfig.bash`
+* Add the IPs of all cluster members to `./haproxy/etc/lists/whitelist.list`, one per line in CIDR format
+* Uncomment the last line of `./haproxy/etc/haproxy.d/90_LOCAL_be_hockeypuck.cfg`
+   * Edit this line to replace `REMOTE_KEYSERVER_HOST_PORT` with `hostname:11371` where `hostname` is a remote cluster member
+   * Duplicate and repeat for each member, replacing `srv_keyserver_remote` with a unique identifier each time
+* Edit `./haproxy/etc/haproxy.d/20_LOCAL_peers.cfg` and for each remote cluster member, append a line of the format:
+   ```
+   peer "${HOSTNAME}"      "${HOST_IP}":1395
+   ```
+* Make sure that your firewall allows connectivity in from all cluster peers on ports 11371 and 1395
+
 ### HAProxy shim
 
 It is also possible to use the HAProxy configuration as a WAF-only shim,
