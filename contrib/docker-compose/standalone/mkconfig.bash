@@ -42,7 +42,7 @@ done
 	mkdir "$HERE/haproxy/etc/lists"
 
 # Make sure that black/whitelists exist, even if empty
-for file in blacklist whitelist; do
+for file in blacklist whitelist prometheus_whitelist; do
 	[ ! -f "$HERE/haproxy/etc/lists/$file.list" ] &&
 		touch "$HERE/haproxy/etc/lists/$file.list"
 done

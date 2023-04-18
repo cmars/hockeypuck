@@ -44,7 +44,6 @@ if ! grep -q MIGRATION_HAPROXY_DONE "$HERE/.env"; then
 cat >>"$HERE/.env" <<EOF
 
 # Parameterised default values for haproxy config
-# You should only change these if you have modified docker-compose.yml to match
 
 # Hosts and ports
 PROMETHEUS_HOST_PORT=prometheus:9090
@@ -80,11 +79,6 @@ CLUSTER_FQDNS=""
 #HAP_BEHIND_CLOUDFLARE=true
 # Trust X-Forwarded-For: headers
 #HAP_BEHIND_PROXY=true
-
-# Set to any value to disable the service
-#HAP_DISABLE_SSL=true
-#HAP_DISABLE_CERTBOT=true
-#HAP_DISABLE_PROMETHEUS=true
 
 # Set this to e.g. /etc/letsencrypt in order to share certificates with the host.
 # Note that the certbot container is responsible for renewing these.

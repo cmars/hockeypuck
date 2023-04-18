@@ -1,12 +1,5 @@
 version: '3'
 services:
-  prometheus:
-    image: prom/prometheus:v2.12.0
-    restart: always
-    volumes:
-    - prom_data:/prometheus
-    - ./prometheus/etc:/etc/prometheus
-
   haproxy:
     image: haproxy:2.6-alpine
     ports:
@@ -27,6 +20,7 @@ services:
     - HAP_DHPARAM_FILE
     - HAP_BEHIND_CLOUDFLARE
     - HAP_BEHIND_PROXY
+    - HAP_DISABLE_PROMETHEUS=true
     - HAP_DISABLE_CERTBOT=true
     - HAP_DISABLE_SSL=true
     depends_on:
@@ -70,5 +64,4 @@ services:
         max-file: "1"
 
 volumes:
-  prom_data: {}
   haproxy_cache: {}

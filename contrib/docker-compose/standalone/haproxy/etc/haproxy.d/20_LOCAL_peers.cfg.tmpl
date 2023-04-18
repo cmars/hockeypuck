@@ -6,4 +6,10 @@
 peers haproxy-peers
     peer "${HOSTNAME}"      "${HOST_IP}":1395
     peer haproxy-internal   haproxy_internal:1395
-    # Add your other peers here if you are running an haproxy cluster
+
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # Uncomment and edit the below to share firewall state across multiple stacks
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    #peer haproxy-remote1    10.0.0.1:1395
+    #peer haproxy-remote2    10.0.0.2:1395
