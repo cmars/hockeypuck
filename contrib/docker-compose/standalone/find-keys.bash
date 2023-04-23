@@ -5,7 +5,9 @@
 set -euo pipefail
 
 cd "$(dirname "$0")"
-[ ! -f ".env" ] || . .env
+[ -f ".env" ] || { echo "Could not open environment file"; exit 1; }
+
+POSTGRES_USER=$(awk -F= '/^POSTGRES_USER=/ {print $2}' < .env | tail -1)
 
 # SQL command for docker-compose/standalone default configuration.
 # If using this script elsewhere, you will need to customise the below.

@@ -52,13 +52,15 @@ services:
     restart: always
     environment:
     - FQDN
-    - PROMETHEUS_HOST_PORT
-    - CERTBOT_HOST_PORT
-    - KEYSERVER_HOST_PORT
-    - HAP_CONF_DIR
-    - HAP_CACHE_DIR
-    - HAP_CERT_DIR
-    - HAP_DHPARAM_FILE
+    - ALIAS_FQDNS
+    - CLUSTER_FQDNS
+    - PROMETHEUS_HOST_PORT=prometheus:9090
+    - CERTBOT_HOST_PORT=certbot:80
+    - KEYSERVER_HOST_PORT=hockeypuck:11371
+    - HAP_DHPARAM_FILE=/etc/letsencrypt/ssl-dhparams.pem
+    - HAP_CONF_DIR=/usr/local/etc/haproxy
+    - HAP_CACHE_DIR=/var/cache/haproxy
+    - HAP_CERT_DIR=/etc/letsencrypt/live
     - HAP_LOG_FORMAT
     - HAP_BEHIND_CLOUDFLARE
     - HAP_BEHIND_PROXY
@@ -69,10 +71,10 @@ services:
     - prometheus
     volumes:
     - ./haproxy-entrypoint.sh:/usr/local/bin/haproxy-entrypoint.sh
-    - ./haproxy/etc:${HAP_CONF_DIR}
-    - haproxy_cache:${HAP_CACHE_DIR}
+    - ./haproxy/etc:/usr/local/etc/haproxy
+    - haproxy_cache:/var/cache/haproxy
     - ${CERTBOT_CONF:-certbot_conf}:/etc/letsencrypt
-    entrypoint: "/usr/local/bin/haproxy-entrypoint.sh -f ${HAP_CONF_DIR}/haproxy.d"
+    entrypoint: "/usr/local/bin/haproxy-entrypoint.sh -f /usr/local/etc/haproxy/haproxy.d"
     logging:
       options:
         max-size: "10m"
@@ -82,12 +84,9 @@ services:
     image: haproxy:2.6-alpine
     user: root
     restart: always
-    environment:
-    - RELOAD_INTERVAL=0
     volumes:
-    - ./haproxy-entrypoint.sh:/usr/local/bin/haproxy-entrypoint.sh
-    - ./haproxy/etc/haproxy-internal.cfg:${HAP_CONF_DIR}/haproxy.cfg
-    entrypoint: "/usr/local/bin/haproxy-entrypoint.sh -f ${HAP_CONF_DIR}/haproxy.cfg"
+    - ./haproxy/etc/haproxy-internal.cfg:/usr/local/etc/haproxy/haproxy.cfg
+    entrypoint: "/bin/sh -c 'export HOSTNAME=$$(hostname); export HOST_IP=$$(hostname -i); haproxy -f /usr/local/etc/haproxy/haproxy.cfg'"
     logging:
       options:
         max-size: "10m"
@@ -98,7 +97,7 @@ services:
     restart: always
     volumes:
     - haproxy_cache:/var/cache/haproxy
-    entrypoint: "/bin/sh -c 'trap exit TERM; touch ${HAP_CACHE_DIR}/tor_exit_relays.list; while :; do sleep 1800; wget \"${TOR_EXIT_RELAYS_URL}\" -O ${HAP_CACHE_DIR}/tor_exit_relays.list; done'"
+    entrypoint: "/bin/sh -c 'trap exit TERM; touch /var/cache/haproxy/tor_exit_relays.list; while :; do sleep 1800; wget \"${TOR_EXIT_RELAYS_URL}\" -O /var/cache/haproxy/tor_exit_relays.list; done'"
     logging:
       options:
         max-size: "10m"

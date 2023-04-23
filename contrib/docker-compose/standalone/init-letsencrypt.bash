@@ -26,17 +26,24 @@
 
 HERE=$(cd "$(dirname "$0")"; pwd)
 set -eu
-[ -e "$HERE/.env" ]
-. "$HERE/.env"
+[ -f "$HERE/.env" ] || { echo "Environment file not found; you must run ./mksite.bash first"; exit 1; }
 
 if ! [ -x "$(command -v docker-compose)" ]; then
   echo 'Error: docker-compose is not installed.' >&2
   exit 1
 fi
 
+FQDN=$(awk -F= '/^FQDN=/ {print $2}' < "$HERE/.env" | tail -1)
+ALIAS_FQDNS=$(awk -F= '/^ALIAS_FQDNS=/ {print $2; exit}' < "$HERE/.env" | tail -1)
+
+# Strip enclosing quotes, as docker-compose<1.29 does not parse shell metachars in .env
+# See https://github.com/docker/compose/issues/8388
+ALIAS_FQDNS="${ALIAS_FQDNS%\"}"
+ALIAS_FQDNS="${ALIAS_FQDNS#\"}"
+
 domains=($FQDN $ALIAS_FQDNS)
 rsa_key_size=4096
-email="$EMAIL" # Adding a valid address is strongly recommended
+email=$(awk -F= '/^EMAIL=/ {print $2}' < "$HERE/.env" | tail -1)
 
 echo "### Downloading recommended TLS parameters ..."
 docker-compose run --rm --entrypoint "/bin/sh -c \"\

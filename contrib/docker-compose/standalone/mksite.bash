@@ -10,12 +10,25 @@ set -eu
 
 if [ ! -e "$HERE/.env" ]; then
 
-POSTGRES_PASSWORD=$(head -c 30 /dev/urandom | base32 -w0)
+POSTGRES_PASSWORD=$(LC_ALL=C tr -dc 'A-Z3-7' </dev/urandom | fold -w 48 | head -n 1)
 cat >"$HERE/.env" <<EOF
 ###########################################################
 ## HOCKEYPUCK STANDALONE SITE CONFIGURATION TEMPLATE
 ## Edit this, then run ./mkconfig.bash
 ###########################################################
+
+#######################################################################
+## docker-compose<1.29 does not parse quoted values like a POSIX shell.
+## This means that normally you should not quote values in this file,
+## as docker-compose's old behaviour is highly unintuitive.
+## 
+## The scripts in this directory try to compensate, and can parse
+## *double* quotes around ALIAS_FQDNS, CLUSTER_FQDNS and HKP_LOG_FORMAT
+## values *only*, as these values will normally contain whitespace and
+## so most users will instinctively quote them anyway.
+##
+## In all other cases, enclosing quotes MUST NOT be used.
+#######################################################################
 
 # This is the primary FQDN of your site
 FQDN=keyserver.example.com
@@ -45,19 +58,11 @@ cat >>"$HERE/.env" <<EOF
 
 # Parameterised default values for haproxy config
 
-# Hosts and ports
-PROMETHEUS_HOST_PORT=prometheus:9090
-CERTBOT_HOST_PORT=certbot:80
-KEYSERVER_HOST_PORT=hockeypuck:11371
-
-# Paths and files
-HAP_DHPARAM_FILE=/etc/letsencrypt/ssl-dhparams.pem
-HAP_CONF_DIR=/usr/local/etc/haproxy
-HAP_CACHE_DIR=/var/cache/haproxy
-HAP_CERT_DIR=/etc/letsencrypt/live
+# The following is only required in shim mode
+#KEYSERVER_HOST_PORT=hockeypuck:11371
 
 # Remote URL for fetching tor exit relays list
-TOR_EXIT_RELAYS_URL="https://www.dan.me.uk/torlist/?exit"
+TOR_EXIT_RELAYS_URL=https://www.dan.me.uk/torlist/?exit
 
 # Advanced HAProxy configuration options
 
@@ -90,7 +95,7 @@ EOF
 fi
 
 if ! grep -q MIGRATION_HAPROXY_LOGFORMAT_DONE "$HERE/.env"; then
-# Migration 1a: new haproxy configuration (additional)
+# Migration 2: new haproxy configuration (additional)
 
 cat >>"$HERE/.env" <<EOF
 
@@ -100,6 +105,14 @@ HAP_LOG_FORMAT="%ci:%cp [%t] %ft %b/%s %Tq/%Tw/%Tc/%Tr/%Tt %ST %U/%B %CC %CS %ts
 # MIGRATION_HAPROXY_LOGFORMAT_DONE (DO NOT REMOVE THIS LINE!)
 EOF
 
+fi
+
+if ! grep -q MIGRATION_3_DONE "$HERE/.env"; then
+# Migration 3: revert haproxy configuration (redundant envars)
+
+sed -E -i -e '/^(PROMETHEUS_HOST_PORT|CERTBOT_HOST_PORT|HAP_DHPARAM_FILE|HAP_CONF_DIR|HAP_CACHE_DIR|HAP_CERT_DIR|# Hosts and ports|# Paths and files|# You should only change these)/ d' "$HERE/.env"
+
+echo "# MIGRATION_3_DONE (DO NOT REMOVE THIS LINE!)" >> "$HERE/.env"
 fi
 
 chmod 600 "$HERE/.env"

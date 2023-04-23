@@ -34,7 +34,7 @@ git checkout haproxy-new
 4. Edit the newly-created `.env` file:
 
 * `FQDN` and `ALIAS_FQDNS` should be self-explanatory
-* `KEYSERVER_HOST_PORT` should point to your existing keyserver HKP port (e.g. `keyserver-backend.example.com:11371`)
+* `KEYSERVER_HOST_PORT` should be uncommented and point to your existing keyserver HKP port (e.g. `keyserver-backend.example.com:11371`)
 * `HAP_{HTTP,HTTPS,HKP}_HOST_PORT` should _all_ be uncommented and set to unused localhost ports e.g. `localhost:8080`
 * `HAP_BEHIND_PROXY` should be uncommented and set to `true`
 
@@ -44,15 +44,20 @@ Note that `KEYSERVER_HOST_PORT` is resolved inside the docker container, so `loc
 If you are running the keyserver on the same machine as the reverse proxy, you should use the docker host IP here,
 e.g. `172.17.0.1:11371`, and make sure that your host iptables allows for incoming connections on the `docker0` interface.
 
-5. Generate the HAProxy configuration files:
-
-```
-./mkconfig.bash
-```
-
 At this point, haproxy is configured to talk to your keyserver back end, but to listen only on some unused localhost ports.
 In this configuration it should not clash with anything you already have running on that machine.
 
+## BEWARE
+
+Docker-compose before v1.29 does not parse quoted values like a POSIX shell would.
+This means that normally you should not quote values in `.env`,
+as docker-compose's old behaviour is highly unintuitive.
+
+The scripts in this directory try to compensate, and can parse *double* quotes around 
+ALIAS_FQDNS, CLUSTER_FQDNS, and HKP_LOG_FORMAT values *only*,
+as these values will normally contain whitespace and so most users will instinctively quote them anyway.
+
+In all other cases, enclosing quotes MUST NOT be used.
 
 # Testing and operation
 
@@ -67,7 +72,6 @@ It should start the following containers only:
 * standalone_haproxy_1
 * standalone_haproxy_internal_1
 * standalone_haproxy_cache_1
-* standalone_prometheus_1
 
 To verify, incant
 
