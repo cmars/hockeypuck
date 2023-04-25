@@ -241,7 +241,7 @@ func (s statsPeers) Len() int           { return len(s) }
 func (s statsPeers) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 func (s statsPeers) Less(i, j int) bool { return s[i].Name < s[j].Name }
 
-func (s *Server) stats() (interface{}, error) {
+func (s *Server) stats(req *http.Request) (interface{}, error) {
 	sksStats := s.sksPeer.Stats()
 
 	result := &stats{
@@ -270,6 +270,10 @@ func (s *Server) stats() (interface{}, error) {
 		result.Hostname = s.settings.Hostname
 	} else if nodename != "" {
 		result.Hostname = nodename
+	}
+
+	if s.settings.EnableVHosts {
+		result.Hostname = req.Host
 	}
 
 	for k, v := range sksStats.Hourly {

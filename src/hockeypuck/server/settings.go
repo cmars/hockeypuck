@@ -187,11 +187,12 @@ type Settings struct {
 
 	Webroot string `toml:"webroot"`
 
-	Contact  string `toml:"contact"`
-	Hostname string `toml:"hostname"`
-	Software string
-	Version  string
-	BuiltAt  string
+	Contact      string `toml:"contact"`
+	Hostname     string `toml:"hostname"`
+	EnableVHosts bool   `toml:"enableVHosts"`
+	Software     string
+	Version      string
+	BuiltAt      string
 
 	MaxResponseLen int `toml:"maxResponseLen"`
 }
