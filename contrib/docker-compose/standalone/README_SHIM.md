@@ -16,13 +16,12 @@ In this case we can update the reverse proxy machine to install and reference th
 
 1. Install `docker` and `docker-compose` on the same machine as your existing proxy.
 
-2. Clone the `pgpkeys-eu/hockeypuck` repo into a directory somewhere and check out the `haproxy-new` development branch, e.g.:
+2. Clone this repo and `cd` into this directory, e.g.:
 
 ```
 cd /usr/local
-git clone https://github.com/pgpkeys-eu/hockeypuck
+git clone https://github.com/hockeypuck/hockeypuck
 cd hockeypuck/contrib/docker-compose/standalone
-git checkout haproxy-new
 ```
 
 3. Populate the default site settings:
