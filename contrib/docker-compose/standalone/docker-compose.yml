@@ -1,4 +1,4 @@
-version: '3'
+version: '3.7'
 services:
   hockeypuck:
     image: hockeypuck/hockeypuck:${RELEASE}
@@ -50,6 +50,7 @@ services:
     - "${HAP_PEER_HOST_PORT:-127.0.0.1:1395}:1395"
     user: root
     restart: always
+    init: true
     environment:
     - FQDN
     - ALIAS_FQDNS

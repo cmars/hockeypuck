@@ -13,7 +13,7 @@ NB: all the below assume that you have `cd`-ed into this directory first.
 Tested on Ubuntu 20.04 and Debian 11 (bullseye), with dependencies installed using `./setup.bash`.
 
 Other platforms may work but will require some customization.
-At minimum, docker (v1.13+) and docker-compose (v1.10+) must be installed in advance.
+At minimum, docker (v18.06+) and docker-compose (v1.22+) must be installed in advance.
 
 # Migration of legacy nginx deployments (!BREAKING CHANGES!)
 
