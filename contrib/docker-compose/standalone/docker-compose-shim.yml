@@ -1,46 +1,5 @@
 version: '3.7'
 services:
-  hockeypuck:
-    image: hockeypuck/hockeypuck:${RELEASE}
-    build:
-      context: ../../..
-    ports:
-    - "${HKP_RECON_HOST_PORT:-11370}:11370"
-    restart: always
-    depends_on:
-    - postgres
-    volumes:
-    - ./hockeypuck/etc:/hockeypuck/etc
-    - hkp_data:/hockeypuck/data
-    - pgp_import:/hockeypuck/import
-    logging:
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  postgres:
-    image: postgres:11
-    restart: always
-    environment:
-    - POSTGRES_USER
-    - POSTGRES_PASSWORD
-    - POSTGRES_DB=hkp
-    volumes:
-    - pg_data:/var/lib/postgresql/data
-
-  prometheus:
-    image: prom/prometheus:v2.43.0
-    restart: always
-    volumes:
-    - prom_data:/prometheus
-    - ./prometheus/etc:/etc/prometheus
-    command:
-    - "--web.external-url=/monitoring/prometheus/"
-    - "--config.file=/etc/prometheus/prometheus.yml"
-    - "--storage.tsdb.path=/prometheus"
-    - "--web.console.libraries=/usr/share/prometheus/console_libraries"
-    - "--web.console.templates=/usr/share/prometheus/consoles"
-
   haproxy:
     image: haproxy:2.6-alpine
     ports:
@@ -53,28 +12,23 @@ services:
     init: true
     environment:
     - FQDN
-    - ALIAS_FQDNS
-    - CLUSTER_FQDNS
-    - PROMETHEUS_HOST_PORT=prometheus:9090
-    - CERTBOT_HOST_PORT=certbot:80
-    - KEYSERVER_HOST_PORT=hockeypuck:11371
+    - KEYSERVER_HOST_PORT
     - HAP_DHPARAM_FILE=/etc/letsencrypt/ssl-dhparams.pem
     - HAP_CONF_DIR=/usr/local/etc/haproxy
     - HAP_CACHE_DIR=/var/cache/haproxy
-    - HAP_CERT_DIR=/etc/letsencrypt/live
     - HAP_LOG_FORMAT
     - HAP_BEHIND_CLOUDFLARE
     - HAP_BEHIND_PROXY
+    - HAP_DISABLE_PROMETHEUS=true
+    - HAP_DISABLE_CERTBOT=true
+    - HAP_DISABLE_SSL=true
     depends_on:
-    - certbot
     - haproxy_cache
     - haproxy_internal
-    - prometheus
     volumes:
     - ./haproxy-entrypoint.sh:/usr/local/bin/haproxy-entrypoint.sh
     - ./haproxy/etc:/usr/local/etc/haproxy
     - haproxy_cache:/var/cache/haproxy
-    - ${CERTBOT_CONF:-certbot_conf}:/etc/letsencrypt
     entrypoint: "/usr/local/bin/haproxy-entrypoint.sh -f /usr/local/etc/haproxy/haproxy.d"
     logging:
       options:
@@ -85,6 +39,8 @@ services:
     image: haproxy:2.6-alpine
     user: root
     restart: always
+    environment:
+    - RELOAD_INTERVAL=0
     volumes:
     - ./haproxy/etc/haproxy-internal.cfg:/usr/local/etc/haproxy/haproxy.cfg
     entrypoint: "/bin/sh -c 'export HOSTNAME=$$(hostname); export HOST_IP=$$(hostname -i); haproxy -f /usr/local/etc/haproxy/haproxy.cfg'"
@@ -104,17 +60,5 @@ services:
         max-size: "10m"
         max-file: "1"
 
-  certbot:
-    image: certbot/certbot
-    restart: always
-    volumes:
-    - ${CERTBOT_CONF:-certbot_conf}:/etc/letsencrypt
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do for i in /etc/letsencrypt/live/*; do [ -d \"$$i\" ] && ln -sf privkey.pem $$i/fullchain.pem.key; certbot --standalone renew; done; sleep 12h & wait $${!}; done;'"
-
 volumes:
-  hkp_data: {}
-  pg_data: {}
-  prom_data: {}
-  pgp_import: {}
   haproxy_cache: {}
-  certbot_conf: {}

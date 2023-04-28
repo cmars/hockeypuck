@@ -102,19 +102,17 @@ script probably worked. Congratulations! You're not done yet though.
 You will need to manually fix some things because your new project will expect
 to be starting from an empty set of data volumes, and that's no longer true.
 
-1. Copy the postgres credentials across from your old docker-compose file to
-the one in this directory.
+1. Copy POSTGRES_USER and POSTGRES_PASSWORD across from your old project to 
+the '.env' file in this directory.
 
-2. Incant `docker-compose up`. It will fail, but that's OK. Hit Ctrl-C to quit.
+2. Incant 'docker-compose up'. It will fail, but that's OK. Hit Ctrl-C to quit.
 
 3. Incant the following:
 
-```
 docker-compose -f docker-compose.yml -f docker-compose-tools.yml \
     run --rm --entrypoint /bin/sh import-keys \
     -x -c 'mkdir -p /import/dump && touch /import/dump/.import-timestamp'
-```
 
-4. Run `docker-compose up` again. It should work this time.
+4. Run 'docker-compose up' again. It should work this time.
 
 EOF

@@ -1,0 +1,32 @@
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# LOCAL site configuration file for load-balancing across multiple back ends
+# This file is NOT overwritten on upgrade
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+backend be_hockeypuck_primary
+    mode http
+
+    option httpchk
+    http-check send meth GET uri /pks/lookup?op=stats hdr Host "${FQDN}"
+    http-check expect status 200
+    http-check send-state
+
+    server srv_hockeypuck "${KEYSERVER_HOST_PORT}" check inter 5s on-error mark-down rise 2 fall 3
+
+backend be_hockeypuck
+    mode http
+
+    option httpchk
+    http-check send meth GET uri /pks/lookup?op=stats hdr Host "${FQDN}"
+    http-check expect status 200
+    http-check send-state
+
+    # This entry should be the same as the primary above
+    server srv_keyserver "${KEYSERVER_HOST_PORT}" check inter 5s on-error mark-down rise 2 fall 3
+
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # Uncomment and edit the below to load-balance across multiple stacks
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    #server srv_keyserver_remote1 10.0.0.1:11371 backup check inter 5s on-error mark-down rise 2 fall 3
+    #server srv_keyserver_remote2 10.0.0.2:11371 backup check inter 5s on-error mark-down rise 2 fall 3
