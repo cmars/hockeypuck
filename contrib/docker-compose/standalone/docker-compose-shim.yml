@@ -11,6 +11,8 @@ services:
     restart: always
     init: true
     environment:
+    - ALIAS_FQDNS
+    - CLUSTER_FQDNS
     - FQDN
     - KEYSERVER_HOST_PORT
     - HAP_DHPARAM_FILE=/etc/letsencrypt/ssl-dhparams.pem
