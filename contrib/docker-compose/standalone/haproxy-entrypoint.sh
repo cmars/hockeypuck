@@ -34,9 +34,12 @@ for alias in ${ALIAS_FQDNS:-} ${CLUSTER_FQDNS:-}; do
   echo "$alias $FQDN"
 done > "${HAP_CONF_DIR}"/lists/aliases.map
 
-haproxy "$@" &
-trap exit TERM
-while true; do
-  sleep "$RELOAD_INTERVAL"
-  ps | awk '{ if($4 == "haproxy") {print $1} } ' | xargs kill -HUP
-done
+# After we invoke 'exec' below, haproxy's PID will be the same as this shell
+/bin/sh -c "
+  while true; do
+    sleep \"$RELOAD_INTERVAL\" & wait \${!}
+    kill -HUP $$
+  done
+" &
+
+exec haproxy "$@"
