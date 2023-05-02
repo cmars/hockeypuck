@@ -286,7 +286,7 @@ PARSE:
 					"max":    r.maxPacketLen,
 					"fp":     currentFingerprint,
 					"type":   op.Tag,
-				}).Warn("dropped packet")
+				}).Debug("dropped packet")
 				continue
 			}
 		}

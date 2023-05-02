@@ -258,7 +258,7 @@ func (h *Handler) HashQuery(w http.ResponseWriter, r *http.Request, _ httprouter
 		log.WithFields(log.Fields{
 			"fp":     key.Fingerprint(),
 			"length": key.Length,
-		}).Info("hashquery result")
+		}).Debug("hashquery result")
 	}
 
 	// SKS expects hashquery response to terminate with a CRLF
@@ -327,6 +327,7 @@ func (h *Handler) keys(l *Lookup) ([]*openpgp.PrimaryKey, error) {
 	}
 	for _, key := range keys {
 		if err := openpgp.ValidSelfSigned(key, h.selfSignedOnly); err != nil {
+			log.Debugf("ignoring invalid self-sig key %v", key.Fingerprint())
 			return nil, errors.WithStack(err)
 		}
 		log.WithFields(log.Fields{
@@ -357,6 +358,7 @@ func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 		var others []*openpgp.Packet
 		for _, other := range key.Others {
 			if other.Malformed {
+				log.Debugf("get %q: ignoring malformed packet", l.Search)
 				continue
 			}
 			others = append(others, other)
