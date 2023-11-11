@@ -22,7 +22,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -182,6 +181,7 @@ func (p *Peer) pruneStats() error {
 		case <-p.t.Dying():
 			return nil
 		case <-timer.C:
+			p.writeStats()
 			p.stats.prune()
 			timer.Reset(time.Hour)
 		}
@@ -389,7 +389,7 @@ func (r *Peer) requestChunk(rcvr *recon.Recover, chunk []cf.Zp) error {
 	// Store response in memory. Connection may timeout if we
 	// read directly from it while loading.
 	var body *bytes.Buffer
-	bodyBuf, err := ioutil.ReadAll(resp.Body)
+	bodyBuf, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return errors.WithStack(err)
 	}
