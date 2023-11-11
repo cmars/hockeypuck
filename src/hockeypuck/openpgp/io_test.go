@@ -21,7 +21,6 @@ import (
 	"bytes"
 	"crypto/md5"
 	"io"
-	"io/ioutil"
 	"sort"
 	"strings"
 	stdtesting "testing"
@@ -62,7 +61,7 @@ func (s *SamplePacketSuite) TestSksContextualDup(c *gc.C) {
 
 	block, err := armor.Decode(f)
 	c.Assert(err, gc.IsNil)
-	buf, err := ioutil.ReadAll(block.Body)
+	buf, err := io.ReadAll(block.Body)
 	c.Assert(err, gc.IsNil)
 	err = f.Close()
 	c.Assert(err, gc.IsNil)
@@ -237,22 +236,19 @@ func (s *SamplePacketSuite) TestDeduplicate(c *gc.C) {
 	c.Assert(n2 < n, gc.Equals, true)
 }
 
-// These are completely different keys, so Merging should not even be possible.
-// This test only "worked" before because Merge blindly appended one to the
-// other and didn't care that it produced a load of meaningless nonsense.
-// func (s *SamplePacketSuite) TestMerge(c *gc.C) {
-// 	key1 := MustInputAscKey("lp1195901.asc")
-// 	key2 := MustInputAscKey("lp1195901_2.asc")
-// 	err := Merge(key2, key1)
-// 	c.Assert(err, gc.IsNil)
-// 	var matchUID *UserID
-// 	for _, uid := range key2.UserIDs {
-// 		if uid.Keywords == "Phil Pennock <pdp@spodhuis.org>" {
-// 			matchUID = uid
-// 		}
-// 	}
-// 	c.Assert(matchUID, gc.NotNil)
-// }
+func (s *SamplePacketSuite) TestMerge(c *gc.C) {
+	key1 := MustInputAscKey("lp1195901.asc")
+	key2 := MustInputAscKey("lp1195901_globnix.asc")
+	err := Merge(key2, key1)
+	c.Assert(err, gc.IsNil)
+	var matchUID *UserID
+	for _, uid := range key2.UserIDs {
+		if uid.Keywords == "Phil Pennock <pdp@spodhuis.org>" {
+			matchUID = uid
+		}
+	}
+	c.Assert(matchUID, gc.NotNil)
+}
 
 func (s *SamplePacketSuite) TestRevocationCert(c *gc.C) {
 	keys, err := ReadArmorKeys(testing.MustInput("revok_cert.asc"))
@@ -311,9 +307,9 @@ func (s *SamplePacketSuite) TestMaxKeyLenConcat(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	block2, err := armor.Decode(testing.MustInput("e68e311d.asc"))
 	c.Assert(err, gc.IsNil)
-	key1, err := ioutil.ReadAll(block1.Body)
+	key1, err := io.ReadAll(block1.Body)
 	c.Assert(err, gc.IsNil)
-	key2, err := ioutil.ReadAll(block2.Body)
+	key2, err := io.ReadAll(block2.Body)
 	c.Assert(err, gc.IsNil)
 
 	keys := MustReadKeys(io.MultiReader(bytes.NewBuffer(key1), bytes.NewBuffer(key2)))
