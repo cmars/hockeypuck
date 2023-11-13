@@ -274,8 +274,8 @@ func (s *ResolveSuite) TestSelfSignedOnly_V3SigDropped(c *gc.C) {
 	for _, uid := range key.UserIDs {
 		c.Assert(uid.Signatures, gc.HasLen, 1)
 	}
-	// v3 signature on a v4 packet is dropped
-	c.Assert(key.SubKeys, gc.HasLen, 0)
+	// v3 signature on a v4 encryption subkey is NOT dropped
+	c.Assert(key.SubKeys, gc.HasLen, 1)
 }
 
 func (s *ResolveSuite) TestFakeNews(c *gc.C) {
