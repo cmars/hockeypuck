@@ -25,6 +25,25 @@ import (
 )
 
 func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
+	// Process direct signatures first
+	ss, others := key.SigInfo()
+	var certs []*Signature
+	for _, cert := range ss.Revocations {
+		if cert.Error == nil {
+			certs = append(certs, cert.Signature)
+		}
+	}
+	for _, cert := range ss.Certifications {
+		if cert.Error == nil {
+			certs = append(certs, cert.Signature)
+		}
+	}
+	if len(certs) > 0 {
+		key.Signatures = certs
+		if !selfSignedOnly {
+			key.Signatures = append(key.Signatures, others...)
+		}
+	}
 	var userIDs []*UserID
 	var userAttributes []*UserAttribute
 	var subKeys []*SubKey
