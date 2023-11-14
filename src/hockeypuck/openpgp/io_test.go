@@ -251,9 +251,15 @@ func (s *SamplePacketSuite) TestMerge(c *gc.C) {
 }
 
 func (s *SamplePacketSuite) TestRevocationCert(c *gc.C) {
-	keys, err := ReadArmorKeys(testing.MustInput("revok_cert.asc"))
+	armorBlock, err := armor.Decode(testing.MustInput("revok_cert.asc"))
 	c.Assert(err, gc.IsNil)
-	c.Assert(keys, gc.HasLen, 0)
+	okr, err := NewOpaqueKeyReader(armorBlock.Body)
+	c.Assert(err, gc.IsNil)
+	keyrings, err := okr.Read()
+	c.Assert(err, gc.IsNil)
+	c.Assert(keyrings, gc.HasLen, 1)
+	c.Assert(keyrings[0].Packets, gc.HasLen, 1)
+	c.Assert(keyrings[0].Packets[0].Tag, gc.Equals, uint8(2))
 }
 
 func (s *SamplePacketSuite) TestMalformedSignatures(c *gc.C) {

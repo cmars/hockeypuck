@@ -296,3 +296,17 @@ func (s *ResolveSuite) TestResolveRootSignatures(c *gc.C) {
 	c.Assert(key1.Signatures, gc.HasLen, 1)
 	c.Assert(key2.Signatures, gc.HasLen, 1)
 }
+
+func (s *ResolveSuite) TestMergeRevocationSig(c *gc.C) {
+	key := MustInputAscKey("test-key.asc")
+	armorBlock, err := armor.Decode(testing.MustInput("test-key-revoke.asc"))
+	c.Assert(err, gc.IsNil)
+	okr, err := NewOpaqueKeyReader(armorBlock.Body)
+	c.Assert(err, gc.IsNil)
+	keyrings, err := okr.Read()
+	c.Assert(err, gc.IsNil)
+	sig, err := ParseSignature(keyrings[0].Packets[0], time.Now(), "", "")
+	c.Assert(err, gc.IsNil)
+	MergeRevocationSig(key, sig)
+	c.Assert(key.Signatures, gc.HasLen, 1)
+}

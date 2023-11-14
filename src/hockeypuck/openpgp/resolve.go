@@ -169,6 +169,26 @@ func Merge(dst, src *PrimaryKey) error {
 	return ValidSelfSigned(dst, false)
 }
 
+func MergeRevocationSig(dst *PrimaryKey, src *Signature) error {
+	dst.Signatures = append(dst.Signatures, src)
+
+	err := dedup(dst, func(primary, duplicate packetNode) {
+		primaryPacket := primary.packet()
+		duplicatePacket := duplicate.packet()
+		if duplicatePacket.Count > primaryPacket.Count {
+			primaryPacket.Count = duplicatePacket.Count
+		}
+	})
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	err = DropMalformed(dst)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	return ValidSelfSigned(dst, false)
+}
+
 func hexmd5(b []byte) string {
 	d := md5.Sum(b)
 	return hex.EncodeToString(d[:])

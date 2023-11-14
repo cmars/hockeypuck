@@ -478,7 +478,45 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 	var result AddResponse
 	kr := openpgp.NewKeyReader(armorBlock.Body, h.keyReaderOptions...)
 	keys, err := kr.Read()
-	if err != nil {
+	if err == openpgp.ErrBareRevocation {
+		// try to find the primary key belonging to the revocation sig
+		// we will need a fresh chain of readers as the existing has hit EOF
+		armorBlock, err := armor.Decode(bytes.NewBufferString(add.Keytext))
+		if err != nil {
+			httpError(w, http.StatusBadRequest, errors.WithStack(err))
+			return
+		}
+		okr, _ := openpgp.NewOpaqueKeyReader(armorBlock.Body)
+		keyrings, err := okr.Read()
+		if err != nil {
+			httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
+			return
+		}
+		if len(keyrings) != 1 || len(keyrings[0].Packets) != 1 {
+			httpError(w, http.StatusUnprocessableEntity, errors.WithStack(errors.Errorf("No packets found in submitted block")))
+			return
+		}
+		sig, err := openpgp.ParseSignature(keyrings[0].Packets[0], time.Now(), "", "")
+		if err != nil {
+			httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
+			return
+		}
+		keys, err = h.storage.FetchKeys([]string{sig.RIssuerKeyID})
+		if err != nil {
+			if errors.Is(err, storage.ErrKeyNotFound) {
+				httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
+			} else {
+				httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+			}
+			return
+		}
+		for _, key := range keys {
+			err = openpgp.MergeRevocationSig(key, sig)
+			if err != nil {
+				httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
+			}
+		}
+	} else if err != nil {
 		httpError(w, http.StatusBadRequest, errors.WithStack(err))
 		return
 	}
