@@ -513,7 +513,7 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 		for _, key := range keys {
 			err = openpgp.MergeRevocationSig(key, sig)
 			if err != nil {
-				httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
+				log.Infof("Could not merge revocation of %s into %s", sig.IssuerKeyID(), key.Fingerprint())
 			}
 		}
 	} else if err != nil {
