@@ -20,6 +20,7 @@ package openpgp
 import (
 	"crypto/md5"
 	"encoding/hex"
+	log "hockeypuck/logrus"
 
 	"github.com/pkg/errors"
 )
@@ -53,11 +54,15 @@ func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 		for _, cert := range ss.Revocations {
 			if cert.Error == nil {
 				certs = append(certs, cert.Signature)
+			} else {
+				log.Debugf("Dropped revocation sig on uid '%s' because %s", uid.Keywords, cert.Error.Error())
 			}
 		}
 		for _, cert := range ss.Certifications {
 			if cert.Error == nil {
 				certs = append(certs, cert.Signature)
+			} else {
+				log.Debugf("Dropped certification sig on uid '%s' because %s", uid.Keywords, cert.Error.Error())
 			}
 		}
 		if len(certs) > 0 {
@@ -66,6 +71,8 @@ func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 				uid.Signatures = append(uid.Signatures, others...)
 			}
 			userIDs = append(userIDs, uid)
+		} else {
+			log.Debugf("Dropped uid '%s' because no valid self-sigs", uid.Keywords)
 		}
 	}
 	for _, uat := range key.UserAttributes {
@@ -74,11 +81,15 @@ func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 		for _, cert := range ss.Revocations {
 			if cert.Error == nil {
 				certs = append(certs, cert.Signature)
+			} else {
+				log.Debugf("Dropped revocation sig on uat %s because %s", uat.UUID, cert.Error.Error())
 			}
 		}
 		for _, cert := range ss.Certifications {
 			if cert.Error == nil {
 				certs = append(certs, cert.Signature)
+			} else {
+				log.Debugf("Dropped certification sig on uat %s because %s", uat.UUID, cert.Error.Error())
 			}
 		}
 		if len(certs) > 0 {
@@ -87,6 +98,8 @@ func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 				uat.Signatures = append(uat.Signatures, others...)
 			}
 			userAttributes = append(userAttributes, uat)
+		} else {
+			log.Debugf("Dropped uat %s because no valid self-sigs", uat.UUID)
 		}
 	}
 	for _, subKey := range key.SubKeys {
@@ -95,11 +108,15 @@ func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 		for _, cert := range ss.Revocations {
 			if cert.Error == nil {
 				certs = append(certs, cert.Signature)
+			} else {
+				log.Debugf("Dropped revocation sig on subkey %s because %s", subKey.KeyID(), cert.Error.Error())
 			}
 		}
 		for _, cert := range ss.Certifications {
 			if cert.Error == nil {
 				certs = append(certs, cert.Signature)
+			} else {
+				log.Debugf("Dropped certification sig on subkey %s because %s", subKey.KeyID(), cert.Error.Error())
 			}
 		}
 		if len(certs) > 0 {
@@ -108,6 +125,8 @@ func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 				subKey.Signatures = append(subKey.Signatures, others...)
 			}
 			subKeys = append(subKeys, subKey)
+		} else {
+			log.Debugf("Dropped subkey %s because no valid self-sigs", subKey.KeyID())
 		}
 	}
 	key.UserIDs = userIDs
