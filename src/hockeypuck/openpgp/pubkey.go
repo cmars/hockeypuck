@@ -36,6 +36,7 @@ type PublicKey struct {
 	RFingerprint string
 	RKeyID       string
 	RShortID     string
+	Version      uint8
 
 	// Creation stores the timestamp when the public key was created.
 	Creation time.Time
@@ -191,6 +192,7 @@ func (pkp *PublicKey) setPublicKey(pk *packet.PublicKey) error {
 	pkp.Creation = pk.CreationTime
 	pkp.Algorithm = int(pk.PubKeyAlgo)
 	pkp.BitLen = int(bitLen)
+	pkp.Version = 4
 	pkp.Parsed = true
 	return nil
 }
@@ -228,6 +230,7 @@ func (pkp *PublicKey) setPublicKeyV3(pk *packet.PublicKeyV3) error {
 	}
 	pkp.Algorithm = int(pk.PubKeyAlgo)
 	pkp.BitLen = int(bitLen)
+	pkp.Version = 3
 	pkp.Parsed = true
 	return nil
 }

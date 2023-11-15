@@ -274,8 +274,8 @@ func (s *ResolveSuite) TestSelfSignedOnly_V3SigDropped(c *gc.C) {
 	for _, uid := range key.UserIDs {
 		c.Assert(uid.Signatures, gc.HasLen, 1)
 	}
-	// v3 signature on a v4 packet is dropped
-	c.Assert(key.SubKeys, gc.HasLen, 0)
+	// v3 signature on a v4 encryption subkey is NOT dropped
+	c.Assert(key.SubKeys, gc.HasLen, 1)
 }
 
 func (s *ResolveSuite) TestFakeNews(c *gc.C) {
@@ -295,4 +295,18 @@ func (s *ResolveSuite) TestResolveRootSignatures(c *gc.C) {
 	c.Assert(key1.MD5, gc.Equals, key2.MD5)
 	c.Assert(key1.Signatures, gc.HasLen, 1)
 	c.Assert(key2.Signatures, gc.HasLen, 1)
+}
+
+func (s *ResolveSuite) TestMergeRevocationSig(c *gc.C) {
+	key := MustInputAscKey("test-key.asc")
+	armorBlock, err := armor.Decode(testing.MustInput("test-key-revoke.asc"))
+	c.Assert(err, gc.IsNil)
+	okr, err := NewOpaqueKeyReader(armorBlock.Body)
+	c.Assert(err, gc.IsNil)
+	keyrings, err := okr.Read()
+	c.Assert(err, gc.IsNil)
+	sig, err := ParseSignature(keyrings[0].Packets[0], time.Now(), "", "")
+	c.Assert(err, gc.IsNil)
+	MergeRevocationSig(key, sig)
+	c.Assert(key.Signatures, gc.HasLen, 1)
 }

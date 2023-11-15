@@ -38,7 +38,8 @@ import (
 	log "hockeypuck/logrus"
 )
 
-var ErrMissingSignature = fmt.Errorf("Key material missing an expected signature")
+var ErrMissingSignature = fmt.Errorf("key material missing an expected signature")
+var ErrBareRevocation = fmt.Errorf("bare revocation signature instead of key")
 
 type ArmoredKeyWriter struct {
 	headers map[string]string
@@ -212,6 +213,8 @@ func (ok *OpaqueKeyring) Parse() (*PrimaryKey, error) {
 				}
 				pubkey.Others = append(pubkey.Others, other)
 			}
+		} else if opkt.Tag == 2 { //packet.PacketTypeSignature:
+			return nil, ErrBareRevocation
 		}
 	}
 	if pubkey == nil {
@@ -276,6 +279,7 @@ func (r *OpaqueKeyReader) Read() ([]*OpaqueKeyring, error) {
 	var current *OpaqueKeyring
 	var currentKeyLen int
 	var currentFingerprint string
+	var initial = true // initial bare signature packet should be parsed
 PARSE:
 	for op, err = or.Next(); err == nil; op, err = or.Next() {
 		packetLen := len(op.Contents)
@@ -298,6 +302,7 @@ PARSE:
 			current = nil
 			currentKeyLen = 0
 			currentFingerprint = ""
+			initial = false
 
 			pubkey, err := ParsePrimaryKey(op)
 			if err != nil {
@@ -316,16 +321,28 @@ PARSE:
 			current.setPosition(r.r)
 			currentKeyLen = 0
 			currentFingerprint = fp
-			fallthrough
-		case 2, 13, 14, 17:
+			current.Packets = append(current.Packets, op)
+		case 2:
+			//packet.PacketTypeSignature
+			if current != nil {
+				current.Packets = append(current.Packets, op)
+			} else if initial {
+				// This may be a bare revocation, put it in its own keyring
+				current = &OpaqueKeyring{}
+				current.setPosition(r.r)
+				currentKeyLen = 0
+				currentFingerprint = ""
+				current.Packets = append(current.Packets, op)
+			}
+		case 13, 14, 17:
 			//packet.PacketTypeUserId,
 			//packet.PacketTypeUserAttribute,
 			//packet.PacketTypePublicSubKey,
-			//packet.PacketTypeSignature
 			if current != nil {
 				current.Packets = append(current.Packets, op)
 			}
 		}
+		initial = false
 		if current != nil {
 			currentKeyLen += packetLen
 			if r.maxKeyLen > 0 && currentKeyLen > r.maxKeyLen {

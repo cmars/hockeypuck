@@ -30,18 +30,25 @@ func (pubkey *PrimaryKey) verifyPublicKeySelfSig(signed *PublicKey, sig *Signatu
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	pkParsed, err := pkOpaque.Parse()
+	pkParsed, _ := pkOpaque.Parse()
 	switch pk := pkParsed.(type) {
 	case *packet.PublicKey:
-		s, err := sig.signaturePacket()
-		if err != nil {
-			return errors.WithStack(err)
-		}
 		signedPk, err := signed.publicKeyPacket()
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		return errors.WithStack(pk.VerifyKeySignature(signedPk, s))
+		s, err := sig.signaturePacket()
+		if err == nil {
+			return errors.WithStack(pk.VerifyKeySignature(signedPk, s))
+		}
+		// v4 keys can also make v3 sigs over v4 encryption subkeys
+		s3, err := sig.signatureV3Packet()
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		if signedPk.Version == 4 {
+			return errors.WithStack(pk.VerifyKeySignatureV3(signedPk, s3))
+		}
 	case *packet.PublicKeyV3:
 		s, err := sig.signatureV3Packet()
 		if err != nil {
